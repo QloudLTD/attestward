@@ -39,10 +39,20 @@ func ForEachRepo[T any](ctx context.Context, repos []string, concurrency int, fn
 	var wg sync.WaitGroup
 
 	for i, repo := range repos {
-		// Race acquiring a slot against cancellation, not just check-then-block:
-		// a plain "check ctx.Done() then sem <- struct{}{}" would miss
-		// cancellation that happens while already blocked waiting for a
-		// slot to free up under a full worker pool.
+		// Explicit pre-check, not just the select below: when ctx is
+		// already canceled AND the semaphore has room (the common case for
+		// the first repo, or whenever concurrency exceeds what's currently
+		// in flight), both select cases are immediately ready and Go picks
+		// between them at random — so an already-canceled context could
+		// still let a repo through on chance alone without this fast path.
+		if ctx.Err() != nil {
+			results[i] = RepoResult[T]{Repo: repo, Err: ctx.Err()}
+			continue
+		}
+		// Then race acquiring a slot against cancellation, not just
+		// check-then-block: a plain "check ctx.Done() then
+		// sem <- struct{}{}" would miss cancellation that happens while
+		// already blocked waiting for a slot to free up under a full pool.
 		select {
 		case <-ctx.Done():
 			results[i] = RepoResult[T]{Repo: repo, Err: ctx.Err()}

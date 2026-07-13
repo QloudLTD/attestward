@@ -30,6 +30,29 @@ func TestForEachRepo_RunsEveryRepoAndPreservesOrder(t *testing.T) {
 	}
 }
 
+// TestForEachRepo_PreCanceledContextNeverDispatchesAny is a regression
+// test for a latent bug found while fixing a near-identical issue in
+// cmd/attestor's runCollectors (issue #10's Fable 5 review): when ctx is
+// already canceled *before* ForEachRepo is even called, and the semaphore
+// has room (true for the first repo), the original select raced ctx.Done()
+// against an immediately-ready sem<- — both cases ready at once, so Go's
+// random tie-breaking could still let fn run. Confirmed flaky before the
+// fix (failed roughly half the time over repeated runs); this asserts it
+// deterministically now.
+func TestForEachRepo_PreCanceledContextNeverDispatchesAny(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var dispatched int32
+	ForEachRepo(ctx, []string{"repo-a"}, 1, func(context.Context, string) (string, error) {
+		atomic.AddInt32(&dispatched, 1)
+		return "x", nil
+	})
+	if dispatched != 0 {
+		t.Fatal("fn was called despite ctx already being canceled before ForEachRepo started")
+	}
+}
+
 func TestForEachRepo_NeverExceedsConcurrencyLimit(t *testing.T) {
 	repos := make([]string, 20)
 	for i := range repos {
