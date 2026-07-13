@@ -1,0 +1,18 @@
+version: "1.0.0"
+source:
+  title: "test fixture"
+  publisher: "test"
+  identifier: "TEST"
+  url: "https://example.invalid"
+  published: "2026-01"
+retrieved: "2026-01-01"
+practices:
+  PO.5:
+    title: "Implement and Maintain Secure Environments for Software Development"
+    text: "test"
+tasks:
+  - id: PO.99.99.1
+    family: PO
+    practice: PO.5
+    text: "invented ID format — real SSDF task IDs are family.practice.task, not four segments"
+    checks: []

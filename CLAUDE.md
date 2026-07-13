@@ -76,7 +76,7 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 1 — Model + mappings**
 - [x] #5 Evidence/check data model + JSON Schema
-- [ ] #6 `mappings/ssdf-800-218.yaml`
+- [x] #6 `mappings/ssdf-800-218.yaml`
 - [ ] #7 `mappings/cisa-ssda-form.yaml`
 - [ ] #8 `attestor checks list`
 
