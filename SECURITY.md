@@ -23,5 +23,26 @@ Pre-1.0: only the latest release receives fixes.
 
 ## Verifying releases
 
-Release binaries are checksummed and cosign-signed (from the first tagged release).
-Verification instructions ship in each release's notes.
+Every release ships `checksums.txt` (SHA-256 over all archives) plus a keyless cosign
+Sigstore bundle (`checksums.txt.bundle`) — no signing key for you to fetch or trust;
+verification instead pins the exact GitHub Actions workflow identity and Sigstore's OIDC
+issuer. (cosign v2 used separate `.sig`/`.pem` files via `--output-signature`/
+`--output-certificate`; cosign v3 removed those flags in favor of one bundle file via
+`--bundle` — this command is written for v3, which is what this repo's release pipeline
+uses. Install cosign v3+.) Download both files from the release, then:
+
+```bash
+cosign verify-blob \
+  --bundle checksums.txt.bundle \
+  --certificate-identity-regexp "^https://github.com/sioakim/ssdf/\.github/workflows/release\.yaml@refs/tags/v.*$" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  checksums.txt
+
+# then confirm your downloaded archive's hash is listed:
+#   Linux:            sha256sum --ignore-missing -c checksums.txt
+#   macOS:             shasum -a 256 --ignore-missing -c checksums.txt
+# (--ignore-missing skips the other 4 platforms' archives you didn't download —
+# without it, a genuinely valid single-archive download still reports FAILURE.)
+```
+
+If `cosign verify-blob` fails, do not run the binary — treat it as untrusted.

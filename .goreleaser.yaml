@@ -1,0 +1,88 @@
+version: 2
+
+project_name: attestor
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: attestor
+    main: ./cmd/attestor
+    binary: attestor
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^style:'
+      - '^chore:'
+      - Merge pull request
+
+release:
+  prerelease: auto
+
+# Keyless signing (Sigstore/Fulcio OIDC) over the checksums file — no key
+# material for us to manage. Resolves DECISIONS.md D6. Requires id-token:
+# write in the calling workflow (see .github/workflows/release.yaml); cosign
+# auto-detects the GitHub Actions ambient OIDC token.
+#
+# Uses cosign's --bundle output (a single Sigstore bundle JSON file with the
+# signature, certificate, and transparency-log proof together) rather than
+# the legacy separate --output-signature/--output-certificate files: cosign
+# v3 removed those flags entirely (confirmed against the installed v3.1.1 —
+# `cosign sign-blob --help` / `verify-blob --help` list only --bundle for
+# this flow now). See SECURITY.md for the matching verify command.
+signs:
+  - id: checksums
+    cmd: cosign
+    signature: "${artifact}.bundle"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "--yes"
+      - "${artifact}"
+    artifacts: checksum

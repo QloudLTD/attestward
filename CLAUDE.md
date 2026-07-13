@@ -71,8 +71,8 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 0 — Skeleton**
 - [x] #2 Go module, project skeleton, Makefile
-- [ ] #3 CI — lint, test, build matrix, CodeQL
-- [ ] #4 Release pipeline — goreleaser + cosign
+- [x] #3 CI — lint, test, build matrix, CodeQL
+- [x] #4 Release pipeline — goreleaser + cosign
 
 **Phase 1 — Model + mappings**
 - [ ] #5 Evidence/check data model + JSON Schema

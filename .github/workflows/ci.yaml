@@ -97,3 +97,21 @@ jobs:
         with:
           name: attestor-${{ matrix.goos }}-${{ matrix.goarch }}
           path: attestor-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+  # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
+  # push or cosign's OIDC signing context. Informational only (not a required
+  # check) since it duplicates build's compile coverage.
+  goreleaser-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      # No `version:` pin — see the matching comment in release.yaml.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          args: release --snapshot --clean --skip=sign
