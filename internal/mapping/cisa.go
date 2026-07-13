@@ -2,6 +2,8 @@ package mapping
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -50,41 +52,59 @@ type CISAMapping struct {
 	ClusterByID map[string]CISACluster `yaml:"-"`
 }
 
-// LoadCISA reads and strictly validates a cisa-ssda-form.yaml-shaped file.
-// ssdf must be an already-loaded SSDFMapping (see LoadSSDF): every
-// ssdf_tasks entry, at cluster level and sub-element level, must resolve to
-// a task defined there — this is the cross-file referential-integrity check
-// issue #7 requires, and it fails loudly rather than silently accepting a
-// dangling reference.
+// LoadCISA reads and strictly validates a cisa-ssda-form.yaml-shaped file
+// from the local filesystem — used by tests. The shipped binary uses
+// LoadCISAFS against the embedded mappings.FS instead.
 func LoadCISA(path string, ssdf *SSDFMapping) (*CISAMapping, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
+	return decodeCISA(f, path, ssdf)
+}
 
-	dec := yaml.NewDecoder(f)
+// LoadCISAFS is LoadCISA for an fs.FS (e.g. the embedded mappings.FS)
+// instead of the local filesystem.
+func LoadCISAFS(fsys fs.FS, name string, ssdf *SSDFMapping) (*CISAMapping, error) {
+	f, err := fsys.Open(name)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", name, err)
+	}
+	defer func() { _ = f.Close() }()
+	return decodeCISA(f, name, ssdf)
+}
+
+// decodeCISA holds the decode+validate logic shared by LoadCISA and
+// LoadCISAFS. ssdf must be an already-loaded SSDFMapping (see LoadSSDF):
+// every ssdf_tasks entry, at cluster level and sub-element level, must
+// resolve to a task defined there — this is the cross-file
+// referential-integrity check issue #7 requires, and it fails loudly rather
+// than silently accepting a dangling reference. source is used only to
+// prefix error messages.
+func decodeCISA(r io.Reader, source string, ssdf *SSDFMapping) (*CISAMapping, error) {
+	dec := yaml.NewDecoder(r)
 	dec.KnownFields(true)
 
 	var m CISAMapping
 	if err := dec.Decode(&m); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, fmt.Errorf("parse %s: %w", source, err)
 	}
 
 	m.ClusterByID = make(map[string]CISACluster, len(m.Clusters))
 	for _, cluster := range m.Clusters {
 		if _, dup := m.ClusterByID[cluster.ID]; dup {
-			return nil, fmt.Errorf("%s: duplicate cluster id %q", path, cluster.ID)
+			return nil, fmt.Errorf("%s: duplicate cluster id %q", source, cluster.ID)
 		}
 		for _, taskID := range cluster.SSDFTasks {
 			if _, ok := ssdf.TaskByID[taskID]; !ok {
-				return nil, fmt.Errorf("%s: cluster %s references unknown SSDF task %q", path, cluster.ID, taskID)
+				return nil, fmt.Errorf("%s: cluster %s references unknown SSDF task %q", source, cluster.ID, taskID)
 			}
 		}
 		for _, sub := range cluster.SubElements {
 			for _, taskID := range sub.SSDFTasks {
 				if _, ok := ssdf.TaskByID[taskID]; !ok {
-					return nil, fmt.Errorf("%s: cluster %s sub-element %s references unknown SSDF task %q", path, cluster.ID, sub.ID, taskID)
+					return nil, fmt.Errorf("%s: cluster %s sub-element %s references unknown SSDF task %q", source, cluster.ID, sub.ID, taskID)
 				}
 			}
 		}

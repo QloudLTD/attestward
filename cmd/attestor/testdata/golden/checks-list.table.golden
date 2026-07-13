@@ -1,0 +1,4 @@
+CHECK ID                TITLE             COLLECTOR     SSDF TASKS  CLUSTERS  TOKEN SCOPE  STATUS
+C01.org.mfa             Org MFA enforced  org-security  PO.5.1      1         read:org     ok
+C05.sast.tool-detected                                  PW.7.1      4                      unimplemented
+C99.example.unmapped    Unmapped example  example                             n/a          unmapped
