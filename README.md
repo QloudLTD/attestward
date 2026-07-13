@@ -6,6 +6,9 @@
 **Status:** pre-alpha — v0.1 under active, issue-driven development. Nothing here is usable yet.
 **License:** [Apache-2.0](LICENSE)
 
+[![CI](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml)
+[![CodeQL](https://github.com/sioakim/ssdf/actions/workflows/codeql.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/codeql.yaml)
+
 ---
 
 ## What this is

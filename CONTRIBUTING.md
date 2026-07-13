@@ -24,8 +24,15 @@ issue thread is the record of what was decided and why.
 4. Conventional commits: `feat(collect): add repo-protection ruleset checks`
    (types: `feat|fix|chore|docs|refactor|test|style|perf`; imperative mood; reference the
    issue in the footer: `Fixes #12`).
-5. CI must be green. Squash merge only; the PR title becomes the commit on `main`.
+5. CI must be green (`lint` and `test` are required status checks on `main`; the `build`
+   matrix runs and uploads artifacts but does not gate merge). Squash merge only; the PR
+   title becomes the commit on `main`.
 6. Delete the branch after merge.
+
+`main` is protected by a repository ruleset (PR required, linear history, no force-push,
+no deletion). Repo admins can bypass it — documented here rather than left implicit, so a
+solo maintainer isn't deadlocked by their own rules — but bypass is for emergencies only;
+default to the PR workflow above even as the sole maintainer.
 
 ## Development setup
 

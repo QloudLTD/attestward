@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Deliberately NOT go-version-file: golangci-lint v2.12.2 requires Go
+      # >=1.25, independent of go.mod's `go 1.22` minimum-compatibility
+      # floor (the module itself doesn't need a newer language version —
+      # only the linter tool being installed does).
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25"
+      - name: Install golangci-lint (pinned to the version required locally)
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+      - run: golangci-lint run
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - run: go test ./... -race -coverprofile=coverage.out
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: coverage.out
+
+  # One matrix entry per Phase 0 target platform/arch, each on a runner that
+  # can execute the binary natively (no cross-arch execution gaps) so this
+  # job proves `attestor version` actually runs on linux, macOS, and windows —
+  # not just that it compiles.
+  build:
+    needs: [lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            os: ubuntu-latest
+          - goos: linux
+            goarch: arm64
+            os: ubuntu-24.04-arm
+          # Both darwin builds run on the same Apple Silicon runner: amd64
+          # executes fine there too since GitHub's macos-latest images ship
+          # with Rosetta 2 preinstalled, and it avoids the paid "-intel"
+          # larger-runner label that free/pro plans don't have.
+          - goos: darwin
+            goarch: amd64
+            os: macos-latest
+          - goos: darwin
+            goarch: arm64
+            os: macos-latest
+          - goos: windows
+            goarch: amd64
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
+          out="attestor-${{ matrix.goos }}-${{ matrix.goarch }}${ext}"
+          go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "$out" ./cmd/attestor
+          echo "BIN=$out" >> "$GITHUB_ENV"
+      - name: Verify it runs
+        shell: bash
+        run: ./"$BIN" version
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: attestor-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: attestor-${{ matrix.goos }}-${{ matrix.goarch }}*
