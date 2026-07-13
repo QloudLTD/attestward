@@ -1,0 +1,188 @@
+# mappings/cisa-ssda-form.yaml
+#
+# The CISA Secure Software Development Attestation (SSDA) form's four
+# attestation clusters (Section III), each linked to the NIST SP 800-218
+# (SSDF) task IDs that substantiate it. `ssdf_tasks` values are taken
+# VERBATIM from the form's own Appendix ("Minimum Attestation References"
+# table, pp. 9-10 of the source PDF) — this is CISA's own cross-reference,
+# not attestor's interpretation, EXCEPT cluster "1" (see its `notes` field:
+# CISA's row for clause 1 reads "[See rows below]" rather than listing tasks
+# directly, so that cluster's top-level ssdf_tasks is a derived union of its
+# sub_elements rows, not a direct verbatim read — same transparency standard
+# as an ordinary paraphrase gets). The one edit made to the table's cell
+# text: the source PDF has typos in a few cells ("PO 1.1", "PW 7.1",
+# "PW 8.1", "RV 1.1" — missing the period before the task number); those are
+# normalized here to the real SSDF ID format (see mappings/ssdf-800-218.yaml)
+# since the unnormalized text isn't a valid ID at all. Every ssdf_tasks entry
+# here must resolve against ssdf-800-218.yaml — internal/mapping's loader
+# enforces this as a hard error, not a warning.
+#
+# `form_text` is quoted VERBATIM from Section III of the source PDF.
+#
+# ---------------------------------------------------------------------------
+# Rollup truth table (implemented + unit-tested in internal/mapping/rollup.go)
+# ---------------------------------------------------------------------------
+# Check statuses roll up to task status; task statuses roll up to cluster
+# status. Both levels use the same precedence — most-dominant first, i.e. the
+# rollup of a set of statuses is the highest-ranked status present:
+#
+#   1. verified-fail   (dominant: any fail means the parent is not clean,
+#                        full stop — this can never be outranked)
+#   2. partial
+#   3. not-checkable    (an honest "unknown" must be visible at the parent
+#                        level, never silently absorbed into a cleaner status)
+#   4. self-attested    (ranks below not-checkable: a self-attested answer is
+#                        at least an affirmative claim, even if unverified;
+#                        an all-unknown situation deserves more caution than
+#                        an all-self-attested one)
+#   5. verified-pass    (the floor: only reached when EVERY contributing
+#                        status is itself verified-pass — the "self-attested
+#                        never upgrades to verified" rule falls directly out
+#                        of self-attested outranking verified-pass here)
+#
+# Empty input (a task/cluster with no contributing results at all) rolls up
+# to not-checkable — no evidence is definitionally not verified.
+# ---------------------------------------------------------------------------
+
+version: "1.0.0"
+
+source:
+  title: "Secure Software Development Attestation Form, Version 1.0"
+  publisher: "Cybersecurity and Infrastructure Security Agency (CISA)"
+  identifier: "CISA SSDA Common Form v1.0"
+  url: "https://www.cisa.gov/sites/default/files/2024-03/Self-Attestation-Common-Form-03082024-FINAL.pdf"
+  file_dated: "2024-03-08"
+  legal_authority: "44 U.S.C. § 3554; Executive Order 14028; OMB M-22-18 (2022-09-14), as amended by OMB M-23-16 (2023-06-09)"
+
+retrieved: "2026-07-13"
+
+# Not modeled as a fifth cluster: after the four attestation clauses, the
+# form has a separate checkbox commitment — "I further attest that the
+# software producer will notify any agency to which it has submitted this
+# form if and when the producer ceases to make consistent use of the
+# practices identified above" — which is a forward-looking notification
+# commitment, not itself a security practice being attested to. Recorded
+# here so the omission is deliberate and visible, not a silent drop.
+notify_on_cessation_clause: >-
+  I further attest that the software producer will notify any agency to
+  which it has submitted this form if and when the producer ceases to make
+  consistent use of the practices identified above in developing the
+  software.
+
+clusters:
+  - id: "1"
+    title: "Secure development and build environments"
+    form_text: >-
+      The software is developed and built in secure environments. Those
+      environments are secured by the following actions, at a minimum: a)
+      Separating and protecting each environment involved in developing and
+      building software; b) Regularly logging, monitoring, and auditing
+      trust relationships used for authorization and access: i) to any
+      software development and build environments; and ii) among components
+      within each environment; c) Enforcing multi-factor authentication and
+      conditional access across the environments relevant to developing and
+      building software in a manner that minimizes security risk; d) Taking
+      consistent and reasonable steps to document, as well as minimize use
+      or inclusion of software products that create undue risk within the
+      environments used to develop and build software; e) Encrypting
+      sensitive data, such as credentials, to the extent practicable and
+      based on risk; f) Implementing defensive cybersecurity practices,
+      including continuous monitoring of operations and alerts and, as
+      necessary, responding to suspected and confirmed cyber incidents.
+    ssdf_tasks: [PO.3.2, PO.3.3, PO.5.1, PO.5.2]
+    notes: >-
+      Unlike clusters 2/3/4, CISA's Appendix table row for clause 1 reads
+      "[See rows below]" rather than listing tasks directly — this
+      top-level list is the union of the sub_elements rows below (1a-1f),
+      computed here rather than read verbatim from a single cell. Locked in
+      by internal/mapping's TestCluster1TasksAreUnionOfSubElements.
+    sub_elements:
+      - id: "1a"
+        form_text: "Separating and protecting each environment involved in developing and building software"
+        ssdf_tasks: [PO.5.1]
+      - id: "1b"
+        form_text: >-
+          Regularly logging, monitoring, and auditing trust relationships
+          used for authorization and access: i) to any software development
+          and build environments; and ii) among components within each
+          environment
+        ssdf_tasks: [PO.5.1]
+      - id: "1c"
+        form_text: >-
+          Enforcing multi-factor authentication and conditional access
+          across the environments relevant to developing and building
+          software in a manner that minimizes security risk
+        ssdf_tasks: [PO.5.1, PO.5.2]
+      - id: "1d"
+        form_text: >-
+          Taking consistent and reasonable steps to document, as well as
+          minimize use or inclusion of software products that create undue
+          risk within the environments used to develop and build software
+        ssdf_tasks: [PO.5.1]
+      - id: "1e"
+        form_text: "Encrypting sensitive data, such as credentials, to the extent practicable and based on risk"
+        ssdf_tasks: [PO.5.2]
+      - id: "1f"
+        form_text: >-
+          Implementing defensive cybersecurity practices, including
+          continuous monitoring of operations and alerts and, as necessary,
+          responding to suspected and confirmed cyber incidents
+        ssdf_tasks: [PO.3.2, PO.3.3, PO.5.1, PO.5.2]
+
+  - id: "2"
+    title: "Trusted source code supply chain (good-faith effort)"
+    form_text: >-
+      The software producer makes a good-faith effort to maintain trusted
+      source code supply chains by employing automated tools or comparable
+      processes to address the security of internal code and third-party
+      components and manage related vulnerabilities.
+    ssdf_tasks:
+      [PO.1.1, PO.3.1, PO.3.2, PO.5.1, PO.5.2, PS.1.1, PS.2.1, PS.3.1, PW.4.1, PW.4.4, PW.7.1, PW.8.1, RV.1.1]
+    notes: >-
+      Source table cells read "PO 1.1", "PW 7.1", "PW 8.1", "RV 1.1"
+      (missing periods) — normalized to the real SSDF ID format; see file
+      header.
+
+  - id: "3"
+    title: "Provenance for internal and third-party code"
+    form_text: >-
+      The software producer maintains provenance for internal code and
+      third-party components incorporated into the software to the greatest
+      extent feasible.
+    ssdf_tasks:
+      [PO.1.3, PO.3.2, PO.5.1, PO.5.2, PS.3.1, PS.3.2, PW.4.1, PW.4.4, RV.1.1, RV.1.2]
+
+  - id: "4"
+    title: "Automated vulnerability checking, pre-release, and disclosure program"
+    form_text: >-
+      The software producer employs automated tools or comparable processes
+      that check for security vulnerabilities. In addition: a) The software
+      producer operates these processes on an ongoing basis and prior to
+      product, version, or update releases; b) The software producer has a
+      policy or process to address discovered security vulnerabilities prior
+      to product release; and c) The software producer operates a
+      vulnerability disclosure program and accepts, reviews, and addresses
+      disclosed software vulnerabilities in a timely fashion and according to
+      any timelines specified in the vulnerability disclosure program or
+      applicable policies.
+    ssdf_tasks:
+      [PO.4.1, PO.4.2, PS.1.1, PW.2.1, PW.4.4, PW.5.1, PW.6.1, PW.6.2, PW.7.1, PW.7.2, PW.8.2, PW.9.1, PW.9.2, RV.1.1, RV.1.2, RV.1.3, RV.2.1, RV.2.2, RV.3.3]
+    notes: >-
+      Unlike cluster 1, CISA's Appendix table does not break clause 4 down
+      into a per-sub-element (a/b/c) SSDF task mapping — only one combined
+      list for the whole clause. Sub-elements below carry verbatim form text
+      for readability but no separate ssdf_tasks list, since inventing a
+      finer-grained mapping than the source provides would violate the
+      never-invent-citations rule.
+    sub_elements:
+      - id: "4a"
+        form_text: "The software producer operates these processes on an ongoing basis and prior to product, version, or update releases"
+      - id: "4b"
+        form_text: "The software producer has a policy or process to address discovered security vulnerabilities prior to product release"
+      - id: "4c"
+        form_text: >-
+          The software producer operates a vulnerability disclosure program
+          and accepts, reviews, and addresses disclosed software
+          vulnerabilities in a timely fashion and according to any
+          timelines specified in the vulnerability disclosure program or
+          applicable policies

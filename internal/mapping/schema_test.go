@@ -70,3 +70,25 @@ func TestSSDFSchemaAssertsDateFormat(t *testing.T) {
 		t.Fatal("expected a bogus retrieved date to fail schema validation, but it passed")
 	}
 }
+
+func TestCISAMappingValidatesAgainstSchema(t *testing.T) {
+	sch := compileMappingSchema(t, "../../docs/schema/mapping-cisa-ssda-form.schema.json")
+	if err := sch.Validate(loadYAMLAsJSONDoc(t, "../../mappings/cisa-ssda-form.yaml")); err != nil {
+		t.Fatalf("mappings/cisa-ssda-form.yaml failed schema validation: %v", err)
+	}
+}
+
+// TestCISASchemaAssertsDateFormat mirrors TestSSDFSchemaAssertsDateFormat
+// for the CISA mapping file's "retrieved" field.
+func TestCISASchemaAssertsDateFormat(t *testing.T) {
+	sch := compileMappingSchema(t, "../../docs/schema/mapping-cisa-ssda-form.schema.json")
+	doc := loadYAMLAsJSONDoc(t, "../../mappings/cisa-ssda-form.yaml")
+	m, ok := doc.(map[string]any)
+	if !ok {
+		t.Fatal("cisa-ssda-form.yaml did not decode to a JSON object")
+	}
+	m["retrieved"] = "not-a-date"
+	if err := sch.Validate(doc); err == nil {
+		t.Fatal("expected a bogus retrieved date to fail schema validation, but it passed")
+	}
+}

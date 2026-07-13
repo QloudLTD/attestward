@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sioakim/ssdf/blob/main/docs/schema/mapping-cisa-ssda-form.schema.json",
+  "title": "attestor mappings/cisa-ssda-form.yaml",
+  "description": "Structure of the CISA SSDA form's four attestation clusters. Cross-file referential integrity (every ssdf_tasks entry must resolve in ssdf-800-218.yaml) is enforced by internal/mapping.LoadCISA, not expressible in this schema alone.",
+  "type": "object",
+  "required": ["version", "source", "retrieved", "clusters"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "source": {
+      "type": "object",
+      "required": ["title", "publisher", "identifier", "url", "file_dated", "legal_authority"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "publisher": { "type": "string" },
+        "identifier": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "file_dated": { "type": "string", "format": "date" },
+        "legal_authority": { "type": "string" }
+      }
+    },
+    "retrieved": { "type": "string", "format": "date" },
+    "notify_on_cessation_clause": { "type": "string" },
+    "clusters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cluster" }
+    }
+  },
+  "$defs": {
+    "cluster": {
+      "type": "object",
+      "required": ["id", "title", "form_text", "ssdf_tasks"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[0-9]+$" },
+        "title": { "type": "string" },
+        "form_text": { "type": "string" },
+        "ssdf_tasks": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" },
+        "sub_elements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sub_element" }
+        }
+      }
+    },
+    "sub_element": {
+      "type": "object",
+      "required": ["id", "form_text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "form_text": { "type": "string" },
+        "ssdf_tasks": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
