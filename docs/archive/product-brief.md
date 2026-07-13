@@ -1,5 +1,10 @@
 # Project Brief: Open-Source SSDF Evidence Engine
 
+> **Archived.** This was the seed document handed to the build agent; its content is now
+> fully captured (with more detail) in [issue #1](../../../issues/1), the v0.1 epic, and
+> the issues it links to. Kept for historical/narrative context only — the issues are
+> canonical. Do not update this file; open or edit issues instead.
+
 **Working name:** `attestor` (placeholder — final name TBD; check trademark/npm/GitHub availability before publishing)
 **License:** Apache-2.0
 **Owner:** Spyros / NEFIQ Ltd (US entity to be added later)

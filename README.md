@@ -74,11 +74,11 @@ fakes verification where none is possible.
 
 ## Documentation
 
-- [Product brief](docs/product-brief.md) — full v0.1 plan and build phases
+- [v0.1 epic](../../issues/1) — canonical scope and build-phase tracking (GitHub Issues)
 - [Architecture](docs/architecture.md) — components, data flow, extension seams
 - [Threat model](docs/threat-model.md) — what the tool accesses, what it never does
-- [Roadmap](docs/roadmap.md) — post-v0.1 direction (Azure DevOps, GitLab, continuous mode)
 - [Architecture decision records](docs/adr/)
+- [Archived planning docs](docs/archive/) — original product brief and roadmap, superseded by GitHub Issues
 
 ## Contributing
 

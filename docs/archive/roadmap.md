@@ -1,5 +1,10 @@
 # Roadmap
 
+> **Archived.** Superseded by [issue #1](../../../issues/1) (v0.1 scope) and issues
+> [#34](../../../issues/34)–[#36](../../../issues/36) (post-v0.1: Azure DevOps, GitLab,
+> continuous mode). Kept for historical/narrative context only. Do not update this file;
+> open or edit issues instead.
+
 ## v0.1 — GitHub-only evidence engine (current)
 
 Full scope in the [product brief](product-brief.md) and tracked in
