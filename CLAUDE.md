@@ -75,7 +75,7 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #4 Release pipeline — goreleaser + cosign
 
 **Phase 1 — Model + mappings**
-- [ ] #5 Evidence/check data model + JSON Schema
+- [x] #5 Evidence/check data model + JSON Schema
 - [ ] #6 `mappings/ssdf-800-218.yaml`
 - [ ] #7 `mappings/cisa-ssda-form.yaml`
 - [ ] #8 `attestor checks list`

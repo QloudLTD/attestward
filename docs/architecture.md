@@ -101,6 +101,31 @@ Three independently versioned surfaces, all recorded in `evidence.json`:
    JSON Schema published under `/docs`.
 3. **Mapping versions** — each YAML mapping file carries its own `version:` field.
 
+### Evidence schema versioning policy
+
+`model.SchemaVersion` (currently `1`) and `docs/schema/evidence-pack.v<N>.schema.json` move
+together — a schema bump always ships a new schema file alongside the Go type change in the
+same PR; the old file stays for packs written under it (evidence packs are long-lived legal
+artifacts, so old packs must remain re-readable and re-verifiable against the schema version
+they declare).
+
+**Breaking (bump `SchemaVersion`):** removing/renaming a field, changing a field's type or
+JSON name, changing the meaning of an existing value (e.g. narrowing what `partial` means),
+adding a new required field, tightening an existing constraint (`additionalProperties` stays
+`false` throughout — nothing may silently pass validation that didn't before).
+
+**Non-breaking (no bump):** adding a new optional field; adding a member to an open-ended
+enum, as long as it's documented as extensible.
+
+**Exception — `Status` is not an open-ended enum:** the five values in
+`internal/model/status.go` are exhaustive by design (every consumer, including third-party
+report readers, is expected to switch on exactly those five), so adding a sixth status value
+is treated as breaking even though JSON Schema additive changes are usually safe elsewhere.
+
+`internal/model/schema_test.go` enforces the wiring: the fixture pack must validate against
+the schema, and a deliberately invalid pack must fail — so code and schema cannot drift
+apart silently.
+
 ## Dependencies (keep minimal)
 
 `google/go-github`, `shurcooL/githubv4`, `spf13/cobra`, `gopkg.in/yaml.v3`,
