@@ -53,13 +53,12 @@ issue or needs one opened before starting.
 
 ## Dev commands
 
-Not yet available — lands with issue #2. Once it does:
-
 ```bash
-go version   # 1.22+ required
+go version   # 1.26+ installed (1.22+ required)
 make build   # or: go build ./cmd/attestor
 make test
-make lint    # golangci-lint run
+make lint    # golangci-lint run (v2 config — see .golangci.yml)
+make tidy    # go mod tidy
 ```
 
 ## Progress tracker
@@ -71,7 +70,7 @@ merges to `main`. For a visual/live view, regenerate `tools/progress/index.html`
 itself, so re-run it any time rather than hand-editing it.
 
 **Phase 0 — Skeleton**
-- [ ] #2 Go module, project skeleton, Makefile
+- [x] #2 Go module, project skeleton, Makefile
 - [ ] #3 CI — lint, test, build matrix, CodeQL
 - [ ] #4 Release pipeline — goreleaser + cosign
 

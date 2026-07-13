@@ -34,9 +34,8 @@ go version         # 1.22+
 make build         # or: go build ./cmd/attestor
 make test          # go test ./...
 make lint          # golangci-lint run
+make tidy          # go mod tidy
 ```
-
-(Until the Makefile lands in Phase 0, use the raw commands.)
 
 ## Testing conventions
 
