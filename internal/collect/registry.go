@@ -43,3 +43,31 @@ func Lookup(id string) (CheckMeta, bool) {
 	meta, ok := registry[id]
 	return meta, ok
 }
+
+// collectors holds every Collector the orchestrator (issue #10) runs during
+// `attestor scan`. Separate from the CheckMeta registry above: CheckMeta is
+// display metadata for `attestor checks list`, while this is the actual
+// executable implementation — a collector package registers both, typically
+// from its own init(). Nothing is registered yet; real collectors start
+// with issue #11.
+var collectors []Collector
+
+var collectorIDs = map[string]bool{}
+
+// RegisterCollector adds c to the set `attestor scan` runs. Panics on a
+// duplicate ID, same as Register — a double-registered collector would
+// otherwise silently run twice and duplicate every result it produces.
+func RegisterCollector(c Collector) {
+	if collectorIDs[c.ID()] {
+		panic("collect: duplicate collector id registered: " + c.ID())
+	}
+	collectorIDs[c.ID()] = true
+	collectors = append(collectors, c)
+}
+
+// Collectors returns every currently registered Collector, in registration
+// order (registration order is deterministic within a single binary, since
+// it follows Go's deterministic init() ordering).
+func Collectors() []Collector {
+	return append([]Collector{}, collectors...)
+}

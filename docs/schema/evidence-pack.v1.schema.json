@@ -45,7 +45,37 @@
       "type": "array",
       "items": { "$ref": "#/$defs/check_result" }
     },
-    "rollup": { "type": "object" },
+    "rollup": {
+      "type": "object",
+      "required": ["tasks", "clusters"],
+      "additionalProperties": false,
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["task_id", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "task_id": { "type": "string" },
+              "status": { "$ref": "#/$defs/status" }
+            }
+          }
+        },
+        "clusters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["cluster_id", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "cluster_id": { "type": "string" },
+              "status": { "$ref": "#/$defs/status" }
+            }
+          }
+        }
+      }
+    },
     "integrity": {
       "type": "object",
       "additionalProperties": false,
@@ -56,6 +86,10 @@
     }
   },
   "$defs": {
+    "status": {
+      "type": "string",
+      "enum": ["verified-pass", "verified-fail", "partial", "self-attested", "not-checkable"]
+    },
     "check_result": {
       "type": "object",
       "required": ["check_id", "title", "status", "reason", "scope", "provenance"],
@@ -63,10 +97,7 @@
       "properties": {
         "check_id": { "type": "string" },
         "title": { "type": "string" },
-        "status": {
-          "type": "string",
-          "enum": ["verified-pass", "verified-fail", "partial", "self-attested", "not-checkable"]
-        },
+        "status": { "$ref": "#/$defs/status" },
         "reason": { "type": "string" },
         "scope": {
           "type": "object",

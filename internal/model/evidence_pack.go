@@ -28,9 +28,31 @@ type ScanScope struct {
 	LookbackMonths    int      `json:"lookback_months,omitempty"`
 }
 
-// Rollup is reserved for the mapping engine's check -> SSDF task -> CISA
-// form cluster output (issues #6, #7). Empty until that engine exists.
-type Rollup struct{}
+// TaskRollup is one SSDF task's rolled-up status: the reduction (via
+// mapping.Rollup) of every CheckResult whose CheckID that task's `checks:`
+// list cites.
+type TaskRollup struct {
+	TaskID string `json:"task_id"`
+	Status Status `json:"status"`
+}
+
+// ClusterRollup is one CISA form cluster's rolled-up status: the reduction
+// of every TaskRollup its ssdf_tasks list references.
+type ClusterRollup struct {
+	ClusterID string `json:"cluster_id"`
+	Status    Status `json:"status"`
+}
+
+// Rollup is the mapping engine's check -> SSDF task -> CISA form cluster
+// output (issues #6, #7, assembled by #10's orchestrator via
+// internal/mapping.BuildRollup). Tasks/Clusters not cited by any check
+// result are omitted, not present with a zero-value status — absence means
+// "nothing in this pack speaks to this task/cluster," which is a different,
+// honest claim from any of the five Status values.
+type Rollup struct {
+	Tasks    []TaskRollup    `json:"tasks"`
+	Clusters []ClusterRollup `json:"clusters"`
+}
 
 // Integrity is reserved for pack hashing/signing (issue #27). Empty until
 // then.
@@ -45,9 +67,10 @@ type Integrity struct {
 // field here is meant to still make sense read cold, without this codebase.
 //
 // INVARIANT for whoever builds one (issue #24's writer): Results,
-// Scope.Repos, and every CheckResult's Provenance must be initialized to an
-// empty slice, never left nil. encoding/json marshals a nil slice as JSON
-// null, and docs/schema/evidence-pack.v1.schema.json declares all three
+// Scope.Repos, every CheckResult's Provenance, and (when Rollup is set) its
+// Tasks/Clusters must be initialized to an empty slice, never left nil.
+// encoding/json marshals a nil slice as JSON null, and
+// docs/schema/evidence-pack.v1.schema.json declares all of these
 // `type: array` — a zero-value-ish pack fails its own schema. There's no
 // MarshalJSON hook normalizing this; the writer must get it right at
 // construction time.

@@ -1,0 +1,47 @@
+# Example attestor scan configuration.
+#
+# Usage: attestor scan --config attestor.yaml
+# Any of these values can be overridden on the command line — e.g.
+# `attestor scan --config attestor.yaml --out /tmp/evidence` writes
+# somewhere else for one run without editing this file. Flags always win
+# over the file, field by field; a flag you don't pass leaves the file's
+# value (or attestor's built-in default) untouched.
+#
+# Unknown keys are a hard error (a typo'd "respos:" silently scanning
+# everything instead of the repos you meant would be a truthfulness bug in
+# a tool whose whole point is truthful evidence) — so if attestor rejects
+# this file after you've edited it, check for a misspelled key first.
+
+# Required. The GitHub org to scan.
+org: my-org
+
+# The "product line" being attested for. Leave empty (or omit entirely) to
+# scan every non-archived, non-fork repo in the org — attestor prints a
+# warning when it falls back to this, since scanning "everything" instead
+# of an intentional subset is worth knowing about.
+repos:
+  - my-product-api
+  - my-product-web
+
+# Glob/regex matched against tag names to find releases in scope for the
+# release-history checks (C05-C07). Default: v*
+release_tag_pattern: "v*"
+
+# How far back release-history checks look. Default: last 5 releases or 12
+# months, whichever is more data — each collector decides which of the two
+# numbers actually bound its query once it has real release dates to work
+# with.
+lookback_releases: 5
+lookback_months: 12
+
+# Path to a self-attestation answers file (see issue #23 — not consumed
+# yet). Optional; controls that can't be verified via API are reported as
+# not-checkable until this is supplied.
+# self_attestation_file: ./self-attestation.yaml
+
+# Where evidence.json (and, once #25/#26 land, report.md/html and poam.md)
+# gets written. Default: ./evidence/
+out: ./evidence/
+
+# How many collectors run concurrently. Default: 4
+concurrency: 4

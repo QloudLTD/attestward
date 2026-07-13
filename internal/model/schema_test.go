@@ -112,6 +112,10 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 				Facts: map[string]any{"required_approving_review_count": 1},
 			},
 		},
+		Rollup: &Rollup{
+			Tasks:    []TaskRollup{{TaskID: "PO.5.1", Status: StatusVerifiedPass}},
+			Clusters: []ClusterRollup{{ClusterID: "1", Status: StatusVerifiedPass}},
+		},
 	}
 
 	raw, err := json.Marshal(pack)
@@ -128,6 +132,9 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 	}
 	if roundTripped.Results[0].Status != StatusVerifiedPass {
 		t.Fatalf("round trip lost status: got %q", roundTripped.Results[0].Status)
+	}
+	if roundTripped.Rollup == nil || len(roundTripped.Rollup.Tasks) != 1 || roundTripped.Rollup.Tasks[0].TaskID != "PO.5.1" {
+		t.Fatalf("round trip lost Rollup: got %+v", roundTripped.Rollup)
 	}
 
 	var doc any

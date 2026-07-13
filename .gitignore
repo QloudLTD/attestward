@@ -14,9 +14,11 @@ evidence.json
 report.html
 report.md.local
 
-# Local config with org-specific scope
-attestor.yaml
-attestor.local.yaml
+# Local config with org-specific scope (anchored to repo root so this
+# doesn't also catch examples/attestor.yaml, which is intentionally
+# committed)
+/attestor.yaml
+/attestor.local.yaml
 
 # Editors / OS
 .DS_Store
