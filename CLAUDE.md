@@ -10,8 +10,9 @@ an issue.
 verifies the technical controls behind the CISA SSDA form against a GitHub org/repo and
 emits a signed evidence pack. Full mission and rationale: [README.md](README.md).
 
-Status: pre-alpha. v0.1 has no code yet as of 2026-07-13; build is issue-driven and
-in progress (see Progress tracker below).
+Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline) and Phase 1 (data model,
+SSDF/CISA mappings, `checks list`) are merged to `main`. No collectors exist yet — Phase 2
+(#9 onward) is next. Build is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
 
