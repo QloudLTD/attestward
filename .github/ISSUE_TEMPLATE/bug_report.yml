@@ -1,0 +1,34 @@
+name: Bug report
+description: Something broken in the tool or its output
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the exact command and any error output (redact tokens/org names as needed).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      value: |
+        - attestor version (`attestor version`):
+        - OS/arch:
+        - GitHub plan (Free/Team/Enterprise Cloud):
+        - Token type (classic PAT / fine-grained PAT / GITHUB_TOKEN in Actions):
+    validations:
+      required: true
+  - type: checkboxes
+    id: falsy
+    attributes:
+      label: Result-accuracy impact
+      options:
+        - label: This bug causes an incorrect verification result (false pass/fail) — not just a crash or UX issue

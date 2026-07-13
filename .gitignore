@@ -1,0 +1,25 @@
+# Binaries / build
+/attestor
+/dist/
+*.exe
+
+# Test/coverage output
+*.test
+coverage.out
+coverage.html
+
+# Local evidence output (never commit real scans)
+/evidence/
+evidence.json
+report.html
+report.md.local
+
+# Local config with org-specific scope
+attestor.yaml
+attestor.local.yaml
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

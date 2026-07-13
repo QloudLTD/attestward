@@ -1,0 +1,32 @@
+name: New scanner signature
+description: Add detection for a SAST/SCA/security scanner (data-only contribution)
+labels: ["type:feature", "area:mappings"]
+body:
+  - type: input
+    id: tool
+    attributes:
+      label: Tool name and category
+      placeholder: e.g. "Checkmarx One — SAST" or "OSV-Scanner — SCA"
+    validations:
+      required: true
+  - type: textarea
+    id: signature
+    attributes:
+      label: How it appears in workflows
+      description: |
+        The detectable fingerprint in GitHub Actions workflows — action `uses:` slug(s),
+        typical step names, CLI invocations in `run:` steps. Paste a real (sanitized)
+        workflow snippet.
+    validations:
+      required: true
+  - type: textarea
+    id: history
+    attributes:
+      label: Run-history mapping
+      description: How do its workflow runs indicate a scan happened (job name, check run, artifact)? Anything needed to compute per-release cadence?
+  - type: checkboxes
+    id: fixture
+    attributes:
+      label: Fixture
+      options:
+        - label: I can provide a fixture workflow file for tests
