@@ -189,6 +189,58 @@ deliberately off or misconfigured. See \`../fixtures.yaml\` in the attestor
 repo for the exact expected status of every check against this repo.
 " "docs: add README"
 
+# C08 actions-security fixtures (issue #20), split across two workflow
+# files by trigger safety rather than by which check each demonstrates:
+#
+# - pr-target-fixture.yaml genuinely must declare a live pull_request_target
+#   trigger for C08.actions.pull-request-target to detect it — meaning an
+#   external contributor's real PR against this public repo COULD fire it.
+#   Its only steps are a checkout of the PR head (the exact dangerous
+#   pattern this check flags) followed by a no-op echo: no secrets
+#   referenced, no further execution of the checked-out content, and
+#   `permissions: contents: read` stays least-privilege even here — so the
+#   worst case if it ever really fires is a read-only checkout on a
+#   throwaway GitHub-hosted runner, nothing more.
+# - deploy-fixture.yaml carries every other C08-bad pattern (an unpinned
+#   third-party action, a self-hosted runner label, a static-AWS-credential
+#   login, and no permissions: block at all) but triggers only on
+#   workflow_dispatch, which requires repo write access to invoke — an
+#   external contributor cannot trigger it. Its self-hosted job would sit
+#   queued forever regardless (no self-hosted runner is registered to this
+#   org), and its AWS step would fail cleanly on the unset secrets if it
+#   somehow ran.
+put_file "$BAD_REPO" ".github/workflows/pr-target-fixture.yaml" \
+"name: label pr
+on:
+  pull_request_target: {}
+permissions:
+  contents: read
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: \${{ github.event.pull_request.head.sha }}
+      - run: echo \"checked out PR head (demo fixture; no further use of the checkout)\"
+" "ci: add pull_request_target fixture workflow (C08 actions-security, issue #20)"
+
+put_file "$BAD_REPO" ".github/workflows/deploy-fixture.yaml" \
+"name: deploy
+on:
+  workflow_dispatch: {}
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: docker/build-push-action@v6
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: \${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: \${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+" "ci: add unpinned/self-hosted/static-credential fixture workflow (C08 actions-security, issue #20)"
+
 log "configuring $GOOD_REPO branch protection on main"
 gh api "repos/$ORG/$GOOD_REPO/branches/main/protection" -X PUT --input - >/dev/null <<EOF
 {

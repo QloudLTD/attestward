@@ -1,0 +1,11 @@
+name: shared build
+on:
+  workflow_call: {}
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/build-push-action@v6
+      - run: echo ok

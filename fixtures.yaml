@@ -129,6 +129,26 @@ repo_checks:
     - check_id: C07.provenance.commit-linkage
       status: verified-pass
       note: "The release.yaml workflow run that built v1.0.0's assets ran directly on the tagged commit."
+    - check_id: C08.actions.pinned
+      status: partial
+      note: >-
+        release.yaml's actions/checkout@v5 step is a first-party actions/*
+        reference on a mutable major-version tag rather than a full SHA —
+        tolerated by the rubric but not ideal, capping the result at
+        partial. Every third-party reference (cosign-installer) is
+        SHA-pinned.
+    - check_id: C08.actions.token-permissions
+      status: partial
+      note: >-
+        ci.yaml (built for the original C01-C04 fixture scope, issue #15,
+        before this check existed) declares no permissions: block at all;
+        release.yaml does. One of two jobs/workflows is explicit, honestly
+        capping the result at partial rather than a clean pass.
+    - {check_id: C08.actions.pull-request-target, status: verified-pass, note: "Neither workflow triggers on pull_request_target."}
+    - check_id: C08.actions.oidc-vs-secrets
+      status: not-checkable
+      note: "Neither workflow contains a recognized cloud-deployment login action (AWS/Azure/GCP) — nothing for this check to evaluate."
+    - {check_id: C08.actions.self-hosted, status: verified-pass, note: "No self-hosted runner usage in any workflow."}
   demo-bad:
     - {check_id: C02.branch.protection-exists, status: verified-fail}
     - {check_id: C02.branch.required-reviews, status: verified-fail}
@@ -162,11 +182,13 @@ repo_checks:
     - {check_id: C06.sca.tool-configured, status: verified-fail, note: "No SCA tool or Dependabot config configured."}
     - {check_id: C06.sca.ran-per-release, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
     - check_id: C06.sca.dependabot-config
-      status: not-checkable
+      status: verified-fail
       note: >-
-        demo-bad has no dependency manifest files at all (no workflows,
-        no package files) — nothing for Dependabot to cover, so this is
-        an honest not-checkable, not a gap.
+        Updated for issue #20: demo-bad now has .github/workflows/ files
+        (the C08 pull_request_target/unpinned-action fixtures), so it has
+        a detected ecosystem (github-actions) with no .github/dependabot.yml
+        covering it — a real gap now that this repo has workflows at all,
+        not the "nothing to cover" not-checkable it was before #20 landed.
     - {check_id: C06.sca.dependency-review, status: verified-fail, note: "No dependency-review-action (or equivalent) workflow configured."}
     - check_id: C06.sca.alerts-triaged
       status: verified-fail
@@ -182,3 +204,42 @@ repo_checks:
       status: verified-fail
       note: "demo-bad has no workflows at all, so no provenance-generating tool is detected."
     - {check_id: C07.provenance.commit-linkage, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - check_id: C08.actions.pinned
+      status: verified-fail
+      note: >-
+        deploy-fixture.yaml's docker/build-push-action@v6 and
+        aws-actions/configure-aws-credentials@v4 are both third-party
+        references on mutable tags, not SHAs — a real, deliberately
+        unpinned gap (issue #20's fixture).
+    - check_id: C08.actions.token-permissions
+      status: partial
+      note: >-
+        deploy-fixture.yaml declares no permissions: block at all (a
+        deliberate gap); pr-target-fixture.yaml does. One of two
+        jobs/workflows is explicit.
+    - check_id: C08.actions.pull-request-target
+      status: verified-fail
+      note: >-
+        pr-target-fixture.yaml triggers on pull_request_target and checks
+        out the PR head commit — the deliberate "pwn request" fixture for
+        this check (issue #20). Its steps are checkout + a no-op echo only:
+        no secrets referenced, `permissions: contents: read`, so a real
+        external PR triggering it does nothing beyond a read-only
+        checkout.
+    - check_id: C08.actions.oidc-vs-secrets
+      status: verified-fail
+      note: >-
+        deploy-fixture.yaml's aws-actions/configure-aws-credentials step
+        sets aws-access-key-id/aws-secret-access-key (long-lived static
+        credentials) rather than role-to-assume (OIDC) — a deliberate
+        gap. This workflow triggers only on workflow_dispatch, which
+        requires repo write access, so it cannot run from an external
+        contributor's PR; the referenced secrets don't exist in this org
+        either way.
+    - check_id: C08.actions.self-hosted
+      status: partial
+      note: >-
+        deploy-fixture.yaml's job runs on [self-hosted, linux, x64] and
+        the repo is public — the exact risk this check flags. No
+        self-hosted runner is actually registered to this org, so the job
+        would simply queue forever if triggered.

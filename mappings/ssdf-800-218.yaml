@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.7.0"
+version: "1.8.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -226,6 +226,10 @@ tasks:
         C04.secrets.push-protection,
         C04.secrets.advanced-security,
         C04.org.security-defaults,
+        C08.actions.token-permissions,
+        C08.actions.pull-request-target,
+        C08.actions.oidc-vs-secrets,
+        C08.actions.self-hosted,
       ]
 
   - id: PO.5.2
@@ -299,7 +303,7 @@ tasks:
       libraries, modules, middleware, frameworks) from commercial,
       open-source, and other third-party developers for use by the
       organization's software.
-    checks: []
+    checks: [C08.actions.pinned]
 
   - id: PW.4.4
     family: PW
@@ -332,7 +336,7 @@ tasks:
       Determine which compiler, interpreter, and build tool features should be
       used and how each should be configured, then implement and use the
       approved configurations.
-    checks: []
+    checks: [C08.actions.token-permissions]
 
   - id: PW.7.1
     family: PW

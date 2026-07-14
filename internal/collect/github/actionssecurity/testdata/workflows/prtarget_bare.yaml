@@ -1,0 +1,9 @@
+name: label pr
+on: [pull_request_target]
+permissions:
+  pull-requests: write
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "labeling PR"

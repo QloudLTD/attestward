@@ -1,0 +1,9 @@
+name: build
+on: [push]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - run: echo ok

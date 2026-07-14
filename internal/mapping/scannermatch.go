@@ -51,6 +51,12 @@ type WorkflowFile struct {
 	// pull_request?") must type-switch themselves; this package's own
 	// MatchWorkflow doesn't use it at all.
 	On any `yaml:"on"`
+	// Permissions is the workflow-level `permissions:` block, left untyped
+	// like On since GitHub Actions allows it as a bare string ("read-all",
+	// "write-all") or a map of scope name to "read"/"write"/"none" — added
+	// for C08 actions-security's token-permissions check; MatchWorkflow
+	// doesn't use it.
+	Permissions any `yaml:"permissions"`
 }
 
 // WorkflowJob is one job's steps, plus its own top-level `uses:` — a job
@@ -64,12 +70,25 @@ type WorkflowFile struct {
 type WorkflowJob struct {
 	Uses  string         `yaml:"uses"`
 	Steps []WorkflowStep `yaml:"steps"`
+	// RunsOn is the job's `runs-on:` value — a bare string or a list of
+	// label strings, left untyped for the same reason as On/Permissions.
+	// Added for C08 actions-security's self-hosted-runner check.
+	RunsOn any `yaml:"runs-on"`
+	// Permissions is this job's own `permissions:` block, same shape as
+	// WorkflowFile.Permissions — a job-level block overrides the
+	// workflow-level one for that job only.
+	Permissions any `yaml:"permissions"`
 }
 
 // WorkflowStep is the subset of a step's fields the matcher reads.
 type WorkflowStep struct {
 	Uses string `yaml:"uses"`
 	Run  string `yaml:"run"`
+	// With is the step's `with:` parameter block — added for C08
+	// actions-security's pull-request-target and oidc-vs-secrets checks,
+	// which need to inspect specific parameter values (e.g. a checkout
+	// step's `ref:`, a cloud-login action's credential-shaped inputs).
+	With map[string]any `yaml:"with"`
 }
 
 // ParseWorkflowFile parses raw GitHub Actions workflow YAML into the

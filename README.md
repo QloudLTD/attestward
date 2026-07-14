@@ -91,6 +91,7 @@ least-privilege warning if it detects write access.
 | `sast-history` (C05) | `repo` (classic) or `Actions: read-only` + `Contents: read-only` (fine-grained) — plus code-scanning read access for the default-setup check specifically; exact fine-grained category for that one unverified |
 | `sca-history` (C06) | `repo` (classic) or `Actions: read-only` + `Contents: read-only` (fine-grained) — plus `Administration: read-only` (shared with C02, for the dependency-review required-status-check cross-check) and Dependabot-alerts read access; exact fine-grained category for the latter unverified |
 | `provenance` (C07) | `repo` (classic) or `Contents: read-only` (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically; exact fine-grained category for those unverified |
+| `actions-security` (C08) | `repo` (classic) or `Contents: read-only` (fine-grained) for workflow file content — plus `Administration: read-only` (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified |
 
 This table only lists collectors that exist as code today; `attestor checks list` is
 the live source of truth as more land (each row's `TOKEN SCOPE` column).

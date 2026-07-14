@@ -1,0 +1,9 @@
+name: build
+on: [push]
+permissions:
+  contents: read
+jobs:
+  call-internal:
+    uses: my-org/shared-workflows/.github/workflows/build.yml@main
+  call-external:
+    uses: some-other-org/other-repo/.github/workflows/build.yml@v1
