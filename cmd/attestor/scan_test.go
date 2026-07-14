@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/sioakim/ssdf/internal/collect"
+	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
 	"github.com/sioakim/ssdf/internal/model"
 )
 
@@ -66,6 +68,23 @@ func TestFilterCollectors(t *testing.T) {
 		if c.ID() != "C05.sast-history" && c.ID() != "C05.other" {
 			t.Errorf("unexpected collector in filtered set: %s", c.ID())
 		}
+	}
+}
+
+// TestFilterCollectors_RealOrgSecurityMatchesItsOwnDocumentedExample uses the
+// actual orgsecurity.Collector (not a fake) to prove --check C01 — the exact
+// example filterCollectors' own doc comment gives, and runScanCmd's --check
+// flag help text — genuinely resolves to it. A fake with a hand-picked ID
+// (as in TestFilterCollectors above) can't catch a real collector's ID
+// drifting out of the "C01.<name>" convention the whole --check filter
+// mechanism depends on.
+func TestFilterCollectors_RealOrgSecurityMatchesItsOwnDocumentedExample(t *testing.T) {
+	c := orgsecurity.New(ghcollect.NewClient("ghp_test-token"))
+	all := []collect.Collector{c}
+
+	got := filterCollectors(all, []string{"C01"})
+	if len(got) != 1 {
+		t.Fatalf("filterCollectors([C01]) len = %d, want 1 (org-security's ID %q must match the --check C01 prefix)", len(got), c.ID())
 	}
 }
 

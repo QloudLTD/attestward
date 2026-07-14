@@ -130,12 +130,12 @@ func TestChecksListGoldenYAML(t *testing.T) {
 func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// Smoke test against the exact code path the shipped binary runs
 	// (runChecksList calls these same LoadSSDFFS/LoadCISAFS functions
-	// against mappings.FS) — not the disk-based loaders tests elsewhere use,
-	// which would miss a broken //go:embed pattern or a renamed file. As of
-	// this issue, no check IDs exist anywhere yet (no collectors landed), so
-	// the matrix is legitimately empty; this proves the loading/wiring
-	// works end to end without asserting on data that #11+ hasn't authored
-	// yet.
+	// against mappings.FS, and collect.Registered() reflects every
+	// collector package's init()-time registration — here, orgsecurity's,
+	// transitively imported via scan.go) — not the disk-based loaders or
+	// synthetic fixtures the other tests in this file use, which would miss
+	// a broken //go:embed pattern, a renamed file, or a check registered on
+	// one side (registry or mapping) but not the other.
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
 		t.Fatalf("LoadSSDFFS: %v", err)
@@ -144,8 +144,23 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadCISAFS: %v", err)
 	}
-	rows := buildMatrix(ssdf, cisa, nil)
-	if len(rows) != 0 {
-		t.Errorf("len(rows) = %d, want 0 (no collectors registered yet, no mapping task cites a check)", len(rows))
+	rows := buildMatrix(ssdf, cisa, collect.Registered())
+
+	wantIDs := []string{
+		"C01.org.2fa-required",
+		"C01.org.default-repo-permission",
+		"C01.org.members-can-create-public",
+		"C01.org.members-without-2fa",
+	}
+	if len(rows) != len(wantIDs) {
+		t.Fatalf("len(rows) = %d, want %d (%v)", len(rows), len(wantIDs), wantIDs)
+	}
+	for i, id := range wantIDs {
+		if rows[i].CheckID != id {
+			t.Errorf("rows[%d].CheckID = %q, want %q", i, rows[i].CheckID, id)
+		}
+		if rows[i].Status != statusOK {
+			t.Errorf("rows[%d] (%s) status = %q, want %q — every registered check must also be cited by a mapping task, and vice versa", i, rows[i].CheckID, rows[i].Status, statusOK)
+		}
 	}
 }

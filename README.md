@@ -74,6 +74,21 @@ Controls that cannot be verified via API (training, threat modeling, triage SLAs
 collected via a small questionnaire and clearly flagged `self-attested` — the tool never
 fakes verification where none is possible.
 
+### Required token permissions
+
+`attestor scan` reads `GITHUB_TOKEN` from the environment (never a CLI flag, never
+persisted — see [docs/threat-model.md](docs/threat-model.md)). Use the narrowest scope
+that covers the collectors you're running; each collector below lists the minimum. A
+token with more than read-only scope still works, but `attestor scan` prints a
+least-privilege warning if it detects write access.
+
+| Collector | Minimum scope |
+|-----------|----------------|
+| `org-security` (C01) | `read:org` |
+
+This table only lists collectors that exist as code today; `attestor checks list` is
+the live source of truth as more land (each row's `TOKEN SCOPE` column).
+
 ## Documentation
 
 - [v0.1 epic](../../issues/1) — canonical scope and build-phase tracking (GitHub Issues)

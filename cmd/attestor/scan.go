@@ -17,6 +17,7 @@ import (
 
 	"github.com/sioakim/ssdf/internal/collect"
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
 	"github.com/sioakim/ssdf/mappings"
@@ -101,11 +102,20 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 	}
 	client := ghcollect.NewClient(token)
 
+	// Real collectors each get their own dedicated Client instance rather
+	// than sharing deps.client: Client.Provenance() reflects every call
+	// made through it, and each collector attributes provenance to its
+	// CheckResults by diffing that log, which only stays correct if
+	// nothing else (the orchestrator's own preflight/repo-listing calls,
+	// or another collector run concurrently) issues calls through the same
+	// Client.
+	collectors := append(collect.Collectors(), orgsecurity.New(ghcollect.NewClient(token)))
+
 	deps := scanDeps{
 		repoLister: &restRepoLister{client: client.REST},
 		orgChecker: &restOrgChecker{client: client.REST},
 		client:     client,
-		collectors: collect.Collectors(),
+		collectors: collectors,
 		stdout:     cmd.OutOrStdout(),
 	}
 
