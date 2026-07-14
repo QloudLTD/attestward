@@ -23,6 +23,9 @@ var fixtureExpectations = []struct {
 	{"trivy.yaml", "trivy", ConfidenceHigh},
 	{"grype.yaml", "grype", ConfidenceHigh},
 	{"osv-scanner.yaml", "osv-scanner", ConfidenceHigh},
+	{"cosign.yaml", "cosign", ConfidenceHigh},
+	{"slsa-generator.yaml", "slsa-generator", ConfidenceHigh},
+	{"attest-build-provenance.yaml", "attest-build-provenance", ConfidenceHigh},
 }
 
 func loadFixtureWorkflow(t *testing.T, name string) WorkflowFile {

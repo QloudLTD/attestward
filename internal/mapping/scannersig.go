@@ -19,19 +19,21 @@ type ScannerCategory string
 
 // The fixed set of scanner-signature categories — see validScannerCategories.
 const (
-	CategorySAST      ScannerCategory = "sast"
-	CategorySCA       ScannerCategory = "sca"
-	CategoryContainer ScannerCategory = "container"
-	CategorySecrets   ScannerCategory = "secrets"
-	CategorySBOM      ScannerCategory = "sbom"
+	CategorySAST       ScannerCategory = "sast"
+	CategorySCA        ScannerCategory = "sca"
+	CategoryContainer  ScannerCategory = "container"
+	CategorySecrets    ScannerCategory = "secrets"
+	CategorySBOM       ScannerCategory = "sbom"
+	CategoryProvenance ScannerCategory = "provenance"
 )
 
 var validScannerCategories = map[ScannerCategory]bool{
-	CategorySAST:      true,
-	CategorySCA:       true,
-	CategoryContainer: true,
-	CategorySecrets:   true,
-	CategorySBOM:      true,
+	CategorySAST:       true,
+	CategorySCA:        true,
+	CategoryContainer:  true,
+	CategorySecrets:    true,
+	CategorySBOM:       true,
+	CategoryProvenance: true,
 }
 
 // ActionMatcher matches a workflow step's `uses:` slug (the part before
@@ -136,7 +138,7 @@ func decodeScannerSignatures(r io.Reader, source string) (*ScannerSignatureRegis
 			return nil, fmt.Errorf("%s: signature %s: name is empty", source, sig.ID)
 		}
 		if !validScannerCategories[sig.Category] {
-			return nil, fmt.Errorf("%s: signature %s: category %q is not one of sast, sca, container, secrets, sbom", source, sig.ID, sig.Category)
+			return nil, fmt.Errorf("%s: signature %s: category %q is not one of sast, sca, container, secrets, sbom, provenance", source, sig.ID, sig.Category)
 		}
 		for j, am := range sig.Detect.Actions {
 			if am.Slug == "" {

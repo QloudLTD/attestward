@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/sioakim/ssdf/blob/main/docs/schema/mapping-scanner-signatures.schema.json",
   "title": "attestor mappings/scanner-signatures.yaml",
-  "description": "Structure of the SAST/SCA/container/secrets/SBOM scanner detection registry attestor's C05/C06 collectors match against. Enforced by internal/mapping's strict loader (unknown fields, duplicate signature ids, unrecognized categories, and malformed regexes are errors) in addition to this schema.",
+  "description": "Structure of the SAST/SCA/container/secrets/SBOM/provenance scanner detection registry attestor's C05/C06/C07 collectors match against. Enforced by internal/mapping's strict loader (unknown fields, duplicate signature ids, unrecognized categories, and malformed regexes are errors) in addition to this schema.",
   "type": "object",
   "required": ["version", "signatures"],
   "additionalProperties": false,
@@ -21,7 +21,7 @@
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "name": { "type": "string", "minLength": 1 },
-        "category": { "type": "string", "enum": ["sast", "sca", "container", "secrets", "sbom"] },
+        "category": { "type": "string", "enum": ["sast", "sca", "container", "secrets", "sbom", "provenance"] },
         "detect": { "$ref": "#/$defs/detect" },
         "run_evidence": { "type": "string" }
       }

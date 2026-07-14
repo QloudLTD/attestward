@@ -1,11 +1,12 @@
 # mappings/scanner-signatures.yaml
 #
-# Detection signatures for SAST/SCA/container/secrets/SBOM scanning tools, as
-# they appear in GitHub Actions workflow files — action `uses:` slugs, `run:`
-# step CLI invocations, and (last resort) workflow `name:` heuristics. Used
-# by C05 (SAST) and C06 (SCA) to fingerprint which scanners a repo actually
-# runs and how often. Data, not code (ADR-0003): adding a new scanner is a
-# YAML contribution, not a Go change — see CONTRIBUTING.md's "New scanner
+# Detection signatures for SAST/SCA/container/secrets/SBOM/provenance
+# scanning and signing tools, as they appear in GitHub Actions workflow
+# files — action `uses:` slugs, `run:` step CLI invocations, and (last
+# resort) workflow `name:` heuristics. Used by C05 (SAST), C06 (SCA), and
+# C07 (provenance) to fingerprint which tools a repo actually runs and how
+# often. Data, not code (ADR-0003): adding a new scanner is a YAML
+# contribution, not a Go change — see CONTRIBUTING.md's "New scanner
 # signature" section.
 #
 # Unlike ssdf-800-218.yaml/cisa-ssda-form.yaml, this file isn't a citable
@@ -34,7 +35,7 @@
 # for that file directly via the GitHub API; it's listed here now purely
 # for SCA-category registry completeness.
 
-version: "1.0.0"
+version: "1.1.0"
 
 signatures:
   - id: codeql
@@ -176,3 +177,57 @@ signatures:
       detect schema. See this file's header comment. #18 implements real
       detection; this entry is registry-only for now, deliberately excluded
       from the cross-matrix "every signature matches its own fixture" test.
+
+  - id: cosign
+    name: "Sigstore cosign"
+    category: provenance
+    detect:
+      actions:
+        - slug: sigstore/cosign-installer
+      run_patterns:
+        # The installer action only puts the cosign binary on PATH — the
+        # actual signing happens in a separate run: step, e.g. `cosign
+        # sign-blob --bundle=...`. Matched as a fallback for the rarer case
+        # of a preinstalled cosign binary invoked with no installer action
+        # present at all.
+        - "\\bcosign (sign|sign-blob|attest)\\b"
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking sigstore/cosign-installer followed
+      by a cosign sign/sign-blob/attest step; produces a Sigstore bundle
+      (keyless, Fulcio/Rekor-backed) alongside the signed artifact.
+
+  - id: slsa-generator
+    name: "SLSA GitHub Generator"
+    category: provenance
+    detect:
+      actions:
+        # slsa-github-generator is invoked as a job-level *reusable
+        # workflow* call (jobs.<id>.uses:), the same mechanism as
+        # osv-scanner's dominant real-world usage — see WorkflowJob.Uses'
+        # doc comment. Two of the generator's several artifact-type
+        # variants are listed; not exhaustive (ActionMatcher is exact-slug,
+        # no wildcard support), same practical scoping as C06's ecosystem
+        # table.
+        - slug: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml
+        - slug: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml
+      run_patterns: []
+      workflow_name_patterns:
+        - "(?i)\\bslsa\\b"
+    run_evidence: >-
+      Workflow run of the job calling one of slsa-github-generator's
+      reusable workflows; produces a SLSA provenance attestation uploaded
+      as a release/workflow artifact.
+
+  - id: attest-build-provenance
+    name: "GitHub Artifact Attestations (attest-build-provenance)"
+    category: provenance
+    detect:
+      actions:
+        - slug: actions/attest-build-provenance
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking actions/attest-build-provenance;
+      produces a GitHub-hosted attestation retrievable via
+      GET /repos/{owner}/{repo}/attestations/{subject_digest}.

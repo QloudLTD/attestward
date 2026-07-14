@@ -93,8 +93,8 @@ The most valuable non-Go contributions:
 
 - **New verification check** → use the "New check proposal" issue template. A check needs:
   what API evidence proves it, which SSDF task(s) it maps to, and its failure semantics.
-- **New scanner signature** (SAST/SCA/container/secrets/SBOM tool detection) → use the
-  "New scanner signature" issue template, then PR the YAML addition below.
+- **New scanner signature** (SAST/SCA/container/secrets/SBOM/provenance tool detection) →
+  use the "New scanner signature" issue template, then PR the YAML addition below.
 
 Mapping changes bump the mapping file's `version:` field in the same PR.
 
@@ -108,7 +108,7 @@ schema alone can't express — duplicate IDs, unrecognized categories, malformed
 ```yaml
 - id: my-tool                      # unique, lowercase-hyphenated
   name: "My Tool"                  # human-readable
-  category: sast                   # sast | sca | container | secrets | sbom
+  category: sast                   # sast | sca | container | secrets | sbom | provenance
   detect:
     actions:                       # `uses:` slugs (before the `@ref`), high confidence
       - slug: someorg/my-tool-action
