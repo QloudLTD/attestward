@@ -58,6 +58,27 @@ org_checks:
       of the four underlying "for new repositories" flags this check
       requires is permanently false here, so it can never show
       verified-pass against this org regardless of the other three.
+  - check_id: C09.audit.org-log-available
+    status: not-checkable
+    note: >-
+      GET /orgs/Qloud-LTD/audit-log returns 404 — this is a Free-plan org
+      (org_plan fact confirms it), and the org audit-log REST API is
+      Enterprise Cloud-only; GitHub returns the same 404 whether the
+      cause is the plan or a missing read:audit_log scope, so the check's
+      reason honestly names both rather than picking one.
+  - check_id: C09.audit.log-streaming
+    status: not-checkable
+    note: >-
+      Always not-checkable, unconditionally — audit-log streaming
+      configuration exists only at the GitHub Enterprise account level,
+      which this tool has no scope concept for at all. No fixture value
+      could ever differ from this.
+  - check_id: C09.audit.retention-awareness
+    status: not-checkable
+    note: >-
+      Always not-checkable, unconditionally — fact-only informational
+      check surfacing GitHub's documented 180-day audit-log retention
+      window, never a verified claim about this specific org.
 
 # Per-repo checks, keyed by repo name.
 repo_checks:
@@ -149,6 +170,11 @@ repo_checks:
       status: not-checkable
       note: "Neither workflow contains a recognized cloud-deployment login action (AWS/Azure/GCP) — nothing for this check to evaluate."
     - {check_id: C08.actions.self-hosted, status: verified-pass, note: "No self-hosted runner usage in any workflow."}
+    - check_id: C09.repo.webhooks
+      status: verified-fail
+      note: >-
+        demo-good has no webhooks configured at all — a real gap, out of
+        this repo's original C01-C04 fixture scope (issue #15).
   demo-bad:
     - {check_id: C02.branch.protection-exists, status: verified-fail}
     - {check_id: C02.branch.required-reviews, status: verified-fail}
@@ -202,7 +228,12 @@ repo_checks:
     - {check_id: C07.release.signatures, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
     - check_id: C07.provenance.workflow
       status: verified-fail
-      note: "demo-bad has no workflows at all, so no provenance-generating tool is detected."
+      note: >-
+        Updated for issue #21: demo-bad now has two workflow files
+        (deploy-fixture.yaml, pr-target-fixture.yaml — the C08 fixtures
+        added in issue #20), but neither uses cosign, SLSA generator, or
+        GitHub Attestations, so the status is unchanged, just the reason
+        it's honestly still verified-fail rather than not-checkable.
     - {check_id: C07.provenance.commit-linkage, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
     - check_id: C08.actions.pinned
       status: verified-fail
@@ -243,3 +274,6 @@ repo_checks:
         the repo is public — the exact risk this check flags. No
         self-hosted runner is actually registered to this org, so the job
         would simply queue forever if triggered.
+    - check_id: C09.repo.webhooks
+      status: verified-fail
+      note: "demo-bad has no webhooks configured at all — a real, deliberately-off gap."

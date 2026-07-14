@@ -18,6 +18,7 @@ import (
 	"github.com/sioakim/ssdf/internal/collect"
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
 	"github.com/sioakim/ssdf/internal/collect/github/actionssecurity"
+	"github.com/sioakim/ssdf/internal/collect/github/auditlogging"
 	"github.com/sioakim/ssdf/internal/collect/github/envseparation"
 	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
 	"github.com/sioakim/ssdf/internal/collect/github/provenance"
@@ -90,9 +91,9 @@ func init() {
 // CheckResults by diffing that log, which only stays correct if nothing
 // else (another collector run concurrently) issues calls through the same
 // Client. repoprotection/envseparation/secretshygiene/sasthistory/
-// scahistory/provenance/actionssecurity take the token directly rather
-// than a pre-built Client since they construct a fresh Client per repo
-// internally (see their own doc comments for why).
+// scahistory/provenance/actionssecurity/auditlogging take the token
+// directly rather than a pre-built Client since they construct a fresh
+// Client per repo internally (see their own doc comments for why).
 func defaultCollectors(token string) []collect.Collector {
 	return append(collect.Collectors(),
 		orgsecurity.New(ghcollect.NewClient(token)),
@@ -103,6 +104,7 @@ func defaultCollectors(token string) []collect.Collector {
 		scahistory.New(token),
 		provenance.New(token),
 		actionssecurity.New(token),
+		auditlogging.New(token),
 	)
 }
 
