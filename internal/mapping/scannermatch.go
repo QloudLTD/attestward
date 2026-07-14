@@ -36,14 +36,21 @@ type ScannerMatch struct {
 
 // WorkflowFile is the minimal slice of a GitHub Actions workflow YAML's
 // structure the matcher needs (jobs -> steps -> uses/run, plus the
-// top-level name). Deliberately NOT strict-decoded (unlike this package's
-// mapping loaders): a real workflow file is external, uncontrolled content
-// from a scanned repo with many fields this package has no opinion about
-// (on:, permissions:, env:, step id:/with:, ...) — rejecting one for using
-// a field this struct doesn't model would be a bug, not a safety feature.
+// top-level name and trigger list). Deliberately NOT strict-decoded (unlike
+// this package's mapping loaders): a real workflow file is external,
+// uncontrolled content from a scanned repo with many fields this package
+// has no opinion about (permissions:, env:, step id:/with:, ...) —
+// rejecting one for using a field this struct doesn't model would be a
+// bug, not a safety feature.
 type WorkflowFile struct {
 	Name string                 `yaml:"name"`
 	Jobs map[string]WorkflowJob `yaml:"jobs"`
+	// On is the workflow's trigger list (`on:`), left untyped since GitHub
+	// Actions allows it as a bare string, a list of strings, or a map keyed
+	// by event name — callers needing to inspect it (e.g. "does this run on
+	// pull_request?") must type-switch themselves; this package's own
+	// MatchWorkflow doesn't use it at all.
+	On any `yaml:"on"`
 }
 
 // WorkflowJob is one job's steps, plus its own top-level `uses:` — a job

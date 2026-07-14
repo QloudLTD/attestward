@@ -132,8 +132,8 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// (runChecksList calls these same LoadSSDFFS/LoadCISAFS functions
 	// against mappings.FS, and collect.Registered() reflects every
 	// collector package's init()-time registration — here, orgsecurity's,
-	// repoprotection's, envseparation's, secretshygiene's, and
-	// sasthistory's, transitively imported via scan.go) — not the
+	// repoprotection's, envseparation's, secretshygiene's, sasthistory's,
+	// and scahistory's, transitively imported via scan.go) — not the
 	// disk-based loaders or synthetic fixtures the other tests in this
 	// file use, which would miss a broken //go:embed pattern, a renamed
 	// file, or a check registered on one side (registry or mapping) but
@@ -172,6 +172,11 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C05.sast.default-setup",
 		"C05.sast.ran-per-release",
 		"C05.sast.tool-configured",
+		"C06.sca.alerts-triaged",
+		"C06.sca.dependabot-config",
+		"C06.sca.dependency-review",
+		"C06.sca.ran-per-release",
+		"C06.sca.tool-configured",
 	}
 	if len(rows) != len(wantIDs) {
 		t.Fatalf("len(rows) = %d, want %d (%v)", len(rows), len(wantIDs), wantIDs)

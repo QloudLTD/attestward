@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.5.0"
+version: "1.6.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -308,7 +308,7 @@ tasks:
       Verify that acquired commercial, open-source, and all other third-party
       software components comply with the requirements, as defined by the
       organization, throughout their life cycles.
-    checks: [C04.deps.dependabot-alerts]
+    checks: [C04.deps.dependabot-alerts, C06.sca.tool-configured, C06.sca.ran-per-release, C06.sca.dependabot-config, C06.sca.dependency-review, C06.sca.alerts-triaged]
 
   - id: PW.5.1
     family: PW
@@ -407,7 +407,7 @@ tasks:
     text: >-
       Review, analyze, and/or test the software's code to identify or
       confirm the presence of previously undetected vulnerabilities.
-    checks: [C05.sast.tool-configured, C05.sast.ran-per-release, C05.sast.cadence, C05.sast.default-setup]
+    checks: [C05.sast.tool-configured, C05.sast.ran-per-release, C05.sast.cadence, C05.sast.default-setup, C06.sca.tool-configured, C06.sca.ran-per-release]
 
   - id: RV.1.3
     family: RV
@@ -424,7 +424,7 @@ tasks:
     text: >-
       Analyze each vulnerability to gather sufficient information about risk
       to plan its remediation or other risk response.
-    checks: []
+    checks: [C06.sca.alerts-triaged]
 
   - id: RV.2.2
     family: RV
