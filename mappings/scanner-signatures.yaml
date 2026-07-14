@@ -1,0 +1,178 @@
+# mappings/scanner-signatures.yaml
+#
+# Detection signatures for SAST/SCA/container/secrets/SBOM scanning tools, as
+# they appear in GitHub Actions workflow files — action `uses:` slugs, `run:`
+# step CLI invocations, and (last resort) workflow `name:` heuristics. Used
+# by C05 (SAST) and C06 (SCA) to fingerprint which scanners a repo actually
+# runs and how often. Data, not code (ADR-0003): adding a new scanner is a
+# YAML contribution, not a Go change — see CONTRIBUTING.md's "New scanner
+# signature" section.
+#
+# Unlike ssdf-800-218.yaml/cisa-ssda-form.yaml, this file isn't a citable
+# transcription of a regulatory source — CLAUDE.md's "never invent SSDF task
+# IDs, CISA form language, or regulatory citations" rule doesn't apply to it.
+# Action slugs and CLI patterns below are still meant to be accurate, not
+# invented; each is exercised by a fixture workflow under
+# internal/mapping/testdata/workflows/ that the loader's tests assert
+# actually matches (and that no other signature in this file also matches).
+#
+# `detect` lists any-of matchers, in confidence order — the matcher
+# (internal/mapping's MatchWorkflow) tries `actions` first (confidence:
+# high, an action `uses:` slug is a strong, hard-to-fake signal), then
+# `run_patterns` (confidence: medium, a regex over `run:` step text — a
+# real CLI invocation, but could in principle appear in an unrelated
+# comment or string), then `workflow_name_patterns` (confidence: low, a
+# regex over the workflow's own `name:` field — a naming convention, not
+# actual tool usage). Confidence is a property of *which* matcher fired,
+# not a static field on the signature itself.
+#
+# dependabot is special-cased: unlike every other entry here, Dependabot
+# isn't invoked from a workflow at all — it's detected by the *presence* of
+# a `.github/dependabot.yml` config file, which this file's workflow-content
+# matcher structurally cannot express (`detect` is deliberately empty).
+# Real detection for it lands with #18 (C06 sca-history), which can check
+# for that file directly via the GitHub API; it's listed here now purely
+# for SCA-category registry completeness.
+
+version: "1.0.0"
+
+signatures:
+  - id: codeql
+    name: "GitHub CodeQL"
+    category: sast
+    detect:
+      actions:
+        - slug: github/codeql-action/analyze
+      run_patterns: []
+      workflow_name_patterns:
+        - "(?i)\\bcodeql\\b"
+    run_evidence: >-
+      Each CodeQL run is a workflow run of the workflow containing the
+      github/codeql-action/analyze step; the analyze step's own run also
+      appears as a check run (typically named "CodeQL") on the commit/PR it
+      scanned.
+
+  - id: semgrep
+    name: "Semgrep"
+    category: sast
+    detect:
+      actions:
+        # returntocorp/semgrep-action is the pre-2024 slug (org since
+        # renamed to semgrep/, and the old repo archived as a fork) — both
+        # kept since older workflows may still reference the original.
+        - slug: returntocorp/semgrep-action
+        - slug: semgrep/semgrep-action
+      run_patterns:
+        - "\\bsemgrep\\b"
+      workflow_name_patterns:
+        - "(?i)\\bsemgrep\\b"
+    run_evidence: >-
+      Workflow run of the job invoking either the semgrep-action or the
+      semgrep CLI directly; Semgrep's own GitHub integration (if configured)
+      additionally posts a check run.
+
+  - id: sonarqube
+    name: "SonarQube / SonarCloud"
+    category: sast
+    detect:
+      actions:
+        - slug: SonarSource/sonarqube-scan-action
+        # Legacy SonarCloud-specific action — archived but still widely
+        # referenced by existing workflows.
+        - slug: SonarSource/sonarcloud-github-action
+      run_patterns:
+        - "\\bsonar-scanner\\b"
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking the scan action or sonar-scanner
+      CLI; SonarCloud/SonarQube separately posts its own quality-gate
+      status check on the commit.
+
+  - id: dependency-review-action
+    name: "GitHub Dependency Review"
+    category: sca
+    detect:
+      actions:
+        - slug: actions/dependency-review-action
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Runs only on pull requests (it diffs the PR's dependency changes);
+      surfaces as a check run on the PR, not on ordinary pushes.
+
+  - id: snyk
+    name: "Snyk"
+    category: sca
+    detect:
+      actions:
+        # Snyk ships one action per language/ecosystem rather than one
+        # canonical slug — enumerating the common ones here (ActionMatcher
+        # is exact-slug, no prefix support) rather than relying solely on
+        # the run_patterns fallback below, which misses action-only usage
+        # with no separate CLI invocation.
+        - slug: snyk/actions/node
+        - slug: snyk/actions/python
+        - slug: snyk/actions/golang
+        - slug: snyk/actions/docker
+        - slug: snyk/actions/maven
+        - slug: snyk/actions/gradle
+      run_patterns:
+        - "snyk (test|monitor)"
+      workflow_name_patterns:
+        - "(?i)\\bsnyk\\b"
+    run_evidence: >-
+      Workflow run of the job invoking a snyk/actions/* action or the snyk
+      CLI directly.
+
+  - id: trivy
+    name: "Trivy"
+    category: sca
+    detect:
+      actions:
+        - slug: aquasecurity/trivy-action
+      run_patterns:
+        - "trivy (fs|repo|image)"
+      workflow_name_patterns: []
+    run_evidence: "Workflow run of the job invoking the trivy-action or trivy CLI."
+
+  - id: grype
+    name: "Grype"
+    category: sca
+    detect:
+      actions:
+        - slug: anchore/scan-action
+      run_patterns:
+        - "\\bgrype\\b"
+      workflow_name_patterns: []
+    run_evidence: "Workflow run of the job invoking anchore/scan-action (which wraps Grype) or the grype CLI directly."
+
+  - id: osv-scanner
+    name: "OSV-Scanner"
+    category: sca
+    detect:
+      actions:
+        - slug: google/osv-scanner-action
+        # OSV-Scanner's officially recommended integration is a job-level
+        # *reusable workflow* call (jobs.<id>.uses:), not a step — the
+        # dominant real-world usage, distinct from the plain action slug
+        # above. See WorkflowJob.Uses' doc comment for how the matcher
+        # checks both the same way.
+        - slug: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml
+      run_patterns:
+        - "osv-scanner\\b"
+      workflow_name_patterns: []
+    run_evidence: "Workflow run of the job invoking the osv-scanner-action, its reusable workflow, or the osv-scanner CLI."
+
+  - id: dependabot
+    name: "Dependabot"
+    category: sca
+    detect:
+      actions: []
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Not workflow-invoked at all — detected by the presence of
+      .github/dependabot.yml, not by anything expressible in this file's
+      detect schema. See this file's header comment. #18 implements real
+      detection; this entry is registry-only for now, deliberately excluded
+      from the cross-matrix "every signature matches its own fixture" test.

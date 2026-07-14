@@ -1,0 +1,17 @@
+version: "1.0.0"
+signatures:
+  - id: codeql
+    name: "GitHub CodeQL"
+    category: sast
+    detect:
+      actions:
+        - slug: github/codeql-action/analyze
+      run_patterns: []
+      workflow_name_patterns: []
+  - id: codeql
+    name: "GitHub CodeQL (duplicate)"
+    category: sast
+    detect:
+      actions: []
+      run_patterns: []
+      workflow_name_patterns: []

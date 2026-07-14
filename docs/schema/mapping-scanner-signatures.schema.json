@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sioakim/ssdf/blob/main/docs/schema/mapping-scanner-signatures.schema.json",
+  "title": "attestor mappings/scanner-signatures.yaml",
+  "description": "Structure of the SAST/SCA/container/secrets/SBOM scanner detection registry attestor's C05/C06 collectors match against. Enforced by internal/mapping's strict loader (unknown fields, duplicate signature ids, unrecognized categories, and malformed regexes are errors) in addition to this schema.",
+  "type": "object",
+  "required": ["version", "signatures"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "signatures": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/signature" }
+    }
+  },
+  "$defs": {
+    "signature": {
+      "type": "object",
+      "required": ["id", "name", "category", "detect"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "enum": ["sast", "sca", "container", "secrets", "sbom"] },
+        "detect": { "$ref": "#/$defs/detect" },
+        "run_evidence": { "type": "string" }
+      }
+    },
+    "detect": {
+      "type": "object",
+      "required": ["actions", "run_patterns", "workflow_name_patterns"],
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action_matcher" }
+        },
+        "run_patterns": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "workflow_name_patterns": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "action_matcher": {
+      "type": "object",
+      "required": ["slug"],
+      "additionalProperties": false,
+      "properties": {
+        "slug": { "type": "string", "minLength": 1 },
+        "version": { "type": "string" }
+      }
+    }
+  }
+}

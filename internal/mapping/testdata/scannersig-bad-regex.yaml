@@ -1,0 +1,10 @@
+version: "1.0.0"
+signatures:
+  - id: broken-tool
+    name: "Broken Tool"
+    category: sast
+    detect:
+      actions: []
+      run_patterns:
+        - "unclosed(paren"
+      workflow_name_patterns: []

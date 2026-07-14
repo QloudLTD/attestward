@@ -12,9 +12,9 @@ emits a signed evidence pack. Full mission and rationale: [README.md](README.md)
 
 Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model,
 SSDF/CISA mappings, `checks list`), and Phase 2 (C01–C04 collectors, demo org +
-integration harness) are merged to `main`. Phase 3 (#16 onward: scanner-signature
-registry, C05–C07 collectors) is next. Build is issue-driven and in progress (see
-Progress tracker below).
+integration harness) are merged to `main`. Phase 3 is in progress: #16 (scanner-signature
+registry) is merged; #17 (C05 sast-history) onward is next. Build is issue-driven and in
+progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -23,9 +23,13 @@ See [ADR-0004](docs/adr/0004-read-only-local-first.md). If a task seems to need 
 call, stop and flag it rather than adding one.
 
 **Never invent SSDF task IDs, CISA form language, or regulatory citations.** Every ID in
-`mappings/*.yaml` must trace to NIST SP 800-218 or the CISA SSDA form primary sources.
-Paraphrases are marked as paraphrases. This applies to issues #6, #7, #16, and any docs
-touching compliance mappings.
+`mappings/ssdf-800-218.yaml` and `mappings/cisa-ssda-form.yaml` must trace to NIST SP
+800-218 or the CISA SSDA form primary sources. Paraphrases are marked as paraphrases.
+This applies to issues #6, #7, and any docs touching compliance mappings.
+`mappings/scanner-signatures.yaml` (issue #16) is a different kind of file — original
+data about how tools present in GitHub Actions workflows, not a regulatory citation —
+so this specific rule doesn't apply to it; see that file's own header comment for the
+accuracy standard that does (every signature backed by a real fixture workflow).
 
 ## Where things live
 
@@ -36,7 +40,7 @@ touching compliance mappings.
 | `docs/adr/` | Permanent decision records (Nygard format) — never edited after acceptance, superseded instead |
 | `docs/archive/` | Superseded planning docs (product-brief.md, roadmap.md) — historical context only, do not update; GitHub Issues are canonical |
 | `DECISIONS.md` | Open questions needing the owner's call — resolve here, promote to an ADR if architectural |
-| `mappings/` | SSDF/CISA-form mappings as versioned YAML (once authored — issues #6, #7, #16) |
+| `mappings/` | SSDF/CISA-form mappings + scanner-signature registry as versioned YAML (issues #6, #7, #16) |
 | `CONTRIBUTING.md` | Full workflow rules — branch naming, commit format, PR size, testing conventions |
 | `tools/progress/` | Local-only build-progress dashboard (issue #37) — dev convenience, not shipped, not hosted, not linked from README |
 | `hack/demo-org-setup.sh` | Idempotent setup script for the public demo org (`Qloud-LTD`) the integration test scans — see DECISIONS.md's D5 |
@@ -96,7 +100,7 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #15 Demo org + fixtures + integration harness
 
 **Phase 3 — Collectors C05–C07**
-- [ ] #16 Scanner-signature registry
+- [x] #16 Scanner-signature registry
 - [ ] #17 C05 sast-history · #18 C06 sca-history · #19 C07 provenance
 
 **Phase 4 — Collectors C08–C10 + self-attestation**

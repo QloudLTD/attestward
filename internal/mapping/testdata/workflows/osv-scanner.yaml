@@ -1,0 +1,12 @@
+name: OSV dependency scan
+on: [push]
+jobs:
+  osv-scanner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: google/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --recursive
+            ./

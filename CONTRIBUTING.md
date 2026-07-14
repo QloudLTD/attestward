@@ -93,11 +93,52 @@ The most valuable non-Go contributions:
 
 - **New verification check** → use the "New check proposal" issue template. A check needs:
   what API evidence proves it, which SSDF task(s) it maps to, and its failure semantics.
-- **New scanner signature** (SAST/SCA tool detection) → use the "New scanner signature"
-  issue template, then PR the YAML addition to `mappings/scanner-signatures.yaml` with a
-  fixture workflow file that exercises it.
+- **New scanner signature** (SAST/SCA/container/secrets/SBOM tool detection) → use the
+  "New scanner signature" issue template, then PR the YAML addition below.
 
 Mapping changes bump the mapping file's `version:` field in the same PR.
+
+### Adding a scanner signature
+
+`mappings/scanner-signatures.yaml` entries have this shape (see
+`docs/schema/mapping-scanner-signatures.schema.json` for the enforced schema, and
+`internal/mapping/scannersig.go`'s `decodeScannerSignatures` for the extra checks the
+schema alone can't express — duplicate IDs, unrecognized categories, malformed regexes):
+
+```yaml
+- id: my-tool                      # unique, lowercase-hyphenated
+  name: "My Tool"                  # human-readable
+  category: sast                   # sast | sca | container | secrets | sbom
+  detect:
+    actions:                       # `uses:` slugs (before the `@ref`), high confidence
+      - slug: someorg/my-tool-action
+        # version: "v2"            # optional, EXACT STRING match against the ref after
+        #                          # `@` — "v2" does not match "v2.1.0" or a SHA pin (this
+        #                          # repo's own workflows SHA-pin everything); omit unless
+        #                          # you specifically need to distinguish one exact ref
+    run_patterns:                  # regexes over `run:` step text, medium confidence
+      - "my-tool (scan|test)"
+    workflow_name_patterns:        # regexes over the workflow's own `name:`, low confidence — last resort
+      - "(?i)\\bmy-tool\\b"
+  run_evidence: >-
+    How a run of this tool surfaces (workflow run name, check-run name, job name
+    pattern) — used by C05/C06 to compute per-release scan cadence.
+```
+
+At least one of `actions`/`run_patterns`/`workflow_name_patterns` should be non-empty —
+an empty `detect` block never matches anything (the one deliberate exception is
+`dependabot`, whose real detection is a config file's presence, not workflow content;
+see that entry's own comment). Prefer `actions` over `run_patterns` where the tool has
+one canonical action slug: it's a much stronger signal than a CLI-invocation regex, which
+could in principle appear in an unrelated comment or string.
+
+**Fixture requirement**: add a minimal, realistic workflow file under
+`internal/mapping/testdata/workflows/<id>.yaml` containing the step(s) your signature is
+meant to detect, and add an entry to `internal/mapping/scannermatch_test.go`'s
+`fixtureExpectations` table. `TestMatchWorkflow_CrossMatrix` then proves two things at
+once: your new signature actually matches its own fixture at the confidence you claimed,
+and it does *not* also fire on every other signature's fixture (no accidental overlap in
+an action slug or regex).
 
 ## Docs
 

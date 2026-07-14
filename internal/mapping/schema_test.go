@@ -92,3 +92,13 @@ func TestCISASchemaAssertsDateFormat(t *testing.T) {
 		t.Fatal("expected a bogus retrieved date to fail schema validation, but it passed")
 	}
 }
+
+// TestScannerSignaturesValidatesAgainstSchema has no matching
+// AssertFormat test: unlike ssdf-800-218.yaml/cisa-ssda-form.yaml, this
+// file has no format-typed fields (no "retrieved" date) to assert against.
+func TestScannerSignaturesValidatesAgainstSchema(t *testing.T) {
+	sch := compileMappingSchema(t, "../../docs/schema/mapping-scanner-signatures.schema.json")
+	if err := sch.Validate(loadYAMLAsJSONDoc(t, "../../mappings/scanner-signatures.yaml")); err != nil {
+		t.Fatalf("mappings/scanner-signatures.yaml failed schema validation: %v", err)
+	}
+}

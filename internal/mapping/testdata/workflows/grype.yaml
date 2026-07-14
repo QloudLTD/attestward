@@ -1,0 +1,10 @@
+name: Vulnerability scan
+on: [push]
+jobs:
+  grype:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: anchore/scan-action@v4
+        with:
+          path: "."
