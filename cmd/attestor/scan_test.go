@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sioakim/ssdf/internal/collect"
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
@@ -428,9 +429,11 @@ func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo"},
+		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		ScanStartedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
+		ScanEndedAt:   time.Date(2026, 7, 13, 12, 0, 5, 0, time.UTC),
 		Results: []model.CheckResult{
-			{CheckID: "X", Reason: "leaked " + secret, Provenance: []model.Provenance{}},
+			{CheckID: "X", Status: model.StatusVerifiedPass, Reason: "leaked " + secret, Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{}},
 		},
 	}
 
@@ -443,5 +446,208 @@ func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 	}
 	if bytes.Contains(data, []byte(secret)) {
 		t.Error("secret survived into evidence.json")
+	}
+}
+
+// TestWriteEvidencePack_RejectsSchemaInvalidPack proves the pre-write
+// validation (issue #24) actually blocks a write rather than being dead
+// code: a pack with an invalid Status must produce an error and leave no
+// evidence.json in outDir at all — never a half-valid file on disk.
+func TestWriteEvidencePack_RejectsSchemaInvalidPack(t *testing.T) {
+	dir := t.TempDir()
+	pack := model.EvidencePack{
+		SchemaVersion: model.SchemaVersion,
+		ToolVersion:   "test",
+		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Results: []model.CheckResult{
+			{CheckID: "X", Status: model.Status("not-a-real-status"), Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{}},
+		},
+	}
+
+	if err := writeEvidencePack(pack, dir); err == nil {
+		t.Fatal("writeEvidencePack with an invalid status = nil error, want a pre-write validation error")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "evidence.json")); !os.IsNotExist(err) {
+		t.Errorf("evidence.json exists after a rejected write (stat err = %v), want no file at all", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("dir contains %d entr(y/ies) after a rejected write, want none (no leftover temp file either): %v", len(entries), entries)
+	}
+}
+
+// TestWriteEvidencePack_RejectsOversizedFacts proves ValidateFactsSizes is
+// actually wired into the real write path, not just unit-tested in
+// isolation.
+// TestWriteEvidencePack_OversizedFactsStillWrites locks in a deliberate
+// design choice: unlike a schema violation, an oversized fact is
+// advisory only (see ValidateFactsSizes' doc comment) — a large org's
+// genuinely large finding count (many unpinned actions, a long release
+// history, both unbounded by any collector-side cap) is a real, correct
+// result this tool exists to report, not a reason to destroy the whole
+// scan's evidence. writeEvidencePack must still write the pack, with the
+// oversized fact intact, not silently truncated or dropped.
+func TestWriteEvidencePack_OversizedFactsStillWrites(t *testing.T) {
+	dir := t.TempDir()
+	oversized := strings.Repeat("x", model.MaxFactValueBytes+1)
+	pack := model.EvidencePack{
+		SchemaVersion: model.SchemaVersion,
+		ToolVersion:   "test",
+		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Results: []model.CheckResult{
+			{
+				CheckID: "X", Status: model.StatusVerifiedPass,
+				Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{},
+				Facts: map[string]any{"large_but_legitimate": oversized},
+			},
+		},
+	}
+
+	if err := writeEvidencePack(pack, dir); err != nil {
+		t.Fatalf("writeEvidencePack with an oversized-but-legitimate fact = %v, want no error", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "evidence.json"))
+	if err != nil {
+		t.Fatalf("read evidence.json: %v", err)
+	}
+	if !bytes.Contains(data, []byte(oversized)) {
+		t.Error("the oversized fact's value did not survive into evidence.json — it must never be silently truncated or dropped")
+	}
+}
+
+// TestRunScan_OversizedFactWarnsButStillSucceeds proves runScan surfaces
+// ValidateFactsSizes' finding as a warning (visible to the operator) but
+// never fails the scan over it.
+func TestRunScan_OversizedFactWarnsButStillSucceeds(t *testing.T) {
+	oversized := strings.Repeat("x", model.MaxFactValueBytes+1)
+	var stdout bytes.Buffer
+	deps := scanDeps{
+		collectors: []collect.Collector{
+			fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
+				{
+					CheckID: "DEMO.pass", Status: model.StatusVerifiedPass,
+					Scope: model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+					Facts: map[string]any{"large_but_legitimate": oversized},
+				},
+			}},
+		},
+		stdout: &stdout,
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", Repos: []string{"good-repo"}}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "large_but_legitimate") {
+		t.Errorf("stdout = %q, want a warning naming the oversized fact", stdout.String())
+	}
+	if result.pack.Results[0].Facts["large_but_legitimate"] != oversized {
+		t.Error("the oversized fact was dropped or altered in the returned pack, want it intact")
+	}
+}
+
+// TestWriteEvidencePack_AtomicWriteLeavesNoTempFileOnSuccess proves the
+// temp-file-plus-rename path (issue #24) cleans up after itself: after a
+// successful write, outDir must contain exactly evidence.json, no
+// leftover .evidence-*.json.tmp file.
+func TestWriteEvidencePack_AtomicWriteLeavesNoTempFileOnSuccess(t *testing.T) {
+	dir := t.TempDir()
+	pack := model.EvidencePack{
+		SchemaVersion: model.SchemaVersion,
+		ToolVersion:   "test",
+		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Results: []model.CheckResult{
+			{CheckID: "X", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{}},
+		},
+	}
+
+	if err := writeEvidencePack(pack, dir); err != nil {
+		t.Fatalf("writeEvidencePack: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "evidence.json" {
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		t.Errorf("dir entries = %v, want exactly [evidence.json]", names)
+	}
+}
+
+// TestRunScan_DeterministicAcrossRunsWithFixedClock is issue #24's core
+// acceptance criterion: two scans over identical fixtures (same
+// collectors, same fixed clock — a real scan never gets a fixed clock,
+// but the marshaling/ordering logic under test doesn't know or care where
+// its timestamps came from) must produce byte-identical evidence.json
+// content.
+func TestRunScan_DeterministicAcrossRunsWithFixedClock(t *testing.T) {
+	fixedTime := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	newDeps := func() scanDeps {
+		return scanDeps{
+			collectors: []collect.Collector{
+				fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
+					{
+						CheckID: "DEMO.pass", Status: model.StatusVerifiedPass,
+						Scope: model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+						Provenance: []model.Provenance{
+							{Endpoint: "/repos/attestor-demo/good-repo", Method: "GET", Timestamp: fixedTime, HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
+						},
+						Facts: map[string]any{"some_fact": 1},
+					},
+				}},
+			},
+			stdout: &bytes.Buffer{},
+			now:    func() time.Time { return fixedTime },
+		}
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", Repos: []string{"good-repo"}}, scanConfig{}, nil)
+
+	result1, err := runScan(context.Background(), cfg, nil, newDeps())
+	if err != nil {
+		t.Fatalf("runScan (1): %v", err)
+	}
+	result2, err := runScan(context.Background(), cfg, nil, newDeps())
+	if err != nil {
+		t.Fatalf("runScan (2): %v", err)
+	}
+
+	data1, err := json.MarshalIndent(result1.pack, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal run 1: %v", err)
+	}
+	data2, err := json.MarshalIndent(result2.pack, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal run 2: %v", err)
+	}
+	if !bytes.Equal(data1, data2) {
+		t.Errorf("two runScan calls over identical fixtures produced different JSON:\n--- run 1 ---\n%s\n--- run 2 ---\n%s", data1, data2)
+	}
+
+	// Also prove the two on-disk files (through the real writer, not just
+	// the in-memory struct) are byte-identical.
+	dir1, dir2 := t.TempDir(), t.TempDir()
+	if err := writeEvidencePack(result1.pack, dir1); err != nil {
+		t.Fatalf("writeEvidencePack (1): %v", err)
+	}
+	if err := writeEvidencePack(result2.pack, dir2); err != nil {
+		t.Fatalf("writeEvidencePack (2): %v", err)
+	}
+	written1, err := os.ReadFile(filepath.Join(dir1, "evidence.json"))
+	if err != nil {
+		t.Fatalf("read written pack 1: %v", err)
+	}
+	written2, err := os.ReadFile(filepath.Join(dir2, "evidence.json"))
+	if err != nil {
+		t.Fatalf("read written pack 2: %v", err)
+	}
+	if !bytes.Equal(written1, written2) {
+		t.Error("two on-disk evidence.json files from identical fixtures are not byte-identical")
 	}
 }

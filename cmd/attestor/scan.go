@@ -171,6 +171,14 @@ type scanDeps struct {
 	client     *ghcollect.Client
 	collectors []collect.Collector
 	stdout     io.Writer
+	// now overrides how runScan reads the current time (ScanStartedAt/
+	// ScanEndedAt); nil defaults to time.Now. Exists so a determinism test
+	// can run runScan twice with an identical fixed clock and assert the
+	// two resulting evidence.json byte streams are exactly equal (issue
+	// #24's "same inputs => byte-identical output" requirement) — real
+	// scans always leave this nil, since two independent scans genuinely
+	// happening at different wall-clock times is correct, not a bug.
+	now func() time.Time
 }
 
 type scanResult struct {
@@ -183,7 +191,11 @@ type scanResult struct {
 // file — that's writeEvidencePack, called separately so tests can assert on
 // the assembled pack without touching the filesystem.
 func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps scanDeps) (scanResult, error) {
-	startedAt := time.Now().UTC()
+	now := deps.now
+	if now == nil {
+		now = time.Now
+	}
+	startedAt := now().UTC()
 
 	// Preflight: confirm the org is actually visible with this token
 	// (issue #10's explicit "org visible" requirement) *before* resolving
@@ -279,7 +291,7 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 
 	rollup := mapping.BuildRollup(results, ssdf, cisa)
 
-	endedAt := time.Now().UTC()
+	endedAt := now().UTC()
 
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
@@ -296,6 +308,15 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		Rollup:        &rollup,
 	}
 	pack.Scrub()
+
+	// Advisory only — see ValidateFactsSizes' doc comment for why an
+	// oversized fact warns instead of aborting the write: a large org's
+	// genuinely large finding count (many unpinned actions, a long
+	// release history) is a real, correct result this tool exists to
+	// report, not a reason to discard the entire scan's evidence.
+	if err := pack.ValidateFactsSizes(); err != nil {
+		logf(deps.stdout, "warning: %v\n", err)
+	}
 
 	return scanResult{pack: pack, exitCode: computeExitCode(results)}, nil
 }
@@ -424,12 +445,25 @@ func runCollectors(ctx context.Context, collectors []collect.Collector, scope co
 	return all, summaries
 }
 
-// writeEvidencePack marshals pack and writes it to <outDir>/evidence.json,
-// applying the byte-level ScrubBytes pass as a last line of defense
-// alongside pack.Scrub() (already applied by runScan). Determinism/atomic
-// writes are issue #24's job; this is the minimal functional writer #10
-// needs to satisfy its own acceptance criteria ("produces a pack").
+// writeEvidencePack validates pack, marshals it, and writes it to
+// <outDir>/evidence.json atomically (issue #24): pre-write schema
+// validation fails loudly rather than ever shipping an invalid pack, and
+// the write itself goes through a temp file plus rename so an
+// interrupted scan (killed mid-write, disk full) never leaves a
+// half-written evidence.json where a complete one used to be —
+// os.Rename within the same directory is atomic on every platform this
+// project ships for. ScrubBytes runs as a last line of defense alongside
+// pack.Scrub() (already applied by runScan). Facts-size validation
+// (ValidateFactsSizes) deliberately does NOT gate this write — see
+// runScan, which already ran it as a warning: unlike a schema violation,
+// an oversized fact can be a genuine, correct finding at real-world
+// scale, and this is the last place in the pipeline that should ever
+// destroy a scan's evidence over it.
 func writeEvidencePack(pack model.EvidencePack, outDir string) error {
+	if err := pack.ValidateAgainstSchema(); err != nil {
+		return fmt.Errorf("evidence pack failed pre-write schema validation: %w", err)
+	}
+
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", outDir, err)
 	}
@@ -441,8 +475,30 @@ func writeEvidencePack(pack model.EvidencePack, outDir string) error {
 	data = model.ScrubBytes(data)
 
 	path := filepath.Join(outDir, "evidence.json")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+	tmp, err := os.CreateTemp(outDir, ".evidence-*.json.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp file in %s: %w", outDir, err)
+	}
+	tmpPath := tmp.Name()
+	// Always attempt cleanup on any early return; once the rename below
+	// succeeds this becomes a harmless no-such-file no-op, so the error is
+	// deliberately discarded rather than shadowing whatever real error (if
+	// any) is already being returned.
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("chmod %s: %w", tmpPath, err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write %s: %w", tmpPath, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", tmpPath, path, err)
 	}
 	return nil
 }

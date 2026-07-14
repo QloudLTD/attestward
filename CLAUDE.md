@@ -16,9 +16,11 @@ integration harness), and Phase 3 (#16 scanner-signature registry, #17 C05
 sast-history, #18 C06 sca-history, #19 C07 provenance) are merged to `main`.
 Phase 4 (#20 C08 actions-security, #21 C09 audit-logging, #22 C10 vdp, #23
 self-attestation intake) is merged to `main` — the full v0.1 check matrix
-(C01–C10 plus self-attestation) is now in place. Phase 5 (evidence.json
-writer, report.md/html, poam.md, pack integrity, `attestor report`) is
-next. Build is issue-driven and in progress (see Progress tracker below).
+(C01–C10 plus self-attestation) is now in place. Phase 5 is in progress:
+#24 (evidence.json writer — determinism, atomic writes, pre-write schema
+validation) is merged; #25 (report.md/html), #26 (poam.md), #27 (pack
+integrity), and #28 (`attestor report`) are next. Build is issue-driven
+and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -116,7 +118,8 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #23 Self-attestation YAML intake
 
 **Phase 5 — Outputs + integrity**
-- [ ] #24 evidence.json writer · #25 report.md/html · #26 poam.md · #27 pack integrity · #28 `attestor report`
+- [x] #24 evidence.json writer
+- [ ] #25 report.md/html · #26 poam.md · #27 pack integrity · #28 `attestor report`
 
 **Phase 6 — Polish & launch**
 - [ ] #29 README rewrite · #30 generated checks-reference · #31 threat model finalization · #32 self-scan badge · #33 launch checklist
