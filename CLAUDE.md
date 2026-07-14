@@ -11,10 +11,10 @@ verifies the technical controls behind the CISA SSDA form against a GitHub org/r
 emits a signed evidence pack. Full mission and rationale: [README.md](README.md).
 
 Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model,
-SSDF/CISA mappings, `checks list`), and Phase 2 (C01–C04 collectors, demo org +
-integration harness) are merged to `main`. Phase 3 is in progress: #16 (scanner-signature
-registry), #17 (C05 sast-history), and #18 (C06 sca-history) are merged; #19 (C07
-provenance) is next.
+SSDF/CISA mappings, `checks list`), Phase 2 (C01–C04 collectors, demo org +
+integration harness), and Phase 3 (#16 scanner-signature registry, #17 C05
+sast-history, #18 C06 sca-history, #19 C07 provenance) are merged to `main`.
+Phase 4 (#20–23: C08–C10 collectors + self-attestation) is next.
 Build is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
@@ -104,7 +104,7 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #16 Scanner-signature registry
 - [x] #17 C05 sast-history
 - [x] #18 C06 sca-history
-- [ ] #19 C07 provenance
+- [x] #19 C07 provenance
 
 **Phase 4 — Collectors C08–C10 + self-attestation**
 - [ ] #20 C08 actions-security · #21 C09 audit-logging · #22 C10 vdp

@@ -1,13 +1,24 @@
 # fixtures.yaml — expected check results for the demo org integration test
 # (issue #15). Grows as C05-C10 land — each collector issue appends its own
 # entries here. See hack/demo-org-setup.sh for how the org and repos are
-# configured, and DECISIONS.md's D5 entry for why Qloud-LTD.
+# configured, and DECISIONS.md's D5/D8 entries for why Qloud-LTD and how
+# demo-good's signed release fixture was built.
 #
 # Every value below was captured from a REAL scan of the actual org
 # (`attestor scan --org Qloud-LTD --repo demo-good --repo demo-bad`), not
 # hand-derived — a couple of entries reflect real GitHub platform/plan
 # quirks discovered only by running the setup script and observing the
 # result; see each one's `note`.
+#
+# The C05/C06/C07 entries below were backfilled together (issue #19):
+# neither #17 (C05) nor #18 (C06) had added their own entries when they
+# landed, which meant `TestIntegration_DemoOrgMatchesFixtures` had been
+# failing since C05 merged on any real run — every check the scan produces
+# with no matching fixtures.yaml expectation is a test failure by design
+# (see integration_test.go), not a silent skip. demo-good was built as a
+# C01-C04 fixture only; it doesn't run a SAST/SCA tool, so its C05/C06
+# results are honestly verified-fail/not-checkable too — fixtures.yaml
+# records reality, not an aspirational "everything passes."
 
 org: Qloud-LTD
 repos: [demo-good, demo-bad]
@@ -72,6 +83,52 @@ repo_checks:
         fixture's Free-plan org) — GHAS licensing only gates private-repo
         features, so this check is not-checkable on any public repo by
         design, not a gap in demo-good's configuration.
+    - check_id: C05.sast.tool-configured
+      status: verified-fail
+      note: >-
+        demo-good was built as a C01-C04 fixture (issue #15); no SAST tool
+        or CodeQL default setup was ever configured on it. Honestly
+        verified-fail, not a bug — C05/C06/C07 fixtures land together with
+        issue #19, well after demo-good's original C01-C04 scope.
+    - check_id: C05.sast.ran-per-release
+      status: verified-fail
+      note: >-
+        The v1.0.0 release added for the C07 fixture (issue #19) gives
+        this check a release to evaluate for the first time — since no
+        SAST tool is configured (see tool-configured above), that release
+        has zero matched SAST runs, a real gap, honestly reported.
+    - {check_id: C05.sast.cadence, status: not-checkable, note: "No SAST tool configured — nothing to compute cadence for."}
+    - {check_id: C05.sast.default-setup, status: verified-fail, note: "CodeQL default setup was never enabled on this fixture."}
+    - {check_id: C06.sca.tool-configured, status: verified-fail, note: "Same reason as C05.sast.tool-configured — out of demo-good's original C01-C04 scope."}
+    - check_id: C06.sca.ran-per-release
+      status: verified-fail
+      note: "Same reason as C05.sast.ran-per-release — the v1.0.0 release has no matched SCA run."
+    - check_id: C06.sca.dependabot-config
+      status: verified-fail
+      note: >-
+        No .github/dependabot.yml exists, and this repo does have a
+        detected ecosystem (its own GitHub Actions workflows) that would
+        need covering — a real, honestly-reported gap.
+    - {check_id: C06.sca.dependency-review, status: verified-fail, note: "No dependency-review-action (or equivalent) workflow configured."}
+    - check_id: C06.sca.alerts-triaged
+      status: verified-pass
+      note: "Dependabot alerts are enabled (C04.deps.dependabot-alerts) with zero open alerts."
+    - check_id: C07.release.tags-signed
+      status: verified-pass
+      note: >-
+        v1.0.0's annotated tag is signed with an SSH key registered to the
+        org owner's GitHub account (see DECISIONS.md's D8) and GitHub
+        reports the signature verified.
+    - {check_id: C07.release.checksums, status: verified-pass, note: "v1.0.0 ships checksums.txt."}
+    - check_id: C07.release.signatures
+      status: verified-pass
+      note: "v1.0.0 ships checksums.txt.bundle — a cosign keyless sign-blob bundle."
+    - check_id: C07.provenance.workflow
+      status: verified-pass
+      note: "release.yaml uses sigstore/cosign-installer + cosign sign-blob, matching the cosign scanner signature."
+    - check_id: C07.provenance.commit-linkage
+      status: verified-pass
+      note: "The release.yaml workflow run that built v1.0.0's assets ran directly on the tagged commit."
   demo-bad:
     - {check_id: C02.branch.protection-exists, status: verified-fail}
     - {check_id: C02.branch.required-reviews, status: verified-fail}
@@ -96,3 +153,32 @@ repo_checks:
     - check_id: C04.secrets.advanced-security
       status: not-checkable
       note: "Same reason as demo-good's entry above — public repo, not applicable."
+    - {check_id: C05.sast.tool-configured, status: verified-fail, note: "No SAST tool or CodeQL default setup configured."}
+    - check_id: C05.sast.ran-per-release
+      status: not-checkable
+      note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."
+    - {check_id: C05.sast.cadence, status: not-checkable, note: "No SAST tool configured — nothing to compute cadence for."}
+    - {check_id: C05.sast.default-setup, status: verified-fail, note: "CodeQL default setup was never enabled."}
+    - {check_id: C06.sca.tool-configured, status: verified-fail, note: "No SCA tool or Dependabot config configured."}
+    - {check_id: C06.sca.ran-per-release, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - check_id: C06.sca.dependabot-config
+      status: not-checkable
+      note: >-
+        demo-bad has no dependency manifest files at all (no workflows,
+        no package files) — nothing for Dependabot to cover, so this is
+        an honest not-checkable, not a gap.
+    - {check_id: C06.sca.dependency-review, status: verified-fail, note: "No dependency-review-action (or equivalent) workflow configured."}
+    - check_id: C06.sca.alerts-triaged
+      status: verified-fail
+      note: >-
+        Dependabot alerts are deliberately disabled on demo-bad
+        (C04.deps.dependabot-alerts) — a real, honestly-reported gap.
+    - check_id: C07.release.tags-signed
+      status: not-checkable
+      note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."
+    - {check_id: C07.release.checksums, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - {check_id: C07.release.signatures, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - check_id: C07.provenance.workflow
+      status: verified-fail
+      note: "demo-bad has no workflows at all, so no provenance-generating tool is detected."
+    - {check_id: C07.provenance.commit-linkage, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}

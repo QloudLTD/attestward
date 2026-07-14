@@ -104,6 +104,17 @@ ensure_repo "$BAD_REPO" "attestor demo fixture: controls deliberately off/miscon
 # request and left the reviewers list empty rather than erroring.
 OWNER_ID=$(gh api user --jq '.id')
 
+log "temporarily removing $GOOD_REPO branch protection to allow content updates"
+# Once branch protection (further below) has been applied by a prior run,
+# a bare PUT to the Contents API on a required-review/required-status-check
+# protected main 403s regardless of whether the content would even change
+# — put_file's own idempotency check can't even run. Removing protection
+# first, pushing, then re-applying it (unconditionally, below) makes this
+# script safely re-runnable indefinitely, not just on a from-scratch repo.
+# A 404 (no protection configured yet — a genuinely fresh repo) is not an
+# error condition worth failing the script over.
+gh api "repos/$ORG/$GOOD_REPO/branches/main/protection" -X DELETE >/dev/null 2>&1 || true
+
 log "pushing initial content to $GOOD_REPO"
 put_file "$GOOD_REPO" "README.md" \
 "# demo-good
@@ -123,6 +134,50 @@ jobs:
     steps:
       - run: echo ok
 " "ci: add trivial build workflow (required status check fixture)"
+
+# C07 provenance fixture (issue #19): tag-push-triggered release workflow
+# producing checksums + a cosign keyless-signed bundle. This alone doesn't
+# produce a release — that also needs an actual signed, annotated tag
+# pushed (v1.0.0 as of issue #19), which this script can't do: creating
+# one requires a real SSH/GPG signing key registered with a GitHub
+# account, an operation with security implications this script
+# deliberately doesn't automate — see DECISIONS.md's D8 for how demo-good's
+# actual v1.0.0 tag was created and signed.
+put_file "$GOOD_REPO" ".github/workflows/release.yaml" \
+"name: release
+on:
+  push:
+    tags: [\"v*\"]
+permissions:
+  contents: write
+  id-token: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build demo release artifacts
+        run: |
+          mkdir -p dist
+          echo \"demo-good release artifact (linux/amd64)\" > dist/demo-good_linux_amd64.txt
+          echo \"demo-good release artifact (darwin/arm64)\" > dist/demo-good_darwin_arm64.txt
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: \"v3.1.1\"
+      - name: Sign checksums with cosign (keyless)
+        run: cosign sign-blob --bundle=dist/checksums.txt.bundle --yes dist/checksums.txt
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          gh release create \"\${GITHUB_REF_NAME}\" dist/* \\
+            --title \"\${GITHUB_REF_NAME}\" \\
+            --notes \"Demo release fixture for attestor's C07 provenance collector (issue #19).\"
+" "ci: add cosign-signed release workflow (C07 provenance fixture, issue #19)"
 
 log "pushing initial content to $BAD_REPO"
 put_file "$BAD_REPO" "README.md" \
