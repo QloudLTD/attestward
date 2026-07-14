@@ -133,8 +133,8 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// against mappings.FS, and collect.Registered() reflects every
 	// collector package's init()-time registration — here, orgsecurity's,
 	// repoprotection's, envseparation's, secretshygiene's, sasthistory's,
-	// scahistory's, provenance's, actionssecurity's, and auditlogging's,
-	// transitively imported via scan.go) — not the
+	// scahistory's, provenance's, actionssecurity's, auditlogging's, and
+	// vdp's, transitively imported via scan.go) — not the
 	// disk-based loaders or synthetic fixtures the other tests in this
 	// file use, which would miss a broken //go:embed pattern, a renamed
 	// file, or a check registered on one side (registry or mapping) but
@@ -192,6 +192,10 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C09.audit.org-log-available",
 		"C09.audit.retention-awareness",
 		"C09.repo.webhooks",
+		"C10.vdp.intake-channel",
+		"C10.vdp.private-reporting",
+		"C10.vdp.security-md",
+		"C10.vdp.security-policy-org",
 	}
 	if len(rows) != len(wantIDs) {
 		t.Fatalf("len(rows) = %d, want %d (%v)", len(rows), len(wantIDs), wantIDs)

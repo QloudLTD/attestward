@@ -14,9 +14,9 @@ Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model
 SSDF/CISA mappings, `checks list`), Phase 2 (C01–C04 collectors, demo org +
 integration harness), and Phase 3 (#16 scanner-signature registry, #17 C05
 sast-history, #18 C06 sca-history, #19 C07 provenance) are merged to `main`.
-Phase 4 is in progress: #20 (C08 actions-security) and #21 (C09
-audit-logging) are merged; #22 (C10 vdp) and #23 (self-attestation intake)
-are next.
+Phase 4 is in progress: #20 (C08 actions-security), #21 (C09
+audit-logging), and #22 (C10 vdp) are merged; #23 (self-attestation
+intake) is next — the last collector-phase issue before Phase 5.
 Build is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
@@ -111,7 +111,7 @@ itself, so re-run it any time rather than hand-editing it.
 **Phase 4 — Collectors C08–C10 + self-attestation**
 - [x] #20 C08 actions-security
 - [x] #21 C09 audit-logging
-- [ ] #22 C10 vdp
+- [x] #22 C10 vdp
 - [ ] #23 Self-attestation YAML intake
 
 **Phase 5 — Outputs + integrity**

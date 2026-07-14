@@ -26,6 +26,7 @@ import (
 	"github.com/sioakim/ssdf/internal/collect/github/sasthistory"
 	"github.com/sioakim/ssdf/internal/collect/github/scahistory"
 	"github.com/sioakim/ssdf/internal/collect/github/secretshygiene"
+	"github.com/sioakim/ssdf/internal/collect/github/vdp"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
 	"github.com/sioakim/ssdf/mappings"
@@ -91,7 +92,7 @@ func init() {
 // CheckResults by diffing that log, which only stays correct if nothing
 // else (another collector run concurrently) issues calls through the same
 // Client. repoprotection/envseparation/secretshygiene/sasthistory/
-// scahistory/provenance/actionssecurity/auditlogging take the token
+// scahistory/provenance/actionssecurity/auditlogging/vdp take the token
 // directly rather than a pre-built Client since they construct a fresh
 // Client per repo internally (see their own doc comments for why).
 func defaultCollectors(token string) []collect.Collector {
@@ -105,6 +106,7 @@ func defaultCollectors(token string) []collect.Collector {
 		provenance.New(token),
 		actionssecurity.New(token),
 		auditlogging.New(token),
+		vdp.New(token),
 	)
 }
 

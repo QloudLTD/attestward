@@ -79,6 +79,13 @@ org_checks:
       Always not-checkable, unconditionally — fact-only informational
       check surfacing GitHub's documented 180-day audit-log retention
       window, never a verified claim about this specific org.
+  - check_id: C10.vdp.security-policy-org
+    status: not-checkable
+    note: >-
+      Qloud-LTD has no .github repo (the org-wide default
+      community-health-file mechanism), so there's no org-level policy to
+      resolve — a genuinely different, softer signal than "the org failed
+      to set one up," since most orgs never create a .github repo at all.
 
 # Per-repo checks, keyed by repo name.
 repo_checks:
@@ -175,6 +182,22 @@ repo_checks:
       note: >-
         demo-good has no webhooks configured at all — a real gap, out of
         this repo's original C01-C04 fixture scope (issue #15).
+    - check_id: C10.vdp.security-md
+      status: verified-fail
+      note: >-
+        demo-good has no SECURITY.md anywhere (repo or org fallback) —
+        out of this repo's original C01-C04 fixture scope (issue #15), a
+        real, honestly-reported gap like C05/C06/C08/C09 before it.
+    - check_id: C10.vdp.intake-channel
+      status: verified-fail
+      note: "No SECURITY.md exists to advertise an intake channel."
+    - check_id: C10.vdp.private-reporting
+      status: verified-fail
+      note: >-
+        GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting
+        returns 200 with enabled:false (a public repo, so this is a real
+        "off" answer, not the plan-gated-404 case this check also
+        handles).
   demo-bad:
     - {check_id: C02.branch.protection-exists, status: verified-fail}
     - {check_id: C02.branch.required-reviews, status: verified-fail}
@@ -277,3 +300,16 @@ repo_checks:
     - check_id: C09.repo.webhooks
       status: verified-fail
       note: "demo-bad has no webhooks configured at all — a real, deliberately-off gap."
+    - check_id: C10.vdp.security-md
+      status: verified-fail
+      note: "demo-bad has no SECURITY.md anywhere (repo or org fallback) — a real, deliberately-off gap."
+    - check_id: C10.vdp.intake-channel
+      status: verified-fail
+      note: "No SECURITY.md exists to advertise an intake channel."
+    - check_id: C10.vdp.private-reporting
+      status: verified-fail
+      note: >-
+        GET /repos/Qloud-LTD/demo-bad/private-vulnerability-reporting
+        returns 200 with enabled:false (a public repo, so this is a real
+        "off" answer, not the plan-gated-404 case this check also
+        handles).

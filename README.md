@@ -93,6 +93,7 @@ least-privilege warning if it detects write access.
 | `provenance` (C07) | `repo` (classic) or `Contents: read-only` (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically; exact fine-grained category for those unverified |
 | `actions-security` (C08) | `repo` (classic) or `Contents: read-only` (fine-grained) for workflow file content — plus `Administration: read-only` (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified |
 | `audit-logging` (C09) | `read:audit_log` (classic OAuth/PAT scope) plus organization-owner status for the org audit-log checks — GitHub's docs don't distinguish a missing scope from a plan without the Enterprise Cloud audit-log API, both surface identically; `repo` (classic) or `Webhooks: read-only` (fine-grained, unverified) for the webhooks check |
+| `vdp` (C10) | `public_repo`/`repo` (classic) or `Contents: read-only` (fine-grained) for SECURITY.md content; private-reporting additionally needs whatever category gates that endpoint, exact fine-grained category unverified |
 
 This table only lists collectors that exist as code today; `attestor checks list` is
 the live source of truth as more land (each row's `TOKEN SCOPE` column).

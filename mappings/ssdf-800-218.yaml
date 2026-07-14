@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.9.0"
+version: "1.10.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -407,7 +407,7 @@ tasks:
       Gather information from software acquirers, users, and public sources
       on potential vulnerabilities in the software and third-party components
       that the software uses, and investigate all credible reports.
-    checks: []
+    checks: [C10.vdp.intake-channel, C10.vdp.private-reporting]
 
   - id: RV.1.2
     family: RV
@@ -424,7 +424,7 @@ tasks:
       Have a policy that addresses vulnerability disclosure and remediation,
       and implement the roles, responsibilities, and processes needed to
       support that policy.
-    checks: []
+    checks: [C10.vdp.security-md, C10.vdp.intake-channel, C10.vdp.security-policy-org]
 
   - id: RV.2.1
     family: RV
