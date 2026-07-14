@@ -44,7 +44,7 @@ no telemetry, no network destinations other than the platform API (api.github.co
 | Token leakage via logs/output | Central scrubber redacts secret-shaped strings from all log/error paths before emit; evidence stores digests only |
 | Malicious/compromised API responses (injection into reports) | HTML renderer escapes all API-derived strings; markdown renderer neutralizes link/script injection |
 | Tampered evidence pack after generation | SHA-256 pack hash printed + embedded in report; optional cosign signature |
-| Supply-chain attack on the tool itself | Pinned GitHub Actions (SHA), minimal dependency tree, signed releases via goreleaser+cosign, CodeQL on the repo |
+| Supply-chain attack on the tool itself | Pinned GitHub Actions (SHA), minimal dependency tree, signed releases via goreleaser+cosign |
 | Dependency confusion / typosquatting on install | Official release artifacts with checksums; documented install paths only |
 | Over-privileged tokens | README documents minimum fine-grained PAT permissions per collector; scan warns when the token has write scopes (best-effort detection) |
 

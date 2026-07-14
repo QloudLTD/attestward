@@ -7,7 +7,6 @@
 **License:** [Apache-2.0](LICENSE)
 
 [![CI](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml)
-[![CodeQL](https://github.com/sioakim/ssdf/actions/workflows/codeql.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/codeql.yaml)
 
 ---
 
@@ -93,4 +92,4 @@ before opening a PR. New verification checks and scanner signatures have dedicat
 ## Security
 
 See [SECURITY.md](SECURITY.md). This repo aims to practice what the tool preaches: branch
-protection, pinned actions, signed releases, CodeQL — and will publicly scan itself.
+protection, pinned actions, signed releases — and will publicly scan itself.

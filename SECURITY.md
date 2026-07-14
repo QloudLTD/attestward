@@ -1,8 +1,8 @@
 # Security Policy
 
 This tool is built for security-sensitive environments, and this repo intends to practice
-what the tool preaches: branch protection, pinned actions, CodeQL, signed releases — and
-the repo publicly scans itself with its own tool.
+what the tool preaches: branch protection, pinned actions, signed releases — and the repo
+publicly scans itself with its own tool.
 
 ## Reporting a vulnerability
 

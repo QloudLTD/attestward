@@ -72,7 +72,8 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 0 — Skeleton**
 - [x] #2 Go module, project skeleton, Makefile
-- [x] #3 CI — lint, test, build matrix, CodeQL
+- [x] #3 CI — lint, test, build matrix (CodeQL workflow removed — private repo without
+  GitHub Advanced Security can't run it; see [DECISIONS.md](DECISIONS.md) D7)
 - [x] #4 Release pipeline — goreleaser + cosign
 
 **Phase 1 — Model + mappings**

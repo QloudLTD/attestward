@@ -12,7 +12,7 @@ Undecided questions requiring the owner's call. Once resolved: record the outcom
 | D3 | **Launch channels** | HN/Show HN, r/netsec, compliance communities, direct outreach to small federal vendors? | Phase 6 |
 | D4 | **Hosted-tier boundary** | What stays OSS forever vs. what the commercial hosted product adds (portfolio dashboard, retention, RSAA packaging, SSO). Must be written down before launch to avoid community trust issues. | Pre-launch |
 | D5 | **Demo org name + fixture repo naming** | A public GitHub org with one "good" and one "bad" repo is needed from Phase 2. Name should survive a product rename. | Phase 2 |
-| D7 | **Repo visibility timing** | Repo starts private; decide when to flip public (suggested: end of Phase 1, once mappings exist and history is presentable). Note from #3: CodeQL code scanning doesn't actually run until this flips (or GHAS is enabled) — another reason not to push it too far past Phase 1. | Phase 1–2 |
+| D7 | **Repo visibility timing** | Repo starts private; decide when to flip public (suggested: end of Phase 1, once mappings exist and history is presentable). The `.github/workflows/codeql.yaml` workflow was removed in Phase 2 (org's plan doesn't include GitHub Advanced Security, so it could never upload results on a private repo) — re-add it once the repo goes public or GHAS is purchased, whichever comes first. | Phase 1–2 |
 
 ## Resolved
 
