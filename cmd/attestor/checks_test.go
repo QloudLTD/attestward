@@ -132,11 +132,11 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// (runChecksList calls these same LoadSSDFFS/LoadCISAFS functions
 	// against mappings.FS, and collect.Registered() reflects every
 	// collector package's init()-time registration — here, orgsecurity's,
-	// repoprotection's, and envseparation's, transitively imported via
-	// scan.go) — not the disk-based loaders or synthetic fixtures the
-	// other tests in this file use, which would miss a broken //go:embed
-	// pattern, a renamed file, or a check registered on one side (registry
-	// or mapping) but not the other.
+	// repoprotection's, envseparation's, and secretshygiene's, transitively
+	// imported via scan.go) — not the disk-based loaders or synthetic
+	// fixtures the other tests in this file use, which would miss a broken
+	// //go:embed pattern, a renamed file, or a check registered on one
+	// side (registry or mapping) but not the other.
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
 		t.Fatalf("LoadSSDFFS: %v", err)
@@ -162,6 +162,11 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C03.env.exists",
 		"C03.env.protection-rules",
 		"C03.env.required-reviewers",
+		"C04.deps.dependabot-alerts",
+		"C04.org.security-defaults",
+		"C04.secrets.advanced-security",
+		"C04.secrets.push-protection",
+		"C04.secrets.scanning-enabled",
 	}
 	if len(rows) != len(wantIDs) {
 		t.Fatalf("len(rows) = %d, want %d (%v)", len(rows), len(wantIDs), wantIDs)

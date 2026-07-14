@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.3.0"
+version: "1.4.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -222,6 +222,10 @@ tasks:
         C03.env.protection-rules,
         C03.env.required-reviewers,
         C03.env.branch-policy,
+        C04.secrets.scanning-enabled,
+        C04.secrets.push-protection,
+        C04.secrets.advanced-security,
+        C04.org.security-defaults,
       ]
 
   - id: PO.5.2
@@ -304,7 +308,7 @@ tasks:
       Verify that acquired commercial, open-source, and all other third-party
       software components comply with the requirements, as defined by the
       organization, throughout their life cycles.
-    checks: []
+    checks: [C04.deps.dependabot-alerts]
 
   - id: PW.5.1
     family: PW

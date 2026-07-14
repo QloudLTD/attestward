@@ -11,8 +11,9 @@ verifies the technical controls behind the CISA SSDA form against a GitHub org/r
 emits a signed evidence pack. Full mission and rationale: [README.md](README.md).
 
 Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline) and Phase 1 (data model,
-SSDF/CISA mappings, `checks list`) are merged to `main`. No collectors exist yet — Phase 2
-(#9 onward) is next. Build is issue-driven and in progress (see Progress tracker below).
+SSDF/CISA mappings, `checks list`) are merged to `main`. Phase 2 is in progress: C01–C04
+collectors are merged; #15 (demo org + fixtures + integration harness) is next. Build is
+issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -88,7 +89,7 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #11 C01 org-security
 - [x] #12 C02 repo-protection
 - [x] #13 C03 env-separation
-- [ ] #14 C04 secrets-hygiene
+- [x] #14 C04 secrets-hygiene
 - [ ] #15 Demo org + fixtures + integration harness
 
 **Phase 3 — Collectors C05–C07**

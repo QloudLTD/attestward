@@ -20,6 +20,7 @@ import (
 	"github.com/sioakim/ssdf/internal/collect/github/envseparation"
 	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
 	"github.com/sioakim/ssdf/internal/collect/github/repoprotection"
+	"github.com/sioakim/ssdf/internal/collect/github/secretshygiene"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
 	"github.com/sioakim/ssdf/mappings"
@@ -113,7 +114,7 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 	// Client. repoprotection takes the token directly rather than a
 	// pre-built Client since it constructs a fresh Client per repo
 	// internally (see its own doc comment for why).
-	collectors := append(collect.Collectors(), orgsecurity.New(ghcollect.NewClient(token)), repoprotection.New(token), envseparation.New(token))
+	collectors := append(collect.Collectors(), orgsecurity.New(ghcollect.NewClient(token)), repoprotection.New(token), envseparation.New(token), secretshygiene.New(token))
 
 	deps := scanDeps{
 		repoLister: &restRepoLister{client: client.REST},
