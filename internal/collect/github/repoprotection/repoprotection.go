@@ -47,13 +47,32 @@ var checkIDs = []string{
 	"C02.branch.admin-enforced",
 }
 
+var checkRemediations = map[string]string{
+	"C02.branch.protection-exists": "Repo Settings -> Rules -> Rulesets (or the legacy Settings -> " +
+		"Branches -> Branch protection rules) -> add a rule targeting the default branch.",
+	"C02.branch.required-reviews": "In that ruleset/protection rule, enable \"Require a pull request " +
+		"before merging\" with at least 1 required approving review.",
+	"C02.branch.required-status-checks": "In that ruleset/protection rule, enable \"Require status checks " +
+		"to pass before merging\" and select the CI checks that must pass.",
+	"C02.branch.force-push-blocked": "In a ruleset, enable \"Block force pushes\"; in legacy branch " +
+		"protection, leave \"Allow force pushes\" unchecked.",
+	"C02.branch.deletion-blocked": "In a ruleset, enable \"Restrict deletions\"; in legacy branch " +
+		"protection, leave \"Allow deletions\" unchecked.",
+	"C02.branch.admin-enforced": "For a ruleset, set Enforcement status to \"Active\" (not \"Evaluate\") " +
+		"and remove every bypass actor entirely — even one scoped to \"Pull request only\" caps this " +
+		"check at partial, not a full pass. For legacy branch protection, check \"Do not allow bypassing " +
+		"the above settings\" (Include administrators). Where both legacy protection and a ruleset apply " +
+		"to the same branch, both must independently bind admins for this check to pass.",
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
-			ID:         id,
-			Title:      checkTitles[id],
-			Collector:  collectorID,
-			TokenScope: "repo (classic) or Administration: read-only (fine-grained)",
+			ID:          id,
+			Title:       checkTitles[id],
+			Collector:   collectorID,
+			TokenScope:  "repo (classic) or Administration: read-only (fine-grained)",
+			Remediation: checkRemediations[id],
 		})
 	}
 }

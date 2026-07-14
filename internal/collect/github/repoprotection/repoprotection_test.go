@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	ghgithub "github.com/google/go-github/v75/github"
@@ -387,5 +388,23 @@ func TestChecksRegistered(t *testing.T) {
 		if _, ok := collect.Lookup(id); !ok {
 			t.Errorf("check %q not found in the collect.CheckMeta registry", id)
 		}
+	}
+}
+
+// TestAdminEnforcedRemediationRequiresRemovingAllBypassActors locks in
+// that the remediation doesn't just say to "narrow" a bypass actor from
+// "Always bypass" to a conditional mode — checkAdminEnforced's own switch
+// only reaches verified-pass when len(eff.bypassActors) == 0; any bypass
+// actor at all, even a "Pull request only" one, caps the result at
+// partial. Advice that says "narrow" without also saying "remove
+// entirely" leaves a reader stuck at partial forever, believing they've
+// fixed it.
+func TestAdminEnforcedRemediationRequiresRemovingAllBypassActors(t *testing.T) {
+	remediation := checkRemediations["C02.branch.admin-enforced"]
+	if !strings.Contains(strings.ToLower(remediation), "remove") {
+		t.Errorf("C02.branch.admin-enforced remediation doesn't say to remove bypass actors entirely (only removing all of them reaches verified-pass): %q", remediation)
+	}
+	if strings.Contains(remediation, "narrowly scope") {
+		t.Errorf("C02.branch.admin-enforced remediation says to \"narrowly scope\" a bypass actor — that still leaves len(bypassActors) > 0, which caps the result at partial, never verified-pass: %q", remediation)
 	}
 }

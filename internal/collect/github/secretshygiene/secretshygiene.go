@@ -43,13 +43,31 @@ var repoCheckIDs = []string{
 
 var allCheckIDs = append(append([]string{}, repoCheckIDs...), "C04.org.security-defaults")
 
+var checkRemediations = map[string]string{
+	"C04.secrets.scanning-enabled": "Repo Settings -> Code security -> enable \"Secret scanning\". Free " +
+		"for public repos; on a private repo it needs a GitHub Advanced Security license, or (since " +
+		"GitHub's 2025 GHAS unbundling) a standalone GitHub Secret Protection license.",
+	"C04.secrets.push-protection": "Repo Settings -> Code security -> under Secret scanning, enable " +
+		"\"Push protection\" so commits containing a detected secret are blocked before they land.",
+	"C04.deps.dependabot-alerts": "Repo Settings -> Code security -> enable \"Dependabot alerts\".",
+	"C04.secrets.advanced-security": "Repo Settings -> Code security -> enable \"GitHub Advanced " +
+		"Security\" (requires a GHAS license on private repos; public repos get the equivalent features " +
+		"free without it). Since GitHub's 2025 GHAS unbundling, secret scanning and push protection can " +
+		"also be licensed and enabled independently via standalone Secret Protection, without this flag.",
+	"C04.org.security-defaults": "Org Settings -> Code security -> enable secret scanning, push " +
+		"protection, Dependabot alerts, AND Advanced Security \"for new repositories\" — all four must " +
+		"be on for this check to pass — so every repo created going forward starts with them on, instead " +
+		"of relying on each repo owner to enable them individually.",
+}
+
 func init() {
 	for _, id := range allCheckIDs {
 		collect.Register(collect.CheckMeta{
-			ID:         id,
-			Title:      checkTitles[id],
-			Collector:  collectorID,
-			TokenScope: "repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager",
+			ID:          id,
+			Title:       checkTitles[id],
+			Collector:   collectorID,
+			TokenScope:  "repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager",
+			Remediation: checkRemediations[id],
 		})
 	}
 }

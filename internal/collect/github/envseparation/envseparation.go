@@ -42,13 +42,27 @@ var checkIDs = []string{
 	"C03.env.branch-policy",
 }
 
+var checkRemediations = map[string]string{
+	"C03.env.exists": "Repo Settings -> Environments -> New environment -> name it \"production\" (or " +
+		"any prod*/production variant — this check's name heuristic is case-insensitive) so deployments " +
+		"can be routed through it.",
+	"C03.env.protection-rules": "Open the production-like environment -> Settings -> Deployment protection " +
+		"rules -> add at least one rule (required reviewers or a wait timer).",
+	"C03.env.required-reviewers": "Open the production-like environment -> Settings -> Deployment " +
+		"protection rules -> add \"Required reviewers\" and select who must approve a deployment.",
+	"C03.env.branch-policy": "Open the production-like environment -> Settings -> Deployment branches and " +
+		"tags -> change from \"No restriction\" to \"Protected branches only\" or a \"Selected branches " +
+		"and tags\" allowlist.",
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
-			ID:         id,
-			Title:      checkTitles[id],
-			Collector:  collectorID,
-			TokenScope: "repo (classic) or Actions: read-only (fine-grained)",
+			ID:          id,
+			Title:       checkTitles[id],
+			Collector:   collectorID,
+			TokenScope:  "repo (classic) or Actions: read-only (fine-grained)",
+			Remediation: checkRemediations[id],
 		})
 	}
 }

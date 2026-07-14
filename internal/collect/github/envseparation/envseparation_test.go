@@ -382,3 +382,18 @@ func TestChecksRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestBranchPolicyRemediationUsesCurrentUILabel locks in that the
+// remediation names GitHub's actual current deployment-branch-policy UI
+// option ("No restriction") rather than the stale pre-tags-support label
+// ("All branches"), which no longer appears in the environment settings
+// UI.
+func TestBranchPolicyRemediationUsesCurrentUILabel(t *testing.T) {
+	remediation := checkRemediations["C03.env.branch-policy"]
+	if strings.Contains(remediation, "All branches") {
+		t.Errorf("C03.env.branch-policy remediation uses the stale \"All branches\" label — GitHub's current UI calls this option \"No restriction\": %q", remediation)
+	}
+	if !strings.Contains(remediation, "No restriction") {
+		t.Errorf("C03.env.branch-policy remediation should name the current \"No restriction\" label as the state being changed from: %q", remediation)
+	}
+}

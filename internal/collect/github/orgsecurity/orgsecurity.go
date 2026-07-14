@@ -28,9 +28,30 @@ var checkTitles = map[string]string{
 	"C01.org.members-can-create-public": "Whether members can create public repositories",
 }
 
+var checkRemediations = map[string]string{
+	"C01.org.2fa-required": "Org Settings -> Authentication security -> check \"Require two-factor " +
+		"authentication for everyone in the [org] organization\". Any member without 2FA enabled will be " +
+		"removed from the org when this is turned on, so resolve C01.org.members-without-2fa first.",
+	"C01.org.members-without-2fa": "Org People page -> filter by \"Two-factor authentication: Disabled\" -> " +
+		"have each flagged member enable 2FA under their own Settings -> Password and authentication, or " +
+		"remove/suspend members who won't comply. Then enable C01.org.2fa-required so new members can't " +
+		"rejoin without it.",
+	"C01.org.default-repo-permission": "Org Settings -> Member privileges -> Base permissions -> set to " +
+		"\"Read\" or \"No permission\" so members don't get write access to every repo by default.",
+	"C01.org.members-can-create-public": "Org Settings -> Member privileges -> Repository creation -> " +
+		"uncheck \"Public\" so members can't create public repositories without an explicit visibility " +
+		"change reviewed separately.",
+}
+
 func init() {
 	for id, title := range checkTitles {
-		collect.Register(collect.CheckMeta{ID: id, Title: title, Collector: collectorID, TokenScope: "read:org"})
+		collect.Register(collect.CheckMeta{
+			ID:          id,
+			Title:       title,
+			Collector:   collectorID,
+			TokenScope:  "read:org",
+			Remediation: checkRemediations[id],
+		})
 	}
 }
 

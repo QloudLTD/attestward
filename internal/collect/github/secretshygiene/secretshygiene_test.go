@@ -535,3 +535,37 @@ func TestChecksRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestOrgSecurityDefaultsRemediationNamesAllFourSettings locks in that the
+// remediation text matches checkOrgSecurityDefaults' actual pass condition
+// — secretScanning && pushProtection && dependabot && advancedSecurity all
+// true — not just two of the four. Following advice that only names two
+// settings would leave a reader at verified-fail forever.
+func TestOrgSecurityDefaultsRemediationNamesAllFourSettings(t *testing.T) {
+	remediation := checkRemediations["C04.org.security-defaults"]
+	for _, want := range []string{"secret scanning", "push protection", "dependabot", "advanced security"} {
+		if !strings.Contains(strings.ToLower(remediation), want) {
+			t.Errorf("C04.org.security-defaults remediation missing %q — the check requires all four org-default settings, not a subset: %q", want, remediation)
+		}
+	}
+}
+
+// TestGHASRemediationsDontOverclaimLicensingPrerequisite locks in that the
+// GHAS-related remediation text doesn't assert a strict "license required
+// before X" prerequisite that evalGHASGatedFeature's own doc comment says
+// no longer holds since GitHub's 2025 GHAS unbundling (a private repo can
+// have standalone Secret Protection licensed and secret scanning enabled
+// while the legacy combined advanced_security flag still reads disabled).
+// Also: scanning-enabled's only reachable private-repo verified-fail case
+// (evalGHASGatedFeature's isPrivate && ghasStatus==enabled && status!=enabled
+// branch) already has GHAS licensed, so "need a license first" misdescribes
+// exactly the fail case the remediation is shown for.
+func TestGHASRemediationsDontOverclaimLicensingPrerequisite(t *testing.T) {
+	forbidden := "before secret scanning/push protection can be turned on"
+	if strings.Contains(checkRemediations["C04.secrets.advanced-security"], forbidden) {
+		t.Errorf("C04.secrets.advanced-security remediation claims GHAS is a strict prerequisite for secret scanning/push protection, contradicting evalGHASGatedFeature's documented standalone-Secret-Protection nuance")
+	}
+	if strings.Contains(checkRemediations["C04.secrets.scanning-enabled"], "license first") {
+		t.Errorf("C04.secrets.scanning-enabled remediation says a GHAS license is needed \"first\" — but the only reachable private-repo fail case already has GHAS licensed (evalGHASGatedFeature requires ghasStatus==enabled to reach verified-fail rather than not-checkable)")
+	}
+}

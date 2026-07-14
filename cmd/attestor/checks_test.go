@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -217,5 +218,36 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		if rows[i].Status != statusOK {
 			t.Errorf("rows[%d] (%s) status = %q, want %q — every registered check must also be cited by a mapping task, and vice versa", i, rows[i].CheckID, rows[i].Status, statusOK)
 		}
+	}
+}
+
+// TestC01ThroughC04ChecksHaveRemediation is the first slice of issue #26's
+// acceptance criterion "every C01-C10 fail mode has non-empty remediation"
+// — scoped to just C01-C04 for now since the backfill lands collector-group
+// by collector-group across several PRs (like the collectors themselves
+// did in issues #11-#22); this assertion widens to the full C01-C10 set
+// once the last group lands. The found-count assertion guards against this
+// silently covering zero checks if a package's check IDs are ever renamed.
+func TestC01ThroughC04ChecksHaveRemediation(t *testing.T) {
+	prefixes := []string{"C01.", "C02.", "C03.", "C04."}
+	found := 0
+	for _, meta := range collect.Registered() {
+		matched := false
+		for _, p := range prefixes {
+			if strings.HasPrefix(meta.ID, p) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		found++
+		if meta.Remediation == "" {
+			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
+		}
+	}
+	if found != 19 {
+		t.Fatalf("found %d C01-C04 checks, want 19 — did the registered check count change?", found)
 	}
 }

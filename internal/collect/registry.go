@@ -13,6 +13,16 @@ type CheckMeta struct {
 	Title      string
 	Collector  string
 	TokenScope string
+	// Remediation is concrete, platform-specific guidance for fixing a
+	// verified-fail/partial result for this check (issue #26's poam.md
+	// renderer looks this up per finding). It describes the fix in terms
+	// of the check itself, independent of any one scan's result, so it's
+	// per-check static metadata rather than something a CheckResult
+	// carries. Every C01-C10 check registers a non-empty value —
+	// self-attestation questions (SA.*) don't register a CheckMeta at
+	// all, since there's nothing for this tool to remediate on the
+	// producer's behalf for an answer only they can give.
+	Remediation string
 }
 
 var registry = map[string]CheckMeta{}
