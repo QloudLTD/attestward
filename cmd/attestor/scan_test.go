@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sioakim/ssdf/internal/collect"
@@ -178,8 +179,25 @@ func TestRunScan_EndToEndWithFakeCollectorsAndRealMappings(t *testing.T) {
 	if result.exitCode != exitOK {
 		t.Errorf("exitCode = %d, want %d", result.exitCode, exitOK)
 	}
-	if len(result.pack.Results) != 1 {
-		t.Fatalf("len(Results) = %d, want 1", len(result.pack.Results))
+	demoCount, saCount := 0, 0
+	for _, r := range result.pack.Results {
+		if strings.HasPrefix(r.CheckID, "SA.") {
+			saCount++
+			if r.Status != model.StatusNotCheckable {
+				t.Errorf("self-attestation result %s status = %q, want not-checkable (no --self-attestation-file given)", r.CheckID, r.Status)
+			}
+			continue
+		}
+		demoCount++
+	}
+	if demoCount != 1 {
+		t.Fatalf("non-self-attestation results = %d, want 1 (DEMO.pass); full Results = %v", demoCount, result.pack.Results)
+	}
+	if saCount == 0 {
+		t.Fatal("no self-attestation results found — self-attestation questions should always be included")
+	}
+	if result.pack.MappingVersions.SelfAttestation == "" {
+		t.Error("pack.MappingVersions.SelfAttestation is empty, want it set")
 	}
 	if result.pack.Scope.Org != "attestor-demo" || len(result.pack.Scope.Repos) != 1 {
 		t.Errorf("pack.Scope = %+v, want org=attestor-demo repos=[good-repo]", result.pack.Scope)
@@ -217,6 +235,13 @@ func TestRunScan_GapExitsWithCode2(t *testing.T) {
 	}
 }
 
+// TestRunScan_CheckFilterSkipsNonMatchingCollectors also locks in a
+// deliberate design choice: --check's own doc comment scopes it to
+// "registered collector[s]" specifically (it exists to skip spending
+// GitHub API rate-limit budget on collectors the caller doesn't want) —
+// self-attestation results cost no API calls and aren't sourced from
+// collectors at all, so they're always included regardless of --check,
+// not filtered by it.
 func TestRunScan_CheckFilterSkipsNonMatchingCollectors(t *testing.T) {
 	collectors := []collect.Collector{
 		fakeScanCollector{id: "C01.included", results: []model.CheckResult{{CheckID: "C01.included", Status: model.StatusVerifiedPass}}},
@@ -233,8 +258,22 @@ func TestRunScan_CheckFilterSkipsNonMatchingCollectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runScan: %v", err)
 	}
-	if len(result.pack.Results) != 1 || result.pack.Results[0].CheckID != "C01.included" {
-		t.Fatalf("Results = %v, want only C01.included (C05.excluded filtered out)", result.pack.Results)
+	demoCount, saCount := 0, 0
+	for _, r := range result.pack.Results {
+		if strings.HasPrefix(r.CheckID, "SA.") {
+			saCount++
+			continue
+		}
+		if r.CheckID != "C01.included" {
+			t.Errorf("unexpected non-self-attestation result %s (C05.excluded should have been filtered out)", r.CheckID)
+		}
+		demoCount++
+	}
+	if demoCount != 1 {
+		t.Fatalf("non-self-attestation results = %d, want 1 (C01.included); full Results = %v", demoCount, result.pack.Results)
+	}
+	if saCount == 0 {
+		t.Fatal("no self-attestation results found — --check must not filter them out")
 	}
 	// Proves the filter actually excluded the failing collector, not just
 	// happened to still pass for an unrelated reason.
@@ -248,6 +287,80 @@ func TestRunScan_CheckFilterSkipsNonMatchingCollectors(t *testing.T) {
 // typo) used to silently run zero collectors and produce a "clean" exit 0
 // pack — indistinguishable from a genuinely all-clear scan for a
 // truthfulness-focused tool.
+func TestRunScan_SelfAttestationFileProvided_AnsweredQuestionsAreSelfAttested(t *testing.T) {
+	answersPath := filepath.Join(t.TempDir(), "answers.yaml")
+	answersYAML := `answers:
+  - id: SA.dev-security-training
+    answer: "yes"
+    evidence_ref: "https://example.invalid/training-policy"
+    attested_by: "Jane Doe, CTO"
+    date: "2026-07-14"
+`
+	if err := os.WriteFile(answersPath, []byte(answersYAML), 0o644); err != nil {
+		t.Fatalf("write answers file: %v", err)
+	}
+
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", SelfAttestationFile: answersPath}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+
+	var answered, unanswered int
+	for _, r := range result.pack.Results {
+		if r.CheckID != "SA.dev-security-training" {
+			if strings.HasPrefix(r.CheckID, "SA.") {
+				unanswered++
+				if r.Status != model.StatusNotCheckable {
+					t.Errorf("%s status = %q, want not-checkable (left unanswered)", r.CheckID, r.Status)
+				}
+			}
+			continue
+		}
+		answered++
+		if r.Status != model.StatusSelfAttested {
+			t.Fatalf("SA.dev-security-training status = %q, want self-attested", r.Status)
+		}
+		if r.Facts["answer"] != "yes" || r.Facts["attested_by"] != "Jane Doe, CTO" {
+			t.Errorf("SA.dev-security-training facts = %#v, want answer/attested_by populated from the answers file", r.Facts)
+		}
+	}
+	if answered != 1 {
+		t.Fatalf("answered self-attestation results = %d, want 1", answered)
+	}
+	if unanswered == 0 {
+		t.Fatal("want at least one other self-attestation question left not-checkable (the answers file only answered one)")
+	}
+	// Even a fully-affirmative self-attestation must never move the exit
+	// code to gaps-found — self-attested never counts as a verified gap or
+	// a verified pass either way.
+	if result.exitCode != exitOK {
+		t.Errorf("exitCode = %d, want %d", result.exitCode, exitOK)
+	}
+}
+
+func TestRunScan_SelfAttestationFile_UnknownQuestionIDErrorsLoudly(t *testing.T) {
+	answersPath := filepath.Join(t.TempDir(), "answers.yaml")
+	if err := os.WriteFile(answersPath, []byte("answers:\n  - id: SA.does-not-exist\n    answer: \"yes\"\n"), 0o644); err != nil {
+		t.Fatalf("write answers file: %v", err)
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", SelfAttestationFile: answersPath}, scanConfig{}, nil)
+
+	_, err := runScan(context.Background(), cfg, nil, deps)
+	if err == nil {
+		t.Fatal("runScan with an unknown self-attestation question id = nil error, want a loud error")
+	}
+}
+
 func TestRunScan_TypoedCheckFilterErrorsLoudly(t *testing.T) {
 	collectors := []collect.Collector{
 		fakeScanCollector{id: "C01.real", results: []model.CheckResult{{CheckID: "C01.real", Status: model.StatusVerifiedPass}}},

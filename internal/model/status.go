@@ -30,16 +30,24 @@ const (
 	// self-attested result never upgrades a CISA form cluster to fully
 	// verified — see the rollup truth table defined with #7.
 	//
-	// KNOWN GAP (Fable 5 review, flagged for issue #23 to resolve, not
-	// fixed here): this status has no polarity. A questionnaire answer of
-	// "yes, we do this" and "no, we don't" both produce StatusSelfAttested
-	// today — nothing in the model distinguishes an affirmative claim from
-	// an admitted gap, and Reason/Facts can't carry that distinction into
-	// the rollup engine, which only switches on Status. Before #23 lands,
-	// this needs a decision: split into affirmative/negative statuses (a
-	// breaking SchemaVersion bump, since Status is exhaustive by design —
-	// see docs/architecture.md's versioning policy) or find another way to
-	// surface a "self-attested no" as an actionable POA&M gap (#26).
+	// RESOLVED (was a "known gap" flagged by an earlier Fable 5 review for
+	// issue #23 to decide): this status deliberately carries no polarity.
+	// A questionnaire answer of "yes, we do this" and "no, we don't" both
+	// produce StatusSelfAttested — the distinction lives in
+	// CheckResult.Facts["answer"] (see
+	// internal/mapping.BuildSelfAttestedResults), not in Status itself.
+	// This was a considered choice, not an oversight: Rollup's precedence
+	// table (internal/mapping/rollup.go) already ranks self-attested below
+	// verified-pass and below not-checkable/partial/verified-fail
+	// regardless of the answer's content, so correct rollup behavior never
+	// depended on Status carrying polarity — adding a second pair of
+	// statuses (a breaking SchemaVersion bump, since Status is exhaustive
+	// by design — see docs/architecture.md's versioning policy) would have
+	// been new model surface with no rollup-correctness payoff. A report
+	// or POA&M generator (issues #25/#26) that wants to render or flag a
+	// "self-attested no" differently from a "self-attested yes" reads
+	// Facts["answer"] for that, the same way it already would for any
+	// other check's Facts-carried detail.
 	StatusSelfAttested Status = "self-attested"
 
 	// StatusNotCheckable means the tool could not determine an answer at

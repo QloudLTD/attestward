@@ -1,0 +1,86 @@
+# mappings/self-attestation-questions.yaml
+#
+# Questions for practices the API-driven collectors (C01-C10) structurally
+# cannot verify — developer training, design/threat-model review process,
+# vulnerability triage/remediation SLAs, the CISA form's own
+# notify-on-cessation commitment, and an audit-log-export fallback for
+# orgs where C09's GitHub-API-based checks are plan-gated. Answers land in
+# the evidence pack with status `self-attested` (never `verified-pass` —
+# see internal/mapping/rollup.go's precedence table), sourced from a
+# user-authored answers file (`attestor attest init` generates a template;
+# see internal/mapping/selfattestanswers.go for that file's own shape).
+#
+# Accuracy standard for this file (distinct from ssdf-800-218.yaml's own
+# "every ID must trace to a primary source" rule, per mappings/README.md):
+# every `ssdf_tasks` entry must resolve to a real task already defined in
+# ssdf-800-218.yaml (enforced by the loader, same cross-file integrity
+# check cisa-ssda-form.yaml's loader already does) — but the `question`
+# wording itself is originally authored by this project, not a verbatim
+# regulatory citation, since these questions don't exist in NIST SP
+# 800-218 or the CISA form as literal text. `ssdf_tasks: []` is a
+# deliberate, valid answer for a question with no fitting task in this
+# file's deliberately-scoped 31-task subset (see that file's own header
+# comment on why it's not the full SSDF task list) — not every useful
+# GRC question needs a rollup home; see `dev-security-training` and
+# `agency-notification-process` below.
+
+version: "1.0.0"
+
+questions:
+  - id: SA.dev-security-training
+    question: >-
+      Do developers with access to the software's source code or build
+      pipeline receive periodic security training?
+    ssdf_tasks: []
+    answer_type: yes_no_evidence
+    evidence_prompt: "Link to the training policy/program, or a brief description of what it covers and how often it recurs"
+    pairing: []
+
+  - id: SA.threat-modeling
+    question: >-
+      Is the software's design reviewed — by a qualified person not
+      involved in that design, and/or an automated process — to confirm
+      it meets security requirements and addresses identified risk before
+      implementation?
+    ssdf_tasks: [PW.2.1]
+    answer_type: yes_no_evidence
+    evidence_prompt: "Link to the design/threat-model review process documentation, or a brief description of how it works"
+    pairing: []
+
+  - id: SA.vuln-triage-sla
+    question: "What is the producer's target time to triage (assess the risk of) a newly reported vulnerability?"
+    ssdf_tasks: [RV.2.1]
+    answer_type: text
+    evidence_prompt: 'e.g. "5 business days" — cite the documented policy if one exists'
+    pairing: [C10.vdp.intake-channel, C10.vdp.private-reporting]
+
+  - id: SA.vuln-remediation-sla
+    question: "What is the producer's target time to remediate a confirmed vulnerability, by severity?"
+    ssdf_tasks: [RV.2.2]
+    answer_type: text
+    evidence_prompt: 'e.g. "Critical: 7 days, High: 30 days" — cite the documented policy if one exists'
+    pairing: [C10.vdp.intake-channel]
+
+  - id: SA.agency-notification-process
+    question: >-
+      Does the producer have a defined process to notify any agency this
+      form was submitted to if it ceases consistent use of the attested
+      practices? (Paraphrases the CISA form's own closing commitment; see
+      cisa-ssda-form.yaml's notify_on_cessation_clause for the verbatim
+      text this question is asking the producer to substantiate.)
+    ssdf_tasks: []
+    answer_type: yes_no
+    evidence_prompt: ""
+    pairing: []
+
+  - id: SA.audit-log-export-fallback
+    question: >-
+      If GitHub's own audit-log API or streaming isn't available (e.g. a
+      non-Enterprise plan, or streaming being an Enterprise-account-only
+      feature this tool can't query — see C09.audit.log-streaming), does
+      the producer export or retain audit/access logs through another
+      mechanism, and for how long?
+    ssdf_tasks: [PO.5.1]
+    answer_type: yes_no_evidence
+    evidence_prompt: "Describe the mechanism (e.g. SIEM export, third-party log retention) and its retention period"
+    pairing: [C09.audit.org-log-available, C09.audit.log-streaming]

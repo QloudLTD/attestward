@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.10.0"
+version: "1.11.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -234,6 +234,7 @@ tasks:
         C09.audit.log-streaming,
         C09.audit.retention-awareness,
         C09.repo.webhooks,
+        SA.audit-log-export-fallback,
       ]
 
   - id: PO.5.2
@@ -297,7 +298,7 @@ tasks:
       review the software design to confirm and enforce that it meets all of
       the security requirements and satisfactorily addresses the identified
       risk information.
-    checks: []
+    checks: [SA.threat-modeling]
 
   - id: PW.4.1
     family: PW
@@ -432,13 +433,13 @@ tasks:
     text: >-
       Analyze each vulnerability to gather sufficient information about risk
       to plan its remediation or other risk response.
-    checks: [C06.sca.alerts-triaged]
+    checks: [C06.sca.alerts-triaged, SA.vuln-triage-sla]
 
   - id: RV.2.2
     family: RV
     practice: RV.2
     text: "Plan and implement risk responses for vulnerabilities."
-    checks: []
+    checks: [SA.vuln-remediation-sla]
 
   - id: RV.3.3
     family: RV

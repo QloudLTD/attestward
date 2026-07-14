@@ -250,6 +250,33 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 	if err != nil {
 		return scanResult{}, fmt.Errorf("load cisa mapping: %w", err)
 	}
+
+	saQuestions, err := mapping.LoadSelfAttestationQuestionsFS(mappings.FS, "self-attestation-questions.yaml", ssdf)
+	if err != nil {
+		return scanResult{}, fmt.Errorf("load self-attestation questions: %w", err)
+	}
+	var saAnswers *mapping.SelfAttestationAnswers
+	if cfg.SelfAttestationFile != "" {
+		saAnswers, err = mapping.LoadSelfAttestationAnswers(cfg.SelfAttestationFile, saQuestions)
+		if err != nil {
+			return scanResult{}, fmt.Errorf("load self-attestation answers: %w", err)
+		}
+	} else {
+		logf(deps.stdout, "warning: no self-attestation answers file given (--self-attestation-file) — %d self-attestation question(s) will be not-checkable\n", len(saQuestions.Questions))
+	}
+	results = append(results, mapping.BuildSelfAttestedResults(saQuestions, saAnswers, cfg.Org)...)
+	// Re-sort after appending self-attestation results — runCollectors
+	// already sorted the API-check results by CheckID, but that sort ran
+	// before these existed; the pack's own sorted-output guarantee (see
+	// runCollectors' doc comment) must hold across the full Results slice,
+	// not just the portion collectors produced.
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].CheckID != results[j].CheckID {
+			return results[i].CheckID < results[j].CheckID
+		}
+		return results[i].Scope.Repo < results[j].Scope.Repo
+	})
+
 	rollup := mapping.BuildRollup(results, ssdf, cisa)
 
 	endedAt := time.Now().UTC()
@@ -258,8 +285,9 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   version,
 		MappingVersions: model.MappingVersions{
-			SSDF:     ssdf.Version,
-			CISAForm: cisa.Version,
+			SSDF:            ssdf.Version,
+			CISAForm:        cisa.Version,
+			SelfAttestation: saQuestions.Version,
 		},
 		Scope:         model.ScanScope(scope),
 		ScanStartedAt: startedAt,

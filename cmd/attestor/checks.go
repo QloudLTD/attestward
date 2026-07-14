@@ -45,9 +45,18 @@ type MatrixRow struct {
 // checks referenced by ssdf's tasks — no hardcoded duplication of either
 // side. A check present in both is "ok"; referenced by a mapping task but
 // not registered is "unimplemented"; registered but not referenced by any
-// mapping task is "unmapped". Rows are sorted by check ID for deterministic
-// output.
-func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registered []collect.CheckMeta) []MatrixRow {
+// mapping task is "unmapped". saQuestions are handled separately (see
+// below) rather than folded into that same three-way judgment: unlike a
+// collector check, a self-attestation question's own existence in the
+// embedded questions file *is* its complete implementation — there's no
+// second "is it registered in a Go collector" half to be missing, so
+// "unimplemented" can never apply, and a question with no ssdf_tasks
+// (dev-security-training, agency-notification-process — no task in this
+// project's deliberately-scoped 31-task subset fits either) is a
+// legitimate, deliberate design choice, not the same kind of gap
+// "unmapped" flags for a stray collector check. Rows are sorted by check
+// ID for deterministic output.
+func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registered []collect.CheckMeta, saQuestions []mapping.SelfAttestationQuestion) []MatrixRow {
 	tasksByCheck := map[string][]string{}
 	for _, task := range ssdf.Tasks {
 		for _, checkID := range task.Checks {
@@ -62,6 +71,28 @@ func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registere
 		}
 	}
 
+	tasksAndClustersFor := func(checkID string) (tasks, clusters []string) {
+		tasks = append([]string{}, tasksByCheck[checkID]...)
+		sort.Strings(tasks)
+		clusterSet := map[string]struct{}{}
+		for _, taskID := range tasks {
+			for _, clusterID := range clustersByTask[taskID] {
+				clusterSet[clusterID] = struct{}{}
+			}
+		}
+		clusters = make([]string, 0, len(clusterSet))
+		for c := range clusterSet {
+			clusters = append(clusters, c)
+		}
+		sort.Strings(clusters)
+		return tasks, clusters
+	}
+
+	saIDs := map[string]bool{}
+	for _, q := range saQuestions {
+		saIDs[q.ID] = true
+	}
+
 	metaByID := map[string]collect.CheckMeta{}
 	for _, meta := range registered {
 		metaByID[meta.ID] = meta
@@ -69,28 +100,18 @@ func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registere
 
 	ids := map[string]struct{}{}
 	for id := range tasksByCheck {
+		if saIDs[id] {
+			continue
+		}
 		ids[id] = struct{}{}
 	}
 	for id := range metaByID {
 		ids[id] = struct{}{}
 	}
 
-	rows := make([]MatrixRow, 0, len(ids))
+	rows := make([]MatrixRow, 0, len(ids)+len(saQuestions))
 	for id := range ids {
-		tasks := append([]string{}, tasksByCheck[id]...)
-		sort.Strings(tasks)
-
-		clusterSet := map[string]struct{}{}
-		for _, taskID := range tasks {
-			for _, clusterID := range clustersByTask[taskID] {
-				clusterSet[clusterID] = struct{}{}
-			}
-		}
-		clusters := make([]string, 0, len(clusterSet))
-		for c := range clusterSet {
-			clusters = append(clusters, c)
-		}
-		sort.Strings(clusters)
+		tasks, clusters := tasksAndClustersFor(id)
 
 		_, inMapping := tasksByCheck[id]
 		meta, inRegistry := metaByID[id]
@@ -110,6 +131,19 @@ func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registere
 			row.TokenScope = meta.TokenScope
 		}
 		rows = append(rows, row)
+	}
+
+	for _, q := range saQuestions {
+		tasks, clusters := tasksAndClustersFor(q.ID)
+		rows = append(rows, MatrixRow{
+			CheckID:    q.ID,
+			Title:      q.Question,
+			Collector:  "self-attestation",
+			SSDFTasks:  tasks,
+			Clusters:   clusters,
+			TokenScope: "none — self-attested, not platform-verified",
+			Status:     statusOK,
+		})
 	}
 
 	sort.Slice(rows, func(i, j int) bool { return rows[i].CheckID < rows[j].CheckID })
@@ -162,8 +196,12 @@ func runChecksList(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("load cisa mapping: %w", err)
 	}
+	saQuestions, err := mapping.LoadSelfAttestationQuestionsFS(mappings.FS, "self-attestation-questions.yaml", ssdf)
+	if err != nil {
+		return fmt.Errorf("load self-attestation questions: %w", err)
+	}
 
-	rows := buildMatrix(ssdf, cisa, collect.Registered())
+	rows := buildMatrix(ssdf, cisa, collect.Registered(), saQuestions.Questions)
 	out := cmd.OutOrStdout()
 
 	switch checksFormat {

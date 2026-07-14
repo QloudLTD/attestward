@@ -48,6 +48,8 @@ timestamped **evidence pack** (JSON + human-readable report) plus a **gap analys
 ```
 attestor scan --org my-org [--repo my-repo ...] --out ./evidence/
 attestor scan --config attestor.yaml          # repeatable, CI-friendly
+attestor scan --self-attestation-file self-attestation.yaml  # include self-attested answers
+attestor attest init --out self-attestation.yaml  # generate a commented answers template
 attestor report ./evidence/evidence.json      # regenerate reports
 attestor checks list                          # show all checks + mappings
 attestor version

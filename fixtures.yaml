@@ -86,6 +86,19 @@ org_checks:
       community-health-file mechanism), so there's no org-level policy to
       resolve — a genuinely different, softer signal than "the org failed
       to set one up," since most orgs never create a .github repo at all.
+  - check_id: SA.dev-security-training
+    status: not-checkable
+    note: >-
+      The integration test never supplies --self-attestation-file, so
+      every self-attestation question is honestly not-checkable — "no
+      self-attestation provided," never assumed, matching issue #23's own
+      requirement. This is true unconditionally for all six SA.* checks
+      below, regardless of what org is scanned.
+  - {check_id: SA.threat-modeling, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.vuln-triage-sla, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.vuln-remediation-sla, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.agency-notification-process, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.audit-log-export-fallback, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
 
 # Per-repo checks, keyed by repo name.
 repo_checks:

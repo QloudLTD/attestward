@@ -42,7 +42,8 @@ architecture; it is updated in the same PR as any change that affects it.
 /internal/mapping/        # YAML loader, rollup logic
 /internal/report/         # md/html/poam renderers (go templates)
 /internal/integrity/      # hashing, optional cosign signing
-/mappings/                # ssdf-800-218.yaml, cisa-ssda-form.yaml, scanner-signatures.yaml
+/mappings/                # ssdf-800-218.yaml, cisa-ssda-form.yaml, scanner-signatures.yaml,
+                           # self-attestation-questions.yaml
 /docs/                    # architecture.md, checks reference (generated), threat-model.md
 /examples/                # sample config, sample output (from a public demo org)
 /.github/workflows/       # ci.yaml, release.yaml, self-scan demo

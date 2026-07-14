@@ -1,0 +1,11 @@
+questions_version: "1.0.0"
+answers:
+  - id: SA.yes-no-question
+    answer: "yes"
+    evidence_ref: "https://example.invalid/policy"
+    attested_by: "Jane Doe, CTO"
+    date: "2026-07-14"
+  - id: SA.text-question
+    answer: "5 business days"
+  - id: SA.unanswered-question
+    answer: ""

@@ -64,7 +64,7 @@ func compareOrUpdateGolden(t *testing.T, name string, got []byte) {
 
 func TestBuildMatrixStatuses(t *testing.T) {
 	ssdf, cisa, registered := fixtureMatrixInputs()
-	rows := buildMatrix(ssdf, cisa, registered)
+	rows := buildMatrix(ssdf, cisa, registered, nil)
 
 	byID := map[string]MatrixRow{}
 	for _, r := range rows {
@@ -90,7 +90,7 @@ func TestBuildMatrixStatuses(t *testing.T) {
 
 func TestChecksListGoldenTable(t *testing.T) {
 	ssdf, cisa, registered := fixtureMatrixInputs()
-	rows := buildMatrix(ssdf, cisa, registered)
+	rows := buildMatrix(ssdf, cisa, registered, nil)
 
 	var buf bytes.Buffer
 	if err := renderChecksTable(&buf, rows); err != nil {
@@ -101,7 +101,7 @@ func TestChecksListGoldenTable(t *testing.T) {
 
 func TestChecksListGoldenJSON(t *testing.T) {
 	ssdf, cisa, registered := fixtureMatrixInputs()
-	rows := buildMatrix(ssdf, cisa, registered)
+	rows := buildMatrix(ssdf, cisa, registered, nil)
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -114,7 +114,7 @@ func TestChecksListGoldenJSON(t *testing.T) {
 
 func TestChecksListGoldenYAML(t *testing.T) {
 	ssdf, cisa, registered := fixtureMatrixInputs()
-	rows := buildMatrix(ssdf, cisa, registered)
+	rows := buildMatrix(ssdf, cisa, registered, nil)
 
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
@@ -147,7 +147,11 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadCISAFS: %v", err)
 	}
-	rows := buildMatrix(ssdf, cisa, collect.Registered())
+	saQuestions, err := mapping.LoadSelfAttestationQuestionsFS(mappings.FS, "self-attestation-questions.yaml", ssdf)
+	if err != nil {
+		t.Fatalf("LoadSelfAttestationQuestionsFS: %v", err)
+	}
+	rows := buildMatrix(ssdf, cisa, collect.Registered(), saQuestions.Questions)
 
 	wantIDs := []string{
 		"C01.org.2fa-required",
@@ -196,6 +200,12 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C10.vdp.private-reporting",
 		"C10.vdp.security-md",
 		"C10.vdp.security-policy-org",
+		"SA.agency-notification-process",
+		"SA.audit-log-export-fallback",
+		"SA.dev-security-training",
+		"SA.threat-modeling",
+		"SA.vuln-remediation-sla",
+		"SA.vuln-triage-sla",
 	}
 	if len(rows) != len(wantIDs) {
 		t.Fatalf("len(rows) = %d, want %d (%v)", len(rows), len(wantIDs), wantIDs)

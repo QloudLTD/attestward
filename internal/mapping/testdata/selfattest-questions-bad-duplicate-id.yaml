@@ -1,0 +1,8 @@
+version: "1.0.0"
+questions:
+  - id: SA.test-question
+    question: "first"
+    answer_type: yes_no
+  - id: SA.test-question
+    question: "duplicate id, should be rejected"
+    answer_type: yes_no

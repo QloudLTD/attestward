@@ -102,3 +102,14 @@ func TestScannerSignaturesValidatesAgainstSchema(t *testing.T) {
 		t.Fatalf("mappings/scanner-signatures.yaml failed schema validation: %v", err)
 	}
 }
+
+// TestSelfAttestationQuestionsValidatesAgainstSchema mirrors
+// TestScannerSignaturesValidatesAgainstSchema: like that file,
+// self-attestation-questions.yaml has no "retrieved" date field, so there's
+// no matching AssertFormat test either.
+func TestSelfAttestationQuestionsValidatesAgainstSchema(t *testing.T) {
+	sch := compileMappingSchema(t, "../../docs/schema/mapping-self-attestation-questions.schema.json")
+	if err := sch.Validate(loadYAMLAsJSONDoc(t, "../../mappings/self-attestation-questions.yaml")); err != nil {
+		t.Fatalf("mappings/self-attestation-questions.yaml failed schema validation: %v", err)
+	}
+}

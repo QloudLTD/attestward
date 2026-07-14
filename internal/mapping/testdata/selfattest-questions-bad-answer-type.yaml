@@ -1,0 +1,5 @@
+version: "1.0.0"
+questions:
+  - id: SA.test-question
+    question: "test?"
+    answer_type: maybe
