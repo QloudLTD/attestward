@@ -221,15 +221,16 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	}
 }
 
-// TestC01ThroughC04ChecksHaveRemediation is the first slice of issue #26's
-// acceptance criterion "every C01-C10 fail mode has non-empty remediation"
-// — scoped to just C01-C04 for now since the backfill lands collector-group
-// by collector-group across several PRs (like the collectors themselves
-// did in issues #11-#22); this assertion widens to the full C01-C10 set
-// once the last group lands. The found-count assertion guards against this
-// silently covering zero checks if a package's check IDs are ever renamed.
-func TestC01ThroughC04ChecksHaveRemediation(t *testing.T) {
-	prefixes := []string{"C01.", "C02.", "C03.", "C04."}
+// TestC01ThroughC07ChecksHaveRemediation is the second slice of issue
+// #26's acceptance criterion "every C01-C10 fail mode has non-empty
+// remediation" — scoped to C01-C07 for now since the backfill lands
+// collector-group by collector-group across several PRs (like the
+// collectors themselves did in issues #11-#22); this assertion widens to
+// the full C01-C10 set once the last group (C08-C10) lands. The
+// found-count assertion guards against this silently covering zero checks
+// if a package's check IDs are ever renamed.
+func TestC01ThroughC07ChecksHaveRemediation(t *testing.T) {
+	prefixes := []string{"C01.", "C02.", "C03.", "C04.", "C05.", "C06.", "C07."}
 	found := 0
 	for _, meta := range collect.Registered() {
 		matched := false
@@ -247,7 +248,7 @@ func TestC01ThroughC04ChecksHaveRemediation(t *testing.T) {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if found != 19 {
-		t.Fatalf("found %d C01-C04 checks, want 19 — did the registered check count change?", found)
+	if found != 33 {
+		t.Fatalf("found %d C01-C07 checks, want 33 — did the registered check count change?", found)
 	}
 }

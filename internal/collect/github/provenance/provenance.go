@@ -39,13 +39,34 @@ var checkIDs = []string{
 	"C07.provenance.commit-linkage",
 }
 
+var checkRemediations = map[string]string{
+	"C07.release.tags-signed": "Sign release tags with a GPG or SSH key (`git tag -s` or `git tag -u " +
+		"<key> vX.Y.Z`), and register the matching public key under the tagging user's own account " +
+		"Settings -> SSH and GPG keys — add it specifically as a \"Signing Key\" (a key added only for " +
+		"authentication won't verify signatures). Signature verification is always tied to the " +
+		"individual tagger's personal account; there is no equivalent org-level key registration.",
+	"C07.release.checksums": "Publish a checksum file (e.g. `checksums.txt`/`SHA256SUMS`) as a release " +
+		"asset — most release-automation tools (e.g. goreleaser) generate this automatically as part of " +
+		"the release job.",
+	"C07.release.signatures": "Attach a signature/attestation asset to each release (e.g. a cosign " +
+		"`.sig`/`.pem` bundle), or generate a GitHub Artifact Attestation for the release assets during " +
+		"the build workflow via `actions/attest-build-provenance`.",
+	"C07.provenance.workflow": "Add a provenance-generating step to the release workflow: Sigstore/" +
+		"cosign, a SLSA provenance generator (slsa-framework/slsa-github-generator), or GitHub's native " +
+		"`actions/attest-build-provenance` action.",
+	"C07.provenance.commit-linkage": "Make sure the workflow that produces release assets is triggered " +
+		"by the same commit being tagged/released — e.g. `on: release: types: [published]` or a tag-push " +
+		"trigger — rather than run manually (workflow_dispatch) against an unrelated commit.",
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
-			ID:         id,
-			Title:      checkTitles[id],
-			Collector:  collectorID,
-			TokenScope: "repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)",
+			ID:          id,
+			Title:       checkTitles[id],
+			Collector:   collectorID,
+			TokenScope:  "repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)",
+			Remediation: checkRemediations[id],
 		})
 	}
 }

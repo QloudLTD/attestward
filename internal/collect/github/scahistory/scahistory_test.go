@@ -763,3 +763,17 @@ func TestChecksRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestAlertsTriagedRemediationCoversDisabledFailMode locks in that the
+// remediation addresses checkAlertsTriaged's verified-fail path (the 403
+// "disabled" response, meaning Dependabot alerts aren't enabled at all —
+// its Security > Dependabot alerts view doesn't even exist in that state),
+// not just the partial path (an aged critical alert). Advice that only
+// covers triaging an existing alert is unfollowable when there's no
+// feature enabled to view alerts in.
+func TestAlertsTriagedRemediationCoversDisabledFailMode(t *testing.T) {
+	remediation := strings.ToLower(checkRemediations["C06.sca.alerts-triaged"])
+	if !strings.Contains(remediation, "enable") {
+		t.Errorf("C06.sca.alerts-triaged remediation doesn't cover enabling Dependabot alerts (the check's verified-fail mode is the feature being disabled entirely): %q", checkRemediations["C06.sca.alerts-triaged"])
+	}
+}

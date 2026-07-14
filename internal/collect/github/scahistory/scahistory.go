@@ -43,13 +43,34 @@ var checkIDs = []string{
 	"C06.sca.alerts-triaged",
 }
 
+var checkRemediations = map[string]string{
+	"C06.sca.tool-configured": "Add a `.github/dependabot.yml` with at least one `updates:` entry, or add " +
+		"a workflow using a recognized SCA action/CLI (see mappings/scanner-signatures.yaml) — a workflow " +
+		"whose name merely suggests SCA isn't enough on its own; it needs a matched action/CLI invocation.",
+	"C06.sca.ran-per-release": "Applies to a workflow-based SCA tool specifically (Dependabot has no " +
+		"per-release run history to check). Make sure the SCA workflow's trigger fires on the commit each " +
+		"release is cut from, and that any run that fired completed successfully.",
+	"C06.sca.dependabot-config": "Extend `.github/dependabot.yml` with an `updates:` entry for each " +
+		"detected-but-uncovered ecosystem (see this finding's `uncovered_ecosystems` fact for exactly " +
+		"which ones).",
+	"C06.sca.dependency-review": "Add a workflow using `actions/dependency-review-action` (or " +
+		"equivalent), make sure it triggers on `pull_request` (not just push), and add it as a required " +
+		"status check: repo Settings -> Rules -> Rulesets -> the branch's rule -> Require status checks " +
+		"to pass -> select the dependency-review workflow's check.",
+	"C06.sca.alerts-triaged": "If Dependabot alerts are disabled entirely, enable them first: repo " +
+		"Settings -> Code security -> enable \"Dependabot alerts\" (see C04.deps.dependabot-alerts). Once " +
+		"enabled, triage: Security -> Dependabot alerts -> filter by Critical severity -> fix or dismiss " +
+		"(with a documented reason) any critical alert open longer than 30 days.",
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
-			ID:         id,
-			Title:      checkTitles[id],
-			Collector:  collectorID,
-			TokenScope: "repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope",
+			ID:          id,
+			Title:       checkTitles[id],
+			Collector:   collectorID,
+			TokenScope:  "repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope",
+			Remediation: checkRemediations[id],
 		})
 	}
 }

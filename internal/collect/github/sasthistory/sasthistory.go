@@ -54,13 +54,34 @@ var checkIDs = []string{
 	"C05.sast.default-setup",
 }
 
+var checkRemediations = map[string]string{
+	"C05.sast.tool-configured": "Enable CodeQL default setup (repo Settings -> Security -> Advanced " +
+		"Security -> under Code Security, \"CodeQL analysis\" -> Set up -> Default), or add a workflow " +
+		"using a recognized SAST action/CLI (see mappings/scanner-signatures.yaml for what this tool " +
+		"recognizes) — a workflow whose name merely suggests SAST isn't enough on its own; it needs a " +
+		"matched action/CLI invocation to count as more than a low-confidence signal.",
+	"C05.sast.ran-per-release": "Make sure the SAST workflow's trigger actually fires on (or before) the " +
+		"commit each release is cut from — e.g. trigger on push to the release branch, or on the release " +
+		"event itself — and that any run that did fire completed successfully rather than erroring out.",
+	"C05.sast.cadence": "If zero SAST runs were observed in the lookback window, same fix as " +
+		"C05.sast.ran-per-release: confirm the workflow runs on a schedule or on every push/PR to the " +
+		"default branch, not only on rare manual dispatch. If runs WERE observed but this still reads " +
+		"partial, the match itself is low-confidence (workflow-name-only) — same fix as " +
+		"C05.sast.tool-configured: use a recognized action/CLI, not just a workflow name that sounds like " +
+		"SAST.",
+	"C05.sast.default-setup": "Repo Settings -> Security -> Advanced Security -> under Code Security, " +
+		"\"CodeQL analysis\" -> Set up -> Default (choose \"Default\", not \"Advanced\", unless a custom " +
+		"workflow is specifically needed).",
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
-			ID:         id,
-			Title:      checkTitles[id],
-			Collector:  collectorID,
-			TokenScope: "repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)",
+			ID:          id,
+			Title:       checkTitles[id],
+			Collector:   collectorID,
+			TokenScope:  "repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)",
+			Remediation: checkRemediations[id],
 		})
 	}
 }

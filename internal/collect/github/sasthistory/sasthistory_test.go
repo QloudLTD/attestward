@@ -668,3 +668,35 @@ func TestChecksRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestCadenceRemediationCoversLowConfidencePartial locks in that the
+// remediation doesn't just address checkCadence's verified-fail path
+// (RunCount == 0) — it must also cover the partial path (lowConfidenceOnly,
+// where RunCount > 0 but the match is workflow-name-only), whose actual
+// fix is raising match confidence (same fix as tool-configured), not
+// adjusting triggers/schedule. Advice that only says "the trigger didn't
+// fire" is factually wrong for the partial case and can't reach a pass
+// there.
+func TestCadenceRemediationCoversLowConfidencePartial(t *testing.T) {
+	remediation := strings.ToLower(checkRemediations["C05.sast.cadence"])
+	if !strings.Contains(remediation, "low-confidence") && !strings.Contains(remediation, "low confidence") {
+		t.Errorf("C05.sast.cadence remediation doesn't address the low-confidence partial path (runs observed, but match confidence too weak): %q", checkRemediations["C05.sast.cadence"])
+	}
+}
+
+// TestCodeScanningRemediationsUseCurrentSettingsPath locks in the current
+// GitHub Settings navigation ("Security" sidebar section -> "Advanced
+// Security", not the pre-GHAS-unbundling "Code security" label) for both
+// checks that send a reader to the CodeQL default-setup page. Verified
+// against docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning.
+func TestCodeScanningRemediationsUseCurrentSettingsPath(t *testing.T) {
+	for _, id := range []string{"C05.sast.tool-configured", "C05.sast.default-setup"} {
+		remediation := checkRemediations[id]
+		if strings.Contains(remediation, "Code security -> Code scanning") {
+			t.Errorf("%s remediation uses the stale pre-GHAS-unbundling \"Code security\" settings path: %q", id, remediation)
+		}
+		if !strings.Contains(remediation, "Advanced Security") {
+			t.Errorf("%s remediation should name the current \"Advanced Security\" settings section: %q", id, remediation)
+		}
+	}
+}

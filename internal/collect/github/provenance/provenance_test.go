@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -490,5 +491,20 @@ func TestChecksRegistered(t *testing.T) {
 		if _, ok := collect.Lookup(id); !ok {
 			t.Errorf("check %q not found in the collect.CheckMeta registry", id)
 		}
+	}
+}
+
+// TestTagsSignedRemediationDoesNotClaimOrgLevelKeyPage locks in that the
+// remediation doesn't send a reader to a nonexistent org-level "SSH and
+// GPG keys" settings page — GitHub only supports registering signing keys
+// on a personal user account (tag/commit signature verification is always
+// attributed to the individual tagger's account, never an org). Confirmed
+// against this repo's own C07 demo-fixture setup (DECISIONS.md D8), which
+// registered its signing key via `gh api user/ssh_signing_keys`, not any
+// org-scoped endpoint.
+func TestTagsSignedRemediationDoesNotClaimOrgLevelKeyPage(t *testing.T) {
+	remediation := checkRemediations["C07.release.tags-signed"]
+	if strings.Contains(strings.ToLower(remediation), "org settings") || strings.Contains(remediation, "account/org") {
+		t.Errorf("C07.release.tags-signed remediation implies an org-level key-registration page exists — GitHub only supports this per personal user account: %q", remediation)
 	}
 }
