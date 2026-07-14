@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Software Development Security Report — attestor-demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  h1, h2, h3, h4, h5 { line-height: 1.2; }
+  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+  th, td { border: 1px solid #8887; padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: #8881; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; }
+  blockquote { border-left: 3px solid #8887; margin: 0.5rem 0; padding: 0.25rem 0.75rem; opacity: 0.85; }
+  .badge { font-weight: 600; font-family: ui-monospace, Menlo, Consolas, monospace; padding: 0.05rem 0.4rem; border: 1px solid currentColor; border-radius: 0.25rem; white-space: nowrap; }
+  .badge-verified-pass { color: #1a7f37; }
+  .badge-verified-fail { color: #cf222e; }
+  .badge-partial { color: #9a6700; }
+  .badge-self-attested { color: #6639ba; }
+  .badge-not-checkable { color: #57606a; }
+  .evidence-list, .facts-list { margin: 0.25rem 0; padding-left: 1.25rem; }
+  .check { border: 1px solid #8884; border-radius: 0.4rem; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+  .note { border: 1px solid #9a6700; border-radius: 0.4rem; padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #8887; opacity: 0.75; font-size: 0.9em; }
+  @media print { .check { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<h1>Software Development Security Report</h1>
+
+<div class="note"><strong>Note:</strong> this pack's mapping versions do not match the mapping data used to render this report. Some SSDF task/CISA cluster titles below may be missing or reflect a different revision than what actually produced these results.</div>
+
+<h2 id="executive-summary">Executive Summary</h2>
+<table>
+  <tr><th>Org</th><td>attestor-demo</td></tr>
+  <tr><th>Repos in scope</th><td>good-repo, bad-repo</td></tr>
+  <tr><th>Scan window</th><td>2026-07-13 12:00:00 UTC &ndash; 2026-07-13 12:00:05 UTC</td></tr>
+  <tr><th>Tool version</th><td>0.0.0-test</td></tr>
+  <tr><th>Mapping versions</th><td>SSDF TEST-SSDF-1.0.0 &middot; CISA form TEST-CISA-1.0.0 &middot; self-attestation TEST-SA-1.0.0</td></tr>
+  
+</table>
+
+<h3>Cluster status</h3>
+<table>
+  <tr><th>Cluster</th><th>Status</th></tr>
+  <tr><td>1. Secure development and build environments</td><td><span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</td></tr>
+  <tr><td>2. Trusted source code supply chain (good-faith effort)</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td></tr>
+  <tr><td>3. Provenance for internal and third-party code</td><td><em>no data</em></td></tr>
+  <tr><td>4. Automated vulnerability checking, pre-release, and disclosure program</td><td><em>no data</em></td></tr>
+  
+</table>
+
+<h3>Result counts</h3>
+<table>
+  <tr><th>Status</th><th>Count</th></tr>
+  <tr><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>1</td></tr>
+  <tr><td><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>1</td></tr>
+  <tr><td><span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</td><td>1</td></tr>
+  <tr><td><span class="badge badge-self-attested">[SELF-ATTESTED]</span> Self-Attested</td><td>1</td></tr>
+  <tr><td><span class="badge badge-verified-pass">[PASS]</span> Verified Pass</td><td>1</td></tr>
+  
+</table>
+
+<h2 id="cluster-detail">Cluster Detail</h2>
+
+<h3>Cluster 1: Secure development and build environments &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h3>
+<blockquote>The software is developed and built in secure environments. Those environments are secured by the following actions, at a minimum: a) Separating and protecting each environment involved in developing and building software; b) Regularly logging, monitoring, and auditing trust relationships used for authorization and access: i) to any software development and build environments; and ii) among components within each environment; c) Enforcing multi-factor authentication and conditional access across the environments relevant to developing and building software in a manner that minimizes security risk; d) Taking consistent and reasonable steps to document, as well as minimize use or inclusion of software products that create undue risk within the environments used to develop and build software; e) Encrypting sensitive data, such as credentials, to the extent practicable and based on risk; f) Implementing defensive cybersecurity practices, including continuous monitoring of operations and alerts and, as necessary, responding to suspected and confirmed cyber incidents.</blockquote>
+
+
+<h4>PO.3.2 &mdash; <em>no data</em></h4>
+<p>Follow recommended security practices to deploy, operate, and maintain tools and toolchains.</p>
+
+
+
+<h4>PO.3.3 &mdash; <em>no data</em></h4>
+<p>Configure tools to generate artifacts of their support of secure software development practices as defined by the organization.</p>
+
+
+
+<h4>PO.5.1 &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h4>
+<p>Separate and protect each environment involved in software development.</p>
+
+
+<div class="check">
+<h5>Organization audit log is reachable via the API (<code>C09.audit.org-log-available</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/attestor-demo/audit-log</code> at 2026-07-13 12:00:04 UTC (HTTP 404, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>org_plan: free</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>If GitHub&#39;s own audit-log API or streaming isn&#39;t available, does the producer export or retain audit/access logs through another mechanism, and for how long? (<code>SA.audit-log-export-fallback</code>) &mdash; <span class="badge badge-self-attested">[SELF-ATTESTED]</span> Self-Attested</h5>
+<p>self-attested (not independently verified): yes</p>
+
+
+
+
+<ul class="facts-list"><li>answer: yes</li><li>attested_by: Jane Doe, CTO</li><li>date: 2026-07-13</li><li>evidence_ref: https://example.invalid/log-retention-policy</li></ul>
+
+
+
+</div>
+
+
+<h4>PO.5.2 &mdash; <em>no data</em></h4>
+<p>Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.</p>
+
+
+
+
+<h3>Cluster 2: Trusted source code supply chain (good-faith effort) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h3>
+<blockquote>The software producer makes a good-faith effort to maintain trusted source code supply chains by employing automated tools or comparable processes to address the security of internal code and third-party components and manage related vulnerabilities.</blockquote>
+
+
+<h4>PO.1.1 &mdash; <em>no data</em></h4>
+<p>Identify and document all security requirements for the organization&#39;s software development infrastructures and processes, and maintain the requirements over time.</p>
+
+
+
+<h4>PO.3.1 &mdash; <em>no data</em></h4>
+<p>Specify which tools or tool types must or should be included in each toolchain to mitigate identified risks, as well as how the toolchain components are to be integrated with each other.</p>
+
+
+
+<h4>PO.3.2 &mdash; <em>no data</em></h4>
+<p>Follow recommended security practices to deploy, operate, and maintain tools and toolchains.</p>
+
+
+
+<h4>PO.5.1 &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h4>
+<p>Separate and protect each environment involved in software development.</p>
+
+
+<div class="check">
+<h5>Organization audit log is reachable via the API (<code>C09.audit.org-log-available</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/attestor-demo/audit-log</code> at 2026-07-13 12:00:04 UTC (HTTP 404, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>org_plan: free</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>If GitHub&#39;s own audit-log API or streaming isn&#39;t available, does the producer export or retain audit/access logs through another mechanism, and for how long? (<code>SA.audit-log-export-fallback</code>) &mdash; <span class="badge badge-self-attested">[SELF-ATTESTED]</span> Self-Attested</h5>
+<p>self-attested (not independently verified): yes</p>
+
+
+
+
+<ul class="facts-list"><li>answer: yes</li><li>attested_by: Jane Doe, CTO</li><li>date: 2026-07-13</li><li>evidence_ref: https://example.invalid/log-retention-policy</li></ul>
+
+
+
+</div>
+
+
+<h4>PO.5.2 &mdash; <em>no data</em></h4>
+<p>Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.</p>
+
+
+
+<h4>PS.1.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Store all forms of code – including source code, executable code, and configuration-as-code – based on the principle of least privilege so that only authorized personnel, tools, services, etc. have access.</p>
+
+
+<div class="check">
+<h5>Branch protection exists (<code>C02.branch.protection-exists</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>bad-repo</code>. no branch protection configured on main</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/attestor-demo/bad-repo/branches/main/protection</code> at 2026-07-13 12:00:02 UTC (HTTP 404, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Branch protection requires reviews (<code>C02.branch.required-reviews</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>good-repo</code>. main requires 1 approving review and passing status checks</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/attestor-demo/good-repo/rulesets</code> at 2026-07-13 12:00:01 UTC (HTTP 200, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>required_approving_review_count: 1</li></ul>
+
+
+
+</div>
+
+
+<h4>PS.2.1 &mdash; <em>no data</em></h4>
+<p>Make software integrity verification information available to software acquirers.</p>
+
+
+
+<h4>PS.3.1 &mdash; <em>no data</em></h4>
+<p>Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.</p>
+
+
+
+<h4>PW.4.1 &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h4>
+<p>Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization&#39;s software.</p>
+
+
+<div class="check">
+<h5>Third-party actions and reusable workflows are pinned to a full commit SHA (<code>C08.actions.pinned</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>good-repo</code>. every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/attestor-demo/good-repo/contents/.github/workflows/release.yaml</code> at 2026-07-13 12:00:03 UTC (HTTP 200, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>third_party_unpinned: (none)</li></ul>
+<p><strong>first_party_unpinned</strong></p>
+<table><tr><th>file</th><th>line</th><th>ref</th><th>slug</th></tr>
+<tr><td>.github/workflows/release.yaml</td><td>12</td><td>v5</td><td>actions/checkout</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PW.4.4 &mdash; <em>no data</em></h4>
+<p>Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.</p>
+
+
+
+<h4>PW.7.1 &mdash; <em>no data</em></h4>
+<p>Determine whether code review (a person looks directly at the code to find issues) and/or code analysis (tools are used to find issues in code, either in a fully automated way or in conjunction with a person) should be used, as defined by the organization.</p>
+
+
+
+<h4>PW.8.1 &mdash; <em>no data</em></h4>
+<p>Determine whether executable code testing should be performed to find vulnerabilities not identified by previous reviews, analysis, or testing and, if so, which types of testing should be used.</p>
+
+
+
+<h4>RV.1.1 &mdash; <em>no data</em></h4>
+<p>Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.</p>
+
+
+
+
+<h3>Cluster 3: Provenance for internal and third-party code &mdash; <em>no data</em></h3>
+<blockquote>The software producer maintains provenance for internal code and third-party components incorporated into the software to the greatest extent feasible.</blockquote>
+
+
+<h4>PO.1.3 &mdash; <em>no data</em></h4>
+<p>Communicate requirements to all third parties who will provide commercial software components to the organization for reuse by the organization&#39;s own software.</p>
+
+
+
+<h4>PO.3.2 &mdash; <em>no data</em></h4>
+<p>Follow recommended security practices to deploy, operate, and maintain tools and toolchains.</p>
+
+
+
+<h4>PO.5.1 &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h4>
+<p>Separate and protect each environment involved in software development.</p>
+
+
+<div class="check">
+<h5>Organization audit log is reachable via the API (<code>C09.audit.org-log-available</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/attestor-demo/audit-log</code> at 2026-07-13 12:00:04 UTC (HTTP 404, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>org_plan: free</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>If GitHub&#39;s own audit-log API or streaming isn&#39;t available, does the producer export or retain audit/access logs through another mechanism, and for how long? (<code>SA.audit-log-export-fallback</code>) &mdash; <span class="badge badge-self-attested">[SELF-ATTESTED]</span> Self-Attested</h5>
+<p>self-attested (not independently verified): yes</p>
+
+
+
+
+<ul class="facts-list"><li>answer: yes</li><li>attested_by: Jane Doe, CTO</li><li>date: 2026-07-13</li><li>evidence_ref: https://example.invalid/log-retention-policy</li></ul>
+
+
+
+</div>
+
+
+<h4>PO.5.2 &mdash; <em>no data</em></h4>
+<p>Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.</p>
+
+
+
+<h4>PS.3.1 &mdash; <em>no data</em></h4>
+<p>Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.</p>
+
+
+
+<h4>PS.3.2 &mdash; <em>no data</em></h4>
+<p>Collect, safeguard, maintain, and share provenance data for all components of each software release (e.g., in a software bill of materials [SBOM]).</p>
+
+
+
+<h4>PW.4.1 &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h4>
+<p>Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization&#39;s software.</p>
+
+
+<div class="check">
+<h5>Third-party actions and reusable workflows are pinned to a full commit SHA (<code>C08.actions.pinned</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>good-repo</code>. every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/attestor-demo/good-repo/contents/.github/workflows/release.yaml</code> at 2026-07-13 12:00:03 UTC (HTTP 200, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>third_party_unpinned: (none)</li></ul>
+<p><strong>first_party_unpinned</strong></p>
+<table><tr><th>file</th><th>line</th><th>ref</th><th>slug</th></tr>
+<tr><td>.github/workflows/release.yaml</td><td>12</td><td>v5</td><td>actions/checkout</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PW.4.4 &mdash; <em>no data</em></h4>
+<p>Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.</p>
+
+
+
+<h4>RV.1.1 &mdash; <em>no data</em></h4>
+<p>Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.</p>
+
+
+
+<h4>RV.1.2 &mdash; <em>no data</em></h4>
+<p>Review, analyze, and/or test the software&#39;s code to identify or confirm the presence of previously undetected vulnerabilities.</p>
+
+
+
+
+<h3>Cluster 4: Automated vulnerability checking, pre-release, and disclosure program &mdash; <em>no data</em></h3>
+<blockquote>The software producer employs automated tools or comparable processes that check for security vulnerabilities. In addition: a) The software producer operates these processes on an ongoing basis and prior to product, version, or update releases; b) The software producer has a policy or process to address discovered security vulnerabilities prior to product release; and c) The software producer operates a vulnerability disclosure program and accepts, reviews, and addresses disclosed software vulnerabilities in a timely fashion and according to any timelines specified in the vulnerability disclosure program or applicable policies.</blockquote>
+
+
+<h4>PO.4.1 &mdash; <em>no data</em></h4>
+<p>Define criteria for software security checks and track throughout the SDLC.</p>
+
+
+
+<h4>PO.4.2 &mdash; <em>no data</em></h4>
+<p>Implement processes, mechanisms, etc. to gather and safeguard the necessary information in support of the criteria.</p>
+
+
+
+<h4>PS.1.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Store all forms of code – including source code, executable code, and configuration-as-code – based on the principle of least privilege so that only authorized personnel, tools, services, etc. have access.</p>
+
+
+<div class="check">
+<h5>Branch protection exists (<code>C02.branch.protection-exists</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>bad-repo</code>. no branch protection configured on main</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/attestor-demo/bad-repo/branches/main/protection</code> at 2026-07-13 12:00:02 UTC (HTTP 404, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Branch protection requires reviews (<code>C02.branch.required-reviews</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>good-repo</code>. main requires 1 approving review and passing status checks</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/attestor-demo/good-repo/rulesets</code> at 2026-07-13 12:00:01 UTC (HTTP 200, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>required_approving_review_count: 1</li></ul>
+
+
+
+</div>
+
+
+<h4>PW.2.1 &mdash; <em>no data</em></h4>
+<p>Have 1) a qualified person (or people) who were not involved with the design and/or 2) automated processes instantiated in the toolchain review the software design to confirm and enforce that it meets all of the security requirements and satisfactorily addresses the identified risk information.</p>
+
+
+
+<h4>PW.4.4 &mdash; <em>no data</em></h4>
+<p>Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.</p>
+
+
+
+<h4>PW.5.1 &mdash; <em>no data</em></h4>
+<p>Follow all secure coding practices that are appropriate to the development languages and environment to meet the organization&#39;s requirements.</p>
+
+
+
+<h4>PW.6.1 &mdash; <em>no data</em></h4>
+<p>Use compiler, interpreter, and build tools that offer features to improve executable security.</p>
+
+
+
+<h4>PW.6.2 &mdash; <em>no data</em></h4>
+<p>Determine which compiler, interpreter, and build tool features should be used and how each should be configured, then implement and use the approved configurations.</p>
+
+
+
+<h4>PW.7.1 &mdash; <em>no data</em></h4>
+<p>Determine whether code review (a person looks directly at the code to find issues) and/or code analysis (tools are used to find issues in code, either in a fully automated way or in conjunction with a person) should be used, as defined by the organization.</p>
+
+
+
+<h4>PW.7.2 &mdash; <em>no data</em></h4>
+<p>Perform the code review and/or code analysis based on the organization&#39;s secure coding standards, and record and triage all discovered issues and recommended remediations in the development team&#39;s workflow or issue tracking system.</p>
+
+
+
+<h4>PW.8.2 &mdash; <em>no data</em></h4>
+<p>Scope the testing, design the tests, perform the testing, and document the results, including recording and triaging all discovered issues and recommended remediations in the development team&#39;s workflow or issue tracking system.</p>
+
+
+
+<h4>PW.9.1 &mdash; <em>no data</em></h4>
+<p>Define a secure baseline by determining how to configure each setting that has an effect on security or a security-related setting so that the default settings are secure and do not weaken the security functions provided by the platform, network infrastructure, or services.</p>
+
+
+
+<h4>PW.9.2 &mdash; <em>no data</em></h4>
+<p>Implement the default settings (or groups of default settings, if applicable), and document each setting for software administrators.</p>
+
+
+
+<h4>RV.1.1 &mdash; <em>no data</em></h4>
+<p>Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.</p>
+
+
+
+<h4>RV.1.2 &mdash; <em>no data</em></h4>
+<p>Review, analyze, and/or test the software&#39;s code to identify or confirm the presence of previously undetected vulnerabilities.</p>
+
+
+
+<h4>RV.1.3 &mdash; <em>no data</em></h4>
+<p>Have a policy that addresses vulnerability disclosure and remediation, and implement the roles, responsibilities, and processes needed to support that policy.</p>
+
+
+
+<h4>RV.2.1 &mdash; <em>no data</em></h4>
+<p>Analyze each vulnerability to gather sufficient information about risk to plan its remediation or other risk response.</p>
+
+
+
+<h4>RV.2.2 &mdash; <em>no data</em></h4>
+<p>Plan and implement risk responses for vulnerabilities.</p>
+
+
+
+<h4>RV.3.3 &mdash; <em>no data</em></h4>
+<p>Review the software for similar vulnerabilities to eradicate a class of vulnerabilities, and proactively fix them rather than waiting for external reports.</p>
+
+
+
+
+
+<h2 id="gaps">Gaps</h2>
+<p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
+<table>
+  <tr><th>Check</th><th>Repo</th><th>Status</th><th>Reason</th></tr>
+  <tr><td><code>C02.branch.protection-exists</code></td><td>bad-repo</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no branch protection configured on main</td></tr>
+  <tr><td><code>C08.actions.pinned</code></td><td>good-repo</td><td><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</td></tr>
+  
+</table>
+
+<h2 id="self-attested-appendix">Self-Attested &amp; Not-Checkable Appendix</h2>
+<p>Controls in this section were <strong>not independently verified</strong> by this tool &mdash; either the
+producer's own claim (self-attested) or a control this tool structurally cannot verify
+via API (not-checkable, e.g. plan-gated or no answer on file). Neither status ever
+upgrades a CISA form cluster to fully verified.</p>
+
+<h3>Self-Attested</h3>
+<div class="check">
+<h5><code>SA.audit-log-export-fallback</code> &mdash; <span class="badge badge-self-attested">[SELF-ATTESTED]</span> Self-Attested</h5>
+<p><strong>If GitHub&#39;s own audit-log API or streaming isn&#39;t available, does the producer export or retain audit/access logs through another mechanism, and for how long?</strong></p>
+<p>self-attested (not independently verified): yes</p>
+<p><strong>Complements these API-verified checks:</strong></p>
+<ul><li><code>C09.audit.org-log-available</code>: <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable &mdash; GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope</li></ul>
+</div>
+
+<h3>Not Checkable</h3>
+<table>
+  <tr><th>Check</th><th>Repo</th><th>Reason</th></tr>
+  <tr><td><code>C09.audit.org-log-available</code></td><td>(org)</td><td>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope</td></tr>
+  
+</table>
+
+<h2 id="methodology">Methodology</h2>
+<p><strong>Status definitions:</strong></p>
+<ul>
+  <li><span class="badge badge-verified-pass">[PASS]</span> <strong>Verified Pass</strong> &mdash; the tool queried the platform API and the returned state satisfies the check's pass condition. Never inferred, only observed.</li>
+  <li><span class="badge badge-verified-fail">[FAIL]</span> <strong>Verified Fail</strong> &mdash; the tool queried the platform API and the returned state does not satisfy the check's pass condition. Just as definitive as verified-pass.</li>
+  <li><span class="badge badge-partial">[PARTIAL]</span> <strong>Partial</strong> &mdash; the tool queried the platform API and got a mixed or incomplete signal: some but not all of a check's sub-conditions hold, or the evidence is suggestive but not conclusive either way.</li>
+  <li><span class="badge badge-self-attested">[SELF-ATTESTED]</span> <strong>Self-Attested</strong> &mdash; no API call can verify this control; the answer comes from the producer's own self-attestation questionnaire, not platform evidence.</li>
+  <li><span class="badge badge-not-checkable">[NOT CHECKABLE]</span> <strong>Not Checkable</strong> &mdash; the tool could not determine an answer at all (plan-gated, insufficient token permission, or an unanswered self-attestation question). An honest &ldquo;unknown&rdquo;, never inferred as a pass or a fail.</li>
+</ul>
+
+<p><strong>Lookback window:</strong> 5 releases / 12 months, release tag pattern <code>v*</code>.</p>
+
+<p><strong>What this tool does NOT verify:</strong> developer security training, threat-modeling practice
+in depth, documented triage/remediation SLAs beyond what a self-attestation records,
+agency-notification process, and any control neither an API call nor the self-attestation
+questionnaire can reach. This tool is read-only: it never writes to the scanned platform,
+and every claim above traces to either a specific API response (verified-*, partial,
+not-checkable) or an explicit producer statement (self-attested) &mdash; never to inference,
+and never faked.</p>
+
+<footer>Generated by attestor 0.0.0-test. This report is derived entirely from evidence.json; it makes no claims beyond what that file records.</footer>
+
+</body>
+</html>

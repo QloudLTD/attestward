@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.0.0-test",
+  "mapping_versions": {
+    "ssdf": "TEST-SSDF-1.0.0",
+    "cisa_form": "TEST-CISA-1.0.0",
+    "self_attestation": "TEST-SA-1.0.0"
+  },
+  "scope": {
+    "org": "attestor-demo",
+    "repos": ["good-repo", "bad-repo"],
+    "release_tag_pattern": "v*",
+    "lookback_releases": 5,
+    "lookback_months": 12
+  },
+  "scan_started_at": "2026-07-13T12:00:00Z",
+  "scan_ended_at": "2026-07-13T12:00:05Z",
+  "results": [
+    {
+      "check_id": "C02.branch.required-reviews",
+      "title": "Branch protection requires reviews",
+      "status": "verified-pass",
+      "reason": "main requires 1 approving review and passing status checks",
+      "scope": { "org": "attestor-demo", "repo": "good-repo" },
+      "provenance": [
+        {
+          "endpoint": "/repos/attestor-demo/good-repo/rulesets",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:01Z",
+          "http_status": 200,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": { "required_approving_review_count": 1 }
+    },
+    {
+      "check_id": "C02.branch.protection-exists",
+      "title": "Branch protection exists",
+      "status": "verified-fail",
+      "reason": "no branch protection configured on main",
+      "scope": { "org": "attestor-demo", "repo": "bad-repo" },
+      "provenance": [
+        {
+          "endpoint": "/repos/attestor-demo/bad-repo/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:02Z",
+          "http_status": 404,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "check_id": "C08.actions.pinned",
+      "title": "Third-party actions and reusable workflows are pinned to a full commit SHA",
+      "status": "partial",
+      "reason": "every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA",
+      "scope": { "org": "attestor-demo", "repo": "good-repo" },
+      "provenance": [
+        {
+          "endpoint": "/repos/attestor-demo/good-repo/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:03Z",
+          "http_status": 200,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": {
+        "first_party_unpinned": [
+          {"file": ".github/workflows/release.yaml", "line": 12, "slug": "actions/checkout", "ref": "v5"}
+        ],
+        "third_party_unpinned": []
+      }
+    },
+    {
+      "check_id": "C09.audit.org-log-available",
+      "title": "Organization audit log is reachable via the API",
+      "status": "not-checkable",
+      "reason": "GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope",
+      "scope": { "org": "attestor-demo" },
+      "provenance": [
+        {
+          "endpoint": "/orgs/attestor-demo/audit-log",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:04Z",
+          "http_status": 404,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": { "org_plan": "free" }
+    },
+    {
+      "check_id": "SA.audit-log-export-fallback",
+      "title": "If GitHub's own audit-log API or streaming isn't available, does the producer export or retain audit/access logs through another mechanism, and for how long?",
+      "status": "self-attested",
+      "reason": "self-attested (not independently verified): yes",
+      "scope": { "org": "attestor-demo" },
+      "provenance": [],
+      "facts": {
+        "answer": "yes",
+        "evidence_ref": "https://example.invalid/log-retention-policy",
+        "attested_by": "Jane Doe, CTO",
+        "date": "2026-07-13"
+      }
+    }
+  ],
+  "rollup": {
+    "tasks": [
+      {"task_id": "PO.5.1", "status": "not-checkable"},
+      {"task_id": "PS.1.1", "status": "verified-fail"},
+      {"task_id": "PW.4.1", "status": "partial"}
+    ],
+    "clusters": [
+      {"cluster_id": "1", "status": "not-checkable"},
+      {"cluster_id": "2", "status": "verified-fail"}
+    ]
+  }
+}

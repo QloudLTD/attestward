@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.0.0-test",
+  "mapping_versions": { "ssdf": "TEST-1.0.0", "cisa_form": "TEST-1.0.0" },
+  "scope": {
+    "org": "attestor-demo",
+    "repos": ["<script>alert('repo')</script>"]
+  },
+  "scan_started_at": "2026-07-13T12:00:00Z",
+  "scan_ended_at": "2026-07-13T12:00:05Z",
+  "results": [
+    {
+      "check_id": "C99.hostile.check",
+      "title": "<script>alert('title')</script>",
+      "status": "verified-fail",
+      "reason": "found [click here](javascript:alert('reason')) and <img src=x onerror=alert('reason2')> in a file",
+      "scope": { "org": "attestor-demo", "repo": "<script>alert('scope-repo')</script>" },
+      "provenance": [
+        {
+          "endpoint": "/repos/attestor-demo/<script>alert('endpoint')</script>",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:01Z",
+          "http_status": 200,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": {
+        "hostile_scalar": "<script>alert('scalar')</script>",
+        "hostile_list": ["<script>alert('list1')</script>", "[bomb](javascript:alert(1))"],
+        "hostile_table": [
+          {"file": "<script>alert('table')</script>", "detail": "[click](javascript:alert('t2'))"}
+        ]
+      }
+    },
+    {
+      "check_id": "SA.hostile-question",
+      "title": "hostile self-attested question?",
+      "status": "self-attested",
+      "reason": "self-attested (not independently verified): <script>alert('sa-reason')</script>",
+      "scope": { "org": "attestor-demo" },
+      "provenance": [],
+      "facts": {
+        "answer": "<script>alert('sa-answer')</script>",
+        "evidence_ref": "javascript:alert('sa-evidence')"
+      }
+    }
+  ]
+}

@@ -18,9 +18,11 @@ Phase 4 (#20 C08 actions-security, #21 C09 audit-logging, #22 C10 vdp, #23
 self-attestation intake) is merged to `main` — the full v0.1 check matrix
 (C01–C10 plus self-attestation) is now in place. Phase 5 is in progress:
 #24 (evidence.json writer — determinism, atomic writes, pre-write schema
-validation) is merged; #25 (report.md/html), #26 (poam.md), #27 (pack
-integrity), and #28 (`attestor report`) are next. Build is issue-driven
-and in progress (see Progress tracker below).
+validation) is merged; the `internal/report` renderers for #25 (report.md/html)
+are code-complete and merged, but #25 itself stays open pending the issue's
+own non-engineer sign-off requirement (see the PR/issue for details); #26
+(poam.md), #27 (pack integrity), and #28 (`attestor report`) are next. Build
+is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -119,7 +121,7 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 5 — Outputs + integrity**
 - [x] #24 evidence.json writer
-- [ ] #25 report.md/html · #26 poam.md · #27 pack integrity · #28 `attestor report`
+- [ ] #25 report.md/html (renderers merged; issue open pending non-engineer sign-off) · #26 poam.md · #27 pack integrity · #28 `attestor report`
 
 **Phase 6 — Polish & launch**
 - [ ] #29 README rewrite · #30 generated checks-reference · #31 threat model finalization · #32 self-scan badge · #33 launch checklist

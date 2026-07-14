@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Software Development Security Report — {{.Pack.Scope.Org}}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  h1, h2, h3, h4, h5 { line-height: 1.2; }
+  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+  th, td { border: 1px solid #8887; padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: #8881; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; }
+  blockquote { border-left: 3px solid #8887; margin: 0.5rem 0; padding: 0.25rem 0.75rem; opacity: 0.85; }
+  .badge { font-weight: 600; font-family: ui-monospace, Menlo, Consolas, monospace; padding: 0.05rem 0.4rem; border: 1px solid currentColor; border-radius: 0.25rem; white-space: nowrap; }
+  .badge-verified-pass { color: #1a7f37; }
+  .badge-verified-fail { color: #cf222e; }
+  .badge-partial { color: #9a6700; }
+  .badge-self-attested { color: #6639ba; }
+  .badge-not-checkable { color: #57606a; }
+  .evidence-list, .facts-list { margin: 0.25rem 0; padding-left: 1.25rem; }
+  .check { border: 1px solid #8884; border-radius: 0.4rem; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+  .note { border: 1px solid #9a6700; border-radius: 0.4rem; padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #8887; opacity: 0.75; font-size: 0.9em; }
+  @media print { .check { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<h1>Software Development Security Report</h1>
+
+{{if .MappingVersionMismatch}}<div class="note"><strong>Note:</strong> this pack's mapping versions do not match the mapping data used to render this report. Some SSDF task/CISA cluster titles below may be missing or reflect a different revision than what actually produced these results.</div>{{end}}
+
+<h2 id="executive-summary">Executive Summary</h2>
+<table>
+  <tr><th>Org</th><td>{{.Pack.Scope.Org}}</td></tr>
+  <tr><th>Repos in scope</th><td>{{range $i, $r := .Pack.Scope.Repos}}{{if $i}}, {{end}}{{$r}}{{end}}</td></tr>
+  <tr><th>Scan window</th><td>{{fmtTime .Pack.ScanStartedAt}} &ndash; {{fmtTime .Pack.ScanEndedAt}}</td></tr>
+  <tr><th>Tool version</th><td>{{.Pack.ToolVersion}}</td></tr>
+  <tr><th>Mapping versions</th><td>SSDF {{.Pack.MappingVersions.SSDF}} &middot; CISA form {{.Pack.MappingVersions.CISAForm}}{{if .Pack.MappingVersions.ScannerSignatures}} &middot; scanner signatures {{.Pack.MappingVersions.ScannerSignatures}}{{end}}{{if .Pack.MappingVersions.SelfAttestation}} &middot; self-attestation {{.Pack.MappingVersions.SelfAttestation}}{{end}}</td></tr>
+  {{if .Pack.Integrity}}<tr><th>Pack SHA-256</th><td><code>{{.Pack.Integrity.SHA256}}</code></td></tr>{{end}}
+</table>
+
+<h3>Cluster status</h3>
+<table>
+  <tr><th>Cluster</th><th>Status</th></tr>
+  {{range .Clusters}}<tr><td>{{.ID}}. {{.Title}}</td><td>{{if .HasStatus}}<span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}{{else}}<em>no data</em>{{end}}</td></tr>
+  {{end}}
+</table>
+
+<h3>Result counts</h3>
+<table>
+  <tr><th>Status</th><th>Count</th></tr>
+  {{range statusCounts .StatusCounts}}<tr><td><span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}</td><td>{{.Count}}</td></tr>
+  {{end}}
+</table>
+
+<h2 id="cluster-detail">Cluster Detail</h2>
+{{range .Clusters}}
+<h3>Cluster {{.ID}}: {{.Title}} &mdash; {{if .HasStatus}}<span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}{{else}}<em>no data</em>{{end}}</h3>
+<blockquote>{{.FormText}}</blockquote>
+
+{{range .Tasks}}
+<h4>{{.ID}} &mdash; {{if .HasStatus}}<span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}{{else}}<em>no data</em>{{end}}</h4>
+{{if .Text}}<p>{{.Text}}</p>{{end}}
+
+{{range .Checks}}
+<div class="check">
+<h5>{{.Title}} (<code>{{.CheckID}}</code>) &mdash; <span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}</h5>
+<p>{{if .Scope.Repo}}Repo: <code>{{.Scope.Repo}}</code>. {{end}}{{.Reason}}</p>
+
+{{if .Provenance}}<p><strong>Evidence:</strong></p>
+<ul class="evidence-list">{{range .Provenance}}<li><code>{{.Method}} {{.Endpoint}}</code> at {{fmtTime .Timestamp}} (HTTP {{.HTTPStatus}}, digest <code>{{.ResponseSHA256}}</code>)</li>{{end}}</ul>{{end}}
+
+{{if .Facts}}{{$fv := facts .Facts}}
+{{if $fv.Scalars}}<ul class="facts-list">{{range $fv.Scalars}}<li>{{.Key}}: {{fmtVal .Value}}</li>{{end}}</ul>{{end}}
+{{if $fv.Lists}}<ul class="facts-list">{{range $fv.Lists}}<li>{{.Key}}: {{if .Items}}{{range $i, $item := .Items}}{{if $i}}, {{end}}{{fmtVal $item}}{{end}}{{else}}(none){{end}}</li>{{end}}</ul>{{end}}
+{{range $fv.Tables}}<p><strong>{{.Key}}</strong></p>
+<table><tr>{{range .Columns}}<th>{{.}}</th>{{end}}</tr>
+{{range .Rows}}<tr>{{range .}}<td>{{fmtVal .}}</td>{{end}}</tr>
+{{end}}</table>
+{{end}}
+{{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}
+
+<h2 id="gaps">Gaps</h2>
+{{if .Gaps}}<p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
+<table>
+  <tr><th>Check</th><th>Repo</th><th>Status</th><th>Reason</th></tr>
+  {{range .Gaps}}<tr><td><code>{{.CheckID}}</code></td><td>{{if .Scope.Repo}}{{.Scope.Repo}}{{else}}(org){{end}}</td><td><span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}</td><td>{{.Reason}}</td></tr>
+  {{end}}
+</table>{{else}}<p>No gaps found &mdash; every check that could be verified reported <code>verified-pass</code>.</p>{{end}}
+
+<h2 id="self-attested-appendix">Self-Attested &amp; Not-Checkable Appendix</h2>
+<p>Controls in this section were <strong>not independently verified</strong> by this tool &mdash; either the
+producer's own claim (self-attested) or a control this tool structurally cannot verify
+via API (not-checkable, e.g. plan-gated or no answer on file). Neither status ever
+upgrades a CISA form cluster to fully verified.</p>
+
+<h3>Self-Attested</h3>
+{{if .SelfAttested}}{{range .SelfAttested}}<div class="check">
+<h5><code>{{.Result.CheckID}}</code> &mdash; <span class="badge badge-{{.Result.Status}}">{{statusBadge .Result.Status}}</span> {{statusLabel .Result.Status}}</h5>
+<p><strong>{{.Result.Title}}</strong></p>
+<p>{{.Result.Reason}}</p>
+{{if .Paired}}<p><strong>Complements these API-verified checks:</strong></p>
+<ul>{{range .Paired}}<li><code>{{.CheckID}}</code>: <span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}} &mdash; {{.Reason}}</li>{{end}}</ul>{{end}}
+</div>{{end}}{{else}}<p>None.</p>{{end}}
+
+<h3>Not Checkable</h3>
+{{if .NotCheckable}}<table>
+  <tr><th>Check</th><th>Repo</th><th>Reason</th></tr>
+  {{range .NotCheckable}}<tr><td><code>{{.CheckID}}</code></td><td>{{if .Scope.Repo}}{{.Scope.Repo}}{{else}}(org){{end}}</td><td>{{.Reason}}</td></tr>
+  {{end}}
+</table>{{else}}<p>None.</p>{{end}}
+
+<h2 id="methodology">Methodology</h2>
+<p><strong>Status definitions:</strong></p>
+<ul>
+  <li><span class="badge badge-verified-pass">{{statusBadge "verified-pass"}}</span> <strong>Verified Pass</strong> &mdash; the tool queried the platform API and the returned state satisfies the check's pass condition. Never inferred, only observed.</li>
+  <li><span class="badge badge-verified-fail">{{statusBadge "verified-fail"}}</span> <strong>Verified Fail</strong> &mdash; the tool queried the platform API and the returned state does not satisfy the check's pass condition. Just as definitive as verified-pass.</li>
+  <li><span class="badge badge-partial">{{statusBadge "partial"}}</span> <strong>Partial</strong> &mdash; the tool queried the platform API and got a mixed or incomplete signal: some but not all of a check's sub-conditions hold, or the evidence is suggestive but not conclusive either way.</li>
+  <li><span class="badge badge-self-attested">{{statusBadge "self-attested"}}</span> <strong>Self-Attested</strong> &mdash; no API call can verify this control; the answer comes from the producer's own self-attestation questionnaire, not platform evidence.</li>
+  <li><span class="badge badge-not-checkable">{{statusBadge "not-checkable"}}</span> <strong>Not Checkable</strong> &mdash; the tool could not determine an answer at all (plan-gated, insufficient token permission, or an unanswered self-attestation question). An honest &ldquo;unknown&rdquo;, never inferred as a pass or a fail.</li>
+</ul>
+
+<p><strong>Lookback window:</strong> {{.Pack.Scope.LookbackReleases}} releases / {{.Pack.Scope.LookbackMonths}} months, release tag pattern <code>{{.Pack.Scope.ReleaseTagPattern}}</code>.</p>
+
+<p><strong>What this tool does NOT verify:</strong> developer security training, threat-modeling practice
+in depth, documented triage/remediation SLAs beyond what a self-attestation records,
+agency-notification process, and any control neither an API call nor the self-attestation
+questionnaire can reach. This tool is read-only: it never writes to the scanned platform,
+and every claim above traces to either a specific API response (verified-*, partial,
+not-checkable) or an explicit producer statement (self-attested) &mdash; never to inference,
+and never faked.</p>
+
+<footer>Generated by attestor {{.Pack.ToolVersion}}. This report is derived entirely from evidence.json; it makes no claims beyond what that file records.</footer>
+
+</body>
+</html>

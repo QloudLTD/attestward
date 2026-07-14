@@ -1,0 +1,435 @@
+# Software Development Security Report
+
+> **Note:** this pack's mapping versions do not match the mapping data used to render this report. Some SSDF task/CISA cluster titles below may be missing or reflect a different revision than what actually produced these results.
+
+## Executive Summary
+
+- **Org:** attestor-demo
+- **Repos in scope:** good-repo, bad-repo
+- **Scan window:** 2026-07-13 12:00:00 UTC – 2026-07-13 12:00:05 UTC
+- **Tool version:** 0.0.0-test
+- **Mapping versions:** SSDF TEST-SSDF-1.0.0 · CISA form TEST-CISA-1.0.0 · self-attestation TEST-SA-1.0.0
+
+### Cluster status
+
+| Cluster | Status |
+|---|---|
+| 1. Secure development and build environments | [NOT CHECKABLE] Not Checkable |
+| 2. Trusted source code supply chain (good-faith effort) | [FAIL] Verified Fail |
+| 3. Provenance for internal and third-party code | _no data_ |
+| 4. Automated vulnerability checking, pre-release, and disclosure program | _no data_ |
+
+### Result counts
+
+| Status | Count |
+|---|---|
+| [FAIL] Verified Fail | 1 |
+| [PARTIAL] Partial | 1 |
+| [NOT CHECKABLE] Not Checkable | 1 |
+| [SELF-ATTESTED] Self-Attested | 1 |
+| [PASS] Verified Pass | 1 |
+
+---
+
+## Cluster Detail
+
+### Cluster 1: Secure development and build environments — [NOT CHECKABLE] Not Checkable
+
+> The software is developed and built in secure environments. Those environments are secured by the following actions, at a minimum: a) Separating and protecting each environment involved in developing and building software; b) Regularly logging, monitoring, and auditing trust relationships used for authorization and access: i) to any software development and build environments; and ii) among components within each environment; c) Enforcing multi-factor authentication and conditional access across the environments relevant to developing and building software in a manner that minimizes security risk; d) Taking consistent and reasonable steps to document, as well as minimize use or inclusion of software products that create undue risk within the environments used to develop and build software; e) Encrypting sensitive data, such as credentials, to the extent practicable and based on risk; f) Implementing defensive cybersecurity practices, including continuous monitoring of operations and alerts and, as necessary, responding to suspected and confirmed cyber incidents.
+
+#### PO.3.2 — _no data_
+
+Follow recommended security practices to deploy, operate, and maintain tools and toolchains.
+
+#### PO.3.3 — _no data_
+
+Configure tools to generate artifacts of their support of secure software development practices as defined by the organization.
+
+#### PO.5.1 — [NOT CHECKABLE] Not Checkable
+
+Separate and protect each environment involved in software development.
+
+##### Organization audit log is reachable via the API (`C09.audit.org-log-available`) — [NOT CHECKABLE] Not Checkable
+
+GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
+
+Evidence:
+- `GET /orgs/attestor-demo/audit-log` at 2026-07-13 12:00:04 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+- org\_plan: free
+
+
+##### If GitHub's own audit-log API or streaming isn't available, does the producer export or retain audit/access logs through another mechanism, and for how long? (`SA.audit-log-export-fallback`) — [SELF-ATTESTED] Self-Attested
+
+self-attested (not independently verified): yes
+
+- answer: yes
+
+- attested\_by: Jane Doe, CTO
+
+- date: 2026-07-13
+
+- evidence\_ref: https://example.invalid/log-retention-policy
+
+
+#### PO.5.2 — _no data_
+
+Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.
+
+
+### Cluster 2: Trusted source code supply chain (good-faith effort) — [FAIL] Verified Fail
+
+> The software producer makes a good-faith effort to maintain trusted source code supply chains by employing automated tools or comparable processes to address the security of internal code and third-party components and manage related vulnerabilities.
+
+#### PO.1.1 — _no data_
+
+Identify and document all security requirements for the organization's software development infrastructures and processes, and maintain the requirements over time.
+
+#### PO.3.1 — _no data_
+
+Specify which tools or tool types must or should be included in each toolchain to mitigate identified risks, as well as how the toolchain components are to be integrated with each other.
+
+#### PO.3.2 — _no data_
+
+Follow recommended security practices to deploy, operate, and maintain tools and toolchains.
+
+#### PO.5.1 — [NOT CHECKABLE] Not Checkable
+
+Separate and protect each environment involved in software development.
+
+##### Organization audit log is reachable via the API (`C09.audit.org-log-available`) — [NOT CHECKABLE] Not Checkable
+
+GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
+
+Evidence:
+- `GET /orgs/attestor-demo/audit-log` at 2026-07-13 12:00:04 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+- org\_plan: free
+
+
+##### If GitHub's own audit-log API or streaming isn't available, does the producer export or retain audit/access logs through another mechanism, and for how long? (`SA.audit-log-export-fallback`) — [SELF-ATTESTED] Self-Attested
+
+self-attested (not independently verified): yes
+
+- answer: yes
+
+- attested\_by: Jane Doe, CTO
+
+- date: 2026-07-13
+
+- evidence\_ref: https://example.invalid/log-retention-policy
+
+
+#### PO.5.2 — _no data_
+
+Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.
+
+#### PS.1.1 — [FAIL] Verified Fail
+
+Store all forms of code – including source code, executable code, and configuration-as-code – based on the principle of least privilege so that only authorized personnel, tools, services, etc. have access.
+
+##### Branch protection exists (`C02.branch.protection-exists`) — [FAIL] Verified Fail
+
+Repo: `bad-repo`. no branch protection configured on main
+
+Evidence:
+- `GET /repos/attestor-demo/bad-repo/branches/main/protection` at 2026-07-13 12:00:02 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+
+##### Branch protection requires reviews (`C02.branch.required-reviews`) — [PASS] Verified Pass
+
+Repo: `good-repo`. main requires 1 approving review and passing status checks
+
+Evidence:
+- `GET /repos/attestor-demo/good-repo/rulesets` at 2026-07-13 12:00:01 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+- required\_approving\_review\_count: 1
+
+
+#### PS.2.1 — _no data_
+
+Make software integrity verification information available to software acquirers.
+
+#### PS.3.1 — _no data_
+
+Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.
+
+#### PW.4.1 — [PARTIAL] Partial
+
+Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization's software.
+
+##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
+
+Repo: `good-repo`. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
+
+Evidence:
+- `GET /repos/attestor-demo/good-repo/contents/.github/workflows/release.yaml` at 2026-07-13 12:00:03 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+- third\_party\_unpinned: (none)
+
+**first\_party\_unpinned**
+
+| file | line | ref | slug | 
+|---|---|---|---|
+| .github/workflows/release.yaml | 12 | v5 | actions/checkout | 
+
+
+#### PW.4.4 — _no data_
+
+Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.
+
+#### PW.7.1 — _no data_
+
+Determine whether code review (a person looks directly at the code to find issues) and/or code analysis (tools are used to find issues in code, either in a fully automated way or in conjunction with a person) should be used, as defined by the organization.
+
+#### PW.8.1 — _no data_
+
+Determine whether executable code testing should be performed to find vulnerabilities not identified by previous reviews, analysis, or testing and, if so, which types of testing should be used.
+
+#### RV.1.1 — _no data_
+
+Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.
+
+
+### Cluster 3: Provenance for internal and third-party code — _no data_
+
+> The software producer maintains provenance for internal code and third-party components incorporated into the software to the greatest extent feasible.
+
+#### PO.1.3 — _no data_
+
+Communicate requirements to all third parties who will provide commercial software components to the organization for reuse by the organization's own software.
+
+#### PO.3.2 — _no data_
+
+Follow recommended security practices to deploy, operate, and maintain tools and toolchains.
+
+#### PO.5.1 — [NOT CHECKABLE] Not Checkable
+
+Separate and protect each environment involved in software development.
+
+##### Organization audit log is reachable via the API (`C09.audit.org-log-available`) — [NOT CHECKABLE] Not Checkable
+
+GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
+
+Evidence:
+- `GET /orgs/attestor-demo/audit-log` at 2026-07-13 12:00:04 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+- org\_plan: free
+
+
+##### If GitHub's own audit-log API or streaming isn't available, does the producer export or retain audit/access logs through another mechanism, and for how long? (`SA.audit-log-export-fallback`) — [SELF-ATTESTED] Self-Attested
+
+self-attested (not independently verified): yes
+
+- answer: yes
+
+- attested\_by: Jane Doe, CTO
+
+- date: 2026-07-13
+
+- evidence\_ref: https://example.invalid/log-retention-policy
+
+
+#### PO.5.2 — _no data_
+
+Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.
+
+#### PS.3.1 — _no data_
+
+Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.
+
+#### PS.3.2 — _no data_
+
+Collect, safeguard, maintain, and share provenance data for all components of each software release (e.g., in a software bill of materials [SBOM]).
+
+#### PW.4.1 — [PARTIAL] Partial
+
+Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization's software.
+
+##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
+
+Repo: `good-repo`. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
+
+Evidence:
+- `GET /repos/attestor-demo/good-repo/contents/.github/workflows/release.yaml` at 2026-07-13 12:00:03 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+- third\_party\_unpinned: (none)
+
+**first\_party\_unpinned**
+
+| file | line | ref | slug | 
+|---|---|---|---|
+| .github/workflows/release.yaml | 12 | v5 | actions/checkout | 
+
+
+#### PW.4.4 — _no data_
+
+Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.
+
+#### RV.1.1 — _no data_
+
+Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.
+
+#### RV.1.2 — _no data_
+
+Review, analyze, and/or test the software's code to identify or confirm the presence of previously undetected vulnerabilities.
+
+
+### Cluster 4: Automated vulnerability checking, pre-release, and disclosure program — _no data_
+
+> The software producer employs automated tools or comparable processes that check for security vulnerabilities. In addition: a) The software producer operates these processes on an ongoing basis and prior to product, version, or update releases; b) The software producer has a policy or process to address discovered security vulnerabilities prior to product release; and c) The software producer operates a vulnerability disclosure program and accepts, reviews, and addresses disclosed software vulnerabilities in a timely fashion and according to any timelines specified in the vulnerability disclosure program or applicable policies.
+
+#### PO.4.1 — _no data_
+
+Define criteria for software security checks and track throughout the SDLC.
+
+#### PO.4.2 — _no data_
+
+Implement processes, mechanisms, etc. to gather and safeguard the necessary information in support of the criteria.
+
+#### PS.1.1 — [FAIL] Verified Fail
+
+Store all forms of code – including source code, executable code, and configuration-as-code – based on the principle of least privilege so that only authorized personnel, tools, services, etc. have access.
+
+##### Branch protection exists (`C02.branch.protection-exists`) — [FAIL] Verified Fail
+
+Repo: `bad-repo`. no branch protection configured on main
+
+Evidence:
+- `GET /repos/attestor-demo/bad-repo/branches/main/protection` at 2026-07-13 12:00:02 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+
+##### Branch protection requires reviews (`C02.branch.required-reviews`) — [PASS] Verified Pass
+
+Repo: `good-repo`. main requires 1 approving review and passing status checks
+
+Evidence:
+- `GET /repos/attestor-demo/good-repo/rulesets` at 2026-07-13 12:00:01 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+
+- required\_approving\_review\_count: 1
+
+
+#### PW.2.1 — _no data_
+
+Have 1) a qualified person (or people) who were not involved with the design and/or 2) automated processes instantiated in the toolchain review the software design to confirm and enforce that it meets all of the security requirements and satisfactorily addresses the identified risk information.
+
+#### PW.4.4 — _no data_
+
+Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.
+
+#### PW.5.1 — _no data_
+
+Follow all secure coding practices that are appropriate to the development languages and environment to meet the organization's requirements.
+
+#### PW.6.1 — _no data_
+
+Use compiler, interpreter, and build tools that offer features to improve executable security.
+
+#### PW.6.2 — _no data_
+
+Determine which compiler, interpreter, and build tool features should be used and how each should be configured, then implement and use the approved configurations.
+
+#### PW.7.1 — _no data_
+
+Determine whether code review (a person looks directly at the code to find issues) and/or code analysis (tools are used to find issues in code, either in a fully automated way or in conjunction with a person) should be used, as defined by the organization.
+
+#### PW.7.2 — _no data_
+
+Perform the code review and/or code analysis based on the organization's secure coding standards, and record and triage all discovered issues and recommended remediations in the development team's workflow or issue tracking system.
+
+#### PW.8.2 — _no data_
+
+Scope the testing, design the tests, perform the testing, and document the results, including recording and triaging all discovered issues and recommended remediations in the development team's workflow or issue tracking system.
+
+#### PW.9.1 — _no data_
+
+Define a secure baseline by determining how to configure each setting that has an effect on security or a security-related setting so that the default settings are secure and do not weaken the security functions provided by the platform, network infrastructure, or services.
+
+#### PW.9.2 — _no data_
+
+Implement the default settings (or groups of default settings, if applicable), and document each setting for software administrators.
+
+#### RV.1.1 — _no data_
+
+Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.
+
+#### RV.1.2 — _no data_
+
+Review, analyze, and/or test the software's code to identify or confirm the presence of previously undetected vulnerabilities.
+
+#### RV.1.3 — _no data_
+
+Have a policy that addresses vulnerability disclosure and remediation, and implement the roles, responsibilities, and processes needed to support that policy.
+
+#### RV.2.1 — _no data_
+
+Analyze each vulnerability to gather sufficient information about risk to plan its remediation or other risk response.
+
+#### RV.2.2 — _no data_
+
+Plan and implement risk responses for vulnerabilities.
+
+#### RV.3.3 — _no data_
+
+Review the software for similar vulnerabilities to eradicate a class of vulnerabilities, and proactively fix them rather than waiting for external reports.
+
+
+---
+
+## Gaps
+
+Every `verified-fail` or `partial` result, in one place. See poam.md for remediation tracking.
+
+| Check | Repo | Status | Reason |
+|---|---|---|---|
+| `C02.branch.protection-exists` | bad-repo | [FAIL] Verified Fail | no branch protection configured on main |
+| `C08.actions.pinned` | good-repo | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
+
+---
+
+## Self-Attested & Not-Checkable Appendix
+
+Controls in this section were **not independently verified** by this tool — either the
+producer's own claim (self-attested) or a control this tool structurally cannot verify
+via API (not-checkable, e.g. plan-gated or no answer on file). Neither status ever
+upgrades a CISA form cluster to fully verified.
+
+### Self-Attested
+
+#### `SA.audit-log-export-fallback` — [SELF-ATTESTED] Self-Attested
+
+If GitHub's own audit-log API or streaming isn't available, does the producer export or retain audit/access logs through another mechanism, and for how long?
+
+self-attested (not independently verified): yes
+
+Complements these API-verified checks:
+- `C09.audit.org-log-available`: [NOT CHECKABLE] Not Checkable — GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
+
+
+### Not Checkable
+
+| Check | Repo | Reason |
+|---|---|---|
+| `C09.audit.org-log-available` | (org) | GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope |
+
+---
+
+## Methodology
+
+**Status definitions:**
+
+- **[PASS] Verified Pass** — the tool queried the platform API and the returned state satisfies the check's pass condition. Never inferred, only observed.
+- **[FAIL] Verified Fail** — the tool queried the platform API and the returned state does not satisfy the check's pass condition. Just as definitive as verified-pass.
+- **[PARTIAL] Partial** — the tool queried the platform API and got a mixed or incomplete signal: some but not all of a check's sub-conditions hold, or the evidence is suggestive but not conclusive either way.
+- **[SELF-ATTESTED] Self-Attested** — no API call can verify this control; the answer comes from the producer's own self-attestation questionnaire, not platform evidence.
+- **[NOT CHECKABLE] Not Checkable** — the tool could not determine an answer at all (plan-gated, insufficient token permission, or an unanswered self-attestation question). An honest "unknown", never inferred as a pass or a fail.
+
+**Lookback window:** 5 releases / 12 months, release tag pattern `v*`.
+
+**What this tool does NOT verify:** developer security training, threat-modeling practice
+in depth, documented triage/remediation SLAs beyond what a self-attestation records,
+agency-notification process, and any control neither an API call nor the self-attestation
+questionnaire can reach. This tool is read-only: it never writes to the scanned platform,
+and every claim above traces to either a specific API response (verified-*, partial,
+not-checkable) or an explicit producer statement (self-attested) — never to inference,
+and never faked.
