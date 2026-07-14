@@ -1,4 +1,4 @@
-package sasthistory
+package runhistory
 
 import (
 	"math"
@@ -15,7 +15,7 @@ func TestComputeCadence(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		runs           []runInfo
+		runs           []RunInfo
 		wantCount      int
 		wantRunsPerWk  float64
 		wantLongestGap float64
@@ -29,7 +29,7 @@ func TestComputeCadence(t *testing.T) {
 		},
 		{
 			name: "runs outside the window are excluded",
-			runs: []runInfo{
+			runs: []RunInfo{
 				{CreatedAt: day(-10)},
 				{CreatedAt: day(100)},
 			},
@@ -39,7 +39,7 @@ func TestComputeCadence(t *testing.T) {
 		},
 		{
 			name: "evenly spaced runs: 10 runs over 10 weeks = 1/week",
-			runs: []runInfo{
+			runs: []RunInfo{
 				{CreatedAt: day(7)}, {CreatedAt: day(14)}, {CreatedAt: day(21)}, {CreatedAt: day(28)}, {CreatedAt: day(35)},
 				{CreatedAt: day(42)}, {CreatedAt: day(49)}, {CreatedAt: day(56)}, {CreatedAt: day(63)}, {CreatedAt: day(70)},
 			},
@@ -49,7 +49,7 @@ func TestComputeCadence(t *testing.T) {
 		},
 		{
 			name: "silent tail after the last run dominates the longest gap",
-			runs: []runInfo{
+			runs: []RunInfo{
 				{CreatedAt: day(1)}, {CreatedAt: day(2)}, {CreatedAt: day(3)},
 			},
 			wantCount:      3,
@@ -58,7 +58,7 @@ func TestComputeCadence(t *testing.T) {
 		},
 		{
 			name: "silent start before the first run dominates the longest gap",
-			runs: []runInfo{
+			runs: []RunInfo{
 				{CreatedAt: day(65)}, {CreatedAt: day(68)},
 			},
 			wantCount:      2,
@@ -67,7 +67,7 @@ func TestComputeCadence(t *testing.T) {
 		},
 		{
 			name:           "single run: longest gap is max(start-to-run, run-to-end)",
-			runs:           []runInfo{{CreatedAt: day(60)}},
+			runs:           []RunInfo{{CreatedAt: day(60)}},
 			wantCount:      1,
 			wantRunsPerWk:  0.1,
 			wantLongestGap: 60, // max(60, 10)
@@ -76,7 +76,7 @@ func TestComputeCadence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := computeCadence(tt.runs, windowStart, windowEnd)
+			got := ComputeCadence(tt.runs, windowStart, windowEnd)
 			if got.RunCount != tt.wantCount {
 				t.Errorf("RunCount = %d, want %d", got.RunCount, tt.wantCount)
 			}

@@ -3,6 +3,7 @@ package sasthistory
 import (
 	"testing"
 
+	"github.com/sioakim/ssdf/internal/collect/github/runhistory"
 	"github.com/sioakim/ssdf/internal/model"
 )
 
@@ -14,15 +15,15 @@ import (
 // distinction — a single truly-uncovered release is a real gap regardless
 // of how the other releases fared.
 func TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail(t *testing.T) {
-	filteredReleases := []releaseInfo{
+	filteredReleases := []runhistory.ReleaseInfo{
 		{TagName: "v1.0.0"},
 		{TagName: "v1.1.0"},
 		{TagName: "v1.2.0"},
 	}
-	coverage := []releaseCoverage{
-		{Release: filteredReleases[0], Status: coverageMissing},
-		{Release: filteredReleases[1], Status: coverageFailed},
-		{Release: filteredReleases[2], Status: coverageRan},
+	coverage := []runhistory.ReleaseCoverage{
+		{Release: filteredReleases[0], Status: runhistory.CoverageMissing},
+		{Release: filteredReleases[1], Status: runhistory.CoverageFailed},
+		{Release: filteredReleases[2], Status: runhistory.CoverageRan},
 	}
 
 	got := checkRanPerRelease("attestor-demo", "mixed-repo", filteredReleases, coverage, 0, nil)

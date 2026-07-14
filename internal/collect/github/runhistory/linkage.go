@@ -1,56 +1,61 @@
-// Package sasthistory implements C05 sast-history: whether a SAST tool is
-// configured (via #16's scanner-signature matcher, or GitHub's separate
-// CodeQL "default setup" mechanism) and whether it actually ran for each
-// recent release (SSDF PW.7, PW.8, RV.1).
-package sasthistory
+// Package runhistory holds the release/run-linkage, cadence, and
+// lookback-filtering machinery shared by any collector that needs to
+// answer "did a matched tool actually run for each recent release" — C05
+// sast-history was first, C06 sca-history reuses it verbatim rather than
+// duplicating it (see issue #18). Nothing here is specific to any scanner
+// category; category-specific behavior (e.g. C05's CodeQL default-setup
+// virtual-workflow detection) belongs in the collector package that needs
+// it, layered on top of ListWorkflows/MatchWorkflows.
+package runhistory
 
 import (
 	"sort"
 	"time"
 )
 
-// releaseCoverageStatus is how a single release's SAST coverage resolved —
-// see linkRunsToReleases' doc comment for the exact definition of each.
-type releaseCoverageStatus string
+// ReleaseCoverageStatus is how a single release's tool coverage resolved —
+// see LinkRunsToReleases' doc comment for the exact definition of each.
+type ReleaseCoverageStatus string
 
 const (
-	// coverageRan: at least one successful matched run covers this release.
-	coverageRan releaseCoverageStatus = "ran"
-	// coverageFailed: at least one matched run covers this release, but
-	// none succeeded — the tool is configured and attempted, just not
+	// CoverageRan means at least one successful matched run covers this
+	// release.
+	CoverageRan ReleaseCoverageStatus = "ran"
+	// CoverageFailed means at least one matched run covers this release,
+	// but none succeeded — the tool is configured and attempted, just not
 	// clean for this release.
-	coverageFailed releaseCoverageStatus = "failed"
-	// coverageMissing: no matched run at all covers this release — the
-	// tool never actually exercised this release's window.
-	coverageMissing releaseCoverageStatus = "missing"
+	CoverageFailed ReleaseCoverageStatus = "failed"
+	// CoverageMissing means no matched run at all covers this release —
+	// the tool never actually exercised this release's window.
+	CoverageMissing ReleaseCoverageStatus = "missing"
 )
 
-// releaseInfo is the minimal release data the linkage algorithm needs —
+// ReleaseInfo is the minimal release data the linkage algorithm needs —
 // deliberately decoupled from go-github's RepositoryRelease so this file
 // stays testable without constructing API response types.
-type releaseInfo struct {
+type ReleaseInfo struct {
 	TagName     string
 	CommitSHA   string
 	PublishedAt time.Time
 }
 
-// runInfo is the minimal workflow-run data the linkage algorithm needs,
+// RunInfo is the minimal workflow-run data the linkage algorithm needs,
 // for the same reason.
-type runInfo struct {
+type RunInfo struct {
 	HeadSHA    string
 	HeadBranch string
 	Conclusion string // "success", "failure", "cancelled", "" (in progress), ...
 	CreatedAt  time.Time
 }
 
-// releaseCoverage is one release's resolved SAST coverage.
-type releaseCoverage struct {
-	Release releaseInfo
-	Status  releaseCoverageStatus
+// ReleaseCoverage is one release's resolved tool coverage.
+type ReleaseCoverage struct {
+	Release ReleaseInfo
+	Status  ReleaseCoverageStatus
 }
 
-// linkRunsToReleases determines, for each release, whether a matched SAST
-// workflow covered it. A release is covered by:
+// LinkRunsToReleases determines, for each release, whether a matched tool
+// covered it. A release is covered by:
 //  1. any run whose HeadSHA equals the release's own resolved commit SHA
 //     (the tool ran directly against the tagged commit), or
 //  2. any run on defaultBranch whose CreatedAt falls in the window
@@ -72,12 +77,12 @@ type releaseCoverage struct {
 //
 // This is a pure function: no I/O, fully covered by table-driven tests
 // independent of any GitHub API shape.
-func linkRunsToReleases(releases []releaseInfo, runs []runInfo, defaultBranch string) []releaseCoverage {
-	sorted := make([]releaseInfo, len(releases))
+func LinkRunsToReleases(releases []ReleaseInfo, runs []RunInfo, defaultBranch string) []ReleaseCoverage {
+	sorted := make([]ReleaseInfo, len(releases))
 	copy(sorted, releases)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].PublishedAt.Before(sorted[j].PublishedAt) })
 
-	coverage := make([]releaseCoverage, len(sorted))
+	coverage := make([]ReleaseCoverage, len(sorted))
 	for i, rel := range sorted {
 		// The oldest release (i == 0) has an unbounded-left window: any
 		// run at or before its PublishedAt counts, so windowStart's zero
@@ -108,14 +113,14 @@ func linkRunsToReleases(releases []releaseInfo, runs []runInfo, defaultBranch st
 			}
 		}
 
-		status := coverageMissing
+		status := CoverageMissing
 		switch {
 		case anySuccess:
-			status = coverageRan
+			status = CoverageRan
 		case anyRun:
-			status = coverageFailed
+			status = CoverageFailed
 		}
-		coverage[i] = releaseCoverage{Release: rel, Status: status}
+		coverage[i] = ReleaseCoverage{Release: rel, Status: status}
 	}
 	return coverage
 }

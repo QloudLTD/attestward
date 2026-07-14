@@ -1,7 +1,8 @@
-package sasthistory
+package runhistory
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,11 +12,22 @@ import (
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
 )
 
+func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if body == nil {
+		return
+	}
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		t.Errorf("encode fixture response: %v", err)
+	}
+}
+
 // TestFetchWorkflowRuns_SendsServerSideCreatedFilter pins the rate-limit
-// mitigation documented on fetchWorkflowRuns: the Created filter must
+// mitigation documented on FetchWorkflowRuns: the Created filter must
 // actually reach GitHub as a ">=YYYY-MM-DD" query param, not just be set
 // on the request struct and silently dropped or malformed in transit.
-// Previously nothing in this package asserted the outgoing request at all.
 func TestFetchWorkflowRuns_SendsServerSideCreatedFilter(t *testing.T) {
 	var gotCreated string
 	mux := http.NewServeMux()
@@ -34,8 +46,8 @@ func TestFetchWorkflowRuns_SendsServerSideCreatedFilter(t *testing.T) {
 	client.REST.BaseURL = baseURL
 
 	since := time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)
-	if _, err := fetchWorkflowRuns(context.Background(), client, "attestor-demo", "repo-a", 1, since); err != nil {
-		t.Fatalf("fetchWorkflowRuns: %v", err)
+	if _, err := FetchWorkflowRuns(context.Background(), client, "attestor-demo", "repo-a", 1, since); err != nil {
+		t.Fatalf("FetchWorkflowRuns: %v", err)
 	}
 
 	want := ">=2026-03-15"

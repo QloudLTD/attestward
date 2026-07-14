@@ -8,6 +8,7 @@ import (
 	ghgithub "github.com/google/go-github/v75/github"
 
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	"github.com/sioakim/ssdf/internal/collect/github/runhistory"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
 )
@@ -33,7 +34,7 @@ func defaultSetupConfigured(ds *ghgithub.DefaultSetupConfiguration) bool {
 // configured — used by checkCadence to decide whether "zero runs" means
 // "not-checkable, nothing to have cadence for" or "verified-fail, tool
 // configured but silent."
-func toolConfigured(matched []matchedWorkflow, ds *ghgithub.DefaultSetupConfiguration) bool {
+func toolConfigured(matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration) bool {
 	return len(matched) > 0 || defaultSetupConfigured(ds)
 }
 
@@ -42,7 +43,7 @@ func toolConfigured(matched []matchedWorkflow, ds *ghgithub.DefaultSetupConfigur
 // (hasHighOrMedium) — shared by checkToolConfigured and checkCadence so
 // both apply the exact same "low-confidence-only" definition rather than
 // two independently-maintained copies drifting apart.
-func matchConfidence(matched []matchedWorkflow) (hasAny, hasHighOrMedium bool) {
+func matchConfidence(matched []runhistory.MatchedWorkflow) (hasAny, hasHighOrMedium bool) {
 	for _, mw := range matched {
 		for _, m := range mw.Matches {
 			hasAny = true
@@ -58,7 +59,7 @@ func matchConfidence(matched []matchedWorkflow) (hasAny, hasHighOrMedium bool) {
 // issue: a low-confidence-only match (workflow name heuristic alone, no
 // action slug or CLI pattern) can never alone justify verified-pass — it
 // caps at partial, an honest acknowledgment that the signal is weak.
-func checkToolConfigured(org, repo string, matched []matchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, prov []model.Provenance) model.CheckResult {
+func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.tool-configured"
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
@@ -110,7 +111,7 @@ func checkToolConfigured(org, repo string, matched []matchedWorkflow, ds *ghgith
 // verified-pass, and never masking a genuine verified-fail from the
 // releases that DID resolve) is the honest reflection of "some releases in
 // scope were never actually evaluated."
-func checkRanPerRelease(org, repo string, filteredReleases []releaseInfo, coverage []releaseCoverage, droppedTags int, prov []model.Provenance) model.CheckResult {
+func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.ran-per-release"
 
 	if len(filteredReleases) == 0 {
@@ -130,10 +131,10 @@ func checkRanPerRelease(org, repo string, filteredReleases []releaseInfo, covera
 	table := make([]map[string]any, 0, len(coverage))
 	for _, c := range coverage {
 		table = append(table, map[string]any{"tag": c.Release.TagName, "status": string(c.Status)})
-		if c.Status != coverageRan {
+		if c.Status != runhistory.CoverageRan {
 			allRan = false
 		}
-		if c.Status == coverageMissing {
+		if c.Status == runhistory.CoverageMissing {
 			anyMissing = true
 		}
 	}
@@ -165,7 +166,7 @@ func checkRanPerRelease(org, repo string, filteredReleases []releaseInfo, covera
 // tool-configured caps at partial for the identical evidence would read as
 // a contradiction — "unsure it's configured, but certain it ran on
 // schedule."
-func checkCadence(org, repo string, matched []matchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, cadence cadenceStats, prov []model.Provenance) model.CheckResult {
+func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, cadence runhistory.CadenceStats, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.cadence"
 
 	if !toolConfigured(matched, ds) {

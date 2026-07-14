@@ -1,19 +1,44 @@
+// Package sasthistory implements C05 sast-history: whether a SAST tool is
+// configured (via #16's scanner-signature matcher, or GitHub's separate
+// CodeQL "default setup" mechanism) and whether it actually ran for each
+// recent release (SSDF PW.7, PW.8, RV.1).
 package sasthistory
 
 import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
+
+	ghgithub "github.com/google/go-github/v75/github"
 
 	"github.com/sioakim/ssdf/internal/collect"
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	"github.com/sioakim/ssdf/internal/collect/github/runhistory"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
 	"github.com/sioakim/ssdf/mappings"
 )
 
 const collectorID = "C05.sast-history"
+
+// codeQLDefaultSetupPathPrefix is the synthetic workflow path GitHub's API
+// reports for a repo's CodeQL "default setup" scanning configuration
+// (Settings > Code security > Code scanning > Set up > Default), when it's
+// enabled: ListWorkflows includes a virtual entry at this path even though
+// no such file exists in the repo. Fetching its content 404s — it isn't a
+// real file — so it must be special-cased rather than run through
+// runhistory.MatchWorkflows' normal content-fetch-then-match path. This is
+// SAST-specific (CodeQL has no SCA equivalent), so it's handled here, not
+// in the shared runhistory package.
+const codeQLDefaultSetupPathPrefix = "dynamic/github-code-scanning/"
+
+// codeQLSignatureID is the scanner-signatures.yaml entry this collector
+// attributes default-setup's synthetic match to, so its tool name in
+// checkToolConfigured's Facts matches the name a real codeql-action-based
+// workflow would report.
+const codeQLSignatureID = "codeql"
 
 var checkTitles = map[string]string{
 	"C05.sast.tool-configured": "A SAST tool is configured",
@@ -123,15 +148,42 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	}
 	defaultBranch := repository.GetDefaultBranch()
 
-	matchedWorkflows, wfResp, err := fetchAndMatchWorkflows(ctx, client, registry, org, repo, defaultBranch)
+	allWorkflows, wfResp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
 		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
 	}
 
+	// Split out the CodeQL default-setup virtual entry (if present) from
+	// the real, content-fetchable workflow files — see
+	// codeQLDefaultSetupPathPrefix's doc comment for why this can't go
+	// through runhistory.MatchWorkflows' normal path.
+	var matchedWorkflows []runhistory.MatchedWorkflow
+	var realWorkflows []*ghgithub.Workflow
+	for _, wf := range allWorkflows {
+		if strings.HasPrefix(wf.GetPath(), codeQLDefaultSetupPathPrefix) {
+			if sig, ok := registry.SignatureByID[codeQLSignatureID]; ok {
+				matchedWorkflows = append(matchedWorkflows, runhistory.MatchedWorkflow{
+					WorkflowID: wf.GetID(),
+					Path:       wf.GetPath(),
+					Matches: []mapping.ScannerMatch{{
+						SignatureID: sig.ID,
+						Name:        sig.Name,
+						Category:    mapping.CategorySAST,
+						Confidence:  mapping.ConfidenceHigh,
+						MatchedOn:   "codeql-default-setup",
+					}},
+				})
+			}
+			continue
+		}
+		realWorkflows = append(realWorkflows, wf)
+	}
+	matchedWorkflows = append(matchedWorkflows, runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, realWorkflows, mapping.CategorySAST)...)
+
 	now := time.Now().UTC()
 	windowStart := now.AddDate(0, -scope.LookbackMonths, 0)
 
-	rawReleases, relResp, err := fetchReleases(ctx, client, org, repo)
+	rawReleases, relResp, err := runhistory.FetchReleases(ctx, client, org, repo)
 	if err != nil {
 		return allNotCheckable(org, repo, notCheckableReason(relResp, err, org, repo), client.Provenance())
 	}
@@ -150,7 +202,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	// always "too old" here), would cap ran-per-release at partial
 	// permanently — fixable only by deleting the offending GitHub release.
 	tagPattern := scope.ReleaseTagPattern
-	var releases []releaseInfo
+	var releases []runhistory.ReleaseInfo
 	droppedTags := 0
 	for _, r := range rawReleases {
 		tagName := r.GetTagName()
@@ -158,7 +210,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 			continue // out of scope regardless of resolution outcome — not a drop
 		}
 		publishedAt := r.GetPublishedAt().Time
-		sha, err := resolveReleaseCommit(ctx, client, org, repo, tagName)
+		sha, err := runhistory.ResolveReleaseCommit(ctx, client, org, repo, tagName)
 		if err != nil {
 			// An individual unresolvable tag doesn't invalidate the rest,
 			// but silently vanishing it would let ran-per-release ignore a
@@ -171,22 +223,22 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 			}
 			continue
 		}
-		releases = append(releases, releaseInfo{
+		releases = append(releases, runhistory.ReleaseInfo{
 			TagName:     tagName,
 			CommitSHA:   sha,
 			PublishedAt: publishedAt,
 		})
 	}
-	filteredReleases := filterReleasesInLookback(releases, tagPattern, scope.LookbackReleases, scope.LookbackMonths, now)
+	filteredReleases := runhistory.FilterReleasesInLookback(releases, tagPattern, scope.LookbackReleases, scope.LookbackMonths, now)
 
-	var runs []runInfo
+	var runs []runhistory.RunInfo
 	for _, mw := range matchedWorkflows {
-		wfRuns, err := fetchWorkflowRuns(ctx, client, org, repo, mw.WorkflowID, windowStart)
+		wfRuns, err := runhistory.FetchWorkflowRuns(ctx, client, org, repo, mw.WorkflowID, windowStart)
 		if err != nil {
 			continue // an individual workflow's run history failing to fetch doesn't invalidate the rest
 		}
 		for _, r := range wfRuns {
-			runs = append(runs, runInfo{
+			runs = append(runs, runhistory.RunInfo{
 				HeadSHA:    r.GetHeadSHA(),
 				HeadBranch: r.GetHeadBranch(),
 				Conclusion: r.GetConclusion(),
@@ -195,8 +247,8 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 		}
 	}
 
-	coverage := linkRunsToReleases(filteredReleases, runs, defaultBranch)
-	cadence := computeCadence(runs, windowStart, now)
+	coverage := runhistory.LinkRunsToReleases(filteredReleases, runs, defaultBranch)
+	cadence := runhistory.ComputeCadence(runs, windowStart, now)
 
 	sharedProv := client.Provenance() // everything up to (not including) the default-setup call below
 	sharedSkip := len(sharedProv)

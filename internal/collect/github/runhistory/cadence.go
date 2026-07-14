@@ -1,29 +1,28 @@
-package sasthistory
+package runhistory
 
 import (
 	"sort"
 	"time"
 )
 
-// cadenceStats summarizes how often a matched SAST tool actually ran
-// within a lookback window — fact-only (issue #17: "fact-rich, feeds the
-// report"); this package's own checkCadence derives a pass/fail verdict
-// from RunCount alone (is there any operational history at all to
+// CadenceStats summarizes how often a matched tool actually ran within a
+// lookback window — fact-only; a collector's own check derives a pass/fail
+// verdict from RunCount alone (is there any operational history at all to
 // report), not from whether the cadence itself looks "good."
-type cadenceStats struct {
+type CadenceStats struct {
 	RunCount       int
 	RunsPerWeek    float64
 	LongestGapDays float64
 }
 
-// computeCadence considers only runs whose CreatedAt falls within
+// ComputeCadence considers only runs whose CreatedAt falls within
 // [windowStart, windowEnd], and measures the longest silent stretch across
 // the whole window — including from windowStart to the first run and from
 // the last run to windowEnd, not just gaps between consecutive runs — so a
 // tool that ran three times in the first week of a year-long window and
 // then went silent reports a long gap, not a misleadingly small
 // average-of-consecutive-gaps number.
-func computeCadence(runs []runInfo, windowStart, windowEnd time.Time) cadenceStats {
+func ComputeCadence(runs []RunInfo, windowStart, windowEnd time.Time) CadenceStats {
 	var inWindow []time.Time
 	for _, r := range runs {
 		if !r.CreatedAt.Before(windowStart) && !r.CreatedAt.After(windowEnd) {
@@ -31,7 +30,7 @@ func computeCadence(runs []runInfo, windowStart, windowEnd time.Time) cadenceSta
 		}
 	}
 	if len(inWindow) == 0 {
-		return cadenceStats{}
+		return CadenceStats{}
 	}
 	sort.Slice(inWindow, func(i, j int) bool { return inWindow[i].Before(inWindow[j]) })
 
@@ -51,7 +50,7 @@ func computeCadence(runs []runInfo, windowStart, windowEnd time.Time) cadenceSta
 		longestGap = tail
 	}
 
-	return cadenceStats{
+	return CadenceStats{
 		RunCount:       len(inWindow),
 		RunsPerWeek:    runsPerWeek,
 		LongestGapDays: longestGap.Hours() / 24,
