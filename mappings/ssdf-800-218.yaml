@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.2.0"
+version: "1.3.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -214,7 +214,15 @@ tasks:
     family: PO
     practice: PO.5
     text: "Separate and protect each environment involved in software development."
-    checks: [C01.org.2fa-required, C01.org.members-without-2fa]
+    checks:
+      [
+        C01.org.2fa-required,
+        C01.org.members-without-2fa,
+        C03.env.exists,
+        C03.env.protection-rules,
+        C03.env.required-reviewers,
+        C03.env.branch-policy,
+      ]
 
   - id: PO.5.2
     family: PO
