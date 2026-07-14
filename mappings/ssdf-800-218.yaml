@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.6.0"
+version: "1.7.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -260,7 +260,7 @@ tasks:
     family: PS
     practice: PS.2
     text: "Make software integrity verification information available to software acquirers."
-    checks: []
+    checks: [C07.release.tags-signed, C07.release.checksums, C07.release.signatures]
 
   - id: PS.3.1
     family: PS
@@ -278,7 +278,7 @@ tasks:
       Collect, safeguard, maintain, and share provenance data for all
       components of each software release (e.g., in a software bill of
       materials [SBOM]).
-    checks: []
+    checks: [C07.release.signatures, C07.provenance.workflow, C07.provenance.commit-linkage]
 
   - id: PW.2.1
     family: PW

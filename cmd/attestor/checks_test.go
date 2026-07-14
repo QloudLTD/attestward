@@ -133,7 +133,8 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// against mappings.FS, and collect.Registered() reflects every
 	// collector package's init()-time registration — here, orgsecurity's,
 	// repoprotection's, envseparation's, secretshygiene's, sasthistory's,
-	// and scahistory's, transitively imported via scan.go) — not the
+	// scahistory's, and provenance's, transitively imported via scan.go)
+	// — not the
 	// disk-based loaders or synthetic fixtures the other tests in this
 	// file use, which would miss a broken //go:embed pattern, a renamed
 	// file, or a check registered on one side (registry or mapping) but
@@ -177,6 +178,11 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C06.sca.dependency-review",
 		"C06.sca.ran-per-release",
 		"C06.sca.tool-configured",
+		"C07.provenance.commit-linkage",
+		"C07.provenance.workflow",
+		"C07.release.checksums",
+		"C07.release.signatures",
+		"C07.release.tags-signed",
 	}
 	if len(rows) != len(wantIDs) {
 		t.Fatalf("len(rows) = %d, want %d (%v)", len(rows), len(wantIDs), wantIDs)
