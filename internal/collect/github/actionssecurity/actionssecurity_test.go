@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sioakim/ssdf/internal/collect"
@@ -256,5 +257,64 @@ func TestChecksRegistered(t *testing.T) {
 		if meta.TokenScope == "" {
 			t.Errorf("%s TokenScope is empty", id)
 		}
+	}
+}
+
+// TestSelfHostedRemediationDoesNotOverclaimNonRunsOnFixes locks in that
+// the remediation doesn't present "restrict fork-PR approval" or "don't
+// trigger on pull_request/pull_request_target from forks" as equivalent
+// alternatives to moving off self-hosted — checkSelfHosted's status comes
+// purely from runsOnSelfHosted(job.RunsOn) and the repo's private flag
+// (checks.go's checkSelfHosted); neither of those other two settings
+// changes what RunsOn contains, so they leave the check at partial
+// forever on a public repo. Only actually removing self-hosted usage (or
+// making the repo private) reaches a pass.
+func TestSelfHostedRemediationDoesNotOverclaimNonRunsOnFixes(t *testing.T) {
+	remediation := checkRemediations[checkSelfHostedID]
+	if !strings.Contains(strings.ToLower(remediation), "only") {
+		t.Errorf("C08.actions.self-hosted remediation doesn't make clear that only moving off self-hosted actually clears this check (the other mitigations are real but don't change RunsOn): %q", remediation)
+	}
+}
+
+// TestPullRequestTargetRemediationClarifiesRefRemovalOnlyReachesPartial
+// locks in that the remediation doesn't present "remove the checkout
+// step's PR-head ref" as an equal alternative to switching triggers —
+// checkPullRequestTarget only reaches verified-pass when NO workflow
+// triggers on pull_request_target at all; removing just the head-ref
+// checkout demotes "dangerous" to "bare" (still partial, "risky by
+// design"), not to pass.
+func TestPullRequestTargetRemediationClarifiesRefRemovalOnlyReachesPartial(t *testing.T) {
+	remediation := checkRemediations[checkPRTargetID]
+	if !strings.Contains(remediation, "partial") {
+		t.Errorf("C08.actions.pull-request-target remediation doesn't clarify that removing only the PR-head checkout still caps the result at partial, not a full pass: %q", remediation)
+	}
+}
+
+// TestOIDCRemediationCoversAmbiguousPartialMode locks in that the
+// remediation doesn't only address the static-credential verified-fail
+// mode — classifyCloudLoginStep's "ambiguous" partial mode fires when
+// NEITHER an OIDC nor a static-credential parameter was set at all, so
+// text that opens "replace the long-lived static credential" and closes
+// "delete the corresponding long-lived secret" misdescribes that case
+// (there's no existing secret to delete).
+func TestOIDCRemediationCoversAmbiguousPartialMode(t *testing.T) {
+	remediation := strings.ToLower(checkRemediations[checkOIDCID])
+	if !strings.Contains(remediation, "ambiguous") && !strings.Contains(remediation, "neither") {
+		t.Errorf("C08.actions.oidc-vs-secrets remediation doesn't address the \"ambiguous\" partial mode (no credential parameter recognized at all, so there's nothing to \"replace\" or \"delete\"): %q", checkRemediations[checkOIDCID])
+	}
+}
+
+// TestPinnedRemediationDoesNotClaimDependabotDoesInitialPinning locks in
+// that the remediation doesn't claim Dependabot can perform the initial
+// tag-to-SHA pinning conversion — Dependabot's action-pinning support only
+// keeps an ALREADY-SHA-pinned reference's trailing version comment up to
+// date; converting a mutable tag to a SHA in the first place is a
+// long-standing unimplemented Dependabot feature request
+// (dependabot/dependabot-core#7913), so pointing a reader at Dependabot
+// for the initial fix is unfollowable advice.
+func TestPinnedRemediationDoesNotClaimDependabotDoesInitialPinning(t *testing.T) {
+	remediation := checkRemediations[checkPinnedID]
+	if strings.Contains(remediation, "Dependabot") && strings.Contains(remediation, "can automate this") {
+		t.Errorf("C08.actions.pinned remediation implies Dependabot can perform the initial tag-to-SHA pinning conversion, which it doesn't support: %q", remediation)
 	}
 }

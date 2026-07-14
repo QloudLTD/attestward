@@ -6,7 +6,6 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -221,34 +220,26 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	}
 }
 
-// TestC01ThroughC07ChecksHaveRemediation is the second slice of issue
+// TestAllC01ThroughC10ChecksHaveRemediation is the final slice of issue
 // #26's acceptance criterion "every C01-C10 fail mode has non-empty
-// remediation" — scoped to C01-C07 for now since the backfill lands
-// collector-group by collector-group across several PRs (like the
-// collectors themselves did in issues #11-#22); this assertion widens to
-// the full C01-C10 set once the last group (C08-C10) lands. The
-// found-count assertion guards against this silently covering zero checks
-// if a package's check IDs are ever renamed.
-func TestC01ThroughC07ChecksHaveRemediation(t *testing.T) {
-	prefixes := []string{"C01.", "C02.", "C03.", "C04.", "C05.", "C06.", "C07."}
-	found := 0
-	for _, meta := range collect.Registered() {
-		matched := false
-		for _, p := range prefixes {
-			if strings.HasPrefix(meta.ID, p) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			continue
-		}
-		found++
+// remediation" — the backfill landed collector-group by collector-group
+// across three PRs (like the collectors themselves did in issues
+// #11-#22: C01-C04, then C05-C07, then this last group, C08-C10), and
+// this is the widened assertion covering the complete registry. Every
+// check collect.Registered() returns is a C0X check (self-attestation
+// questions never call collect.Register — see registry.go's doc comment
+// on CheckMeta.Remediation), so no prefix filtering is needed here,
+// unlike the narrower per-group predecessors of this test. The
+// found-count assertion guards against this silently covering zero
+// checks if the registry were ever emptied by an import change.
+func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
+	registered := collect.Registered()
+	for _, meta := range registered {
 		if meta.Remediation == "" {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if found != 33 {
-		t.Fatalf("found %d C01-C07 checks, want 33 — did the registered check count change?", found)
+	if len(registered) != 46 {
+		t.Fatalf("len(collect.Registered()) = %d, want 46 — did the registered check count change?", len(registered))
 	}
 }

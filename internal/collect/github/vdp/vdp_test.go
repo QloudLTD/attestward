@@ -453,3 +453,18 @@ func TestChecksRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestPrivateReportingRemediationUsesCurrentSettingsPath locks in the
+// current GitHub Settings navigation ("Security" sidebar section ->
+// "Advanced Security", not the pre-GHAS-unbundling "Code security"
+// label) for enabling private vulnerability reporting. Verified against
+// docs.github.com/en/code-security/security-advisories/working-with-repository-security-advisories/configuring-private-vulnerability-reporting-for-a-repository.
+func TestPrivateReportingRemediationUsesCurrentSettingsPath(t *testing.T) {
+	remediation := checkRemediations[privateReportingID]
+	if strings.Contains(remediation, "Code security ->") {
+		t.Errorf("C10.vdp.private-reporting remediation uses the stale pre-GHAS-unbundling \"Code security\" settings path: %q", remediation)
+	}
+	if !strings.Contains(remediation, "Advanced Security") {
+		t.Errorf("C10.vdp.private-reporting remediation should name the current \"Advanced Security\" settings section: %q", remediation)
+	}
+}

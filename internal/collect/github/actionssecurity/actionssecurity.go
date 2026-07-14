@@ -37,6 +37,42 @@ var checkIDs = []string{
 	checkSelfHostedID,
 }
 
+var checkRemediations = map[string]string{
+	checkPinnedID: "Pin every third-party action/reusable-workflow `uses:` reference to a full 40-char " +
+		"commit SHA, not a tag or branch (e.g. `uses: actions/checkout@<full-sha> # v5.0.0` — keep the " +
+		"version as a comment for readability). A tool like `pin-github-action`/`pinact`, or Renovate's " +
+		"digest-pinning preset, can do this initial tag-to-SHA conversion (Dependabot cannot — it only " +
+		"keeps an already-pinned reference's version comment up to date going forward, via that same " +
+		"trailing comment). First-party `actions/*` references on a mutable tag are tolerated (capped at " +
+		"partial) but should be pinned too for a full pass.",
+	checkTokenPermissionsID: "Add an explicit `permissions:` block — at workflow level, or per job for " +
+		"finer scoping — set to the minimum needed (e.g. `contents: read`), not the ambient default. " +
+		"Replace any `permissions: write-all` with a specific, scoped list of only the permissions that " +
+		"job actually needs.",
+	checkPRTargetID: "Switch the trigger to `pull_request` if privileged (secrets/write token) access to " +
+		"the base repo isn't actually needed. If it genuinely is needed against fork code, use the " +
+		"two-workflow pattern instead: an untrusted `pull_request`-triggered workflow that uploads an " +
+		"artifact, and a separate, minimally-privileged `workflow_run`-triggered workflow that consumes " +
+		"it — either fully eliminates the pull_request_target trigger and reaches a pass. Just removing " +
+		"the `actions/checkout` step's PR-head ref (`github.event.pull_request.head.*` or `github.head_ref`) " +
+		"while keeping the pull_request_target trigger only demotes this from a fail to partial — " +
+		"pull_request_target itself is still flagged as risky by design.",
+	checkOIDCID: "Configure the login action's OIDC parameters — for aws-actions/configure-aws-credentials " +
+		"use `role-to-assume` (with `permissions: id-token: write` on the job); for azure/login use " +
+		"`client-id`+`tenant-id`+`subscription-id` (also needs `permissions: id-token: write`); for " +
+		"google-github-actions/auth use `workload_identity_provider` (also needs `permissions: id-token: " +
+		"write`). If this replaces an existing long-lived static credential (verified-fail), delete it " +
+		"afterward from repo/org Settings -> Secrets and variables; if instead neither an OIDC nor a " +
+		"static-credential parameter was recognized at all (the \"ambiguous\" partial case), there's no " +
+		"existing secret to remove — just add the OIDC parameters above.",
+	checkSelfHostedID: "Only moving the job to a GitHub-hosted runner actually clears this check (it looks " +
+		"solely at whether `runs-on: self-hosted` appears, not at trigger/approval settings). Real-world " +
+		"exposure can also be reduced without changing this check's result: require approval for " +
+		"first-time/outside contributors (Settings -> Actions -> General -> \"Approval for running fork " +
+		"pull request workflows from contributors\"), or don't trigger the job on pull_request/" +
+		"pull_request_target from forks at all.",
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -47,6 +83,7 @@ func init() {
 				"Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, " +
 				"which this collector tolerates failing to read rather than treating as fatal; exact fine-grained " +
 				"category for that one unverified, see C05's TokenScope for the same kind of hedge",
+			Remediation: checkRemediations[id],
 		})
 	}
 }

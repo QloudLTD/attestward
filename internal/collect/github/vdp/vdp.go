@@ -43,6 +43,23 @@ var repoCheckIDs = []string{securityMDID, intakeChannelID, privateReportingID}
 
 var checkIDs = append(append([]string{}, repoCheckIDs...), securityPolicyOrgID)
 
+var checkRemediations = map[string]string{
+	securityMDID: "Add a SECURITY.md at .github/SECURITY.md (or the repo root, or docs/) describing how to " +
+		"report a vulnerability. If most repos in the org should share one policy, add it to the org's " +
+		"own `.github` repo instead (see C10.vdp.security-policy-org) so it applies as the org-wide " +
+		"default for repos without their own.",
+	intakeChannelID: "If no SECURITY.md exists at all, add one first (see C10.vdp.security-md). If it " +
+		"exists but this still fails, make the intake channel concrete and actionable: an email address, " +
+		"a URL (e.g. a reporting form or bug-bounty page), or an explicit mention that reporters should " +
+		"use GitHub's private vulnerability reporting feature — not just general prose like \"we take " +
+		"security seriously.\"",
+	privateReportingID: "Repo Settings -> Security -> Advanced Security -> enable \"Private vulnerability " +
+		"reporting.\"",
+	securityPolicyOrgID: "Add a SECURITY.md to the org's own `.github` repo (create the repo first if it " +
+		"doesn't exist) so it serves as the org-wide default security policy for every repo that doesn't " +
+		"have its own.",
+}
+
 func init() {
 	for _, id := range repoCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -52,6 +69,7 @@ func init() {
 			TokenScope: "public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — " +
 				"private-reporting additionally needs whatever category gates that endpoint; exact fine-grained " +
 				"category unverified, see C05's TokenScope for the same kind of hedge",
+			Remediation: checkRemediations[id],
 		})
 	}
 	collect.Register(collect.CheckMeta{
@@ -60,6 +78,7 @@ func init() {
 		Collector: collectorID,
 		TokenScope: "public_repo/repo (classic) or Contents: read-only (fine-grained), against the org's own " +
 			"\".github\" repo if one exists",
+		Remediation: checkRemediations[securityPolicyOrgID],
 	})
 }
 

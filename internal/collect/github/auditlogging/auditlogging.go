@@ -49,6 +49,33 @@ var orgCheckIDs = []string{orgLogAvailableID, logStreamingID, retentionAwareness
 
 var checkIDs = append(append([]string{}, orgCheckIDs...), webhooksID)
 
+// checkRemediations covers all four checks for consistency with every
+// other collector's registry entry, though three of the four
+// (log-streaming, retention-awareness, and effectively org-log-available
+// — see each check's own doc comment) can never actually reach
+// verified-fail/partial, so a poam.md finding for them never exists to
+// render this text against. It's still worth documenting: a reader
+// digging into *why* a check is permanently not-checkable may want to
+// know what would make the underlying control checkable/better, even
+// though this tool can't verify it directly.
+var checkRemediations = map[string]string{
+	orgLogAvailableID: "This check can only ever report verified-pass or not-checkable, never a fail — " +
+		"if it's not-checkable, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log " +
+		"API, or the token isn't an org owner with the read:audit_log scope. Upgrading the plan or " +
+		"granting that scope is what would make this check verifiable.",
+	logStreamingID: "Not remediable via this tool's own checks: audit-log streaming/export only exists " +
+		"at the GitHub Enterprise account level (Enterprise Settings -> Audit log -> Log streaming), not " +
+		"the organization level, so this check can never verify it directly. If streaming is configured, " +
+		"document it in the self-attestation questionnaire (SA.audit-log-export-fallback) instead.",
+	retentionAwarenessID: "No remediation applicable — this check is purely informational (documents " +
+		"GitHub's 180-day audit-log retention window) and never reports a fail. If longer retention is " +
+		"required, configure audit-log export/streaming (see C09.audit.log-streaming) and document the " +
+		"destination and retention period in the self-attestation questionnaire.",
+	webhooksID: "Repo Settings -> Webhooks -> Add webhook -> subscribe to at least Push, Release, and " +
+		"Deployment events (or the wildcard \"Send me everything\") pointing at your log/SIEM ingestion " +
+		"endpoint.",
+}
+
 func init() {
 	for _, id := range orgCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -59,6 +86,7 @@ func init() {
 				"organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't " +
 				"include the Enterprise Cloud audit-log API in the response this collector sees, both surface " +
 				"identically (see C09.audit.org-log-available's Reason wording)",
+			Remediation: checkRemediations[id],
 		})
 	}
 	collect.Register(collect.CheckMeta{
@@ -67,6 +95,7 @@ func init() {
 		Collector: collectorID,
 		TokenScope: "repo (classic) or Webhooks: read-only (fine-grained) — exact fine-grained category not " +
 			"independently verified against GitHub's docs, see C05's TokenScope for the same kind of hedge",
+		Remediation: checkRemediations[webhooksID],
 	})
 }
 
