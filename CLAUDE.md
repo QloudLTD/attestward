@@ -10,10 +10,11 @@ an issue.
 verifies the technical controls behind the CISA SSDA form against a GitHub org/repo and
 emits a signed evidence pack. Full mission and rationale: [README.md](README.md).
 
-Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline) and Phase 1 (data model,
-SSDF/CISA mappings, `checks list`) are merged to `main`. Phase 2 is in progress: C01–C04
-collectors are merged; #15 (demo org + fixtures + integration harness) is next. Build is
-issue-driven and in progress (see Progress tracker below).
+Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model,
+SSDF/CISA mappings, `checks list`), and Phase 2 (C01–C04 collectors, demo org +
+integration harness) are merged to `main`. Phase 3 (#16 onward: scanner-signature
+registry, C05–C07 collectors) is next. Build is issue-driven and in progress (see
+Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -38,6 +39,8 @@ touching compliance mappings.
 | `mappings/` | SSDF/CISA-form mappings as versioned YAML (once authored — issues #6, #7, #16) |
 | `CONTRIBUTING.md` | Full workflow rules — branch naming, commit format, PR size, testing conventions |
 | `tools/progress/` | Local-only build-progress dashboard (issue #37) — dev convenience, not shipped, not hosted, not linked from README |
+| `hack/demo-org-setup.sh` | Idempotent setup script for the public demo org (`Qloud-LTD`) the integration test scans — see DECISIONS.md's D5 |
+| `fixtures.yaml` | Expected check status per check per demo repo — the integration test's assertion table; grows as C05–C10 land |
 
 Work is tracked entirely in [GitHub Issues](../../issues) — see the
 [v0.1 epic (#1)](../../issues/1) for the full build plan across Phases 0–6. There is no
@@ -90,7 +93,7 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #12 C02 repo-protection
 - [x] #13 C03 env-separation
 - [x] #14 C04 secrets-hygiene
-- [ ] #15 Demo org + fixtures + integration harness
+- [x] #15 Demo org + fixtures + integration harness
 
 **Phase 3 — Collectors C05–C07**
 - [ ] #16 Scanner-signature registry

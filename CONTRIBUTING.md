@@ -57,8 +57,34 @@ make tidy          # go mod tidy
   by success). Wire it into a real `Client` the same way
   `internal/collect/github/client_test.go`'s `newTestClient` helper does, so collector
   tests exercise the real auth/provenance/rate-limit transport chain, not a bypass of it.
-- **Integration tests:** run against the public demo org (see the demo-org issue);
-  gated behind a build tag so `go test ./...` stays offline-safe.
+- **Integration tests:** run against the public demo org (`Qloud-LTD` — see
+  `hack/demo-org-setup.sh`, `fixtures.yaml`, and DECISIONS.md's D5 entry), gated
+  behind `//go:build integration` so `go test ./...` stays offline-safe. Run
+  locally with a `GITHUB_TOKEN` in the environment:
+  ```
+  GITHUB_TOKEN=<token> go test -tags integration ./cmd/attestor/... -run TestIntegration_DemoOrgMatchesFixtures -v
+  ```
+  Without `-tags integration`, this test file isn't even compiled in; with the tag
+  but no `GITHUB_TOKEN`, it skips cleanly rather than failing.
+
+  **PAT provisioning for CI** (`.github/workflows/integration-scan.yaml`'s
+  scheduled run): needs a `DEMO_ORG_PAT` repository secret — a fine-grained,
+  read-only PAT scoped to the `Qloud-LTD` org (or at minimum its `demo-good`/
+  `demo-bad` repos) with the same read permissions documented in the README's
+  token table (`read:org` equivalent, `Administration: read-only`,
+  `Actions: read-only`, plus admin-level repo read for `security_and_analysis`/
+  vulnerability-alerts — see C04's collector doc comment on that last one).
+  GitHub has no API to create a PAT (fine-grained token creation is a web-UI-only,
+  human-authorized action by design), so this can't be automated — a repo admin
+  must create it at github.com/settings/tokens and set it manually:
+  ```
+  gh secret set DEMO_ORG_PAT --repo sioakim/ssdf
+  ```
+  GitHub also auto-disables a repo's scheduled (`cron`) workflows after 60 days
+  of repository inactivity — if `integration-scan.yaml` ever appears to have
+  stopped running on schedule, check Settings → Actions for a disabled-workflow
+  notice before assuming the drift tripwire itself is broken; `workflow_dispatch`
+  still works either way and re-enables it.
 - **Renderer tests:** golden files under `testdata/golden/`.
 
 ## Contributing mappings and scanner signatures

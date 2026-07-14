@@ -76,6 +76,27 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 }
 
+// defaultCollectors builds the full set of real collectors authenticated
+// with token — the same wiring runScanCmd uses, extracted so the
+// integration test (issue #15) exercises the exact same collector set the
+// shipped binary runs, without duplicating this list and risking drift as
+// new collectors land. Each real collector gets its own dedicated Client
+// instance rather than sharing one: Client.Provenance() reflects every call
+// made through it, and each collector attributes provenance to its
+// CheckResults by diffing that log, which only stays correct if nothing
+// else (another collector run concurrently) issues calls through the same
+// Client. repoprotection/envseparation/secretshygiene take the token
+// directly rather than a pre-built Client since they construct a fresh
+// Client per repo internally (see their own doc comments for why).
+func defaultCollectors(token string) []collect.Collector {
+	return append(collect.Collectors(),
+		orgsecurity.New(ghcollect.NewClient(token)),
+		repoprotection.New(token),
+		envseparation.New(token),
+		secretshygiene.New(token),
+	)
+}
+
 // runScanCmd is cobra's entry point: it resolves config, builds real
 // dependencies (a live GitHub client from GITHUB_TOKEN, the real repo
 // lister, the collector registry), and delegates to the testable core
@@ -105,22 +126,11 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 	}
 	client := ghcollect.NewClient(token)
 
-	// Real collectors each get their own dedicated Client instance rather
-	// than sharing deps.client: Client.Provenance() reflects every call
-	// made through it, and each collector attributes provenance to its
-	// CheckResults by diffing that log, which only stays correct if
-	// nothing else (the orchestrator's own preflight/repo-listing calls,
-	// or another collector run concurrently) issues calls through the same
-	// Client. repoprotection takes the token directly rather than a
-	// pre-built Client since it constructs a fresh Client per repo
-	// internally (see its own doc comment for why).
-	collectors := append(collect.Collectors(), orgsecurity.New(ghcollect.NewClient(token)), repoprotection.New(token), envseparation.New(token), secretshygiene.New(token))
-
 	deps := scanDeps{
 		repoLister: &restRepoLister{client: client.REST},
 		orgChecker: &restOrgChecker{client: client.REST},
 		client:     client,
-		collectors: collectors,
+		collectors: defaultCollectors(token),
 		stdout:     cmd.OutOrStdout(),
 	}
 

@@ -1,0 +1,98 @@
+# fixtures.yaml — expected check results for the demo org integration test
+# (issue #15). Grows as C05-C10 land — each collector issue appends its own
+# entries here. See hack/demo-org-setup.sh for how the org and repos are
+# configured, and DECISIONS.md's D5 entry for why Qloud-LTD.
+#
+# Every value below was captured from a REAL scan of the actual org
+# (`attestor scan --org Qloud-LTD --repo demo-good --repo demo-bad`), not
+# hand-derived — a couple of entries reflect real GitHub platform/plan
+# quirks discovered only by running the setup script and observing the
+# result; see each one's `note`.
+
+org: Qloud-LTD
+repos: [demo-good, demo-bad]
+
+# Org-scoped checks (Scope.Repo is empty) — evaluated once per scan,
+# independent of which repos are in scope, so demo-good and demo-bad share
+# the same expectation.
+org_checks:
+  - check_id: C01.org.2fa-required
+    status: verified-fail
+    note: >-
+      two_factor_requirement_enabled could not be toggled true via
+      PATCH /orgs/{org} despite the org owner having personal 2FA enabled —
+      the API call returns 200 but silently leaves the field false rather
+      than erroring, a real observed platform quirk, not a setup-script
+      bug. If GitHub's behavior here ever changes (or the org owner flips
+      it manually via the org's web UI security settings), this becomes
+      verified-pass and this fixture must be updated to match.
+  - check_id: C01.org.members-without-2fa
+    status: verified-pass
+  - check_id: C01.org.default-repo-permission
+    status: verified-pass
+  - check_id: C01.org.members-can-create-public
+    status: verified-fail
+    note: >-
+      members_can_create_public_repositories cannot be set to false
+      ("private-only repository creation") on a GitHub Free-plan org —
+      PATCH /orgs/{org} rejects it outright ("Private-only repository
+      creation policy is not allowed for this organization"). A real
+      plan constraint, not a config mistake; upgrading the org's plan is
+      out of scope for this fixture.
+  - check_id: C04.org.security-defaults
+    status: verified-fail
+    note: >-
+      advanced_security_enabled_for_new_repositories cannot be forced true
+      on a Free-plan org (GHAS is a paid, private-repo-only feature) — one
+      of the four underlying "for new repositories" flags this check
+      requires is permanently false here, so it can never show
+      verified-pass against this org regardless of the other three.
+
+# Per-repo checks, keyed by repo name.
+repo_checks:
+  demo-good:
+    - {check_id: C02.branch.protection-exists, status: verified-pass}
+    - {check_id: C02.branch.required-reviews, status: verified-pass}
+    - {check_id: C02.branch.required-status-checks, status: verified-pass}
+    - {check_id: C02.branch.force-push-blocked, status: verified-pass}
+    - {check_id: C02.branch.deletion-blocked, status: verified-pass}
+    - {check_id: C02.branch.admin-enforced, status: verified-pass}
+    - {check_id: C03.env.exists, status: verified-pass}
+    - {check_id: C03.env.protection-rules, status: verified-pass}
+    - {check_id: C03.env.required-reviewers, status: verified-pass}
+    - {check_id: C03.env.branch-policy, status: verified-pass}
+    - {check_id: C04.secrets.scanning-enabled, status: verified-pass}
+    - {check_id: C04.secrets.push-protection, status: verified-pass}
+    - {check_id: C04.deps.dependabot-alerts, status: verified-pass}
+    - check_id: C04.secrets.advanced-security
+      status: not-checkable
+      note: >-
+        Both demo repos are public (required so secret scanning/push
+        protection are free per GitHub's 2024+ policy, matching this
+        fixture's Free-plan org) — GHAS licensing only gates private-repo
+        features, so this check is not-checkable on any public repo by
+        design, not a gap in demo-good's configuration.
+  demo-bad:
+    - {check_id: C02.branch.protection-exists, status: verified-fail}
+    - {check_id: C02.branch.required-reviews, status: verified-fail}
+    - {check_id: C02.branch.required-status-checks, status: verified-fail}
+    - {check_id: C02.branch.force-push-blocked, status: verified-fail}
+    - {check_id: C02.branch.deletion-blocked, status: verified-fail}
+    - {check_id: C02.branch.admin-enforced, status: verified-fail}
+    - check_id: C03.env.exists
+      status: verified-pass
+      note: >-
+        A "production"-named environment exists (matching the prod*/
+        production heuristic) even though it's deliberately left
+        completely unprotected — C03.env.exists only asks whether a
+        production-like environment exists, not whether it's protected;
+        the other three C03 checks below cover that.
+    - {check_id: C03.env.protection-rules, status: verified-fail}
+    - {check_id: C03.env.required-reviewers, status: verified-fail}
+    - {check_id: C03.env.branch-policy, status: verified-fail}
+    - {check_id: C04.secrets.scanning-enabled, status: verified-fail}
+    - {check_id: C04.secrets.push-protection, status: verified-fail}
+    - {check_id: C04.deps.dependabot-alerts, status: verified-fail}
+    - check_id: C04.secrets.advanced-security
+      status: not-checkable
+      note: "Same reason as demo-good's entry above — public repo, not applicable."
