@@ -85,7 +85,8 @@ itself, so re-run it any time rather than hand-editing it.
 **Phase 2 — Foundation + collectors C01–C04**
 - [x] #9 Collector interface + GitHub client foundation
 - [x] #10 `attestor scan` orchestrator
-- [ ] #11 C01 org-security · #12 C02 repo-protection · #13 C03 env-separation · #14 C04 secrets-hygiene
+- [x] #11 C01 org-security
+- [ ] #12 C02 repo-protection · #13 C03 env-separation · #14 C04 secrets-hygiene
 - [ ] #15 Demo org + fixtures + integration harness
 
 **Phase 3 — Collectors C05–C07**
