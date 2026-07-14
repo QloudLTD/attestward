@@ -125,6 +125,24 @@ func TestMergeScanConfig_DefaultsFillUnsetFields(t *testing.T) {
 	}
 }
 
+// TestMergeScanConfig_DefaultsFillNegativeLookbackValues guards against a
+// regression the C05 review caught: a negative --lookback-months or
+// --lookback-releases (a malformed flag, not a deliberate zero) must be
+// clamped to the documented default just like an unset (zero) value would
+// be — otherwise it flows through to the collector as-is, producing a
+// windowStart in the future and silently-misleading "no releases match"
+// output instead of a clear validation error or a sane default.
+func TestMergeScanConfig_DefaultsFillNegativeLookbackValues(t *testing.T) {
+	merged := mergeScanConfig(scanConfig{Org: "x", LookbackReleases: -3, LookbackMonths: -1}, scanConfig{}, nil)
+
+	if merged.LookbackReleases != defaultLookbackReleases {
+		t.Errorf("LookbackReleases = %d, want %d (negative input clamped to default)", merged.LookbackReleases, defaultLookbackReleases)
+	}
+	if merged.LookbackMonths != defaultLookbackMonths {
+		t.Errorf("LookbackMonths = %d, want %d (negative input clamped to default)", merged.LookbackMonths, defaultLookbackMonths)
+	}
+}
+
 func TestScanConfigValidate_RequiresOrg(t *testing.T) {
 	if err := (scanConfig{}).validate(); err == nil {
 		t.Error("validate() on an empty config = nil error, want an error requiring org")

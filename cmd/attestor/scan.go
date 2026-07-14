@@ -20,6 +20,7 @@ import (
 	"github.com/sioakim/ssdf/internal/collect/github/envseparation"
 	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
 	"github.com/sioakim/ssdf/internal/collect/github/repoprotection"
+	"github.com/sioakim/ssdf/internal/collect/github/sasthistory"
 	"github.com/sioakim/ssdf/internal/collect/github/secretshygiene"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
@@ -66,7 +67,7 @@ func init() {
 	scanCmd.Flags().StringVar(&scanFlags.Org, "org", "", "GitHub org to scan (required, unless set in --config)")
 	scanCmd.Flags().StringArrayVar(&scanFlags.Repos, "repo", nil, "repo to scan (repeatable); empty scans all non-archived, non-fork repos")
 	scanCmd.Flags().StringVar(&scanConfigPath, "config", "", "path to a YAML config file (see examples/attestor.yaml); flags override its values")
-	scanCmd.Flags().StringVar(&scanFlags.ReleaseTagPattern, "release-tag-pattern", "", "glob/regex for release tags in scope (default \"v*\")")
+	scanCmd.Flags().StringVar(&scanFlags.ReleaseTagPattern, "release-tag-pattern", "", "glob (filepath.Match syntax, not regex) for release tags in scope (default \"v*\")")
 	scanCmd.Flags().IntVar(&scanFlags.LookbackReleases, "lookback-releases", 0, "releases to look back over (default 5)")
 	scanCmd.Flags().IntVar(&scanFlags.LookbackMonths, "lookback-months", 0, "months to look back over (default 12)")
 	scanCmd.Flags().StringVar(&scanFlags.SelfAttestationFile, "self-attestation-file", "", "path to a self-attestation answers file (issue #23)")
@@ -85,15 +86,16 @@ func init() {
 // made through it, and each collector attributes provenance to its
 // CheckResults by diffing that log, which only stays correct if nothing
 // else (another collector run concurrently) issues calls through the same
-// Client. repoprotection/envseparation/secretshygiene take the token
-// directly rather than a pre-built Client since they construct a fresh
-// Client per repo internally (see their own doc comments for why).
+// Client. repoprotection/envseparation/secretshygiene/sasthistory take the
+// token directly rather than a pre-built Client since they construct a
+// fresh Client per repo internally (see their own doc comments for why).
 func defaultCollectors(token string) []collect.Collector {
 	return append(collect.Collectors(),
 		orgsecurity.New(ghcollect.NewClient(token)),
 		repoprotection.New(token),
 		envseparation.New(token),
 		secretshygiene.New(token),
+		sasthistory.New(token),
 	)
 }
 

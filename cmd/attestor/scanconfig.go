@@ -99,10 +99,10 @@ func mergeScanConfig(file scanConfig, flags scanConfig, flagsSet map[string]bool
 	if merged.ReleaseTagPattern == "" {
 		merged.ReleaseTagPattern = defaultReleaseTagPattern
 	}
-	if merged.LookbackReleases == 0 {
+	if merged.LookbackReleases <= 0 {
 		merged.LookbackReleases = defaultLookbackReleases
 	}
-	if merged.LookbackMonths == 0 {
+	if merged.LookbackMonths <= 0 {
 		merged.LookbackMonths = defaultLookbackMonths
 	}
 	if merged.Out == "" {

@@ -88,6 +88,7 @@ least-privilege warning if it detects write access.
 | `repo-protection` (C02) | `repo` (classic) or `Administration: read-only` (fine-grained) |
 | `env-separation` (C03) | `repo` (classic) or `Actions: read-only` (fine-grained) |
 | `secrets-hygiene` (C04) | `repo` (classic); fine-grained equivalent needs repo admin-level read access — exact permission category unverified, see `attestor checks list`'s notes for that collector |
+| `sast-history` (C05) | `repo` (classic) or `Actions: read-only` + `Contents: read-only` (fine-grained) — plus code-scanning read access for the default-setup check specifically; exact fine-grained category for that one unverified |
 
 This table only lists collectors that exist as code today; `attestor checks list` is
 the live source of truth as more land (each row's `TOKEN SCOPE` column).

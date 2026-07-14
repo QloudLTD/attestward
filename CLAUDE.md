@@ -13,8 +13,8 @@ emits a signed evidence pack. Full mission and rationale: [README.md](README.md)
 Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model,
 SSDF/CISA mappings, `checks list`), and Phase 2 (C01–C04 collectors, demo org +
 integration harness) are merged to `main`. Phase 3 is in progress: #16 (scanner-signature
-registry) is merged; #17 (C05 sast-history) onward is next. Build is issue-driven and in
-progress (see Progress tracker below).
+registry) and #17 (C05 sast-history) are merged; #18 (C06 sca-history) onward is next.
+Build is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -101,7 +101,8 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 3 — Collectors C05–C07**
 - [x] #16 Scanner-signature registry
-- [ ] #17 C05 sast-history · #18 C06 sca-history · #19 C07 provenance
+- [x] #17 C05 sast-history
+- [ ] #18 C06 sca-history · #19 C07 provenance
 
 **Phase 4 — Collectors C08–C10 + self-attestation**
 - [ ] #20 C08 actions-security · #21 C09 audit-logging · #22 C10 vdp
