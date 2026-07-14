@@ -59,16 +59,18 @@ jobs:
           - goos: linux
             goarch: arm64
             os: ubuntu-24.04-arm
-          # Both darwin builds run on the same Apple Silicon runner: amd64
-          # executes fine there too since GitHub's macos-latest images ship
-          # with Rosetta 2 preinstalled, and it avoids the paid "-intel"
-          # larger-runner label that free/pro plans don't have.
+          # Both darwin builds run on the self-hosted Apple Silicon runner
+          # (spyros-mac-mini-ssdf): amd64 executes fine there too since it
+          # has Rosetta 2 installed, and self-hosted avoids GitHub-hosted
+          # macOS runners' 10x included-minutes multiplier. Not a required
+          # status check (see `lint`/`test` above), so this job is a no-op
+          # rather than a blocker if the runner is ever offline.
           - goos: darwin
             goarch: amd64
-            os: macos-latest
+            os: [self-hosted, macOS]
           - goos: darwin
             goarch: arm64
-            os: macos-latest
+            os: [self-hosted, macOS]
           - goos: windows
             goarch: amd64
             os: windows-latest
