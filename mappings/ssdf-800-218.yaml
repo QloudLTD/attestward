@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.1.0"
+version: "1.2.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -232,7 +232,17 @@ tasks:
       Store all forms of code – including source code, executable code, and
       configuration-as-code – based on the principle of least privilege so
       that only authorized personnel, tools, services, etc. have access.
-    checks: [C01.org.default-repo-permission, C01.org.members-can-create-public]
+    checks:
+      [
+        C01.org.default-repo-permission,
+        C01.org.members-can-create-public,
+        C02.branch.protection-exists,
+        C02.branch.required-reviews,
+        C02.branch.required-status-checks,
+        C02.branch.force-push-blocked,
+        C02.branch.deletion-blocked,
+        C02.branch.admin-enforced,
+      ]
 
   - id: PS.2.1
     family: PS

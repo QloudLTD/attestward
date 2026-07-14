@@ -131,8 +131,9 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// Smoke test against the exact code path the shipped binary runs
 	// (runChecksList calls these same LoadSSDFFS/LoadCISAFS functions
 	// against mappings.FS, and collect.Registered() reflects every
-	// collector package's init()-time registration — here, orgsecurity's,
-	// transitively imported via scan.go) — not the disk-based loaders or
+	// collector package's init()-time registration — here, orgsecurity's
+	// and repoprotection's, transitively imported via scan.go) — not the
+	// disk-based loaders or
 	// synthetic fixtures the other tests in this file use, which would miss
 	// a broken //go:embed pattern, a renamed file, or a check registered on
 	// one side (registry or mapping) but not the other.
@@ -151,6 +152,12 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C01.org.default-repo-permission",
 		"C01.org.members-can-create-public",
 		"C01.org.members-without-2fa",
+		"C02.branch.admin-enforced",
+		"C02.branch.deletion-blocked",
+		"C02.branch.force-push-blocked",
+		"C02.branch.protection-exists",
+		"C02.branch.required-reviews",
+		"C02.branch.required-status-checks",
 	}
 	if len(rows) != len(wantIDs) {
 		t.Fatalf("len(rows) = %d, want %d (%v)", len(rows), len(wantIDs), wantIDs)

@@ -85,6 +85,7 @@ least-privilege warning if it detects write access.
 | Collector | Minimum scope |
 |-----------|----------------|
 | `org-security` (C01) | `read:org` |
+| `repo-protection` (C02) | `repo` (classic) or `Administration: read-only` (fine-grained) |
 
 This table only lists collectors that exist as code today; `attestor checks list` is
 the live source of truth as more land (each row's `TOKEN SCOPE` column).

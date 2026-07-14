@@ -18,6 +18,7 @@ import (
 	"github.com/sioakim/ssdf/internal/collect"
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
 	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
+	"github.com/sioakim/ssdf/internal/collect/github/repoprotection"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
 	"github.com/sioakim/ssdf/mappings"
@@ -108,8 +109,10 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 	// CheckResults by diffing that log, which only stays correct if
 	// nothing else (the orchestrator's own preflight/repo-listing calls,
 	// or another collector run concurrently) issues calls through the same
-	// Client.
-	collectors := append(collect.Collectors(), orgsecurity.New(ghcollect.NewClient(token)))
+	// Client. repoprotection takes the token directly rather than a
+	// pre-built Client since it constructs a fresh Client per repo
+	// internally (see its own doc comment for why).
+	collectors := append(collect.Collectors(), orgsecurity.New(ghcollect.NewClient(token)), repoprotection.New(token))
 
 	deps := scanDeps{
 		repoLister: &restRepoLister{client: client.REST},
