@@ -27,6 +27,7 @@ import (
 	"github.com/sioakim/ssdf/internal/collect/github/scahistory"
 	"github.com/sioakim/ssdf/internal/collect/github/secretshygiene"
 	"github.com/sioakim/ssdf/internal/collect/github/vdp"
+	"github.com/sioakim/ssdf/internal/integrity"
 	"github.com/sioakim/ssdf/internal/mapping"
 	"github.com/sioakim/ssdf/internal/model"
 	"github.com/sioakim/ssdf/mappings"
@@ -152,10 +153,16 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	if err := writeEvidencePack(result.pack, cfg.Out); err != nil {
+	hash, err := writeEvidencePack(result.pack, cfg.Out)
+	if err != nil {
 		return err
 	}
-	logf(deps.stdout, "wrote %s\n", filepath.Join(cfg.Out, "evidence.json"))
+	evidencePath := filepath.Join(cfg.Out, "evidence.json")
+	if err := integrity.WriteSidecar(evidencePath, hash); err != nil {
+		return err
+	}
+	logf(deps.stdout, "wrote %s\n", evidencePath)
+	logf(deps.stdout, "sha256: %s\n", hash)
 
 	if result.exitCode != exitOK {
 		os.Exit(result.exitCode)
@@ -459,25 +466,32 @@ func runCollectors(ctx context.Context, collectors []collect.Collector, scope co
 // an oversized fact can be a genuine, correct finding at real-world
 // scale, and this is the last place in the pipeline that should ever
 // destroy a scan's evidence over it.
-func writeEvidencePack(pack model.EvidencePack, outDir string) error {
+//
+// The returned hash is integrity.Hash of the exact bytes written (after
+// scrubbing) — issue #27's single source of truth for "the hash of this
+// pack", which the caller prints to stdout and writes to the .sha256
+// sidecar. It's computed here, not by re-reading the file back, so it can
+// never drift from what's actually on disk.
+func writeEvidencePack(pack model.EvidencePack, outDir string) (hash string, err error) {
 	if err := pack.ValidateAgainstSchema(); err != nil {
-		return fmt.Errorf("evidence pack failed pre-write schema validation: %w", err)
+		return "", fmt.Errorf("evidence pack failed pre-write schema validation: %w", err)
 	}
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return fmt.Errorf("create %s: %w", outDir, err)
+		return "", fmt.Errorf("create %s: %w", outDir, err)
 	}
 
 	data, err := json.MarshalIndent(pack, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal evidence pack: %w", err)
+		return "", fmt.Errorf("marshal evidence pack: %w", err)
 	}
 	data = model.ScrubBytes(data)
+	hash = integrity.Hash(data)
 
 	path := filepath.Join(outDir, "evidence.json")
 	tmp, err := os.CreateTemp(outDir, ".evidence-*.json.tmp")
 	if err != nil {
-		return fmt.Errorf("create temp file in %s: %w", outDir, err)
+		return "", fmt.Errorf("create temp file in %s: %w", outDir, err)
 	}
 	tmpPath := tmp.Name()
 	// Always attempt cleanup on any early return; once the rename below
@@ -488,17 +502,17 @@ func writeEvidencePack(pack model.EvidencePack, outDir string) error {
 
 	if err := tmp.Chmod(0o644); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("chmod %s: %w", tmpPath, err)
+		return "", fmt.Errorf("chmod %s: %w", tmpPath, err)
 	}
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("write %s: %w", tmpPath, err)
+		return "", fmt.Errorf("write %s: %w", tmpPath, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close %s: %w", tmpPath, err)
+		return "", fmt.Errorf("close %s: %w", tmpPath, err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("rename %s to %s: %w", tmpPath, path, err)
+		return "", fmt.Errorf("rename %s to %s: %w", tmpPath, path, err)
 	}
-	return nil
+	return hash, nil
 }

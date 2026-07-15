@@ -14,6 +14,7 @@ import (
 	"github.com/sioakim/ssdf/internal/collect"
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
 	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
+	"github.com/sioakim/ssdf/internal/integrity"
 	"github.com/sioakim/ssdf/internal/model"
 )
 
@@ -406,7 +407,7 @@ func TestWriteEvidencePack_WritesValidJSON(t *testing.T) {
 		Results:       []model.CheckResult{},
 	}
 
-	if err := writeEvidencePack(pack, dir); err != nil {
+	if _, err := writeEvidencePack(pack, dir); err != nil {
 		t.Fatalf("writeEvidencePack: %v", err)
 	}
 
@@ -420,6 +421,59 @@ func TestWriteEvidencePack_WritesValidJSON(t *testing.T) {
 	}
 	if roundTripped.Scope.Org != "attestor-demo" {
 		t.Errorf("roundTripped.Scope.Org = %q, want attestor-demo", roundTripped.Scope.Org)
+	}
+}
+
+// TestWriteEvidencePack_ReturnedHashMatchesWrittenBytes proves the hash
+// writeEvidencePack returns is genuinely the hash of what's on disk (not,
+// say, the hash of the pre-scrub bytes, or of the pack before marshaling)
+// — issue #27's single-source-of-truth requirement for "the hash of this
+// pack". It further wires the returned hash through integrity.WriteSidecar
+// exactly as runScanCmd does, then confirms integrity.VerifyFile succeeds
+// end-to-end against the real written file, and fails after a tamper.
+func TestWriteEvidencePack_ReturnedHashMatchesWrittenBytes(t *testing.T) {
+	dir := t.TempDir()
+	pack := model.EvidencePack{
+		SchemaVersion: model.SchemaVersion,
+		ToolVersion:   "test",
+		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Results:       []model.CheckResult{},
+	}
+
+	hash, err := writeEvidencePack(pack, dir)
+	if err != nil {
+		t.Fatalf("writeEvidencePack: %v", err)
+	}
+
+	path := filepath.Join(dir, "evidence.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read evidence.json: %v", err)
+	}
+	if want := integrity.Hash(data); hash != want {
+		t.Fatalf("writeEvidencePack returned hash %q, want %q (the actual hash of the written bytes)", hash, want)
+	}
+
+	if err := integrity.WriteSidecar(path, hash); err != nil {
+		t.Fatalf("WriteSidecar: %v", err)
+	}
+	ok, _, _, err := integrity.VerifyFile(path)
+	if err != nil {
+		t.Fatalf("VerifyFile: %v", err)
+	}
+	if !ok {
+		t.Error("VerifyFile on a freshly written pack + its own sidecar = false, want true")
+	}
+
+	if err := os.WriteFile(path, append(data, 'X'), 0o644); err != nil {
+		t.Fatalf("tamper evidence.json: %v", err)
+	}
+	ok, _, _, err = integrity.VerifyFile(path)
+	if err != nil {
+		t.Fatalf("VerifyFile after tamper: %v", err)
+	}
+	if ok {
+		t.Error("VerifyFile after appending a byte to evidence.json = true, want false")
 	}
 }
 
@@ -437,7 +491,8 @@ func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 		},
 	}
 
-	if err := writeEvidencePack(pack, dir); err != nil {
+	hash, err := writeEvidencePack(pack, dir)
+	if err != nil {
 		t.Fatalf("writeEvidencePack: %v", err)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "evidence.json"))
@@ -446,6 +501,15 @@ func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 	}
 	if bytes.Contains(data, []byte(secret)) {
 		t.Error("secret survived into evidence.json")
+	}
+	// This is the one fixture in this file where scrubbing actually
+	// changes the bytes (the empty-Results/no-secret fixtures elsewhere
+	// are scrub no-ops, so they can't tell "hashed before scrubbing" from
+	// "hashed after" apart) — so this is the assertion that actually
+	// proves writeEvidencePack's returned hash describes the bytes really
+	// written, not the pre-scrub bytes.
+	if want := integrity.Hash(data); hash != want {
+		t.Errorf("writeEvidencePack returned hash %q, want %q (the hash of the post-scrub bytes actually on disk)", hash, want)
 	}
 }
 
@@ -464,7 +528,7 @@ func TestWriteEvidencePack_RejectsSchemaInvalidPack(t *testing.T) {
 		},
 	}
 
-	if err := writeEvidencePack(pack, dir); err == nil {
+	if _, err := writeEvidencePack(pack, dir); err == nil {
 		t.Fatal("writeEvidencePack with an invalid status = nil error, want a pre-write validation error")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "evidence.json")); !os.IsNotExist(err) {
@@ -506,7 +570,7 @@ func TestWriteEvidencePack_OversizedFactsStillWrites(t *testing.T) {
 		},
 	}
 
-	if err := writeEvidencePack(pack, dir); err != nil {
+	if _, err := writeEvidencePack(pack, dir); err != nil {
 		t.Fatalf("writeEvidencePack with an oversized-but-legitimate fact = %v, want no error", err)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "evidence.json"))
@@ -565,7 +629,7 @@ func TestWriteEvidencePack_AtomicWriteLeavesNoTempFileOnSuccess(t *testing.T) {
 		},
 	}
 
-	if err := writeEvidencePack(pack, dir); err != nil {
+	if _, err := writeEvidencePack(pack, dir); err != nil {
 		t.Fatalf("writeEvidencePack: %v", err)
 	}
 	entries, err := os.ReadDir(dir)
@@ -633,11 +697,16 @@ func TestRunScan_DeterministicAcrossRunsWithFixedClock(t *testing.T) {
 	// Also prove the two on-disk files (through the real writer, not just
 	// the in-memory struct) are byte-identical.
 	dir1, dir2 := t.TempDir(), t.TempDir()
-	if err := writeEvidencePack(result1.pack, dir1); err != nil {
+	hash1, err := writeEvidencePack(result1.pack, dir1)
+	if err != nil {
 		t.Fatalf("writeEvidencePack (1): %v", err)
 	}
-	if err := writeEvidencePack(result2.pack, dir2); err != nil {
+	hash2, err := writeEvidencePack(result2.pack, dir2)
+	if err != nil {
 		t.Fatalf("writeEvidencePack (2): %v", err)
+	}
+	if hash1 != hash2 {
+		t.Errorf("writeEvidencePack returned different hashes for identical fixtures: %q vs %q", hash1, hash2)
 	}
 	written1, err := os.ReadFile(filepath.Join(dir1, "evidence.json"))
 	if err != nil {

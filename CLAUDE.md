@@ -23,8 +23,9 @@ are code-complete and merged, but #25 itself stays open pending the issue's
 own non-engineer sign-off requirement (see the PR/issue for details); #26
 (poam.md — `collect.CheckMeta.Remediation` backfilled across all 46 C01–C10
 checks, renderer merged, cross-linked with report.md's Gaps table via shared
-POA&M finding IDs) is merged; #27 (pack integrity) and #28 (`attestor
-report`) are next. Build
+POA&M finding IDs) is merged; #27 (pack integrity) is in progress —
+SHA-256 hashing, the `.sha256` sidecar, and `attestor verify` are merged;
+cosign sign-blob integration is next, then #28 (`attestor report`). Build
 is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
