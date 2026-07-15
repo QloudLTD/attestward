@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"testing"
 
 	"github.com/sioakim/ssdf/internal/collect"
@@ -312,5 +313,88 @@ func TestCollect_RegistersAllFourChecks(t *testing.T) {
 	}
 	if len(checkTitles) != 4 {
 		t.Fatalf("len(checkTitles) = %d, want 4", len(checkTitles))
+	}
+}
+
+// checkWantStatuses is a human-reviewed declaration of exactly which
+// statuses each check can produce — there's no structural way to derive
+// this from the code, so it has to be a maintained expectation, checked
+// against checkRubrics' actual keys below. All four C01 checks are binary
+// pass/fail with a not-checkable fallback (see checkRubrics' own doc
+// comment); this won't be true package-uniformly once other collectors
+// with StatusPartial checks are backfilled — each of those needs its own
+// per-check entry here, not a copy of this one.
+var checkWantStatuses = map[string][]model.Status{
+	"C01.org.2fa-required":              {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C01.org.members-without-2fa":       {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C01.org.default-repo-permission":   {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C01.org.members-can-create-public": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+}
+
+var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) /`)
+
+// TestCollect_RegisteredMetadataCompleteForChecksReference proves every
+// check registers the fields issue #30's checks-reference generator
+// depends on, and that the data is trustworthy, not just present:
+//   - Rubric has EXACTLY the entries checkWantStatuses declares — missing
+//     an entry silently breaks the reference, but a spurious extra entry is
+//     worse: it would generate documented prose claiming this check can
+//     produce a status it never actually will, exactly the kind of
+//     invented claim this project's ethos forbids (see CLAUDE.md's rule on
+//     never inventing SSDF/CISA citations, extended here to rubric claims).
+//   - every Endpoints entry starts with GET or HEAD — this project is
+//     read-only forever (ADR-0004); a check registering a write verb here
+//     would be a real, structural violation of that invariant, not just a
+//     docs bug, so this test enforces it at the metadata layer too.
+//   - checkRubrics/checkEndpoints have exactly as many entries as
+//     checkTitles, so a typo'd map key (present in the map, but under the
+//     wrong ID, so silently absent from the one that needed it) fails
+//     loudly instead of just showing up as a missing-entry error on a
+//     completely different check ID.
+func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
+	if len(checkRubrics) != len(checkTitles) {
+		t.Errorf("checkRubrics has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkRubrics), len(checkTitles))
+	}
+	if len(checkEndpoints) != len(checkTitles) {
+		t.Errorf("checkEndpoints has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkEndpoints), len(checkTitles))
+	}
+
+	for id := range checkTitles {
+		meta, ok := collect.Lookup(id)
+		if !ok {
+			t.Fatalf("check %q not found in the collect.CheckMeta registry", id)
+		}
+
+		want, ok := checkWantStatuses[id]
+		if !ok {
+			t.Fatalf("checkWantStatuses is missing an entry for %q — add the statuses this check can actually produce", id)
+		}
+		wantSet := make(map[model.Status]bool, len(want))
+		for _, s := range want {
+			wantSet[s] = true
+		}
+		for s := range wantSet {
+			if meta.Rubric[s] == "" {
+				t.Errorf("%s: Rubric[%s] is empty, want a concrete explanation", id, s)
+			}
+		}
+		for s := range meta.Rubric {
+			if !wantSet[s] {
+				t.Errorf("%s: Rubric has an entry for status %q, but checkWantStatuses says this check can't produce it — either the rubric is wrong or checkWantStatuses is stale", id, s)
+			}
+		}
+
+		if len(meta.Endpoints) == 0 {
+			t.Errorf("%s: Endpoints is empty, want at least one", id)
+		}
+		for _, e := range meta.Endpoints {
+			if !endpointVerbRE.MatchString(e) {
+				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD — this project is read-only forever (ADR-0004)", id, e)
+			}
+		}
+
+		if meta.FixtureRef == "" {
+			t.Errorf("%s: FixtureRef is empty", id)
+		}
 	}
 }

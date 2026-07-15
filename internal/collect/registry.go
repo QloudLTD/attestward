@@ -1,6 +1,10 @@
 package collect
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/sioakim/ssdf/internal/model"
+)
 
 // CheckMeta is the static metadata a collector registers for one check:
 // title, which collector implements it, and the token permission it needs.
@@ -23,6 +27,42 @@ type CheckMeta struct {
 	// all, since there's nothing for this tool to remediate on the
 	// producer's behalf for an answer only they can give.
 	Remediation string
+	// Rubric explains, concretely, what each status this specific check
+	// can actually produce means — not model.Status's generic definition,
+	// but this check's own version of it (e.g. what exact API field/value
+	// distinguishes verified-pass from verified-fail here). Keyed by
+	// status; only the statuses this check can genuinely produce are
+	// present — most API-verified checks in this codebase are binary
+	// pass/fail with a not-checkable fallback, not partial. Issue #30's
+	// checks-reference generator is the primary consumer: the acceptance
+	// criterion "a reader can answer 'what exactly does X mean' from the
+	// reference alone" depends on this being genuinely per-check, not a
+	// paraphrase of the status enum.
+	Rubric map[model.Status]string
+	// Endpoints lists the GitHub REST API endpoint(s) (METHOD + path
+	// template, e.g. "GET /orgs/{org}") this check's own result depends
+	// on, always "GET" or "HEAD" — enforced by the completeness test in
+	// every collector package, since this project is read-only forever
+	// (ADR-0004), and a check registering a write verb here would be a
+	// real, structural violation of that invariant, not just a docs bug.
+	// When a query parameter changes what the endpoint actually returns
+	// (e.g. "?filter=2fa_disabled" restricts the result set, not just
+	// paginates it), include it — the endpoint string should describe
+	// what data the check is actually looking at, not just the path
+	// template. Static reference documentation, not runtime data —
+	// contrast with model.Provenance, which records what a specific scan
+	// actually called. Not necessarily every endpoint the collector's
+	// package calls (a collector may share one upstream call — like an
+	// org GET — across several checks); this lists what backs THIS
+	// check's status specifically.
+	Endpoints []string
+	// FixtureRef is the path (repo-relative, no "#TestFunc" suffix — as
+	// of this writing every collector package's tests are scenario-based
+	// across the whole Collect() call, not one test per check, so a
+	// function-level pointer would be false precision) to the test file
+	// that exercises this check, so a reference reader can see it proven
+	// against a real scenario rather than only described in prose.
+	FixtureRef string
 }
 
 var registry = map[string]CheckMeta{}

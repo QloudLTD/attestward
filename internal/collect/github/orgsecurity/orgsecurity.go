@@ -43,6 +43,56 @@ var checkRemediations = map[string]string{
 		"change reviewed separately.",
 }
 
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce — none of these four checks can produce `partial`,
+// since each reduces to a single boolean org-level field (see the
+// check*() functions below); self-attested doesn't apply to an
+// API-verified collector at all.
+var checkRubrics = map[string]map[model.Status]string{
+	"C01.org.2fa-required": {
+		model.StatusVerifiedPass: "the org's `two_factor_requirement_enabled` field is true",
+		model.StatusVerifiedFail: "the org's `two_factor_requirement_enabled` field is false",
+		model.StatusNotCheckable: "the org couldn't be read (403/404/other API error), or its API response " +
+			"omitted `two_factor_requirement_enabled`",
+	},
+	"C01.org.members-without-2fa": {
+		model.StatusVerifiedPass: "GET /orgs/{org}/members?filter=2fa_disabled returned zero members",
+		model.StatusVerifiedFail: "GET /orgs/{org}/members?filter=2fa_disabled returned one or more members " +
+			"(the count is recorded in Facts; member names/logins are deliberately never recorded — see the " +
+			"collector's own doc comment)",
+		model.StatusNotCheckable: "the members list couldn't be read (403/404/other API error)",
+	},
+	"C01.org.default-repo-permission": {
+		model.StatusVerifiedPass: "the org's `default_repository_permission` field is \"read\" or \"none\"",
+		model.StatusVerifiedFail: "the org's `default_repository_permission` field is anything other than " +
+			"\"read\" or \"none\" (i.e. \"write\" or \"admin\" today, per GitHub's documented enum for this " +
+			"field — the check itself only tests for the two passing values, not an exhaustive fail list)",
+		model.StatusNotCheckable: "the org couldn't be read (403/404/other API error), or its API response " +
+			"omitted `default_repository_permission`",
+	},
+	"C01.org.members-can-create-public": {
+		model.StatusVerifiedPass: "the org's `members_can_create_public_repositories` field is false",
+		model.StatusVerifiedFail: "the org's `members_can_create_public_repositories` field is true",
+		model.StatusNotCheckable: "the org couldn't be read (403/404/other API error), or its API response " +
+			"omitted `members_can_create_public_repositories`",
+	},
+}
+
+// checkEndpoints lists which REST endpoint(s) actually back each check's
+// status — three of the four checks share one org GET (fetched once by
+// Collect and reused, see its own doc comment); members-without-2fa makes
+// its own separate, paginated call with a server-side filter that changes
+// what the endpoint actually returns, so the query parameter is part of
+// the endpoint description (see CheckMeta.Endpoints' own doc comment).
+var checkEndpoints = map[string][]string{
+	"C01.org.2fa-required":              {"GET /orgs/{org}"},
+	"C01.org.members-without-2fa":       {"GET /orgs/{org}/members?filter=2fa_disabled"},
+	"C01.org.default-repo-permission":   {"GET /orgs/{org}"},
+	"C01.org.members-can-create-public": {"GET /orgs/{org}"},
+}
+
+const fixtureRef = "internal/collect/github/orgsecurity/orgsecurity_test.go"
+
 func init() {
 	for id, title := range checkTitles {
 		collect.Register(collect.CheckMeta{
@@ -51,6 +101,9 @@ func init() {
 			Collector:   collectorID,
 			TokenScope:  "read:org",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }
