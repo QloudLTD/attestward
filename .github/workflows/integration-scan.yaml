@@ -21,9 +21,14 @@ on:
 permissions:
   contents: read
 
+# Both jobs run on the self-hosted Mac mini (spyros-mac-mini-ssdf) rather
+# than a GitHub-hosted runner — plain Go tooling plus cosign, no OS-specific
+# execution requirement (see ci.yaml's matching comment). id-token: write
+# below still works identically on a self-hosted runner: GitHub's Actions
+# service mints the OIDC token, not the runner itself.
 jobs:
   integration-scan:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 15
     permissions:
       contents: read
@@ -85,7 +90,7 @@ jobs:
             }
 
   sign-verify:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 10
     permissions:
       contents: read

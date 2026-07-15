@@ -14,9 +14,15 @@ concurrency:
 permissions:
   contents: read
 
+# lint/test/goreleaser-dry-run all run on the self-hosted Mac mini
+# (spyros-mac-mini-ssdf) rather than a GitHub-hosted runner: none of them
+# need a specific OS to execute a native binary (see `build`'s matrix below
+# for the jobs that genuinely do), so there's no technical reason to spend
+# GitHub-hosted Actions minutes running plain Go tooling. One runner queues
+# these serially rather than in parallel, which is an acceptable tradeoff.
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # Deliberately NOT go-version-file: golangci-lint v2.12.2 requires Go
@@ -31,7 +37,7 @@ jobs:
       - run: golangci-lint run
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -104,7 +110,7 @@ jobs:
   # push or cosign's OIDC signing context. Informational only (not a required
   # check) since it duplicates build's compile coverage.
   goreleaser-dry-run:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
