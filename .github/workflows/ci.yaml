@@ -89,9 +89,6 @@ jobs:
           - goos: darwin
             goarch: arm64
             os: [self-hosted, macOS]
-          - goos: windows
-            goarch: amd64
-            os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -117,6 +114,91 @@ jobs:
         with:
           name: attestor-${{ matrix.goos }}-${{ matrix.goarch }}
           path: attestor-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+  # windows/amd64's native-execution leg runs on a physical self-hosted runner
+  # (spyros-aorus-ssdf) that's kept powered off between uses (~300W draw) —
+  # three sequenced jobs instead of one matrix entry: wake it, build+verify on
+  # it, power it back off. Not a required status check (see `lint`/`test`
+  # above), same as build's other legs.
+  wake-aorus:
+    needs: [lint, test]
+    runs-on: [self-hosted, macOS]
+    concurrency:
+      group: aorus-windows-runner
+      cancel-in-progress: false
+    outputs:
+      cold_woke: ${{ steps.wake.outputs.cold_woke }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Wake AORUS
+        id: wake
+        run: |
+          output=$(tools/aorus.sh on)
+          echo "$output"
+          cold_woke=$(echo "$output" | grep -o 'COLD_WOKE=.*' | cut -d= -f2)
+          echo "cold_woke=$cold_woke" >> "$GITHUB_OUTPUT"
+
+  build-windows:
+    needs: [wake-aorus]
+    runs-on: [self-hosted, Windows, X64]
+    concurrency:
+      group: aorus-windows-runner
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # This runner also has WSL's bash.exe launcher stub on PATH (no
+      # installed distribution), and GitHub's `shell: bash` resolution
+      # picked that one over Git for Windows' real bash — confirmed
+      # directly in a real CI run ("Windows Subsystem for Linux has no
+      # installed distributions"). Pointing `shell:` at Git's bash.exe by
+      # full path doesn't work either — the runner's own internal
+      # path-combining logic throws ("Second path fragment must not be a
+      # drive or UNC name") when the shell command starts with a drive
+      # letter, also confirmed directly. Prepending Git's bin directory to
+      # PATH via GITHUB_PATH instead — the documented, supported way to
+      # influence which binary a later `shell: bash` step resolves to.
+      - name: Prefer Git's bash over the WSL launcher stub
+        run: echo "C:\Program Files\Git\bin" >> $env:GITHUB_PATH
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Build
+        shell: bash
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o attestor-windows-amd64.exe ./cmd/attestor
+      - name: Verify it runs
+        shell: bash
+        run: ./attestor-windows-amd64.exe version
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: attestor-windows-amd64
+          path: attestor-windows-amd64.exe
+
+  # Runs regardless of build-windows's outcome (if: always()) — a failed
+  # Windows build must not leave the box powered on indefinitely. Only
+  # actually shuts down if wake-aorus cold-woke it: if AORUS was already up
+  # when this run started, something else is using it, and powering it off
+  # out from under that isn't this pipeline's call to make (see
+  # tools/aorus.sh's own doc comment).
+  sleep-aorus:
+    needs: [wake-aorus, build-windows]
+    if: always()
+    runs-on: [self-hosted, macOS]
+    concurrency:
+      group: aorus-windows-runner
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Power off AORUS
+        if: needs.wake-aorus.outputs.cold_woke == 'true'
+        run: tools/aorus.sh off
+      - name: Leave AORUS running (was already up before this run)
+        if: needs.wake-aorus.outputs.cold_woke != 'true'
+        run: echo "AORUS was already up when wake-aorus ran — leaving it as-is"
 
   # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
   # push or cosign's OIDC signing context. Informational only (not a required

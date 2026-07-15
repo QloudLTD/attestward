@@ -1,0 +1,26 @@
+name: AORUS keepalive
+
+# GitHub auto-removes a self-hosted runner after 14 days offline (painful to
+# re-register — see tools/aorus.sh's own doc comment). AORUS (spyros-aorus-ssdf,
+# the Windows CI runner) is kept powered off between uses by design, so left
+# alone it would eventually cross that threshold. This wakes it, lets the
+# runner check in with GitHub (resets the 14-day timer), and powers it back
+# off — weekly is comfortably inside the 14-day window even if a run or two
+# gets skipped.
+
+on:
+  schedule:
+    - cron: "23 7 * * 4" # weekly, Thursday 07:23 UTC — off-the-hour, different day than integration-scan.yaml's Monday slot
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  keepalive:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Wake AORUS, let the runner check in, power off
+        run: tools/aorus.sh keepalive
