@@ -63,12 +63,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # linux/amd64 runs on the self-hosted Ubuntu box (spyros-aorus-ssdf,
-          # x86_64) rather than ubuntu-latest — same hard rule as everything
-          # else in this repo's CI. linux/arm64 stays GitHub-hosted: this
-          # runner can't natively execute an arm64 binary (no Rosetta-style
-          # fallback on Linux without adding a qemu dependency), so cross-arch
-          # execution genuinely isn't possible here.
+          # linux/amd64 runs on the self-hosted Ubuntu VM (spyros-ionos-ssdf,
+          # x86_64, an IONOS-hosted Proxmox guest — always-on, unlike the
+          # power-cycled local machines) rather than ubuntu-latest — same hard
+          # rule as everything else in this repo's CI. linux/arm64 stays
+          # GitHub-hosted: this runner can't natively execute an arm64 binary
+          # (no Rosetta-style fallback on Linux without adding a qemu
+          # dependency), so cross-arch execution genuinely isn't possible
+          # here.
           - goos: linux
             goarch: amd64
             os: [self-hosted, Linux, X64]
