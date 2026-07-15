@@ -1,0 +1,59 @@
+# Plan of Action & Milestones (Draft)
+{{if .MappingVersionMismatch}}
+> **Note:** this pack's mapping versions do not match the mapping data used to render this document. Some SSDF task/CISA cluster citations below may be missing or reflect a different revision than what actually produced these results.
+{{end}}
+This is a **draft** POA&M generated from `evidence.json`. Owner, target date, and
+resources-required fields are placeholders for a human to fill in — this tool has
+no authority to assign ownership, timelines, or budget. Every finding here traces
+to a specific `verified-fail` or `partial` check result; see report.md for full
+narrative context.
+
+## Summary
+
+- **Org:** {{.Pack.Scope.Org}}
+- **Scan window:** {{fmtTime .Pack.ScanStartedAt}} – {{fmtTime .Pack.ScanEndedAt}}
+- **Total findings:** {{.TotalFindings}} ({{.FailCount}} fail, {{.PartialCount}} partial)
+
+| Cluster | Fail | Partial | Total |
+|---|---|---|---|
+{{range .ClusterSummaries}}| {{if .ClusterID}}{{.ClusterID}}. {{.Title}}{{else}}Unmapped{{end}} | {{.FailCount}} | {{.PartialCount}} | {{.Total}} |
+{{end}}
+---
+
+## Findings
+{{if not .Groups}}
+No open findings — every check that could be verified reported `verified-pass`, or this pack has no gaps.
+{{else}}{{range .Groups}}
+### {{if .HasCluster}}Cluster {{.ClusterID}}: {{.Title}}{{else}}Unmapped{{end}}
+{{if .HasCluster}}
+> {{.FormText}}
+{{else}}
+Findings below aren't cited by any SSDF task, or no CISA form cluster cites the task(s) that do.
+{{end}}{{range .Findings}}
+#### {{.ID}}: {{esc .Result.Title}} (`{{.Result.CheckID}}`) — {{statusBadge .Result.Status}} {{statusLabel .Result.Status}}
+
+- **Repo:** {{if .Result.Scope.Repo}}{{esc .Result.Scope.Repo}}{{else}}(org-level){{end}}
+- **Affected SSDF task(s):** {{if .TaskIDs}}{{range $i, $t := .TaskIDs}}{{if $i}}, {{end}}{{$t}}{{end}}{{else}}(none cited){{end}}
+- **CISA form cluster(s):** {{if .ClusterIDs}}{{range $i, $c := .ClusterIDs}}{{if $i}}, {{end}}{{$c}}{{end}}{{else}}(none cited){{end}}
+- **Description:** {{esc .Result.Reason}}
+{{if .Result.Provenance}}- **Evidence:** {{range $i, $p := .Result.Provenance}}{{if $i}}; {{end}}{{esc $p.Method}} {{esc $p.Endpoint}} (digest {{esc $p.ResponseSHA256}}){{end}}
+{{end}}- **Suggested remediation:** {{if .Remediation}}{{.Remediation}}{{else}}(none on file for this check){{end}}
+- **Owner:** ____
+- **Target date:** ____
+- **Resources required:** ____
+- **Milestones:** ____
+- **Status:** Open
+{{end}}{{end}}{{end}}
+---
+
+## Requires Attention Outside This Tool
+
+Self-attested and not-checkable items are **not** POA&M findings — a self-attested
+answer is the producer's own claim, not independently verified, and a not-checkable
+result means this tool structurally could not determine an answer (plan-gated,
+insufficient token permission, or an unanswered self-attestation question). Neither
+is a confirmed gap, but both may need a human's attention outside this document.
+
+{{if .OutsideTool}}{{range .OutsideTool}}- `{{.CheckID}}` ({{statusLabel .Status}}){{if .Scope.Repo}} on {{esc .Scope.Repo}}{{end}}: {{esc .Reason}}
+{{end}}{{else}}None.
+{{end}}

@@ -25,9 +25,22 @@ type renderContext struct {
 
 	StatusCounts map[model.Status]int
 	Clusters     []clusterView
-	Gaps         []model.CheckResult
+	Gaps         []gapView
 	SelfAttested []selfAttestedView
 	NotCheckable []model.CheckResult
+}
+
+// gapView pairs a verified-fail/partial CheckResult with the POA&M finding
+// ID assignFindings gave it, so report.md's Gaps table can cross-link into
+// poam.md — see Finding's doc comment for why the same assignFindings call
+// backs both documents. POAMID is empty only if a caller renders report.md
+// with a pack whose Results, when re-run through assignFindings, somehow
+// produced no matching entry — not expected in practice (every Gaps entry
+// comes from the same pack.Results assignFindings consumes) but rendered
+// as an em dash rather than a broken reference if it ever happened.
+type gapView struct {
+	Result model.CheckResult
+	POAMID string
 }
 
 type clusterView struct {
@@ -77,6 +90,11 @@ func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapp
 		ctx.MappingVersionMismatch = true
 	}
 
+	poamIDByCheckRepo := map[string]string{}
+	for _, f := range assignFindings(pack, ssdf, cisa) {
+		poamIDByCheckRepo[f.Result.CheckID+"\x00"+f.Result.Scope.Repo] = f.ID
+	}
+
 	resultsByCheck := map[string][]model.CheckResult{}
 	for _, r := range pack.Results {
 		ctx.StatusCounts[r.Status]++
@@ -84,12 +102,17 @@ func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapp
 
 		switch r.Status {
 		case model.StatusVerifiedFail, model.StatusPartial:
-			ctx.Gaps = append(ctx.Gaps, r)
+			ctx.Gaps = append(ctx.Gaps, gapView{Result: r, POAMID: poamIDByCheckRepo[r.CheckID+"\x00"+r.Scope.Repo]})
 		case model.StatusNotCheckable:
 			ctx.NotCheckable = append(ctx.NotCheckable, r)
 		}
 	}
-	sortResults(ctx.Gaps)
+	sort.Slice(ctx.Gaps, func(i, j int) bool {
+		if ctx.Gaps[i].Result.CheckID != ctx.Gaps[j].Result.CheckID {
+			return ctx.Gaps[i].Result.CheckID < ctx.Gaps[j].Result.CheckID
+		}
+		return ctx.Gaps[i].Result.Scope.Repo < ctx.Gaps[j].Result.Scope.Repo
+	})
 	sortResults(ctx.NotCheckable)
 
 	statusByTask := map[string]model.Status{}

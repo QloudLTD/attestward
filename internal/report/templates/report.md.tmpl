@@ -60,9 +60,9 @@ Evidence:
 
 {{if .Gaps}}Every `verified-fail` or `partial` result, in one place. See poam.md for remediation tracking.
 
-| Check | Repo | Status | Reason |
-|---|---|---|---|
-{{range .Gaps}}| `{{.CheckID}}` | {{if .Scope.Repo}}{{esc .Scope.Repo}}{{else}}(org){{end}} | {{statusBadge .Status}} {{statusLabel .Status}} | {{esc .Reason}} |
+| POA&M ID | Check | Repo | Status | Reason |
+|---|---|---|---|---|
+{{range .Gaps}}| {{if .POAMID}}{{.POAMID}}{{else}}—{{end}} | `{{.Result.CheckID}}` | {{if .Result.Scope.Repo}}{{esc .Result.Scope.Repo}}{{else}}(org){{end}} | {{statusBadge .Result.Status}} {{statusLabel .Result.Status}} | {{esc .Result.Reason}} |
 {{end}}{{else}}No gaps found — every check that could be verified reported `verified-pass`.
 {{end}}
 ---

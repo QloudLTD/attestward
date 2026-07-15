@@ -21,7 +21,10 @@ self-attestation intake) is merged to `main` — the full v0.1 check matrix
 validation) is merged; the `internal/report` renderers for #25 (report.md/html)
 are code-complete and merged, but #25 itself stays open pending the issue's
 own non-engineer sign-off requirement (see the PR/issue for details); #26
-(poam.md), #27 (pack integrity), and #28 (`attestor report`) are next. Build
+(poam.md — `collect.CheckMeta.Remediation` backfilled across all 46 C01–C10
+checks, renderer merged, cross-linked with report.md's Gaps table via shared
+POA&M finding IDs) is merged; #27 (pack integrity) and #28 (`attestor
+report`) are next. Build
 is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
@@ -121,7 +124,9 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 5 — Outputs + integrity**
 - [x] #24 evidence.json writer
-- [ ] #25 report.md/html (renderers merged; issue open pending non-engineer sign-off) · #26 poam.md · #27 pack integrity · #28 `attestor report`
+- [ ] #25 report.md/html (renderers merged; issue open pending non-engineer sign-off)
+- [x] #26 poam.md
+- [ ] #27 pack integrity · #28 `attestor report`
 
 **Phase 6 — Polish & launch**
 - [ ] #29 README rewrite · #30 generated checks-reference · #31 threat model finalization · #32 self-scan badge · #33 launch checklist

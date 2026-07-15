@@ -89,8 +89,8 @@
 <h2 id="gaps">Gaps</h2>
 {{if .Gaps}}<p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
 <table>
-  <tr><th>Check</th><th>Repo</th><th>Status</th><th>Reason</th></tr>
-  {{range .Gaps}}<tr><td><code>{{.CheckID}}</code></td><td>{{if .Scope.Repo}}{{.Scope.Repo}}{{else}}(org){{end}}</td><td><span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}</td><td>{{.Reason}}</td></tr>
+  <tr><th>POA&amp;M ID</th><th>Check</th><th>Repo</th><th>Status</th><th>Reason</th></tr>
+  {{range .Gaps}}<tr><td>{{if .POAMID}}{{.POAMID}}{{else}}&mdash;{{end}}</td><td><code>{{.Result.CheckID}}</code></td><td>{{if .Result.Scope.Repo}}{{.Result.Scope.Repo}}{{else}}(org){{end}}</td><td><span class="badge badge-{{.Result.Status}}">{{statusBadge .Result.Status}}</span> {{statusLabel .Result.Status}}</td><td>{{.Result.Reason}}</td></tr>
   {{end}}
 </table>{{else}}<p>No gaps found &mdash; every check that could be verified reported <code>verified-pass</code>.</p>{{end}}
 

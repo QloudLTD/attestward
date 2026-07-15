@@ -483,9 +483,9 @@
 <h2 id="gaps">Gaps</h2>
 <p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
 <table>
-  <tr><th>Check</th><th>Repo</th><th>Status</th><th>Reason</th></tr>
-  <tr><td><code>C02.branch.protection-exists</code></td><td>bad-repo</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no branch protection configured on main</td></tr>
-  <tr><td><code>C08.actions.pinned</code></td><td>good-repo</td><td><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</td></tr>
+  <tr><th>POA&amp;M ID</th><th>Check</th><th>Repo</th><th>Status</th><th>Reason</th></tr>
+  <tr><td>POAM-001</td><td><code>C02.branch.protection-exists</code></td><td>bad-repo</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no branch protection configured on main</td></tr>
+  <tr><td>POAM-002</td><td><code>C08.actions.pinned</code></td><td>good-repo</td><td><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</td></tr>
   
 </table>
 
