@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -533,6 +534,105 @@ func TestChecksRegistered(t *testing.T) {
 		if _, ok := collect.Lookup(id); !ok {
 			t.Errorf("check %q not found in the collect.CheckMeta registry", id)
 		}
+	}
+}
+
+// checkWantStatuses is a human-reviewed declaration of exactly which
+// statuses each check can produce (see orgsecurity's own copy of this
+// pattern for the full rationale). Unlike C02/C03, none of C04's five
+// checks can ever produce partial — every one bottoms out at pass, fail,
+// or not-checkable (see checks.go's evalGHASGatedFeature and
+// checkOrgSecurityDefaults).
+var checkWantStatuses = map[string][]model.Status{
+	"C04.secrets.scanning-enabled":  {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C04.secrets.push-protection":   {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C04.deps.dependabot-alerts":    {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C04.secrets.advanced-security": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C04.org.security-defaults":     {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+}
+
+var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) /`)
+
+// TestCollect_RegisteredMetadataCompleteForChecksReference is
+// orgsecurity's TestCollect_RegisteredMetadataCompleteForChecksReference,
+// replicated per the pattern that PR validated: see that test's own doc
+// comment for the full rationale (exact Rubric key-set equality per check,
+// GET/HEAD-only Endpoints enforcing ADR-0004, orphaned-key detection).
+func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
+	if len(checkRubrics) != len(checkTitles) {
+		t.Errorf("checkRubrics has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkRubrics), len(checkTitles))
+	}
+	if len(checkEndpoints) != len(checkTitles) {
+		t.Errorf("checkEndpoints has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkEndpoints), len(checkTitles))
+	}
+
+	for id := range checkTitles {
+		meta, ok := collect.Lookup(id)
+		if !ok {
+			t.Fatalf("check %q not found in the collect.CheckMeta registry", id)
+		}
+
+		want, ok := checkWantStatuses[id]
+		if !ok {
+			t.Fatalf("checkWantStatuses is missing an entry for %q — add the statuses this check can actually produce", id)
+		}
+		wantSet := make(map[model.Status]bool, len(want))
+		for _, s := range want {
+			wantSet[s] = true
+		}
+		for s := range wantSet {
+			if meta.Rubric[s] == "" {
+				t.Errorf("%s: Rubric[%s] is empty, want a concrete explanation", id, s)
+			}
+		}
+		for s := range meta.Rubric {
+			if !wantSet[s] {
+				t.Errorf("%s: Rubric has an entry for status %q, but checkWantStatuses says this check can't produce it — either the rubric is wrong or checkWantStatuses is stale", id, s)
+			}
+		}
+
+		if len(meta.Endpoints) == 0 {
+			t.Errorf("%s: Endpoints is empty, want at least one", id)
+		}
+		for _, e := range meta.Endpoints {
+			if !endpointVerbRE.MatchString(e) {
+				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD — this project is read-only forever (ADR-0004)", id, e)
+			}
+		}
+
+		if meta.FixtureRef == "" {
+			t.Errorf("%s: FixtureRef is empty", id)
+		}
+	}
+}
+
+// TestPerRepoNotCheckableRubricsCoverRepoFetchFailure locks in that all
+// four per-repo checks' not-checkable rubric mentions the repo-fetch-
+// failure path — collectRepo (secretshygiene.go) returns
+// allRepoNotCheckable for every one of these checks when
+// Repositories.Get itself fails (403/404/other API error), before any
+// check-specific logic ever runs. Every other check-specific
+// not-checkable reason (security_and_analysis absent, GHAS unlicensed,
+// GetVulnerabilityAlerts erroring) is downstream of that same fetch
+// already having succeeded, so omitting it would leave a real,
+// frequently-hit not-checkable path undocumented.
+func TestPerRepoNotCheckableRubricsCoverRepoFetchFailure(t *testing.T) {
+	for _, id := range repoCheckIDs {
+		rubric := checkRubrics[id][model.StatusNotCheckable]
+		if !strings.Contains(rubric, "fetch itself failed") {
+			t.Errorf("%s: not-checkable rubric doesn't mention the repo-fetch-itself-failed path, but collectRepo routes that failure to every per-repo check: %q", id, rubric)
+		}
+	}
+}
+
+// TestAdvancedSecurityNotCheckableRubricNotGarbled locks in that the
+// public-repo not-applicable sentence reads grammatically — it was
+// missing a preposition ("doesn't apply the same way public repos get…"
+// instead of "…the same way to a public repo, which gets…").
+func TestAdvancedSecurityNotCheckableRubricNotGarbled(t *testing.T) {
+	rubric := checkRubrics["C04.secrets.advanced-security"][model.StatusNotCheckable]
+	if !strings.Contains(rubric, "the same way to") {
+		t.Errorf("C04.secrets.advanced-security not-checkable rubric reads as garbled prose: %q", rubric)
 	}
 }
 

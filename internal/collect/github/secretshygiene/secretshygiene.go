@@ -60,6 +60,96 @@ var checkRemediations = map[string]string{
 		"of relying on each repo owner to enable them individually.",
 }
 
+// sharedRepoFetchFailedRubric is shared by all four per-repo checks:
+// collectRepo (below) returns allRepoNotCheckable for every one of them
+// when Repositories.Get itself fails (403/404/other API error), before
+// any check-specific logic — including the security_and_analysis-absent
+// and GetVulnerabilityAlerts-error cases below, both of which are only
+// reachable once this same fetch has already succeeded — ever runs.
+const sharedRepoFetchFailedRubric = "the repo fetch itself failed (403/404/other API error)"
+
+// sharedSecurityAndAnalysisAbsentRubric is shared by the three
+// security_and_analysis-backed checks (scanning-enabled, push-protection,
+// advanced-security): each bottoms out at securityAndAnalysisAbsent when
+// the repo fetch succeeded but the API response didn't include the
+// security_and_analysis block at all (older org, or plan-gated) — see
+// that function's own doc comment for why this is never treated as
+// "off". The GHAS-licensing not-checkable case (evalGHASGatedFeature's
+// private+unlicensed branch) is check-specific and documented per check
+// below instead, since advanced-security itself can't reach that branch
+// (see its own doc comment: it's not-checkable on public repos for an
+// unrelated reason, and has no separate GHAS-licensing gate on private
+// repos — GHAS licensing is exactly what it's asking about).
+const sharedSecurityAndAnalysisAbsentRubric = "the repo fetch succeeded, but the response didn't include " +
+	"security_and_analysis at all (older org, or plan-gated) — never assumed off"
+
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce. Unlike C02/C03, no check in this package can ever
+// produce partial — every one of the five bottoms out at pass, fail, or
+// not-checkable (see evalGHASGatedFeature and checkOrgSecurityDefaults in
+// checks.go for the full pass/fail logic each rubric below summarizes).
+var checkRubrics = map[string]map[model.Status]string{
+	"C04.secrets.scanning-enabled": {
+		model.StatusVerifiedPass: "the repo's security_and_analysis.secret_scanning.status is \"enabled\" " +
+			"(checked first, unconditionally — a direct positive observation always wins over any " +
+			"licensing inference)",
+		model.StatusVerifiedFail: "secret scanning reads \"off\" and either the repo is public (the " +
+			"feature is free, so \"off\" is a real gap) or the repo is private with GitHub Advanced " +
+			"Security licensed and enabled",
+		model.StatusNotCheckable: sharedRepoFetchFailedRubric + "; or " + sharedSecurityAndAnalysisAbsentRubric +
+			"; or the repo is private, secret scanning reads \"off\", and Advanced Security isn't " +
+			"licensed/enabled on it — an unlicensed feature can't be faulted",
+	},
+	"C04.secrets.push-protection": {
+		model.StatusVerifiedPass: "the repo's security_and_analysis.secret_scanning_push_protection.status " +
+			"is \"enabled\" (checked first, unconditionally — same rule as secrets.scanning-enabled)",
+		model.StatusVerifiedFail: "push protection reads \"off\" and either the repo is public (the " +
+			"feature is free, so \"off\" is a real gap) or the repo is private with GitHub Advanced " +
+			"Security licensed and enabled",
+		model.StatusNotCheckable: sharedRepoFetchFailedRubric + "; or " + sharedSecurityAndAnalysisAbsentRubric +
+			"; or the repo is private, push protection reads \"off\", and Advanced Security isn't " +
+			"licensed/enabled on it — an unlicensed feature can't be faulted",
+	},
+	"C04.deps.dependabot-alerts": {
+		model.StatusVerifiedPass: "GetVulnerabilityAlerts returned 204 (enabled)",
+		model.StatusVerifiedFail: "GetVulnerabilityAlerts returned 404 — go-github folds this into " +
+			"(enabled=false, err=nil), a real, meaningful \"off\" state rather than an error",
+		model.StatusNotCheckable: sharedRepoFetchFailedRubric + "; or GetVulnerabilityAlerts returned a " +
+			"genuine error (403 permission-denied, etc.) distinct from the honest-404-disabled case above",
+	},
+	"C04.secrets.advanced-security": {
+		model.StatusVerifiedPass: "the repo's security_and_analysis.advanced_security.status is \"enabled\"",
+		model.StatusVerifiedFail: "the repo is private and advanced_security.status is not \"enabled\"",
+		model.StatusNotCheckable: sharedRepoFetchFailedRubric + "; or the repo is public (GHAS licensing " +
+			"only gates private-repo features, so this check doesn't apply the same way to a public " +
+			"repo, which gets the equivalent features free); or " + sharedSecurityAndAnalysisAbsentRubric,
+	},
+	"C04.org.security-defaults": {
+		model.StatusVerifiedPass: "all four of secret_scanning_enabled_for_new_repositories, " +
+			"secret_scanning_push_protection_enabled_for_new_repositories, " +
+			"dependabot_alerts_enabled_for_new_repositories, and " +
+			"advanced_security_enabled_for_new_repositories are true",
+		model.StatusVerifiedFail: "at least one of the four security-default-for-new-repos fields is false",
+		model.StatusNotCheckable: "the org fetch failed (403/404/other API error), or all four fields came " +
+			"back nil (token lacks org owner or security manager permission to view them)",
+	},
+}
+
+// checkEndpoints lists which REST endpoint(s) actually back each check's
+// status. Three checks share the same repo fetch; the other two each have
+// their own dedicated endpoint.
+var repoGetEndpoint = []string{"GET /repos/{owner}/{repo}"}
+
+var checkEndpoints = map[string][]string{
+	"C04.secrets.scanning-enabled":  repoGetEndpoint,
+	"C04.secrets.push-protection":   repoGetEndpoint,
+	"C04.secrets.advanced-security": repoGetEndpoint,
+	"C04.deps.dependabot-alerts":    {"GET /repos/{owner}/{repo}/vulnerability-alerts"},
+	"C04.org.security-defaults":     {"GET /orgs/{org}"},
+}
+
+const fixtureRef = "internal/collect/github/secretshygiene/secretshygiene_test.go"
+
 func init() {
 	for _, id := range allCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -68,6 +158,9 @@ func init() {
 			Collector:   collectorID,
 			TokenScope:  "repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }
