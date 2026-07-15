@@ -1,9 +1,12 @@
 package repoprotection
 
 import (
+	"strings"
 	"testing"
 
 	ghgithub "github.com/google/go-github/v75/github"
+
+	"github.com/sioakim/ssdf/internal/model"
 )
 
 func legacyProtection(opts ...func(*ghgithub.Protection)) *ghgithub.Protection {
@@ -168,6 +171,73 @@ func TestResolveEffectiveProtection_LegacyExemptionDowngradesEvenWhenRulesetCont
 
 	if eff.adminEnforced {
 		t.Error("adminEnforced = true, want false — legacy exists with enforce_admins=false, so admins are exempt from its required reviews regardless of the ruleset's own clean deletion-block")
+	}
+}
+
+// TestResolveEffectiveProtection_HasAlwaysBypassOnlyTrueForAlwaysMode
+// proves hasAlwaysBypass distinguishes "any bypass actor present" from
+// "an unconditional (always-mode) bypass actor present" — a scenario where
+// legacy exempts admins and a ruleset separately contributes only a
+// conditional (pull_request-mode) bypass actor must NOT set
+// hasAlwaysBypass. See checkAdminEnforced's own doc comment (effective.go)
+// for the bug this field exists to prevent: the old code treated any
+// bypass actor as sufficient for a partial result, even a purely
+// conditional one on a branch where nothing otherwise binds admins.
+func TestResolveEffectiveProtection_HasAlwaysBypassOnlyTrueForAlwaysMode(t *testing.T) {
+	legacy := legacyProtection(withReviews(2), withEnforceAdmins(false))
+	rules := &ghgithub.BranchRules{
+		Deletion: []*ghgithub.BranchRuleMetadata{{RulesetID: 1}},
+	}
+	rulesets := map[int64]*ghgithub.RepositoryRuleset{
+		1: {ID: int64Ptr(1), BypassActors: []*ghgithub.BypassActor{
+			rulesetActor(ghgithub.BypassActorTypeTeam, ghgithub.BypassModePullRequest),
+		}},
+	}
+
+	eff := resolveEffectiveProtection(legacy, rules, rulesets)
+
+	if eff.hasAlwaysBypass {
+		t.Error("hasAlwaysBypass = true, want false — the only bypass actor present is pull_request-mode, not always-mode")
+	}
+	if len(eff.bypassActors) != 1 {
+		t.Errorf("bypassActors = %v, want 1 (still recorded as a fact even though it's not always-mode)", eff.bypassActors)
+	}
+}
+
+// TestCheckAdminEnforced_LegacyExemptionWithConditionalBypassStaysFail is a
+// regression test for the exact bug issue #30's documentation pass found
+// (writing an accurate rubric forced tracing this path precisely — see
+// checkAdminEnforced's own doc comment in effective.go): legacy protection
+// exists but exempts admins (enforce_admins=false), a ruleset separately
+// contributes an admin-relevant rule, and that ruleset's only bypass actor
+// is conditional (pull_request-mode, not always). Before the fix,
+// checkAdminEnforced's switch matched on len(eff.bypassActors) > 0 alone,
+// so this scenario reported partial with a hardcoded "unconditional
+// (\"always\") bypass actor" reason — wrong on both counts: nothing here
+// actually enforces admins (legacy exempts them, and the ruleset's binding
+// is moot without legacy's cooperation — see
+// TestResolveEffectiveProtection_LegacyExemptionDowngradesEvenWhenRulesetContributes),
+// so the correct status is verified-fail, and the one bypass actor present
+// isn't unconditional at all.
+func TestCheckAdminEnforced_LegacyExemptionWithConditionalBypassStaysFail(t *testing.T) {
+	legacy := legacyProtection(withReviews(2), withEnforceAdmins(false))
+	rules := &ghgithub.BranchRules{
+		Deletion: []*ghgithub.BranchRuleMetadata{{RulesetID: 1}},
+	}
+	rulesets := map[int64]*ghgithub.RepositoryRuleset{
+		1: {ID: int64Ptr(1), BypassActors: []*ghgithub.BypassActor{
+			rulesetActor(ghgithub.BypassActorTypeTeam, ghgithub.BypassModePullRequest),
+		}},
+	}
+	eff := resolveEffectiveProtection(legacy, rules, rulesets)
+
+	result := checkAdminEnforced("org", "repo", eff, nil, nil)
+
+	if result.Status != model.StatusVerifiedFail {
+		t.Errorf("Status = %q, want %q — a conditional-only bypass actor must not upgrade an otherwise-failing result to partial", result.Status, model.StatusVerifiedFail)
+	}
+	if strings.Contains(result.Reason, "unconditional") {
+		t.Errorf("Reason = %q claims an unconditional bypass actor, but the only one present is pull_request-mode", result.Reason)
 	}
 }
 

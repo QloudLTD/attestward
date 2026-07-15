@@ -44,6 +44,17 @@ type effectiveProtection struct {
 	adminEnforced bool
 	adminVia      []string
 	bypassActors  []string
+	// hasAlwaysBypass is true only when at least one bypass actor found on
+	// a relevant ruleset is unconditional ("always") mode — distinct from
+	// bypassActors being merely non-empty, which also includes conditional
+	// (e.g. "pull_request"-mode) actors. checkAdminEnforced needs this
+	// specific distinction: only an always-mode actor should produce its
+	// "unconditional bypass actor" partial outcome; a conditional-only
+	// actor on a branch where nothing otherwise enforces admins must stay
+	// verified-fail, not be upgraded to partial just because a bypass
+	// actor happens to exist (see checkAdminEnforced's own doc comment for
+	// the bug this fixed).
+	hasAlwaysBypass bool
 }
 
 func resolveEffectiveProtection(legacy *ghgithub.Protection, rules *ghgithub.BranchRules, rulesets map[int64]*ghgithub.RepositoryRuleset) effectiveProtection {
@@ -80,6 +91,7 @@ func resolveEffectiveProtection(legacy *ghgithub.Protection, rules *ghgithub.Bra
 	if rulesetContributesAdmin && !hasAlwaysBypass {
 		eff.adminVia = appendUnique(eff.adminVia, "ruleset")
 	}
+	eff.hasAlwaysBypass = hasAlwaysBypass
 
 	sort.Strings(eff.statusCheckNames)
 	sort.Strings(eff.bypassActors)
@@ -337,7 +349,20 @@ func checkAdminEnforced(org, repo string, eff effectiveProtection, prov []model.
 	case eff.adminEnforced:
 		status = model.StatusPartial
 		reason = fmt.Sprintf("default branch protections apply to admins, but %d conditional bypass actor(s) exist", len(eff.bypassActors))
-	case len(eff.bypassActors) > 0:
+	case eff.hasAlwaysBypass:
+		// Gated on hasAlwaysBypass specifically, not just len(eff.bypassActors)
+		// > 0: a conditional-only bypass actor on a branch where nothing
+		// otherwise enforces admins (e.g. legacy protection exists but
+		// exempts admins, and a ruleset separately contributes only a
+		// conditional actor) must stay verified-fail below, not be
+		// upgraded to partial just because a bypass actor happens to
+		// exist. The old len(bypassActors) > 0 condition here was a real
+		// bug: it fired on ANY bypass actor regardless of mode, so adding
+		// a merely-conditional actor to an already-failing scenario
+		// improved its reported status from fail to partial (backwards —
+		// found and fixed during issue #30's documentation pass, which
+		// forced writing a rubric precise enough to catch it) and reported
+		// a hardcoded "unconditional" reason even when the actor wasn't.
 		status = model.StatusPartial
 		reason = "default branch has an unconditional (\"always\") bypass actor"
 	}

@@ -65,6 +65,104 @@ var checkRemediations = map[string]string{
 		"to the same branch, both must independently bind admins for this check to pass.",
 }
 
+// sharedNotCheckableRubric is the not-checkable explanation shared by the
+// five binary checks (see checkRubrics below): every one of them bottoms
+// out at the same three upstream reads in collectRepo, and none of them
+// depends on anything else. Deliberately calls out that a 404 specifically
+// on the legacy branch-protection read is NOT this outcome — collectRepo
+// treats it as "no legacy protection configured", a normal, legitimate
+// input that still lets the other regime (a ruleset) determine the actual
+// status.
+const sharedNotCheckableRubric = "the repo read failed, the repo has no default branch, the legacy " +
+	"branch-protection read failed with anything other than a 404 (a 404 there just means \"no legacy " +
+	"protection configured\", not an error), or the rules-for-branch read failed (403/404/other API error)"
+
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce. Five of the six checks are binary pass/fail (plus
+// not-checkable) — each reduces to one boolean field on the merged
+// effectiveProtection (see effective.go's resolveEffectiveProtection).
+// admin-enforced is the one exception: it can genuinely produce `partial`,
+// for either of two distinct reasons (see checkAdminEnforced), both
+// spelled out below rather than collapsed into one vague sentence.
+var checkRubrics = map[string]map[model.Status]string{
+	"C02.branch.protection-exists": {
+		model.StatusVerifiedPass: "legacy branch protection is configured on the default branch, or at " +
+			"least one ruleset rule applies to it (`effectiveProtection.exists`, via GetBranchProtection " +
+			"succeeding or GetRulesForBranch returning at least one active rule this collector tracks)",
+		model.StatusVerifiedFail: "default branch has no legacy branch protection and no ruleset applies to it",
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C02.branch.required-reviews": {
+		model.StatusVerifiedPass: "legacy protection's `required_approving_review_count` is >= 1, or a " +
+			"ruleset's pull-request rule sets `required_approving_review_count` >= 1 (whichever regime " +
+			"requires more reviews sets the reported count)",
+		model.StatusVerifiedFail: "neither legacy protection nor any ruleset requires an approving review",
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C02.branch.required-status-checks": {
+		model.StatusVerifiedPass: "legacy protection or a ruleset names at least one required status check",
+		model.StatusVerifiedFail: "neither regime names any required status check",
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C02.branch.force-push-blocked": {
+		model.StatusVerifiedPass: "legacy protection disables `allow_force_pushes` (or leaves the field " +
+			"unset, which GitHub defaults to disabled), or a ruleset has an active non-fast-forward rule",
+		model.StatusVerifiedFail: "force pushes are allowed by both regimes",
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C02.branch.deletion-blocked": {
+		model.StatusVerifiedPass: "legacy protection disables `allow_deletions` (or leaves the field unset), " +
+			"or a ruleset has an active deletion rule",
+		model.StatusVerifiedFail: "branch deletion is allowed by both regimes",
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C02.branch.admin-enforced": {
+		model.StatusVerifiedPass: "every regime that contributes any protection also enforces it against " +
+			"admins (legacy's `enforce_admins` is true, if legacy protection exists at all; any ruleset " +
+			"contributing a relevant rule has zero bypass actors) — and no bypass actor exists on any " +
+			"ruleset contributing a relevant rule (only rulesets behind the pull-request/status-check/" +
+			"force-push/deletion rules this collector tracks are inspected; a bypass actor on an unrelated " +
+			"ruleset, e.g. one that only sets a commit-message pattern, doesn't affect this check)",
+		model.StatusPartial: "either (a) admins are bound by every contributing regime, but at least one " +
+			"conditional (non-\"always\"-mode, e.g. \"pull_request\"-only) bypass actor exists on a " +
+			"relevant ruleset, or (b) an unconditional (\"always\"-mode) bypass actor exists on a " +
+			"relevant ruleset — this alone caps the check at partial regardless of what legacy separately " +
+			"enforces",
+		model.StatusVerifiedFail: "no regime fully enforces admins — either nothing contributes " +
+			"admin-relevant protection at all, or legacy protection exists but exempts admins " +
+			"(`enforce_admins` is false) even though a ruleset separately would bind them — and no " +
+			"unconditional (\"always\"-mode) bypass actor is present either; any conditional bypass " +
+			"actor(s) present don't change this outcome, since admins already aren't bound by every " +
+			"contributing regime",
+		model.StatusNotCheckable: sharedNotCheckableRubric + ", or the ruleset bypass-actor lookup itself " +
+			"failed (GET .../rulesets/{ruleset_id})",
+	},
+}
+
+// checkEndpoints lists which REST endpoint(s) actually back each check's
+// status. All six checks depend on the same three upstream reads (default
+// branch resolution, legacy protection, ruleset rules); admin-enforced
+// additionally depends on a per-ruleset bypass-actor lookup that the other
+// five never trigger (see fetchRulesetsForBypassActors's own doc comment
+// for why only that one check needs it).
+var sharedEndpoints = []string{
+	"GET /repos/{owner}/{repo}",
+	"GET /repos/{owner}/{repo}/branches/{branch}/protection",
+	"GET /repos/{owner}/{repo}/rules/branches/{branch}",
+}
+
+var checkEndpoints = map[string][]string{
+	"C02.branch.protection-exists":      sharedEndpoints,
+	"C02.branch.required-reviews":       sharedEndpoints,
+	"C02.branch.required-status-checks": sharedEndpoints,
+	"C02.branch.force-push-blocked":     sharedEndpoints,
+	"C02.branch.deletion-blocked":       sharedEndpoints,
+	"C02.branch.admin-enforced": append(append([]string{}, sharedEndpoints...),
+		"GET /repos/{owner}/{repo}/rulesets/{ruleset_id}?includes_parents=true"),
+}
+
+const fixtureRef = "internal/collect/github/repoprotection/repoprotection_test.go"
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -73,6 +171,9 @@ func init() {
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Administration: read-only (fine-grained)",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }
