@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -379,6 +380,79 @@ func TestChecksRegistered(t *testing.T) {
 	for id := range checkTitles {
 		if _, ok := collect.Lookup(id); !ok {
 			t.Errorf("check %q not found in the collect.CheckMeta registry", id)
+		}
+	}
+}
+
+// checkWantStatuses is a human-reviewed declaration of exactly which
+// statuses each check can produce (see orgsecurity's own copy of this
+// pattern for the full rationale). C03.env.exists is the odd one out here:
+// checkExists (checks.go) is only ever called once collectRepo has already
+// confirmed len(prodEnvs) > 0, so it structurally can never produce
+// verified-fail — its only three possible outcomes are verified-pass (a
+// prod-like env exists, which is guaranteed by the time it runs) and the
+// two shared non-pass statuses (partial when no prod-like env was found,
+// not-checkable when the API read failed or the repo has zero
+// environments at all). The other three checks each have a real
+// pass/fail split per environment.
+var checkWantStatuses = map[string][]model.Status{
+	"C03.env.exists":             {model.StatusVerifiedPass, model.StatusPartial, model.StatusNotCheckable},
+	"C03.env.protection-rules":   {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C03.env.required-reviewers": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C03.env.branch-policy":      {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+}
+
+var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) /`)
+
+// TestCollect_RegisteredMetadataCompleteForChecksReference is
+// orgsecurity's TestCollect_RegisteredMetadataCompleteForChecksReference,
+// replicated per the pattern that PR validated: see that test's own doc
+// comment for the full rationale (exact Rubric key-set equality per check,
+// GET/HEAD-only Endpoints enforcing ADR-0004, orphaned-key detection).
+func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
+	if len(checkRubrics) != len(checkTitles) {
+		t.Errorf("checkRubrics has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkRubrics), len(checkTitles))
+	}
+	if len(checkEndpoints) != len(checkTitles) {
+		t.Errorf("checkEndpoints has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkEndpoints), len(checkTitles))
+	}
+
+	for id := range checkTitles {
+		meta, ok := collect.Lookup(id)
+		if !ok {
+			t.Fatalf("check %q not found in the collect.CheckMeta registry", id)
+		}
+
+		want, ok := checkWantStatuses[id]
+		if !ok {
+			t.Fatalf("checkWantStatuses is missing an entry for %q — add the statuses this check can actually produce", id)
+		}
+		wantSet := make(map[model.Status]bool, len(want))
+		for _, s := range want {
+			wantSet[s] = true
+		}
+		for s := range wantSet {
+			if meta.Rubric[s] == "" {
+				t.Errorf("%s: Rubric[%s] is empty, want a concrete explanation", id, s)
+			}
+		}
+		for s := range meta.Rubric {
+			if !wantSet[s] {
+				t.Errorf("%s: Rubric has an entry for status %q, but checkWantStatuses says this check can't produce it — either the rubric is wrong or checkWantStatuses is stale", id, s)
+			}
+		}
+
+		if len(meta.Endpoints) == 0 {
+			t.Errorf("%s: Endpoints is empty, want at least one", id)
+		}
+		for _, e := range meta.Endpoints {
+			if !endpointVerbRE.MatchString(e) {
+				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD — this project is read-only forever (ADR-0004)", id, e)
+			}
+		}
+
+		if meta.FixtureRef == "" {
+			t.Errorf("%s: FixtureRef is empty", id)
 		}
 	}
 }

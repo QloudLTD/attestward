@@ -55,6 +55,75 @@ var checkRemediations = map[string]string{
 		"and tags\" allowlist.",
 }
 
+// sharedNotCheckableRubric is shared by all four checks: every one bottoms
+// out at the same ListEnvironments call and the same "zero environments at
+// all" special case (see allNotCheckable/collectRepo).
+const sharedNotCheckableRubric = "the environments list couldn't be read (403/plan-gated/other API " +
+	"error), or the repo has zero environments configured at all"
+
+// sharedPartialRubric is shared by all four checks: when one or more
+// environments exist but none match the production-like naming heuristic,
+// every check reports partial identically — see allPartialNoProdEnv's own
+// doc comment for why that's an affirmative "ambiguous, needs a human"
+// result rather than not-checkable or a guessed pass/fail.
+const sharedPartialRubric = "one or more environments exist, but none match the production-like " +
+	"naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one " +
+	"of them is actually production before this check can evaluate anything"
+
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce. C03.env.exists is the one check across C01-C02-C03
+// so far that can never produce verified-fail: it's only reached once at
+// least one production-like environment already exists (collectRepo
+// returns allPartialNoProdEnv before calling any check function
+// otherwise), so its only remaining question is which non-fail status
+// applies. The other three checks are the more typical
+// pass/fail/partial/not-checkable shape.
+var checkRubrics = map[string]map[model.Status]string{
+	"C03.env.exists": {
+		model.StatusVerifiedPass: "at least one environment's name matches the production-like heuristic " +
+			"(`prod`* prefix, case-insensitive)",
+		model.StatusPartial:      sharedPartialRubric,
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C03.env.protection-rules": {
+		model.StatusVerifiedPass: "every production-like environment has at least one protection rule " +
+			"(any type — the environment's `ProtectionRules` list is non-empty)",
+		model.StatusVerifiedFail: "at least one production-like environment has zero protection rules",
+		model.StatusPartial:      sharedPartialRubric,
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C03.env.required-reviewers": {
+		model.StatusVerifiedPass: "every production-like environment has a `required_reviewers`-type " +
+			"protection rule with at least one reviewer configured",
+		model.StatusVerifiedFail: "at least one production-like environment lacks a `required_reviewers` " +
+			"rule, or has one configured with zero reviewers",
+		model.StatusPartial:      sharedPartialRubric,
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+	"C03.env.branch-policy": {
+		model.StatusVerifiedPass: "every production-like environment's `deployment_branch_policy` " +
+			"restricts deployment to protected branches, a custom branch/tag allowlist, or both",
+		model.StatusVerifiedFail: "at least one production-like environment allows deployment from any " +
+			"branch (no `deployment_branch_policy` set, or one with both `protected_branches` and " +
+			"`custom_branch_policies` false)",
+		model.StatusPartial:      sharedPartialRubric,
+		model.StatusNotCheckable: sharedNotCheckableRubric,
+	},
+}
+
+// checkEndpoints lists which REST endpoint(s) actually back each check's
+// status — all four share the same single upstream read.
+var sharedEndpoints = []string{"GET /repos/{owner}/{repo}/environments"}
+
+var checkEndpoints = map[string][]string{
+	"C03.env.exists":             sharedEndpoints,
+	"C03.env.protection-rules":   sharedEndpoints,
+	"C03.env.required-reviewers": sharedEndpoints,
+	"C03.env.branch-policy":      sharedEndpoints,
+}
+
+const fixtureRef = "internal/collect/github/envseparation/envseparation_test.go"
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -63,6 +132,9 @@ func init() {
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Actions: read-only (fine-grained)",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }
