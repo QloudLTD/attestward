@@ -23,9 +23,13 @@ are code-complete and merged, but #25 itself stays open pending the issue's
 own non-engineer sign-off requirement (see the PR/issue for details); #26
 (poam.md — `collect.CheckMeta.Remediation` backfilled across all 46 C01–C10
 checks, renderer merged, cross-linked with report.md's Gaps table via shared
-POA&M finding IDs) is merged; #27 (pack integrity) is in progress —
-SHA-256 hashing, the `.sha256` sidecar, and `attestor verify` are merged;
-cosign sign-blob integration is next, then #28 (`attestor report`). Build
+POA&M finding IDs) is merged; #27 (pack integrity) is merged — SHA-256
+hashing, the `.sha256` sidecar, `attestor verify` (hash + cosign
+signature), and `attestor scan --sign` are all in place (ADR-0006 records
+why cosign is shelled out to rather than vendored). #28 (`attestor
+report`) is next — the CLI command that will call RenderMarkdown/
+RenderHTML/RenderPOAM against a written evidence.json, including passing
+its hash into report.md/html's Integrity.SHA256 field. Build
 is issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
@@ -127,7 +131,8 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #24 evidence.json writer
 - [ ] #25 report.md/html (renderers merged; issue open pending non-engineer sign-off)
 - [x] #26 poam.md
-- [ ] #27 pack integrity · #28 `attestor report`
+- [x] #27 pack integrity
+- [ ] #28 `attestor report`
 
 **Phase 6 — Polish & launch**
 - [ ] #29 README rewrite · #30 generated checks-reference · #31 threat model finalization · #32 self-scan badge · #33 launch checklist

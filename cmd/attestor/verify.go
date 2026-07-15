@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -9,21 +12,35 @@ import (
 	"github.com/sioakim/ssdf/internal/integrity"
 )
 
+var verifyArgsFlag []string
+
 var verifyCmd = &cobra.Command{
 	Use:   "verify <dir>",
-	Short: "Verify an evidence pack's SHA-256 hash against its .sha256 sidecar",
+	Short: "Verify an evidence pack's SHA-256 hash (and signature, if signed)",
 	Long: `attestor verify recomputes <dir>/evidence.json's SHA-256 and compares it
 against <dir>/evidence.json.sha256 — exactly what a plain
 "sha256sum -c evidence.json.sha256" (run from inside <dir>) checks; attestor's
-own involvement is not required to trust the result.
+own involvement is not required to trust the hash half of the result.
 
-Exit codes: 0 verified OK, 1 tampered (hash mismatch) or an execution error
-(missing evidence.json, missing or malformed sidecar).`,
+If <dir>/evidence.json.bundle exists (attestor scan --sign produced one),
+also runs "cosign verify-blob" against it — pass whatever cosign needs to
+identify the signer via --verify-args (e.g. for keyless verification,
+--verify-args=--certificate-identity-regexp=... and
+--verify-args=--certificate-oidc-issuer=...; attestor doesn't default or
+infer these, since the correct identity is producer-specific). No bundle
+present means nothing to verify there — an unsigned pack isn't itself a
+tamper finding.
+
+Exit codes: 0 verified OK (hash, and signature if present), 1 tampered
+(hash mismatch, or signature verification failed) or an execution error
+(missing evidence.json, missing or malformed sidecar, cosign not on PATH
+when a bundle is present).`,
 	Args: cobra.ExactArgs(1),
 	RunE: runVerify,
 }
 
 func init() {
+	verifyCmd.Flags().StringArrayVar(&verifyArgsFlag, "verify-args", nil, "extra arg passed through to cosign verify-blob verbatim (repeatable); required for keyless verification")
 	rootCmd.AddCommand(verifyCmd)
 }
 
@@ -32,30 +49,81 @@ func init() {
 // os.Exit call the CLI wrapper makes on a TAMPERED result never has to run
 // inside a test process.
 type verifyResult struct {
-	OK   bool
+	OK   bool // hash check
 	Got  string
 	Want string
+
+	// BundlePresent is false when the pack was never signed — not itself
+	// a tamper finding, just nothing more to check. SignatureOK/
+	// SignatureErr are only meaningful when BundlePresent is true.
+	BundlePresent bool
+	SignatureOK   bool
+	SignatureErr  error
 }
 
-func verifyEvidencePack(dir string) (verifyResult, error) {
-	ok, got, want, err := integrity.VerifyFile(filepath.Join(dir, "evidence.json"))
+func verifyEvidencePack(ctx context.Context, dir string, signer integrity.Signer, verifyArgs []string) (verifyResult, error) {
+	path := filepath.Join(dir, "evidence.json")
+
+	ok, got, want, err := integrity.VerifyFile(path)
 	if err != nil {
 		return verifyResult{}, err
 	}
-	return verifyResult{OK: ok, Got: got, Want: want}, nil
+	result := verifyResult{OK: ok, Got: got, Want: want}
+
+	bundlePath := integrity.BundlePath(path)
+	_, statErr := os.Stat(bundlePath)
+	switch {
+	case statErr == nil:
+		result.BundlePresent = true
+		sigErr := signer.VerifyBlob(ctx, path, verifyArgs)
+		switch {
+		case sigErr == nil:
+			result.SignatureOK = true
+		case errors.Is(sigErr, integrity.ErrCosignNotFound):
+			// The environment isn't set up to check the signature at
+			// all — a real execution error, not "checked it and it's
+			// wrong" (see runVerify's TAMPERED/error distinction).
+			return verifyResult{}, sigErr
+		default:
+			result.SignatureErr = sigErr
+		}
+	case os.IsNotExist(statErr):
+		// No bundle at all — signing is opt-in, so this isn't a tamper
+		// finding, just nothing more to check.
+	default:
+		// Any other stat failure (permissions, a symlink loop, I/O) must
+		// not be silently folded into "no bundle" — that would let a
+		// signed pack read as unsigned whenever something merely
+		// prevented reading the bundle, a false OK this project doesn't
+		// tolerate.
+		return verifyResult{}, fmt.Errorf("stat %s: %w", bundlePath, statErr)
+	}
+	return result, nil
 }
 
 func runVerify(cmd *cobra.Command, args []string) error {
 	path := filepath.Join(args[0], "evidence.json")
 
-	result, err := verifyEvidencePack(args[0])
+	result, err := verifyEvidencePack(cmd.Context(), args[0], integrity.CosignSigner{}, verifyArgsFlag)
 	if err != nil {
 		return err
 	}
-	if !result.OK {
+
+	if result.OK {
+		logf(cmd.OutOrStdout(), "OK: %s\n  sha256: %s\n", path, result.Got)
+	} else {
 		logf(cmd.OutOrStdout(), "TAMPERED: %s\n  computed sha256: %s\n  sidecar sha256:  %s\n", path, result.Got, result.Want)
+	}
+	if result.BundlePresent {
+		if result.SignatureOK {
+			logf(cmd.OutOrStdout(), "OK: signature verified (%s)\n", integrity.BundlePath(path))
+		} else {
+			logf(cmd.OutOrStdout(), "TAMPERED: signature verification failed (%s): %v\n", integrity.BundlePath(path), result.SignatureErr)
+		}
+	}
+
+	if !result.OK || (result.BundlePresent && !result.SignatureOK) {
 		os.Exit(exitError)
 	}
-	logf(cmd.OutOrStdout(), "OK: %s\n  sha256: %s\n", path, result.Got)
 	return nil
 }

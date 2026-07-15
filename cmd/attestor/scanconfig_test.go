@@ -105,6 +105,40 @@ func TestMergeScanConfig_FlagsOverrideFileWhenSet(t *testing.T) {
 	}
 }
 
+// TestMergeScanConfig_SignFlagsOverrideFileWhenSet mirrors
+// TestMergeScanConfig_FlagsOverrideFileWhenSet for the issue #27 fields —
+// Sign/SignArgs need the same flagsSet-gated override behavior as every
+// other field (a flag the user didn't pass must never clobber a value the
+// config file set).
+func TestMergeScanConfig_SignFlagsOverrideFileWhenSet(t *testing.T) {
+	file := scanConfig{Org: "x", Sign: true, SignArgs: []string{"--key=file.key"}}
+
+	// Neither --sign nor --sign-args passed: file values survive.
+	merged := mergeScanConfig(file, scanConfig{}, nil)
+	if !merged.Sign {
+		t.Error("Sign = false, want true (from file, no flag override)")
+	}
+	if len(merged.SignArgs) != 1 || merged.SignArgs[0] != "--key=file.key" {
+		t.Errorf("SignArgs = %v, want [--key=file.key] (from file, no flag override)", merged.SignArgs)
+	}
+
+	// --sign-args passed (but not --sign): only SignArgs overrides.
+	merged = mergeScanConfig(file, scanConfig{SignArgs: []string{"--key=flag.key"}}, map[string]bool{"sign-args": true})
+	if !merged.Sign {
+		t.Error("Sign = false, want true (--sign not passed, file value preserved)")
+	}
+	if len(merged.SignArgs) != 1 || merged.SignArgs[0] != "--key=flag.key" {
+		t.Errorf("SignArgs = %v, want [--key=flag.key] (--sign-args was passed)", merged.SignArgs)
+	}
+
+	// --sign passed explicitly false (e.g. a config file sets sign: true
+	// but this one invocation wants it off): flag wins.
+	merged = mergeScanConfig(file, scanConfig{Sign: false}, map[string]bool{"sign": true})
+	if merged.Sign {
+		t.Error("Sign = true, want false (--sign was explicitly passed as false)")
+	}
+}
+
 func TestMergeScanConfig_DefaultsFillUnsetFields(t *testing.T) {
 	merged := mergeScanConfig(scanConfig{Org: "x"}, scanConfig{}, nil)
 

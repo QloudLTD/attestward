@@ -34,14 +34,23 @@ release_tag_pattern: "v*"
 lookback_releases: 5
 lookback_months: 12
 
-# Path to a self-attestation answers file (see issue #23 — not consumed
-# yet). Optional; controls that can't be verified via API are reported as
-# not-checkable until this is supplied.
+# Path to a self-attestation answers file (see issue #23; generate a
+# template with `attestor attest init`). Optional; controls that can't be
+# verified via API are reported as not-checkable until this is supplied.
 # self_attestation_file: ./self-attestation.yaml
 
-# Where evidence.json (and, once #25/#26 land, report.md/html and poam.md)
+# Where evidence.json (and, once #28 lands, report.md/html and poam.md)
 # gets written. Default: ./evidence/
 out: ./evidence/
 
 # How many collectors run concurrently. Default: 4
 concurrency: 4
+
+# Sign evidence.json with `cosign sign-blob` after writing it (issue #27;
+# requires cosign on PATH — see ADR-0006). sign_args is passed through to
+# cosign verbatim: leave it empty for keyless signing (Sigstore/Fulcio
+# OIDC — the same flow this project's own release pipeline uses), or set
+# it to something like ["--key=cosign.key"] for a key file. attestor never
+# manages key material itself.
+# sign: true
+# sign_args: []

@@ -49,7 +49,9 @@ timestamped **evidence pack** (JSON + human-readable report) plus a **gap analys
 attestor scan --org my-org [--repo my-repo ...] --out ./evidence/
 attestor scan --config attestor.yaml          # repeatable, CI-friendly
 attestor scan --self-attestation-file self-attestation.yaml  # include self-attested answers
+attestor scan --org my-org --sign             # also sign evidence.json (see "Verifying an evidence pack")
 attestor attest init --out self-attestation.yaml  # generate a commented answers template
+attestor verify ./evidence/                   # check evidence.json's hash (and signature, if signed)
 attestor report ./evidence/evidence.json      # regenerate reports
 attestor checks list                          # show all checks + mappings
 attestor version
@@ -99,6 +101,60 @@ least-privilege warning if it detects write access.
 
 This table only lists collectors that exist as code today; `attestor checks list` is
 the live source of truth as more land (each row's `TOKEN SCOPE` column).
+
+## Verifying an evidence pack
+
+Every scan hashes and hash-verifies itself, always, whether or not you sign anything:
+
+```bash
+attestor scan --org my-org --out ./evidence/   # prints the sha256 and writes evidence.json.sha256
+attestor verify ./evidence/                    # recomputes the hash and compares it
+```
+
+`attestor verify`'s hash check needs nothing but the two files it's checking — you can
+verify without `attestor` at all, from inside the output directory:
+
+```bash
+sha256sum -c evidence.json.sha256   # Linux
+shasum -a 256 -c evidence.json.sha256   # macOS
+```
+
+### Signing (optional)
+
+Pass `--sign` to also sign `evidence.json` with [cosign](https://docs.sigstore.dev/)
+(`cosign sign-blob`, shelled out to — attestor never links a Sigstore client or manages
+key material itself; see [ADR-0006](docs/adr/0006-exec-cosign-not-sigstore-go.md)).
+Requires `cosign` on `PATH`; `--sign` without it is a hard error naming the install doc,
+never a silent skip.
+
+```bash
+# Keyless (Sigstore/Fulcio OIDC) — the same flow this repo's own release pipeline uses.
+# Only works where an OIDC identity is available (e.g. GitHub Actions with
+# `id-token: write`); on a bare local machine cosign opens a browser instead.
+attestor scan --org my-org --sign
+
+# Or with your own key file — attestor passes --sign-args straight through to cosign.
+attestor scan --org my-org --sign --sign-args="--key=cosign.key"
+```
+
+This writes `evidence.json.bundle` (a single Sigstore bundle — signature, certificate,
+and transparency-log proof together; cosign v3 dropped the legacy separate
+`--output-signature`/`--output-certificate` files). `attestor verify` checks it
+automatically when present — pass whatever `cosign verify-blob` needs to identify the
+signer via `--verify-args` (attestor never defaults or infers an identity):
+
+```bash
+# Keyless verification needs the identity that signed it:
+attestor verify ./evidence/ \
+  --verify-args="--certificate-identity-regexp=^https://github.com/my-org/my-repo/" \
+  --verify-args="--certificate-oidc-issuer=https://token.actions.githubusercontent.com"
+
+# Key-file verification:
+attestor verify ./evidence/ --verify-args="--key=cosign.pub"
+```
+
+A pack with no `.bundle` file isn't itself a problem — signing is opt-in, and an unsigned
+pack's hash still verifies normally.
 
 ## Documentation
 

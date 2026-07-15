@@ -80,6 +80,8 @@ func init() {
 	scanCmd.Flags().StringVar(&scanFlags.Out, "out", "", "output directory (default \"./evidence/\")")
 	scanCmd.Flags().IntVar(&scanFlags.Concurrency, "concurrency", 0, "collector concurrency (default 4)")
 	scanCmd.Flags().StringSliceVar(&scanCheckFilter, "check", nil, "comma-separated check-ID prefixes to run (e.g. C01,C05); default runs every registered collector")
+	scanCmd.Flags().BoolVar(&scanFlags.Sign, "sign", false, "sign evidence.json with cosign sign-blob after writing it (issue #27; requires cosign on PATH)")
+	scanCmd.Flags().StringArrayVar(&scanFlags.SignArgs, "sign-args", nil, "extra arg passed through to cosign sign-blob verbatim (repeatable, e.g. --sign-args=--key=cosign.key); omit for keyless signing")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -146,6 +148,7 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 		client:     client,
 		collectors: defaultCollectors(token),
 		stdout:     cmd.OutOrStdout(),
+		signer:     integrity.CosignSigner{},
 	}
 
 	result, err := runScan(cmd.Context(), cfg, scanCheckFilter, deps)
@@ -163,6 +166,19 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 	}
 	logf(deps.stdout, "wrote %s\n", evidencePath)
 	logf(deps.stdout, "sha256: %s\n", hash)
+
+	// Signing runs regardless of exitOK/exitGaps below — a pack showing
+	// real gaps needs a genuine signature at least as much as a clean
+	// one, arguably more (a producer proving the evidence wasn't altered
+	// to look better than it does). It must run before the exit-code
+	// branch, which terminates the process immediately.
+	if cfg.Sign {
+		bundlePath, err := deps.signer.SignBlob(cmd.Context(), evidencePath, cfg.SignArgs)
+		if err != nil {
+			return fmt.Errorf("--sign: %w", err)
+		}
+		logf(deps.stdout, "signed: %s\n", bundlePath)
+	}
 
 	if result.exitCode != exitOK {
 		os.Exit(result.exitCode)
@@ -186,6 +202,12 @@ type scanDeps struct {
 	// scans always leave this nil, since two independent scans genuinely
 	// happening at different wall-clock times is correct, not a bug.
 	now func() time.Time
+	// signer is the real or fake cosign wrapper runScanCmd calls after
+	// writeEvidencePack when --sign is set. Not used by runScan itself
+	// (signing happens after runScan returns, over the written file) —
+	// lives here anyway so every real-vs-fake dependency swap for tests
+	// stays in one struct rather than splitting the convention.
+	signer integrity.Signer
 }
 
 type scanResult struct {

@@ -4,6 +4,14 @@ name: Integration scan (demo org)
 # public demo org and asserts every result against fixtures.yaml. Catches
 # GitHub API changes that would silently invalidate a collector's
 # assumptions before a user hits them.
+#
+# A second job, sign-verify, tests issue #27's cosign integration
+# end-to-end against a real evidence pack using GitHub Actions' ambient
+# OIDC identity for keyless signing — the same mechanism release.yaml
+# already uses for release-checksum signing (see ADR-0006). It shares this
+# workflow's DEMO_ORG_PAT/schedule rather than living in ci.yaml: signing a
+# real pack needs a real org to scan, and testing it on every PR would add
+# real latency/cost to a leaf feature, not core check logic.
 
 on:
   schedule:
@@ -75,3 +83,53 @@ jobs:
                 labels: [label],
               });
             }
+
+  sign-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # ambient OIDC token for cosign keyless signing (issue #27)
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      # Same pin as release.yaml — the --bundle sign/verify flow was
+      # verified against this exact version (see that workflow's comment).
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v3.1.1"
+      - name: Scan, sign (keyless), and verify a real evidence pack
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEMO_ORG_PAT }}
+        run: |
+          # Same missing-secret tripwire as the integration-scan job above
+          # — a skipped scan must fail loudly, not report false success.
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "::error::DEMO_ORG_PAT secret is not set — see CONTRIBUTING.md's PAT provisioning section" >&2
+            exit 1
+          fi
+
+          # Build a real binary rather than `go run`: `go run` collapses
+          # any non-zero program exit code into its own exit 1 (confirmed
+          # empirically), which would make exit 2 ("gaps found", expected
+          # and fine here — Qloud-LTD deterministically has some per
+          # fixtures.yaml) indistinguishable from exit 1 (a real failure,
+          # e.g. signing broke). This job cares about "did scan+sign+verify
+          # actually work", not "is Qloud-LTD clean", so exit 2 from scan
+          # must not fail the step the way exit 1 should.
+          go build -o ./attestor ./cmd/attestor
+
+          set +e
+          ./attestor scan --org Qloud-LTD --repo demo-good --sign --out ./evidence
+          scan_rc=$?
+          set -e
+          if [ "$scan_rc" -ne 0 ] && [ "$scan_rc" -ne 2 ]; then
+            echo "::error::attestor scan exited $scan_rc (expected 0 or 2 — gaps found is fine, anything else is a real failure)" >&2
+            exit "$scan_rc"
+          fi
+
+          ./attestor verify ./evidence \
+            --verify-args="--certificate-identity-regexp=^https://github.com/sioakim/ssdf/\.github/workflows/integration-scan\.yaml@refs/heads/main$" \
+            --verify-args="--certificate-oidc-issuer=https://token.actions.githubusercontent.com"

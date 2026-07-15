@@ -32,6 +32,13 @@ type scanConfig struct {
 	SelfAttestationFile string   `yaml:"self_attestation_file"`
 	Out                 string   `yaml:"out"`
 	Concurrency         int      `yaml:"concurrency"`
+	// Sign/SignArgs are issue #27's cosign integration: Sign is whether
+	// to sign evidence.json after writing it, SignArgs is passed through
+	// to `cosign sign-blob` verbatim (e.g. --key=cosign.key; empty for
+	// keyless). See ADR-0006 for why this shells out rather than vendors
+	// a Sigstore client.
+	Sign     bool     `yaml:"sign"`
+	SignArgs []string `yaml:"sign_args"`
 }
 
 // loadScanConfigFile strictly parses a config file: unknown keys are
@@ -94,6 +101,12 @@ func mergeScanConfig(file scanConfig, flags scanConfig, flagsSet map[string]bool
 	}
 	if flagsSet["concurrency"] {
 		merged.Concurrency = flags.Concurrency
+	}
+	if flagsSet["sign"] {
+		merged.Sign = flags.Sign
+	}
+	if flagsSet["sign-args"] {
+		merged.SignArgs = flags.SignArgs
 	}
 
 	if merged.ReleaseTagPattern == "" {
