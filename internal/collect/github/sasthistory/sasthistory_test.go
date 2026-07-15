@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -639,6 +640,68 @@ func TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable(t *testing.T) {
 	}
 }
 
+// TestCollect_DefaultSetupCallFailsWithNoOtherEvidence_ToolConfiguredNotCheckable
+// covers the edge case TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable
+// doesn't reach: that test's "flaky-repo" always has a real CodeQL workflow
+// match, so tool-configured's status is already decided by that evidence
+// independent of whatever the default-setup call does. Here there is zero
+// workflow-based evidence at all, so tool-configured's outcome depends
+// entirely on defaultSetupConfigured(ds) — and GetDefaultSetupConfiguration
+// returns a nil ds on ANY error, indistinguishable from a genuine
+// successful "not configured" response, unless the check itself accounts
+// for the failure. Before the fix, this silently asserted verified-fail
+// ("CodeQL default setup is not configured") when the truth is "unknown,
+// the query failed."
+func TestCollect_DefaultSetupCallFailsWithNoOtherEvidence_ToolConfiguredNotCheckable(t *testing.T) {
+	mux := http.NewServeMux()
+	registerRepo(t, mux, "attestor-demo", "no-evidence-repo", "main")
+	registerNoWorkflows(t, mux, "attestor-demo", "no-evidence-repo")
+	registerNoReleases(t, mux, "attestor-demo", "no-evidence-repo")
+	mux.HandleFunc("/repos/attestor-demo/no-evidence-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"no-evidence-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m["C05.sast.tool-configured"].Status; got != model.StatusNotCheckable {
+		t.Errorf("tool-configured = %q, want not-checkable — zero workflow evidence plus a failed default-setup query is unknown, not a confirmed \"not configured\"", got)
+	}
+}
+
+// TestCollect_DefaultSetupPlanGatedWithNoOtherEvidence_ToolConfiguredStaysFail
+// is the fix's negative-control companion: a plan-gated default-setup
+// response (404/402 — GHAS/default-setup genuinely unavailable on this
+// repo, e.g. no license) is a real, legitimate "not configured" fact, not
+// an unknown — the not-checkable branch added for the test above must not
+// fire here too.
+func TestCollect_DefaultSetupPlanGatedWithNoOtherEvidence_ToolConfiguredStaysFail(t *testing.T) {
+	mux := http.NewServeMux()
+	registerRepo(t, mux, "attestor-demo", "plan-gated-repo", "main")
+	registerNoWorkflows(t, mux, "attestor-demo", "plan-gated-repo")
+	registerNoReleases(t, mux, "attestor-demo", "plan-gated-repo")
+	mux.HandleFunc("/repos/attestor-demo/plan-gated-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"plan-gated-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m["C05.sast.tool-configured"].Status; got != model.StatusVerifiedFail {
+		t.Errorf("tool-configured = %q, want verified-fail — a plan-gated default-setup response is a legitimate \"not configured\" fact, not an unknown", got)
+	}
+}
+
 func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	mux := http.NewServeMux()
 	c := newCollectorForServer(t, newTestServer(t, mux))
@@ -666,6 +729,94 @@ func TestChecksRegistered(t *testing.T) {
 		if _, ok := collect.Lookup(id); !ok {
 			t.Errorf("check %q not found in the collect.CheckMeta registry", id)
 		}
+	}
+}
+
+// checkWantStatuses is a human-reviewed declaration of exactly which
+// statuses each check can produce (see orgsecurity's own copy of this
+// pattern for the full rationale). All four C05 checks can reach partial
+// except default-setup, which is a plain pass/fail/not-checkable check —
+// see checks.go's checkDefaultSetup for why it has no partial branch.
+var checkWantStatuses = map[string][]model.Status{
+	"C05.sast.tool-configured": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C05.sast.ran-per-release": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C05.sast.cadence":         {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C05.sast.default-setup":   {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+}
+
+var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) /`)
+
+// TestCollect_RegisteredMetadataCompleteForChecksReference is
+// orgsecurity's TestCollect_RegisteredMetadataCompleteForChecksReference,
+// replicated per the pattern that PR validated: see that test's own doc
+// comment for the full rationale (exact Rubric key-set equality per check,
+// GET/HEAD-only Endpoints enforcing ADR-0004, orphaned-key detection).
+func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
+	if len(checkRubrics) != len(checkTitles) {
+		t.Errorf("checkRubrics has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkRubrics), len(checkTitles))
+	}
+	if len(checkEndpoints) != len(checkTitles) {
+		t.Errorf("checkEndpoints has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkEndpoints), len(checkTitles))
+	}
+
+	for id := range checkTitles {
+		meta, ok := collect.Lookup(id)
+		if !ok {
+			t.Fatalf("check %q not found in the collect.CheckMeta registry", id)
+		}
+
+		want, ok := checkWantStatuses[id]
+		if !ok {
+			t.Fatalf("checkWantStatuses is missing an entry for %q — add the statuses this check can actually produce", id)
+		}
+		wantSet := make(map[model.Status]bool, len(want))
+		for _, s := range want {
+			wantSet[s] = true
+		}
+		for s := range wantSet {
+			if meta.Rubric[s] == "" {
+				t.Errorf("%s: Rubric[%s] is empty, want a concrete explanation", id, s)
+			}
+		}
+		for s := range meta.Rubric {
+			if !wantSet[s] {
+				t.Errorf("%s: Rubric has an entry for status %q, but checkWantStatuses says this check can't produce it — either the rubric is wrong or checkWantStatuses is stale", id, s)
+			}
+		}
+
+		if len(meta.Endpoints) == 0 {
+			t.Errorf("%s: Endpoints is empty, want at least one", id)
+		}
+		for _, e := range meta.Endpoints {
+			if !endpointVerbRE.MatchString(e) {
+				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD — this project is read-only forever (ADR-0004)", id, e)
+			}
+		}
+
+		if meta.FixtureRef == "" {
+			t.Errorf("%s: FixtureRef is empty", id)
+		}
+	}
+}
+
+// TestRanPerReleaseRubricScopesResolvedTagsToLookbackWindow locks in that
+// the verified-pass/partial rubric text doesn't claim EVERY matching
+// release tag resolved to a commit — droppedTags (collectRepo) only
+// counts an unresolvable tag as a drop when it's published within the
+// lookback window; a pattern-matching tag well outside the window that
+// fails to resolve is silently out of scope, not a drop, and the check
+// still reaches verified-pass — see
+// TestCollect_UnresolvableTagOutsideLookbackWindow_DoesNotCountAsDrop.
+// Unscoped wording ("every matching release tag resolved") reads as
+// false for that real, tested scenario.
+func TestRanPerReleaseRubricScopesResolvedTagsToLookbackWindow(t *testing.T) {
+	pass := checkRubrics["C05.sast.ran-per-release"][model.StatusVerifiedPass]
+	if !strings.Contains(pass, "in the lookback window resolved") {
+		t.Errorf("C05.sast.ran-per-release verified-pass rubric doesn't scope \"resolved to a commit\" to the lookback window: %q", pass)
+	}
+	partial := checkRubrics["C05.sast.ran-per-release"][model.StatusPartial]
+	if !strings.Contains(partial, "in the lookback window couldn't be resolved") {
+		t.Errorf("C05.sast.ran-per-release partial rubric doesn't scope \"couldn't be resolved\" to the lookback window: %q", partial)
 	}
 }
 

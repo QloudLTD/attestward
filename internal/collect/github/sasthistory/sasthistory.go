@@ -74,6 +74,107 @@ var checkRemediations = map[string]string{
 		"workflow is specifically needed).",
 }
 
+// sharedUpstreamFetchFailureRubric is shared by all four checks:
+// collectRepo returns not-checkable for every one of them on the first
+// failure among the repo fetch, the workflow listing, or the release
+// listing — none of the four checks below can be computed without that
+// shared evidence, regardless of whether a given check actually reads
+// release data (e.g. default-setup doesn't, but still goes not-checkable
+// if FetchReleases fails, since collectRepo never reaches its own call in
+// that case). Collect's own embedded-registry-load failure is a distinct,
+// binary-level cause that also reaches every check for every repo in
+// scope, independent of the target repo's own state.
+const sharedUpstreamFetchFailureRubric = "the repo fetch, the workflow listing, or the release listing " +
+	"failed (403/plan-gated/other API error) — collectRepo returns not-checkable for every check on the " +
+	"first such failure, since none of them can be computed without this shared evidence; or the embedded " +
+	"scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo)"
+
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce — see checks.go for the pass/fail/partial logic
+// each rubric below summarizes.
+var checkRubrics = map[string]map[model.Status]string{
+	"C05.sast.tool-configured": {
+		model.StatusVerifiedPass: "at least one matched workflow reaches medium-or-high confidence (an " +
+			"action slug or CLI pattern, not just a suggestive workflow name), or CodeQL default setup's " +
+			"state reads \"configured\"",
+		model.StatusPartial: "only a low-confidence (workflow-name-only) match was found in any workflow, " +
+			"and CodeQL default setup is not confirmed configured — not enough signal alone to confirm a " +
+			"SAST tool is genuinely configured",
+		model.StatusVerifiedFail: "no workflow match of any confidence was found, and CodeQL default " +
+			"setup's state reads anything other than \"configured\" — including a legitimate plan-gated/" +
+			"not-found response to the default-setup query itself (a real \"not available\" fact, not an " +
+			"unknown)",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no workflow-based " +
+			"evidence at all and the CodeQL default-setup query itself failed with something other than a " +
+			"plan-gated/not-found response — an unresolved unknown, not a confirmed absence",
+	},
+	"C05.sast.ran-per-release": {
+		model.StatusVerifiedPass: "a SAST tool ran successfully (at least one matched run whose conclusion " +
+			"is \"success\") for every release in the lookback window, and every matching release tag " +
+			"published in the lookback window resolved to a commit — an unresolvable tag published " +
+			"outside the window is out of scope, not a drop, so it doesn't block verified-pass",
+		model.StatusPartial: "one or more matching release tags published in the lookback window couldn't " +
+			"be resolved to a commit; if that leaves nothing evaluable, the reason names the drop count " +
+			"directly, otherwise every evaluated release still succeeded but the exclusion caps the result " +
+			"at partial; or a matched SAST tool ran for every evaluated release, but not every run succeeded",
+		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SAST runs " +
+			"at all (not even a failed one)",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no release tag matches the " +
+			"configured pattern within the lookback window, and none of the tags that did match were " +
+			"dropped as unresolvable either — genuinely nothing to evaluate",
+	},
+	"C05.sast.cadence": {
+		model.StatusVerifiedPass: "one or more SAST runs were observed in the lookback window, backed by " +
+			"at least a medium-confidence workflow match or CodeQL default setup (not a low-confidence-" +
+			"only match)",
+		model.StatusPartial: "one or more runs were observed, but only a low-confidence (workflow-name-" +
+			"only) match identified the tool — not enough signal to confirm this cadence reflects genuine " +
+			"SAST activity",
+		model.StatusVerifiedFail: "a SAST tool is configured (workflow match or CodeQL default setup), but " +
+			"zero SAST runs were observed in the lookback window",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no SAST tool is configured at " +
+			"all (no workflow match of any confidence, and CodeQL default setup does not read " +
+			"\"configured\") — nothing to compute cadence for",
+	},
+	"C05.sast.default-setup": {
+		model.StatusVerifiedPass: "CodeQL default setup's state reads \"configured\"",
+		model.StatusVerifiedFail: "the default-setup query succeeded, but the state reads anything other " +
+			"than \"configured\" (e.g. \"not-configured\")",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or the default-setup query itself " +
+			"failed (403/plan-gated/other API error)",
+	},
+}
+
+// sastEvidenceEndpoints are the calls that determine matchedWorkflows —
+// which workflows count as SAST-matched, including the CodeQL
+// default-setup virtual entry (from ListWorkflows' path-prefix detection,
+// independent of the dedicated code-scanning/default-setup endpoint
+// below) — shared by every check that consumes that evidence in any way.
+var sastEvidenceEndpoints = []string{
+	"GET /repos/{owner}/{repo}",
+	"GET /repos/{owner}/{repo}/actions/workflows",
+	"GET /repos/{owner}/{repo}/contents/{path}",
+}
+
+const defaultSetupAPIEndpoint = "GET /repos/{owner}/{repo}/code-scanning/default-setup"
+const workflowRunsAPIEndpoint = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs"
+
+// checkEndpoints lists which REST endpoint(s) actually back each check's
+// status.
+var checkEndpoints = map[string][]string{
+	"C05.sast.tool-configured": append(append([]string{}, sastEvidenceEndpoints...), defaultSetupAPIEndpoint),
+	"C05.sast.ran-per-release": append(append([]string{}, sastEvidenceEndpoints...),
+		"GET /repos/{owner}/{repo}/releases",
+		"GET /repos/{owner}/{repo}/git/ref/{ref}",
+		"GET /repos/{owner}/{repo}/git/tags/{tag_sha}",
+		workflowRunsAPIEndpoint,
+	),
+	"C05.sast.cadence":       append(append([]string{}, sastEvidenceEndpoints...), defaultSetupAPIEndpoint, workflowRunsAPIEndpoint),
+	"C05.sast.default-setup": {defaultSetupAPIEndpoint},
+}
+
+const fixtureRef = "internal/collect/github/sasthistory/sasthistory_test.go"
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -82,6 +183,9 @@ func init() {
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }
@@ -278,7 +382,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	dsProv := tailProvenance(client.Provenance(), sharedSkip)
 
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, matchedWorkflows, defaultSetup, sharedProv),
+		checkToolConfigured(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
 		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, sharedProv),
 		checkCadence(org, repo, matchedWorkflows, defaultSetup, cadence, sharedProv),
 		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, dsProv),

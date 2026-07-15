@@ -59,10 +59,35 @@ func matchConfidence(matched []runhistory.MatchedWorkflow) (hasAny, hasHighOrMed
 // issue: a low-confidence-only match (workflow name heuristic alone, no
 // action slug or CLI pattern) can never alone justify verified-pass — it
 // caps at partial, an honest acknowledgment that the signal is weak.
-func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, prov []model.Provenance) model.CheckResult {
+//
+// It also guards against a subtler failure mode: GetDefaultSetupConfiguration
+// returns a nil ds on ANY error, indistinguishable from a genuine
+// successful "not configured" response. If there's no workflow-based
+// evidence at all (hasAny false) and the default-setup query itself
+// failed with something other than a legitimate plan-gated/not-found
+// signal (dsResp/dsErr), defaultSetupConfigured(ds) reading false is not
+// a real observation — it's an artifact of the failed call. Asserting
+// verified-fail ("CodeQL default setup is not configured") in that case
+// would claim a fact this collector doesn't actually have evidence for;
+// this check goes not-checkable instead. A plan-gated failure (GHAS/
+// default-setup genuinely unavailable, e.g. unlicensed) is a real "not
+// configured" fact and is excluded from this guard. When there IS other
+// workflow-based evidence (hasAny true), that evidence alone already
+// determines pass/partial regardless of ds, so the guard doesn't apply —
+// see TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable.
+func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.tool-configured"
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
+
+	if !hasAny && dsErr != nil && (dsResp == nil || !ghcollect.IsPlanGated(dsResp.StatusCode)) {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("no SAST tool detected in any workflow, and the CodeQL default-setup query itself failed: %s", notCheckableReason(dsResp, dsErr, org, repo)),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+	}
+
 	names := map[string]bool{}
 	for _, mw := range matched {
 		for _, m := range mw.Matches {
