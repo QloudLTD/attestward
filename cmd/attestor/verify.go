@@ -61,9 +61,13 @@ type verifyResult struct {
 	SignatureErr  error
 }
 
-func verifyEvidencePack(ctx context.Context, dir string, signer integrity.Signer, verifyArgs []string) (verifyResult, error) {
-	path := filepath.Join(dir, "evidence.json")
-
+// verifyEvidencePack checks path (an evidence.json file, wherever it
+// lives — not assumed to be named "evidence.json" or to live in any
+// particular directory) against its sidecar and, if present, its bundle.
+// Takes a path rather than a directory so issue #28's `attestor report`
+// can reuse this unchanged for an arbitrary evidence.json path, not just
+// `attestor verify`'s own directory-based convention.
+func verifyEvidencePack(ctx context.Context, path string, signer integrity.Signer, verifyArgs []string) (verifyResult, error) {
 	ok, got, want, err := integrity.VerifyFile(path)
 	if err != nil {
 		return verifyResult{}, err
@@ -104,7 +108,7 @@ func verifyEvidencePack(ctx context.Context, dir string, signer integrity.Signer
 func runVerify(cmd *cobra.Command, args []string) error {
 	path := filepath.Join(args[0], "evidence.json")
 
-	result, err := verifyEvidencePack(cmd.Context(), args[0], integrity.CosignSigner{}, verifyArgsFlag)
+	result, err := verifyEvidencePack(cmd.Context(), path, integrity.CosignSigner{}, verifyArgsFlag)
 	if err != nil {
 		return err
 	}

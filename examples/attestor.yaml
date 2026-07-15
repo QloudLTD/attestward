@@ -39,8 +39,9 @@ lookback_months: 12
 # verified via API are reported as not-checkable until this is supplied.
 # self_attestation_file: ./self-attestation.yaml
 
-# Where evidence.json (and, once #28 lands, report.md/html and poam.md)
-# gets written. Default: ./evidence/
+# Where evidence.json (plus its .sha256 sidecar, and .bundle if --sign is
+# set) gets written. Default: ./evidence/. report.md/html and poam.md are a
+# separate step: `attestor report ./evidence/evidence.json`.
 out: ./evidence/
 
 # How many collectors run concurrently. Default: 4

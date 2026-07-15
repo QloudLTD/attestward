@@ -27,10 +27,15 @@ POA&M finding IDs) is merged; #27 (pack integrity) is merged — SHA-256
 hashing, the `.sha256` sidecar, `attestor verify` (hash + cosign
 signature), and `attestor scan --sign` are all in place (ADR-0006 records
 why cosign is shelled out to rather than vendored). #28 (`attestor
-report`) is next — the CLI command that will call RenderMarkdown/
-RenderHTML/RenderPOAM against a written evidence.json, including passing
-its hash into report.md/html's Integrity.SHA256 field. Build
-is issue-driven and in progress (see Progress tracker below).
+report`) is merged — regenerates report.md/report.html/poam.md from an
+existing evidence.json with no scan and no network access, gates on
+schema_version, checks the .sha256 sidecar when present (refusing to
+render a hash mismatch unless `--force`, which then renders with a visible
+banner), and sets Integrity.SHA256 so report.md/html always show the hash
+of the exact bytes rendered. Phase 5 is otherwise complete; #25 stays open
+pending its own non-engineer sign-off requirement (renderers themselves
+are merged). Build is issue-driven and in progress (see Progress tracker
+below).
 
 ## The one rule that overrides convenience
 
@@ -132,7 +137,7 @@ itself, so re-run it any time rather than hand-editing it.
 - [ ] #25 report.md/html (renderers merged; issue open pending non-engineer sign-off)
 - [x] #26 poam.md
 - [x] #27 pack integrity
-- [ ] #28 `attestor report`
+- [x] #28 `attestor report`
 
 **Phase 6 — Polish & launch**
 - [ ] #29 README rewrite · #30 generated checks-reference · #31 threat model finalization · #32 self-scan badge · #33 launch checklist

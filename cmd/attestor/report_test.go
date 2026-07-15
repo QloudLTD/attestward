@@ -1,0 +1,347 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/sioakim/ssdf/internal/collect"
+	"github.com/sioakim/ssdf/internal/integrity"
+	"github.com/sioakim/ssdf/internal/mapping"
+	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/ssdf/internal/report"
+	"github.com/sioakim/ssdf/mappings"
+)
+
+// reportFixturePack has one verified-fail (so poam.md has content to
+// render) and one verified-pass, giving both renderers something
+// non-trivial to exercise without pulling in a full demo-org-scale pack.
+// CheckID values must be real, registered check IDs (not made up) — poam.md
+// looks up remediation text by CheckID, and TestRunReport_PoamIncludesRealRemediationText
+// depends on this fixture's fail actually resolving to a real, non-empty
+// remediation string, not a lookup miss that happens to render as blank.
+func reportFixturePack() model.EvidencePack {
+	return model.EvidencePack{
+		SchemaVersion: model.SchemaVersion,
+		ToolVersion:   "test",
+		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Results: []model.CheckResult{
+			{
+				CheckID: "C01.org.2fa-required",
+				Title:   "Org requires two-factor authentication",
+				Status:  model.StatusVerifiedFail,
+				Reason:  "org does not enforce 2FA for members",
+				Scope:   model.ScopeRef{Org: "attestor-demo"},
+				Provenance: []model.Provenance{
+					{Endpoint: "/orgs/attestor-demo", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
+				},
+			},
+			{
+				CheckID: "C02.branch.required-reviews",
+				Title:   "Branch protection requires reviews",
+				Status:  model.StatusVerifiedPass,
+				Reason:  "main requires 1 approving review",
+				Scope:   model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+				Provenance: []model.Provenance{
+					{Endpoint: "/repos/attestor-demo/good-repo/rulesets", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("b", 64)},
+				},
+			},
+		},
+	}
+}
+
+// writeReportFixture writes a fixture pack (and, if withSidecar, its
+// .sha256) into dir and returns the evidence.json path and its hash.
+func writeReportFixture(t *testing.T, dir string, withSidecar bool) (path, hash string) {
+	t.Helper()
+	pack := reportFixturePack()
+	hash, err := writeEvidencePack(pack, dir)
+	if err != nil {
+		t.Fatalf("writeEvidencePack: %v", err)
+	}
+	path = filepath.Join(dir, "evidence.json")
+	if withSidecar {
+		if err := integrity.WriteSidecar(path, hash); err != nil {
+			t.Fatalf("WriteSidecar: %v", err)
+		}
+	}
+	return path, hash
+}
+
+func loadReportMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMapping, *mapping.SelfAttestationQuestions) {
+	t.Helper()
+	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
+	if err != nil {
+		t.Fatalf("load ssdf mapping: %v", err)
+	}
+	cisa, err := mapping.LoadCISAFS(mappings.FS, "cisa-ssda-form.yaml", ssdf)
+	if err != nil {
+		t.Fatalf("load cisa mapping: %v", err)
+	}
+	saQuestions, err := mapping.LoadSelfAttestationQuestionsFS(mappings.FS, "self-attestation-questions.yaml", ssdf)
+	if err != nil {
+		t.Fatalf("load self-attestation questions: %v", err)
+	}
+	return ssdf, cisa, saQuestions
+}
+
+// TestRunReport_ByteIdenticalToDirectRenderersCall is issue #28's own named
+// proof: attestor report's file-reading/mapping-loading/writing pipeline
+// must not introduce any drift versus calling internal/report's renderers
+// directly on the same in-memory pack — the whole point of #25/#26 having
+// kept those renderers pure functions of evidence.json.
+func TestRunReport_ByteIdenticalToDirectRenderersCall(t *testing.T) {
+	dir := t.TempDir()
+	path, hash := writeReportFixture(t, dir, false)
+	pack := reportFixturePack()
+	// runReport always sets Pack.Integrity.SHA256 to the hash of the exact
+	// bytes it read (see report.go) before rendering — replicate that here
+	// so this comparison exercises the real behavior instead of failing on
+	// a field runReport populates that a bare in-memory pack never would.
+	pack.Integrity = &model.Integrity{SHA256: hash}
+
+	ssdf, cisa, saQuestions := loadReportMappings(t)
+	remediationByCheckID := map[string]string{}
+	for _, meta := range collect.Registered() {
+		remediationByCheckID[meta.ID] = meta.Remediation
+	}
+
+	wantMD, err := report.RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	if err != nil {
+		t.Fatalf("RenderMarkdown: %v", err)
+	}
+	wantHTML, err := report.RenderHTML(pack, ssdf, cisa, saQuestions)
+	if err != nil {
+		t.Fatalf("RenderHTML: %v", err)
+	}
+	wantPOAM, err := report.RenderPOAM(pack, ssdf, cisa, remediationByCheckID)
+	if err != nil {
+		t.Fatalf("RenderPOAM: %v", err)
+	}
+
+	outDir := t.TempDir()
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, outDir, []string{"md", "html", "poam"}, false); err != nil {
+		t.Fatalf("runReport: %v", err)
+	}
+
+	for name, want := range map[string][]byte{"report.md": wantMD, "report.html": wantHTML, "poam.md": wantPOAM} {
+		got, err := os.ReadFile(filepath.Join(outDir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Errorf("%s: attestor report output differs from a direct renderer call\n--- got ---\n%s\n--- want ---\n%s", name, got, want)
+		}
+	}
+}
+
+// TestRunReport_PoamIncludesRealRemediationText proves runReport's
+// remediationByCheckID map is actually built from a live, populated
+// collect.Registered() — not just present but empty. Without this, the
+// round-trip test above can't tell "the registry is wired correctly" from
+// "the registry is broken and both sides of the comparison degraded to
+// empty remediations identically" — a fixture using a made-up CheckID
+// would pass that test either way.
+func TestRunReport_PoamIncludesRealRemediationText(t *testing.T) {
+	const wantCheckID = "C01.org.2fa-required"
+	meta, ok := collect.Lookup(wantCheckID)
+	if !ok || meta.Remediation == "" {
+		t.Fatalf("collect.Lookup(%q) has no remediation text — fixture or registry drifted, update this test", wantCheckID)
+	}
+
+	dir := t.TempDir()
+	path, _ := writeReportFixture(t, dir, false)
+	outDir := t.TempDir()
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, outDir, []string{"poam"}, false); err != nil {
+		t.Fatalf("runReport: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(outDir, "poam.md"))
+	if err != nil {
+		t.Fatalf("read poam.md: %v", err)
+	}
+	if !bytes.Contains(got, []byte(meta.Remediation)) {
+		t.Errorf("poam.md does not contain %s's real remediation text (%q) — remediationByCheckID may not be wired to a live collect.Registered()", wantCheckID, meta.Remediation)
+	}
+}
+
+func TestRunReport_DefaultOutDirIsAlongsideInput(t *testing.T) {
+	dir := t.TempDir()
+	path, _ := writeReportFixture(t, dir, false)
+
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, "", []string{"md"}, false); err != nil {
+		t.Fatalf("runReport: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "report.md")); err != nil {
+		t.Errorf("report.md not written alongside input when --out is empty: %v", err)
+	}
+}
+
+func TestRunReport_UnknownFormatIsError(t *testing.T) {
+	dir := t.TempDir()
+	path, _ := writeReportFixture(t, dir, false)
+
+	err := runReport(context.Background(), &bytes.Buffer{}, path, t.TempDir(), []string{"pdf"}, false)
+	if err == nil {
+		t.Fatal("runReport with --format=pdf returned no error, want one")
+	}
+}
+
+func TestRunReport_UnsupportedSchemaVersionIsFriendlyError(t *testing.T) {
+	dir := t.TempDir()
+	pack := reportFixturePack()
+	// A pack whose schema_version is newer than this build recognizes
+	// can't come from writeEvidencePack — its own pre-write schema
+	// validation correctly rejects an out-of-range schema_version (the
+	// schema declares it `const: 1`). Written directly instead, to
+	// simulate a pack handed over from some future attestor version this
+	// build doesn't understand yet.
+	pack.SchemaVersion = model.SchemaVersion + 1
+	data, err := json.MarshalIndent(pack, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal pack: %v", err)
+	}
+	path := filepath.Join(dir, "evidence.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write evidence.json: %v", err)
+	}
+
+	err = runReport(context.Background(), &bytes.Buffer{}, path, t.TempDir(), []string{"md"}, false)
+	if err == nil {
+		t.Fatal("runReport against a newer-schema pack returned no error, want one")
+	}
+	if !strings.Contains(err.Error(), "schema_version") {
+		t.Errorf("error %q doesn't mention schema_version", err)
+	}
+}
+
+// TestRunReport_MalformedSidecarIsHardErrorEvenWithForce locks in the
+// distinction --force's own help text now makes explicit: --force only
+// overrides a hash *mismatch* (verification ran and found tampering). A
+// malformed sidecar means verification couldn't run at all, which is a
+// different, unconditional error — there's no "render anyway" for a
+// question attestor couldn't actually answer.
+func TestRunReport_MalformedSidecarIsHardErrorEvenWithForce(t *testing.T) {
+	dir := t.TempDir()
+	path, _ := writeReportFixture(t, dir, false)
+	if err := os.WriteFile(integrity.SidecarPath(path), []byte("not a sha256sum line\n"), 0o644); err != nil {
+		t.Fatalf("write malformed sidecar: %v", err)
+	}
+
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, t.TempDir(), []string{"md"}, true); err == nil {
+		t.Error("runReport with --force against a malformed sidecar returned no error, want one")
+	}
+}
+
+// tamperEvidenceFile rewrites path's tool_version field in place, changing
+// the file's content (and thus its hash) while keeping it valid JSON —
+// runReport unmarshals the file to render it, unlike attestor verify's
+// hash-only check, so a tamper that breaks JSON syntax entirely would mask
+// what these tests are actually proving (that a hash mismatch specifically
+// is caught) behind an unrelated parse error instead.
+func tamperEvidenceFile(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	const from = `"tool_version": "test"`
+	const to = `"tool_version": "xest"`
+	if !bytes.Contains(data, []byte(from)) {
+		t.Fatalf("fixture doesn't contain %q — tamper helper needs updating", from)
+	}
+	tampered := bytes.Replace(data, []byte(from), []byte(to), 1)
+	if err := os.WriteFile(path, tampered, 0o644); err != nil {
+		t.Fatalf("tamper %s: %v", path, err)
+	}
+}
+
+func TestRunReport_NoSidecarRendersNormally(t *testing.T) {
+	dir := t.TempDir()
+	path, _ := writeReportFixture(t, dir, false) // no sidecar at all
+
+	outDir := t.TempDir()
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, outDir, []string{"md"}, false); err != nil {
+		t.Fatalf("runReport on a pack with no sidecar returned an error, want success: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(outDir, "report.md"))
+	if err != nil {
+		t.Fatalf("read report.md: %v", err)
+	}
+	if bytes.Contains(got, []byte("WARNING")) {
+		t.Error("report.md contains a tamper-warning banner despite no sidecar ever existing to fail against")
+	}
+}
+
+// TestRunReport_TamperedWithoutForceFails proves a hash mismatch against
+// the .sha256 sidecar is refused by default — rendering tampered evidence
+// must be a conscious act (issue #28's own acceptance criterion).
+func TestRunReport_TamperedWithoutForceFails(t *testing.T) {
+	dir := t.TempDir()
+	path, _ := writeReportFixture(t, dir, true)
+	tamperEvidenceFile(t, path)
+
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, t.TempDir(), []string{"md"}, false); err == nil {
+		t.Error("runReport on a tampered pack without --force returned no error, want one")
+	}
+}
+
+// TestRunReport_TamperedWithForceRendersWithBanner proves --force renders
+// anyway, and that every rendered file visibly says so.
+func TestRunReport_TamperedWithForceRendersWithBanner(t *testing.T) {
+	dir := t.TempDir()
+	path, _ := writeReportFixture(t, dir, true)
+	tamperEvidenceFile(t, path)
+
+	outDir := t.TempDir()
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, outDir, []string{"md", "html", "poam"}, true); err != nil {
+		t.Fatalf("runReport with --force on a tampered pack returned an error, want success: %v", err)
+	}
+	for _, name := range []string{"report.md", "report.html", "poam.md"} {
+		got, err := os.ReadFile(filepath.Join(outDir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if !bytes.Contains(got, []byte("hash verification failed")) {
+			t.Errorf("%s does not carry the hash-verification-failed banner", name)
+		}
+	}
+	// report.html must still be well-formed enough to open (banner
+	// injected, not corrupting the surrounding markup).
+	html, err := os.ReadFile(filepath.Join(outDir, "report.html"))
+	if err != nil {
+		t.Fatalf("read report.html: %v", err)
+	}
+	if !bytes.Contains(html, []byte("<body>")) || !bytes.Contains(html, []byte("</html>")) {
+		t.Error("report.html's banner injection corrupted the surrounding document structure")
+	}
+}
+
+// TestReportGo_NoNetworkImports locks in issue #28's explicit threat-model
+// requirement ("zero network access in this command path") as a static
+// guarantee: report.go must never import net/http or the GitHub client
+// package, not just happen to avoid calling them today.
+func TestReportGo_NoNetworkImports(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "report.go", nil, parser.ImportsOnly)
+	if err != nil {
+		t.Fatalf("parse report.go: %v", err)
+	}
+	forbidden := map[string]bool{
+		"net":      true,
+		"net/http": true,
+		"github.com/sioakim/ssdf/internal/collect/github": true,
+	}
+	for _, imp := range f.Imports {
+		path := strings.Trim(imp.Path.Value, `"`)
+		if forbidden[path] {
+			t.Errorf("report.go imports %q — attestor report must never touch the network", path)
+		}
+	}
+}

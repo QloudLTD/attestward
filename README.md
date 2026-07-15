@@ -156,6 +156,25 @@ attestor verify ./evidence/ --verify-args="--key=cosign.pub"
 A pack with no `.bundle` file isn't itself a problem — signing is opt-in, and an unsigned
 pack's hash still verifies normally.
 
+## Regenerating reports
+
+`attestor report` re-renders `report.md`, `report.html`, and `poam.md` from an existing
+`evidence.json` — no scan, no network access. Useful after a renderer upgrade, for a pack
+someone else sent you, or for CI artifact post-processing:
+
+```bash
+attestor report ./evidence/evidence.json                    # writes all three alongside the input
+attestor report ./evidence/evidence.json --out ./reports/    # or somewhere else
+attestor report ./evidence/evidence.json --format md,poam    # only some of them
+```
+
+If a `.sha256` sidecar sits next to the input, `attestor report` checks it first. A hash
+mismatch is refused unless `--force` is given, in which case every rendered file carries a
+visible tamper-warning banner — rendering possibly-tampered evidence has to be a conscious,
+visible act, never silent. A pack with no sidecar at all isn't itself a problem; there's
+nothing to verify, so it renders normally. An `evidence.json` from a schema version this
+build of `attestor` doesn't understand fails with a friendly error rather than a guess.
+
 ## Documentation
 
 - [v0.1 epic](../../issues/1) — canonical scope and build-phase tracking (GitHub Issues)

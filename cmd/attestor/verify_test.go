@@ -48,9 +48,9 @@ func writeFixturePack(t *testing.T, dir string) (path, hash string) {
 
 func TestVerifyEvidencePack_MatchingHashIsOK(t *testing.T) {
 	dir := t.TempDir()
-	writeFixturePack(t, dir)
+	path, _ := writeFixturePack(t, dir)
 
-	result, err := verifyEvidencePack(context.Background(), dir, integrity.CosignSigner{}, nil)
+	result, err := verifyEvidencePack(context.Background(), path, integrity.CosignSigner{}, nil)
 	if err != nil {
 		t.Fatalf("verifyEvidencePack: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestVerifyEvidencePack_TamperedByteFails(t *testing.T) {
 		t.Fatalf("tamper evidence.json: %v", err)
 	}
 
-	result, err := verifyEvidencePack(context.Background(), dir, integrity.CosignSigner{}, nil)
+	result, err := verifyEvidencePack(context.Background(), path, integrity.CosignSigner{}, nil)
 	if err != nil {
 		t.Fatalf("verifyEvidencePack: %v", err)
 	}
@@ -94,7 +94,8 @@ func TestVerifyEvidencePack_TamperedByteFails(t *testing.T) {
 
 func TestVerifyEvidencePack_MissingEvidenceFileIsError(t *testing.T) {
 	dir := t.TempDir()
-	if _, err := verifyEvidencePack(context.Background(), dir, integrity.CosignSigner{}, nil); err == nil {
+	path := filepath.Join(dir, "evidence.json")
+	if _, err := verifyEvidencePack(context.Background(), path, integrity.CosignSigner{}, nil); err == nil {
 		t.Error("verifyEvidencePack on an empty dir returned no error, want one (no evidence.json)")
 	}
 }
@@ -109,7 +110,8 @@ func TestVerifyEvidencePack_MissingSidecarIsError(t *testing.T) {
 		t.Fatalf("writeEvidencePack: %v", err)
 	}
 	// Deliberately no WriteSidecar call.
-	if _, err := verifyEvidencePack(context.Background(), dir, integrity.CosignSigner{}, nil); err == nil {
+	path := filepath.Join(dir, "evidence.json")
+	if _, err := verifyEvidencePack(context.Background(), path, integrity.CosignSigner{}, nil); err == nil {
 		t.Error("verifyEvidencePack with no .sha256 sidecar returned no error, want one")
 	}
 }
@@ -125,7 +127,7 @@ func TestVerifyEvidencePack_BundlePresentAndSignatureOK(t *testing.T) {
 		t.Fatalf("write fake bundle: %v", err)
 	}
 
-	result, err := verifyEvidencePack(context.Background(), dir, fakeSigner{}, nil)
+	result, err := verifyEvidencePack(context.Background(), path, fakeSigner{}, nil)
 	if err != nil {
 		t.Fatalf("verifyEvidencePack: %v", err)
 	}
@@ -149,7 +151,7 @@ func TestVerifyEvidencePack_BundlePresentSignatureFails(t *testing.T) {
 	}
 
 	wantErr := errors.New("cosign: certificate identity mismatch")
-	result, err := verifyEvidencePack(context.Background(), dir, fakeSigner{verifyErr: wantErr}, nil)
+	result, err := verifyEvidencePack(context.Background(), path, fakeSigner{verifyErr: wantErr}, nil)
 	if err != nil {
 		t.Fatalf("verifyEvidencePack: %v", err)
 	}
@@ -170,9 +172,9 @@ func TestVerifyEvidencePack_BundlePresentSignatureFails(t *testing.T) {
 // still determines OK.
 func TestVerifyEvidencePack_NoBundleMeansNothingToVerify(t *testing.T) {
 	dir := t.TempDir()
-	writeFixturePack(t, dir)
+	path, _ := writeFixturePack(t, dir)
 
-	result, err := verifyEvidencePack(context.Background(), dir, fakeSigner{verifyErr: errors.New("should never be called")}, nil)
+	result, err := verifyEvidencePack(context.Background(), path, fakeSigner{verifyErr: errors.New("should never be called")}, nil)
 	if err != nil {
 		t.Fatalf("verifyEvidencePack: %v", err)
 	}
@@ -202,7 +204,7 @@ func TestVerifyEvidencePack_BundleStatErrorOtherThanNotExistIsError(t *testing.T
 		t.Fatalf("create symlink loop: %v", err)
 	}
 
-	if _, err := verifyEvidencePack(context.Background(), dir, fakeSigner{}, nil); err == nil {
+	if _, err := verifyEvidencePack(context.Background(), path, fakeSigner{}, nil); err == nil {
 		t.Error("verifyEvidencePack with an unreadable (non-missing) bundle path returned no error, want one")
 	}
 }
@@ -220,7 +222,7 @@ func TestVerifyEvidencePack_CosignNotFoundIsExecutionErrorNotTampered(t *testing
 	}
 
 	signer := fakeSigner{verifyErr: fmt.Errorf("wrap: %w", integrity.ErrCosignNotFound)}
-	_, err := verifyEvidencePack(context.Background(), dir, signer, nil)
+	_, err := verifyEvidencePack(context.Background(), path, signer, nil)
 	if err == nil {
 		t.Fatal("verifyEvidencePack with a cosign-not-found signature error returned no error, want one")
 	}
