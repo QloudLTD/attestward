@@ -9,8 +9,20 @@ permissions:
   contents: read
 
 jobs:
+  # Self-hosted per the same rule as ci.yaml/integration-scan.yaml (see
+  # their matching comments): pure cross-compiled Go, no docker/nfpm
+  # stanzas in .goreleaser.yaml, so no OS-specific build requirement. This
+  # one matters more than most — a GitHub-hosted goreleaser job means a
+  # `v*` tag push produces *no release at all* while Actions billing is
+  # blocked, silently, unless someone happens to check the run.
   goreleaser:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
+    # A hung release job now blocks the single shared self-hosted runner
+    # for the whole repo (lint/test/everything else queues behind it),
+    # unlike on a hosted runner where it only wasted its own VM —
+    # integration-scan.yaml's jobs already set a timeout for the same
+    # reason.
+    timeout-minutes: 15
     permissions:
       contents: write # create the GitHub release and upload assets
       id-token: write # ambient OIDC token for cosign keyless signing
