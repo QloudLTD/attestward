@@ -64,10 +64,27 @@ func matchConfidence(matched []runhistory.MatchedWorkflow) (hasAny, hasHighOrMed
 // .github/dependabot.yml existing with at least one update entry) counts
 // as a high-confidence signal on its own, the same way CodeQL default
 // setup does for C05.
-func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, dependabotConfigured bool, prov []model.Provenance) model.CheckResult {
+func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, dependabotConfigured bool, dependabotResp *ghgithub.Response, dependabotErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.tool-configured"
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
+
+	// If there's no workflow-based evidence at all AND the Dependabot
+	// config fetch itself failed, dependabotConfigured reading false is
+	// not a genuine "no config" observation — fetchDependabotConfig
+	// already normalizes a legitimate "absent at both paths" outcome to
+	// (err=nil, exists=false); any non-nil error here is a real failure
+	// (permission denied, malformed YAML, ...), not a confirmed absence.
+	// Silently treating it as "confirmed not configured" would assert a
+	// fact this collector doesn't actually have evidence for.
+	if !hasAny && dependabotErr != nil {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("no SCA tool detected in any workflow, and the Dependabot config fetch itself failed: %s", notCheckableReason(dependabotResp, dependabotErr, org, repo)),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+	}
+
 	names := map[string]bool{}
 	for _, mw := range matched {
 		for _, m := range mw.Matches {
@@ -120,8 +137,23 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 // this check can actually verify. In that case the check is honestly
 // not-checkable, pointing at C06.sca.alerts-triaged as the check that DOES
 // have real Dependabot-sourced evidence (open alert counts/ages).
-func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly bool, relResp *ghgithub.Response, relErr error, prov []model.Provenance) model.CheckResult {
+func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly, dependabotUnknown bool, relResp *ghgithub.Response, relErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.ran-per-release"
+
+	// dependabotUnknown (no workflow-based SCA evidence, and the
+	// Dependabot config fetch itself failed) is checked before
+	// dependabotOnly: with zero workflow matches, evaluating release
+	// coverage would find no runs at all and confidently fail every
+	// release, when the truth is "unknown whether Dependabot — which
+	// would itself make this not-checkable, same as dependabotOnly below
+	// — is this repo's sole SCA tool or genuinely absent."
+	if dependabotUnknown {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: "no workflow-based SCA tool was detected, and the Dependabot config fetch itself failed — it's unknown whether Dependabot is this repo's sole SCA tool (which would have no per-release run history to evaluate here) or absent entirely (see C06.sca.tool-configured)",
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+	}
 
 	if dependabotOnly {
 		return model.CheckResult{
@@ -195,13 +227,26 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 // a false verified-pass (config exists, zero known ecosystems, so
 // "covers everything") or a false "no manifests" not-checkable, neither
 // of which reflects what was actually verified.
-func checkDependabotConfig(org, repo string, cfg *dependabotConfig, configExists bool, detectedEcosystems []string, rootResp *ghgithub.Response, rootErr error, prov []model.Provenance) model.CheckResult {
+func checkDependabotConfig(org, repo string, cfg *dependabotConfig, configExists bool, detectedEcosystems []string, rootResp *ghgithub.Response, rootErr error, dependabotResp *ghgithub.Response, dependabotErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.dependabot-config"
 
 	if rootErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("could not list the repository's root directory to detect dependency manifests: %s", notCheckableReason(rootResp, rootErr, org, repo)),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+	}
+
+	// fetchDependabotConfig already normalizes a legitimate "not present
+	// at either .yml/.yaml path" outcome to (err=nil, exists=false); any
+	// non-nil error here is a real failure (permission denied, malformed
+	// YAML, ...), not a confirmed absence — distinct from the !configExists
+	// branch below, which only runs once that's ruled out.
+	if dependabotErr != nil {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("could not fetch the repository's Dependabot config: %s", notCheckableReason(dependabotResp, dependabotErr, org, repo)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		}
 	}

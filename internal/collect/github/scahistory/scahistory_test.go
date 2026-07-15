@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -471,6 +472,78 @@ func TestCollect_ReleaseListingFailure_RanPerReleaseSurfacesRealReason(t *testin
 	}
 }
 
+// TestCollect_DependabotConfigFetchFailure_ToolConfiguredAndConfigNotCheckable
+// pins the fix for a second silently-swallowed error: collectRepo used to
+// discard fetchDependabotConfig's own resp/err entirely (`cfg,
+// configExists, _, _ := fetchDependabotConfig(...)`), so a genuine fetch
+// failure (403, a malformed dependabot.yml, ...) was indistinguishable
+// from a legitimate "no config at either path" 404 — both left
+// configExists false. With a detected ecosystem in play (so there's
+// something to falsely claim is "uncovered"), that made
+// C06.sca.dependabot-config assert a confident verified-fail, and
+// C06.sca.tool-configured assert a confident verified-fail too (no
+// workflow evidence either), when the truth for both is "unknown, the
+// query failed."
+func TestCollect_DependabotConfigFetchFailure_ToolConfiguredAndConfigNotCheckable(t *testing.T) {
+	org, repo, branch := "attestor-demo", "dependabot-403-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	registerNoWorkflows(t, mux, org, repo)
+	registerNoReleases(t, mux, org, repo)
+	registerRootFiles(t, mux, org, repo, "go.mod")
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/dependabot.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m["C06.sca.dependabot-config"].Status; got != model.StatusNotCheckable {
+		t.Errorf("dependabot-config = %q, want not-checkable (the config fetch itself failed, coverage genuinely unknown); reason=%q", got, m["C06.sca.dependabot-config"].Reason)
+	}
+	if got := m["C06.sca.tool-configured"].Status; got != model.StatusNotCheckable {
+		t.Errorf("tool-configured = %q, want not-checkable (no workflow evidence, and the Dependabot config fetch itself failed — unknown, not a confirmed absence); reason=%q", got, m["C06.sca.tool-configured"].Reason)
+	}
+}
+
+// TestCollect_DependabotConfigFetchFailureWithRelease_RanPerReleaseNotCheckable
+// covers the same swallowed-error bug's effect on ran-per-release: with no
+// workflow-based SCA evidence and a Dependabot config fetch failure, it's
+// unknown whether Dependabot is this repo's sole (per-release-history-less)
+// SCA tool or genuinely absent — either way, evaluating release coverage
+// against zero workflow runs and confidently failing would be wrong.
+func TestCollect_DependabotConfigFetchFailureWithRelease_RanPerReleaseNotCheckable(t *testing.T) {
+	org, repo, branch := "attestor-demo", "dependabot-403-release-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	registerNoWorkflows(t, mux, org, repo)
+	registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/dependabot.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m["C06.sca.ran-per-release"].Status; got != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable (unknown whether Dependabot is this repo's sole SCA tool); reason=%q", got, m["C06.sca.ran-per-release"].Reason)
+	}
+}
+
 func TestCollect_DependencyReview_NoWorkflow_VerifiedFail(t *testing.T) {
 	org, repo, branch := "attestor-demo", "no-dep-review-repo", "main"
 	mux := http.NewServeMux()
@@ -761,6 +834,96 @@ func TestChecksRegistered(t *testing.T) {
 		if _, ok := collect.Lookup(id); !ok {
 			t.Errorf("check %q not found in the collect.CheckMeta registry", id)
 		}
+	}
+}
+
+// checkWantStatuses is a human-reviewed declaration of exactly which
+// statuses each check can produce (see orgsecurity's own copy of this
+// pattern for the full rationale). Unlike C05, every one of C06's five
+// checks can reach all four statuses, including alerts-triaged (whose
+// partial branch is a real, reachable aged-critical-alert case — see
+// checkAlertsTriaged in checks.go).
+var checkWantStatuses = map[string][]model.Status{
+	"C06.sca.tool-configured":   {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C06.sca.ran-per-release":   {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C06.sca.dependabot-config": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C06.sca.dependency-review": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	"C06.sca.alerts-triaged":    {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+}
+
+var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) /`)
+
+// TestCollect_RegisteredMetadataCompleteForChecksReference is
+// orgsecurity's TestCollect_RegisteredMetadataCompleteForChecksReference,
+// replicated per the pattern that PR validated: see that test's own doc
+// comment for the full rationale (exact Rubric key-set equality per check,
+// GET/HEAD-only Endpoints enforcing ADR-0004, orphaned-key detection).
+func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
+	if len(checkRubrics) != len(checkTitles) {
+		t.Errorf("checkRubrics has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkRubrics), len(checkTitles))
+	}
+	if len(checkEndpoints) != len(checkTitles) {
+		t.Errorf("checkEndpoints has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkEndpoints), len(checkTitles))
+	}
+
+	for id := range checkTitles {
+		meta, ok := collect.Lookup(id)
+		if !ok {
+			t.Fatalf("check %q not found in the collect.CheckMeta registry", id)
+		}
+
+		want, ok := checkWantStatuses[id]
+		if !ok {
+			t.Fatalf("checkWantStatuses is missing an entry for %q — add the statuses this check can actually produce", id)
+		}
+		wantSet := make(map[model.Status]bool, len(want))
+		for _, s := range want {
+			wantSet[s] = true
+		}
+		for s := range wantSet {
+			if meta.Rubric[s] == "" {
+				t.Errorf("%s: Rubric[%s] is empty, want a concrete explanation", id, s)
+			}
+		}
+		for s := range meta.Rubric {
+			if !wantSet[s] {
+				t.Errorf("%s: Rubric has an entry for status %q, but checkWantStatuses says this check can't produce it — either the rubric is wrong or checkWantStatuses is stale", id, s)
+			}
+		}
+
+		if len(meta.Endpoints) == 0 {
+			t.Errorf("%s: Endpoints is empty, want at least one", id)
+		}
+		for _, e := range meta.Endpoints {
+			if !endpointVerbRE.MatchString(e) {
+				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD — this project is read-only forever (ADR-0004)", id, e)
+			}
+		}
+
+		if meta.FixtureRef == "" {
+			t.Errorf("%s: FixtureRef is empty", id)
+		}
+	}
+}
+
+// TestToolConfiguredRubricHandlesExistingButEmptyConfig locks in that the
+// fail/partial rubric text doesn't claim a confirmed absence of any
+// Dependabot config — dependabotConfigured requires
+// len(cfg.ecosystems()) > 0 (scahistory.go), so a dependabot.yml that
+// EXISTS but configures nothing (an empty `updates:` list, or entries
+// missing `package-ecosystem`) reaches configExists=true,
+// dependabotConfigured=false, dependabotErr=nil, and lands in the exact
+// same fail/partial branches as a genuinely-absent config. Unqualified
+// wording ("confirmed no config exists"/"no Dependabot config was
+// found") is false for that reachable case.
+func TestToolConfiguredRubricHandlesExistingButEmptyConfig(t *testing.T) {
+	fail := checkRubrics["C06.sca.tool-configured"][model.StatusVerifiedFail]
+	if strings.Contains(fail, "confirmed no config exists at either accepted path") {
+		t.Errorf("C06.sca.tool-configured verified-fail rubric asserts a confirmed absence, but an existing-but-empty config reaches this same branch: %q", fail)
+	}
+	partial := checkRubrics["C06.sca.tool-configured"][model.StatusPartial]
+	if strings.Contains(partial, "no Dependabot config was found") {
+		t.Errorf("C06.sca.tool-configured partial rubric asserts a confirmed absence, but an existing-but-empty config (or a fetch failure alongside a low-confidence match) reaches this same branch: %q", partial)
 	}
 }
 

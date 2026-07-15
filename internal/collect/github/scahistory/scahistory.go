@@ -63,6 +63,133 @@ var checkRemediations = map[string]string{
 		"(with a documented reason) any critical alert open longer than 30 days.",
 }
 
+// sharedUpstreamFetchFailureRubric is shared by all five checks: unlike
+// C05, only the repo fetch and the workflow listing early-return
+// allNotCheckable for every check in collectRepo — a release-listing,
+// root-listing, Dependabot-config, alerts, or required-status-check
+// failure is handled locally by the one or two checks that actually
+// consume that data (see each check's own not-checkable entry below),
+// NOT propagated to every check the way C05's release-listing failure
+// is. Collect's own embedded-registry-load failure is a distinct,
+// binary-level cause that also reaches every check for every repo in
+// scope, independent of the target repo's own state.
+const sharedUpstreamFetchFailureRubric = "the repo fetch or the workflow listing failed (403/plan-gated/" +
+	"other API error) — collectRepo returns not-checkable for every check on either failure, since none of " +
+	"them can be computed without this shared evidence; or the embedded scanner-signature registry itself " +
+	"failed to load (a binary-level failure, independent of the scanned repo)"
+
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce — see checks.go for the pass/fail/partial logic
+// each rubric below summarizes.
+var checkRubrics = map[string]map[model.Status]string{
+	"C06.sca.tool-configured": {
+		model.StatusVerifiedPass: "at least one matched workflow reaches medium-or-high confidence (an " +
+			"action slug or CLI pattern, not just a suggestive workflow name), or a Dependabot config " +
+			"exists with at least one `updates:` entry that sets a non-empty `package-ecosystem`",
+		model.StatusPartial: "only a low-confidence (workflow-name-only) match was found in any workflow, " +
+			"and Dependabot is not confirmed configured (no config at either accepted path, a config with " +
+			"no usable `updates:` entries, or the config fetch itself failed) — not enough signal alone to " +
+			"confirm an SCA tool is genuinely configured",
+		model.StatusVerifiedFail: "no workflow match of any confidence was found, and the Dependabot " +
+			"config fetch succeeded but found either no config at either accepted path " +
+			"(`.github/dependabot.yml` or `.yaml`) or a config with no `updates:` entry setting a " +
+			"non-empty `package-ecosystem`",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no workflow-based " +
+			"evidence at all and the Dependabot config fetch itself failed (permission denied, malformed " +
+			"YAML, or another API error) — an unresolved unknown, not a confirmed absence",
+	},
+	"C06.sca.ran-per-release": {
+		model.StatusVerifiedPass: "an SCA tool ran successfully (at least one matched run whose conclusion " +
+			"is \"success\") for every release in the lookback window, and every matching release tag " +
+			"published in the lookback window resolved to a commit",
+		model.StatusPartial: "release tags published in the lookback window matched but couldn't be " +
+			"resolved to a commit, so no release could be evaluated; or a matched SCA tool ran for every " +
+			"evaluated release, but not every run succeeded; or every evaluated release succeeded, but one " +
+			"or more matching release tags couldn't be resolved to a commit and were excluded from " +
+			"evaluation",
+		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SCA runs " +
+			"at all (not even a failed one)",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no workflow-based SCA tool was " +
+			"detected and the Dependabot config fetch itself failed — unknown whether Dependabot is this " +
+			"repo's sole SCA tool or absent entirely; or Dependabot is this repo's sole detected SCA tool, " +
+			"which has no per-release run history to evaluate here (see C06.sca.alerts-triaged instead); " +
+			"or the release listing itself failed (403/plan-gated/other API error); or no release tag " +
+			"matches the configured pattern within the lookback window, and none of the tags that did " +
+			"match were dropped as unresolvable either — genuinely nothing to evaluate",
+	},
+	"C06.sca.dependabot-config": {
+		model.StatusVerifiedPass: "a Dependabot config exists and covers every ecosystem detected from the " +
+			"repo's root-level manifests and/or its GitHub Actions workflows",
+		model.StatusPartial: "a Dependabot config exists, but one or more detected ecosystems are not " +
+			"covered by it",
+		model.StatusVerifiedFail: "no Dependabot config exists at either accepted path, and one or more " +
+			"dependency ecosystems were detected",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or the repo's root directory " +
+			"listing failed (403/plan-gated/other API error), so which ecosystems are in use couldn't be " +
+			"detected; or the Dependabot config fetch itself failed (permission denied, malformed YAML, or " +
+			"another API error); or no Dependabot config exists and no dependency manifests were detected " +
+			"either — nothing for Dependabot to cover",
+	},
+	"C06.sca.dependency-review": {
+		model.StatusVerifiedPass: "a matched dependency-review-action (or equivalent SCA-category) " +
+			"workflow triggers on `pull_request`/`pull_request_target`, and its workflow name exactly " +
+			"(case-insensitively) matches one of the branch's required status check names",
+		model.StatusPartial: "a matched dependency-review workflow doesn't trigger on `pull_request`/" +
+			"`pull_request_target` events; or the required-status-check state couldn't be determined; or " +
+			"the workflow triggers on pull requests but no required status check name exactly matches its " +
+			"own name (a substring-only \"loose\" match, or no match at all, is never asserted as confirmed " +
+			"— GitHub's real check-run naming can't be derived precisely from the workflow name alone)",
+		model.StatusVerifiedFail: "no workflow matching the dependency-review-action signature (or " +
+			"equivalent) was detected in any workflow",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or a dependency-review workflow " +
+			"was detected, but re-fetching it to inspect its triggers failed",
+	},
+	"C06.sca.alerts-triaged": {
+		model.StatusVerifiedPass: fmt.Sprintf("the open-alerts fetch succeeded, and no critical alert has "+
+			"been open longer than the %.0f-day triage window", criticalTriageThresholdDays),
+		model.StatusPartial: fmt.Sprintf("one or more critical alerts are open, and the oldest has been "+
+			"open longer than the %.0f-day triage window", criticalTriageThresholdDays),
+		model.StatusVerifiedFail: "Dependabot alerts are not enabled for this repository (the alerts " +
+			"endpoint returned 403 with a message confirming the feature itself is disabled, not a generic " +
+			"permission or not-found error)",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or the open-alerts fetch failed " +
+			"with something other than a confirmed \"alerts disabled\" 403 (a genuine permission denial, a " +
+			"404, or another API error) — this collector can't distinguish those causes from GitHub's " +
+			"response alone",
+	},
+}
+
+// sharedEvidenceEndpoints are the calls that determine matchedWorkflows,
+// defaultBranch, and hasWorkflows — shared by every check that consumes
+// any of that evidence.
+var sharedEvidenceEndpoints = []string{
+	"GET /repos/{owner}/{repo}",
+	"GET /repos/{owner}/{repo}/actions/workflows",
+	"GET /repos/{owner}/{repo}/contents/{path}",
+}
+
+const releasesAPIEndpoint = "GET /repos/{owner}/{repo}/releases"
+const gitRefAPIEndpoint = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+const gitTagAPIEndpoint = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
+const workflowRunsAPIEndpoint = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs"
+const branchProtectionAPIEndpoint = "GET /repos/{owner}/{repo}/branches/{branch}/protection"
+const rulesForBranchAPIEndpoint = "GET /repos/{owner}/{repo}/rules/branches/{branch}"
+const dependabotAlertsAPIEndpoint = "GET /repos/{owner}/{repo}/dependabot/alerts"
+
+// checkEndpoints lists which REST endpoint(s) actually back each check's
+// status.
+var checkEndpoints = map[string][]string{
+	"C06.sca.tool-configured":   append([]string{}, sharedEvidenceEndpoints...),
+	"C06.sca.dependabot-config": append([]string{}, sharedEvidenceEndpoints...),
+	"C06.sca.ran-per-release": append(append([]string{}, sharedEvidenceEndpoints...),
+		releasesAPIEndpoint, gitRefAPIEndpoint, gitTagAPIEndpoint, workflowRunsAPIEndpoint),
+	"C06.sca.dependency-review": append(append([]string{}, sharedEvidenceEndpoints...),
+		branchProtectionAPIEndpoint, rulesForBranchAPIEndpoint),
+	"C06.sca.alerts-triaged": {dependabotAlertsAPIEndpoint},
+}
+
+const fixtureRef = "internal/collect/github/scahistory/scahistory_test.go"
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -71,6 +198,9 @@ func init() {
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }
@@ -229,7 +359,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	}
 	ecosystemProv := snapshot()
 
-	cfg, configExists, _, _ := fetchDependabotConfig(ctx, client, org, repo, defaultBranch)
+	cfg, configExists, dependabotResp, dependabotErr := fetchDependabotConfig(ctx, client, org, repo, defaultBranch)
 	dependabotProv := snapshot()
 	dependabotConfigured := configExists && cfg != nil && len(cfg.ecosystems()) > 0
 
@@ -256,13 +386,18 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	// least one match, so len(workflowMatches) == 0 is exactly "no
 	// workflow-based SCA tool detected at all."
 	dependabotOnly := dependabotConfigured && len(workflowMatches) == 0
+	// dependabotUnknown is dependabotOnly's "we don't actually know"
+	// counterpart: same zero-workflow-evidence precondition, but the
+	// Dependabot config fetch itself failed rather than confirming
+	// absence — see checkRanPerRelease's own doc comment.
+	dependabotUnknown := dependabotErr != nil && len(workflowMatches) == 0
 
 	summary := summarizeAlerts(alerts, now)
 
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, workflowMatches, dependabotConfigured, toolConfiguredProv),
-		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, relResp, relErr, ranPerReleaseProv),
-		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotConfigProv),
+		checkToolConfigured(org, repo, workflowMatches, dependabotConfigured, dependabotResp, dependabotErr, toolConfiguredProv),
+		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, relResp, relErr, ranPerReleaseProv),
+		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, dependabotConfigProv),
 		checkDependencyReview(org, repo, depReviewFound, depReviewWorkflow, depReviewFetchErr, statusCheckNames, statusErr, dependencyReviewProv),
 		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, alertsProv),
 	}
