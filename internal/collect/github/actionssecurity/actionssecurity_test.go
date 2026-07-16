@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -260,6 +261,76 @@ func TestChecksRegistered(t *testing.T) {
 	}
 }
 
+// checkWantStatuses is a human-reviewed declaration of exactly which
+// statuses each check can produce (see orgsecurity's own copy of this
+// pattern for the full rationale). checkSelfHostedID is the odd one
+// out: unlike every other check in this package, it has no verified-fail
+// outcome at all — self-hosted-runner usage on a public repo is only
+// ever capped at partial, by design (see checkSelfHosted's own doc
+// comment in checks.go).
+var checkWantStatuses = map[string][]model.Status{
+	checkPinnedID:           {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	checkTokenPermissionsID: {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	checkPRTargetID:         {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	checkOIDCID:             {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable},
+	checkSelfHostedID:       {model.StatusVerifiedPass, model.StatusPartial, model.StatusNotCheckable},
+}
+
+var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) /`)
+
+// TestCollect_RegisteredMetadataCompleteForChecksReference is
+// orgsecurity's TestCollect_RegisteredMetadataCompleteForChecksReference,
+// replicated per the pattern that PR validated: see that test's own doc
+// comment for the full rationale (exact Rubric key-set equality per check,
+// GET/HEAD-only Endpoints enforcing ADR-0004, orphaned-key detection).
+func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
+	if len(checkRubrics) != len(checkTitles) {
+		t.Errorf("checkRubrics has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkRubrics), len(checkTitles))
+	}
+	if len(checkEndpoints) != len(checkTitles) {
+		t.Errorf("checkEndpoints has %d entries, checkTitles has %d — a typo'd/orphaned key won't otherwise be caught", len(checkEndpoints), len(checkTitles))
+	}
+
+	for id := range checkTitles {
+		meta, ok := collect.Lookup(id)
+		if !ok {
+			t.Fatalf("check %q not found in the collect.CheckMeta registry", id)
+		}
+
+		want, ok := checkWantStatuses[id]
+		if !ok {
+			t.Fatalf("checkWantStatuses is missing an entry for %q — add the statuses this check can actually produce", id)
+		}
+		wantSet := make(map[model.Status]bool, len(want))
+		for _, s := range want {
+			wantSet[s] = true
+		}
+		for s := range wantSet {
+			if meta.Rubric[s] == "" {
+				t.Errorf("%s: Rubric[%s] is empty, want a concrete explanation", id, s)
+			}
+		}
+		for s := range meta.Rubric {
+			if !wantSet[s] {
+				t.Errorf("%s: Rubric has an entry for status %q, but checkWantStatuses says this check can't produce it — either the rubric is wrong or checkWantStatuses is stale", id, s)
+			}
+		}
+
+		if len(meta.Endpoints) == 0 {
+			t.Errorf("%s: Endpoints is empty, want at least one", id)
+		}
+		for _, e := range meta.Endpoints {
+			if !endpointVerbRE.MatchString(e) {
+				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD — this project is read-only forever (ADR-0004)", id, e)
+			}
+		}
+
+		if meta.FixtureRef == "" {
+			t.Errorf("%s: FixtureRef is empty", id)
+		}
+	}
+}
+
 // TestSelfHostedRemediationDoesNotOverclaimNonRunsOnFixes locks in that
 // the remediation doesn't present "restrict fork-PR approval" or "don't
 // trigger on pull_request/pull_request_target from forks" as equivalent
@@ -301,6 +372,44 @@ func TestOIDCRemediationCoversAmbiguousPartialMode(t *testing.T) {
 	remediation := strings.ToLower(checkRemediations[checkOIDCID])
 	if !strings.Contains(remediation, "ambiguous") && !strings.Contains(remediation, "neither") {
 		t.Errorf("C08.actions.oidc-vs-secrets remediation doesn't address the \"ambiguous\" partial mode (no credential parameter recognized at all, so there's nothing to \"replace\" or \"delete\"): %q", checkRemediations[checkOIDCID])
+	}
+}
+
+// TestNotCheckableRubricsDoNotOverclaimAbsence locks in that the four
+// shared "zero readable workflows" not-checkable rubrics don't assert a
+// confirmed "files exist"/"found" claim — fetchWorkflows (workflows.go)
+// silently skips a listed workflow whose content fetch or parse fails,
+// so zero resulting units doesn't distinguish "genuinely zero workflow
+// files" from "GitHub listed one or more, but every one failed to
+// read." Claiming files don't "exist" would be stronger than this
+// collector can actually confirm. See issue #96 for the deeper fix
+// (tracking and surfacing which/why a listed file was skipped, and
+// capping affected checks at partial rather than a confident pass).
+func TestNotCheckableRubricsDoNotOverclaimAbsence(t *testing.T) {
+	for _, id := range []string{checkPinnedID, checkTokenPermissionsID, checkPRTargetID, checkSelfHostedID} {
+		rubric := checkRubrics[id][model.StatusNotCheckable]
+		if strings.Contains(rubric, "files exist") || strings.Contains(rubric, "files found") {
+			t.Errorf("%s not-checkable rubric overclaims confirmed absence (\"exist\"/\"found\") when a listed-but-unreadable workflow reaches this same status: %q", id, rubric)
+		}
+	}
+	oidcRubric := checkRubrics[checkOIDCID][model.StatusNotCheckable]
+	if strings.Contains(oidcRubric, "no workflow contains") {
+		t.Errorf("%s not-checkable rubric overclaims confirmed absence across \"any workflow\" when a listed-but-unreadable workflow reaches this same status: %q", checkOIDCID, oidcRubric)
+	}
+}
+
+// TestOIDCPartialRubricDoesNotClaimNeitherParameterSet locks in a
+// distinct accuracy gap from the ambiguous ("partial") rubric text:
+// azure/login's OIDC classification requires BOTH client-id AND
+// tenant-id (classifyCloudLoginStep in checks.go) — a step setting only
+// one of the two still classifies "ambiguous"/partial, even though it
+// DID set a recognized OIDC parameter. Wording that says the step sets
+// "neither" an OIDC nor a static-credential parameter is literally false
+// for that reachable case.
+func TestOIDCPartialRubricDoesNotClaimNeitherParameterSet(t *testing.T) {
+	rubric := checkRubrics[checkOIDCID][model.StatusPartial]
+	if strings.Contains(rubric, "neither a recognized") {
+		t.Errorf("%s partial rubric claims neither parameter is set, but azure/login's ambiguous case can have one (client-id or tenant-id alone) genuinely set: %q", checkOIDCID, rubric)
 	}
 }
 

@@ -73,6 +73,121 @@ var checkRemediations = map[string]string{
 		"pull_request_target from forks at all.",
 }
 
+// sharedUpstreamFetchFailureRubric is shared by all five checks: the
+// repo fetch and the workflow listing both early-return allNotCheckable
+// in collectRepo — none of the five checks below can be computed
+// without this shared evidence. Unlike C05-C07, this package never loads
+// the embedded scanner-signature registry at all (pure static analysis
+// of already-fetched workflow YAML, no runhistory.MatchWorkflows call),
+// so there's no analogous binary-level-failure not-checkable cause here.
+const sharedUpstreamFetchFailureRubric = "the repo fetch or the workflow listing failed (403/plan-gated/" +
+	"other API error) — collectRepo returns not-checkable for every check on either failure, since none of " +
+	"them can be computed without this shared evidence"
+
+// sharedNoWorkflowsRubric is shared by four of the five checks (every one
+// except oidc-vs-secrets, which folds this same cause into a differently-
+// worded not-checkable reason — see its own rubric entry below). Kept
+// word-for-word identical to checks.go's noWorkflowsReason const:
+// deliberately weaker than "no workflow files exist" — a listed file
+// whose content couldn't be fetched or parsed reaches this same
+// not-checkable status without being distinguished from a genuine
+// absence (see issue #96 for tightening this further).
+const sharedNoWorkflowsRubric = "no GitHub Actions workflow file could be fetched and parsed from the " +
+	"default branch"
+
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce — see checks.go for the pass/fail/partial logic
+// each rubric below summarizes. C08.actions.self-hosted is notable:
+// unlike every other check in this package, it has no verified-fail
+// outcome at all — self-hosted-runner usage on a public repo is only
+// ever capped at partial, by design (see checkSelfHosted's own doc
+// comment).
+var checkRubrics = map[string]map[model.Status]string{
+	checkPinnedID: {
+		model.StatusVerifiedPass: "no external action or reusable-workflow reference exists at all, or " +
+			"every third-party reference (and every first-party `actions/*` reference) is pinned to a " +
+			"full 40-character commit SHA",
+		model.StatusPartial: "every third-party reference is pinned to a full commit SHA, but at least " +
+			"one first-party `actions/*` reference uses a mutable tag instead",
+		model.StatusVerifiedFail: "at least one third-party action or reusable-workflow reference is not " +
+			"pinned to a full 40-character commit SHA",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoWorkflowsRubric,
+	},
+	checkTokenPermissionsID: {
+		model.StatusVerifiedPass: "every job (or its workflow, inherited when the job declares none of " +
+			"its own) declares an explicit `permissions:` block that isn't `write-all`",
+		model.StatusPartial: "some but not all jobs/workflows declare an explicit `permissions:` block; " +
+			"or every one does, but at least one is `write-all` rather than a scoped, least-privilege set",
+		model.StatusVerifiedFail: "no job or workflow declares an explicit `permissions:` block at all — " +
+			"every job runs with the ambient default GITHUB_TOKEN permissions",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoWorkflowsRubric,
+	},
+	checkPRTargetID: {
+		model.StatusVerifiedPass: "no workflow triggers on `pull_request_target` at all",
+		model.StatusPartial: "`pull_request_target` is used, but no checkout of the PR head commit/" +
+			"branch was detected in any of its jobs — still a risky trigger by design, but no confirmed " +
+			"exploit pattern found",
+		model.StatusVerifiedFail: "at least one `pull_request_target`-triggered workflow checks out the " +
+			"PR head commit/branch (an `actions/checkout` step whose `with.ref` references " +
+			"`github.event.pull_request.head.{sha,ref}` or the `github.head_ref` alias) — the classic " +
+			"\"pwn request\" pattern",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoWorkflowsRubric,
+	},
+	checkOIDCID: {
+		model.StatusVerifiedPass: "every detected cloud-deployment login step (AWS/Azure/GCP's official " +
+			"login action) sets a recognized OIDC parameter — for azure/login specifically, BOTH " +
+			"`client-id` and `tenant-id` — and no recognized static-credential parameter",
+		model.StatusPartial: "at least one detected cloud-deployment login step sets no recognized " +
+			"static-credential parameter, and doesn't set a complete OIDC parameter set either (for " +
+			"azure/login, setting only `client-id` or only `tenant-id` — not both — still counts as " +
+			"ambiguous here, not OIDC) — not confirmed either way",
+		model.StatusVerifiedFail: "at least one detected cloud-deployment login step sets a recognized " +
+			"long-lived static-credential parameter (a static parameter always wins over an OIDC one if " +
+			"both are somehow present)",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no cloud-deployment login " +
+			"action (aws-actions/configure-aws-credentials, azure/login, or google-github-actions/auth) " +
+			"was detected among the workflow files that could be fetched and parsed on the default branch " +
+			"— including when zero workflow files exist at all, which reads the same as this cause rather " +
+			"than getting its own distinct reason text",
+	},
+	checkSelfHostedID: {
+		model.StatusVerifiedPass: "no job uses `runs-on: self-hosted` at all, or one or more do but the " +
+			"repository is private (the public-fork attack vector this check flags doesn't apply)",
+		model.StatusPartial: "one or more jobs use `runs-on: self-hosted` and the repository is public — " +
+			"an external contributor's pull request is a potential path to the runner. This check has no " +
+			"verified-fail outcome: self-hosted-runner usage is only ever capped at partial, by design, " +
+			"never a hard fail",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoWorkflowsRubric,
+	},
+}
+
+// sharedEvidenceEndpoints are the calls that determine units (every
+// fetched/parsed workflow file, including same-org reusable workflows
+// resolved one level deep) and, via the same repo fetch, defaultBranch
+// and private — used by every one of the five checks. Unlike the other
+// four, checkTokenPermissions also reads a sixth endpoint
+// (GetDefaultWorkflowPermissions) in collectRepo, but that call's result
+// is Facts-only context (repo_default_workflow_permissions) — it never
+// feeds this check's Status determination, so it's deliberately excluded
+// here per this project's "Endpoints backs Status" convention (see
+// checkTokenPermissions' own doc comment for why the default setting is
+// never a substitute for an explicit permissions: block).
+var sharedEvidenceEndpoints = []string{
+	"GET /repos/{owner}/{repo}",
+	"GET /repos/{owner}/{repo}/actions/workflows",
+	"GET /repos/{owner}/{repo}/contents/{path}",
+}
+
+var checkEndpoints = map[string][]string{
+	checkPinnedID:           append([]string{}, sharedEvidenceEndpoints...),
+	checkTokenPermissionsID: append([]string{}, sharedEvidenceEndpoints...),
+	checkPRTargetID:         append([]string{}, sharedEvidenceEndpoints...),
+	checkOIDCID:             append([]string{}, sharedEvidenceEndpoints...),
+	checkSelfHostedID:       append([]string{}, sharedEvidenceEndpoints...),
+}
+
+const fixtureRef = "internal/collect/github/actionssecurity/actionssecurity_test.go"
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -84,6 +199,9 @@ func init() {
 				"which this collector tolerates failing to read rather than treating as fatal; exact fine-grained " +
 				"category for that one unverified, see C05's TokenScope for the same kind of hedge",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }

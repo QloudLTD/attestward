@@ -3,6 +3,7 @@ package actionssecurity
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sioakim/ssdf/internal/mapping"
@@ -155,6 +156,24 @@ func TestCheckOIDCvsSecrets_NoDeployWorkflow_NotCheckable(t *testing.T) {
 	got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil)
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("status = %q, want not-checkable", got.Status)
+	}
+}
+
+// TestCheckOIDCvsSecrets_AzureClientIDOnly_AmbiguousReasonDoesNotClaimNeither
+// locks in that the ambiguous-partial reason text doesn't claim a step
+// sets "neither" a recognized OIDC nor static-credential parameter —
+// azure/login's OIDC classification requires BOTH client-id AND
+// tenant-id (classifyCloudLoginStep); a step setting only client-id
+// still classifies ambiguous, but it DID set a recognized OIDC
+// parameter, so "neither" would be literally false here.
+func TestCheckOIDCvsSecrets_AzureClientIDOnly_AmbiguousReasonDoesNotClaimNeither(t *testing.T) {
+	u := loadFixture(t, "deploy_azure_partial_client_id_only.yaml")
+	got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil)
+	if got.Status != model.StatusPartial {
+		t.Fatalf("status = %q, want partial; reason=%q", got.Status, got.Reason)
+	}
+	if strings.Contains(got.Reason, "neither a recognized") {
+		t.Errorf("reason claims neither parameter is set, but client-id (a recognized OIDC parameter) was set: %q", got.Reason)
 	}
 }
 

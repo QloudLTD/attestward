@@ -23,6 +23,15 @@ func notCheckableResult(id, org, repo, reason string, prov []model.Provenance) m
 	}
 }
 
+// noWorkflowsReason is deliberately weaker than "no workflow files
+// exist": fetchWorkflows silently skips a listed file whose content
+// can't be fetched or parsed (see its own doc comment), so zero
+// resulting units doesn't distinguish "genuinely zero workflow files"
+// from "GitHub listed one or more, but every one failed to read" — this
+// wording is honest under either cause. See issue #96 for tightening
+// this further (tracking which/why a listed file was skipped).
+const noWorkflowsReason = "no GitHub Actions workflow file could be fetched and parsed from the default branch"
+
 func splitActionRefLocal(uses string) (slug, ref string) {
 	slug, ref, _ = strings.Cut(uses, "@")
 	return slug, ref
@@ -117,7 +126,7 @@ func unresolvedToFacts(items []unresolvedExternalWorkflow) []map[string]any {
 // major-version tag is tolerated but caps the result at partial.
 func checkPinned(org, repo string, units []workflowUnit, unresolvedExternal []unresolvedExternalWorkflow, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkPinnedID, org, repo, "no GitHub Actions workflow files found on the default branch", prov)
+		return notCheckableResult(checkPinnedID, org, repo, noWorkflowsReason, prov)
 	}
 
 	var allRefs []actionRefFinding
@@ -247,7 +256,7 @@ func permissionsFindingsToFacts(findings []permissionsFinding) []map[string]any 
 // context fact").
 func checkTokenPermissions(org, repo string, units []workflowUnit, defaultWorkflowPermission string, defaultWorkflowPermissionKnown bool, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkTokenPermissionsID, org, repo, "no GitHub Actions workflow files found on the default branch", prov)
+		return notCheckableResult(checkTokenPermissionsID, org, repo, noWorkflowsReason, prov)
 	}
 
 	var allFindings []permissionsFinding
@@ -334,7 +343,7 @@ func findCheckoutOfPRHead(u workflowUnit) (uses string, line int, found bool) {
 // rather than being waved through as a pass.
 func checkPullRequestTarget(org, repo string, units []workflowUnit, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkPRTargetID, org, repo, "no GitHub Actions workflow files found on the default branch", prov)
+		return notCheckableResult(checkPRTargetID, org, repo, noWorkflowsReason, prov)
 	}
 
 	var dangerous, bare []map[string]any
@@ -459,7 +468,7 @@ func checkOIDCvsSecrets(org, repo string, units []workflowUnit, prov []model.Pro
 	}
 
 	if len(findings) == 0 {
-		return notCheckableResult(checkOIDCID, org, repo, "no cloud-deployment login action (AWS/Azure/GCP) detected in any workflow", prov)
+		return notCheckableResult(checkOIDCID, org, repo, "no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch", prov)
 	}
 
 	static, ambiguous := 0, 0
@@ -480,7 +489,7 @@ func checkOIDCvsSecrets(org, repo string, units []workflowUnit, prov []model.Pro
 		reason = fmt.Sprintf("%d cloud-deployment login step(s) use long-lived static credentials instead of OIDC", static)
 	case ambiguous > 0:
 		status = model.StatusPartial
-		reason = fmt.Sprintf("%d cloud-deployment login step(s) have neither a recognized OIDC parameter nor a recognized static-credential parameter set", ambiguous)
+		reason = fmt.Sprintf("%d cloud-deployment login step(s) set no recognized static-credential parameter, and no complete OIDC parameter set either (e.g. azure/login needs both client-id and tenant-id — one alone still counts as ambiguous)", ambiguous)
 	}
 
 	return model.CheckResult{
@@ -515,7 +524,7 @@ func runsOnSelfHosted(runsOn any) bool {
 // there is recorded as a fact but doesn't fail the check.
 func checkSelfHosted(org, repo string, units []workflowUnit, private bool, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkSelfHostedID, org, repo, "no GitHub Actions workflow files found on the default branch", prov)
+		return notCheckableResult(checkSelfHostedID, org, repo, noWorkflowsReason, prov)
 	}
 
 	var findings []map[string]any
