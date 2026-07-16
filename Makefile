@@ -4,7 +4,7 @@ COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
-.PHONY: build test lint tidy
+.PHONY: build test lint tidy checks-docs checks-docs-check
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/attestor
@@ -17,3 +17,9 @@ lint:
 
 tidy:
 	go mod tidy
+
+checks-docs:
+	go run ./cmd/attestor checks docs
+
+checks-docs-check:
+	go run ./cmd/attestor checks docs --check

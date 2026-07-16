@@ -1,0 +1,78 @@
+# Checks Reference
+
+> **GENERATED — do not hand-edit.** Regenerate with `attestor checks docs` from
+> `mappings/*.yaml` and each collector's registered check metadata. A pull request that
+> changes mapping or registry data without regenerating this file fails CI's drift check
+> (`git diff --exit-code -- docs/checks-reference.md`).
+
+Source data:
+
+- SSDF mapping: NIST SP 800-218, mapping version `1.11.0`, retrieved 2026-01-01 — [https://csrc.nist.gov/pubs/sp/800/218/final](https://csrc.nist.gov/pubs/sp/800/218/final)
+- CISA SSDA form mapping: mapping version `2.0`, retrieved 2026-01-01 — [https://www.cisa.gov/ssda](https://www.cisa.gov/ssda)
+
+No wall-clock generation timestamp is recorded here on purpose: this file is regenerated
+byte-for-byte identical from unchanged input, which is what lets CI's drift check compare it
+against a plain diff rather than tolerate spurious churn.
+
+## Contents
+
+- [C01.org-security](#c01org-security)
+- [Self-Attestation Questions](#self-attestation-questions)
+
+---
+
+## C01.org-security
+
+### `C01.org.mfa` — Org MFA enforced
+
+- **Token permission:** read:org
+- **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement supporting toolchains)
+- **CISA form cluster(s):** 1
+- **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** `GET /orgs/{org}`
+
+**Status rubric:**
+
+- **verified-fail:** the org does not enforce MFA.
+- **not-checkable:** the org lookup failed.
+- **verified-pass:** the org enforces MFA for all members.
+
+**Remediation:** Enable MFA enforcement in org settings.
+
+**SSDF task text (verbatim from NIST SP 800-218):**
+
+> **`PO.5.1`:** Verbatim task text.
+
+---
+
+### `C01.org.other` — Some other org check
+
+- **Token permission:** read:org
+- **SSDF task(s):** (none cited)
+- **CISA form cluster(s):** (none cited)
+- **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always not-checkable by design.
+- **verified-pass:** the fixed fact is true.
+
+**Remediation:** Do the thing.
+
+---
+
+## Self-Attestation Questions
+
+These questions have no registered check metadata: nothing here is independently verified or
+remediated by this tool. A producer's answer is always rendered as `self-attested` in scan
+output — see each question's `pairing` field (not shown here; see
+`mappings/self-attestation-questions.yaml`) for the API-verified checks it complements.
+
+### `SA.dev-training`
+
+Do developers receive security training?
+
+- **SSDF task(s):** (none cited)
+- **CISA form cluster(s):** (none cited)
+
