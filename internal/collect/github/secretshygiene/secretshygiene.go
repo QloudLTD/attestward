@@ -197,7 +197,7 @@ func (c *Collector) ID() string { return collectorID }
 // top-level error for an API failure — see org-security's Collect doc
 // comment for why that matters for the rollup.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
-	orgResult := checkOrgSecurityDefaults(ctx, c.newClient(), scope.Org)
+	orgResult := checkOrgSecurityDefaults(ctx, c.newClient(), scope.Org, scope.AccountType)
 
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()

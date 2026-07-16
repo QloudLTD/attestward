@@ -194,7 +194,7 @@ func (c *Collector) ID() string { return collectorID }
 // top-level error for a per-repo API failure — see org-security's Collect
 // doc comment for why that matters for the rollup.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
-	orgResults := collectOrg(ctx, c.newClient(), scope.Org)
+	orgResults := collectOrg(ctx, c.newClient(), scope.Org, scope.AccountType)
 
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
@@ -213,12 +213,15 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 }
 
 // collectOrg resolves the three org-scoped checks. Only
-// checkOrgLogAvailable makes any API call; checkLogStreaming and
-// checkRetentionAwareness are fixed, evidence-free results (see their own
-// doc comments for why no call could ever change their answer).
-func collectOrg(ctx context.Context, client *ghcollect.Client, org string) []model.CheckResult {
+// checkOrgLogAvailable makes any API call (and only when accountType isn't
+// collect.AccountTypeUser — issue #102: a personal account has no
+// org-scoped audit-log API to query); checkLogStreaming and
+// checkRetentionAwareness are fixed, evidence-free results regardless of
+// account type (see their own doc comments for why no call could ever
+// change their answer).
+func collectOrg(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType) []model.CheckResult {
 	return []model.CheckResult{
-		checkOrgLogAvailable(ctx, client, org),
+		checkOrgLogAvailable(ctx, client, org, accountType),
 		checkLogStreaming(org),
 		checkRetentionAwareness(org),
 	}
@@ -246,8 +249,17 @@ func notCheckableResult(id, org, repo, reason string, prov []model.Provenance) m
 // distinctly, but GitHub itself doesn't reliably distinguish "wrong plan"
 // from "wrong scope" for this endpoint, so 402/404's Reason names both
 // possibilities rather than asserting one with false confidence.
-func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org string) model.CheckResult {
+func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType) model.CheckResult {
 	const id = orgLogAvailableID
+
+	if accountType == collect.AccountTypeUser {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason:     ghcollect.UserAccountNotCheckableReason(org),
+			Scope:      model.ScopeRef{Org: org},
+			Provenance: []model.Provenance{},
+		}
+	}
 
 	_, resp, err := client.REST.Organizations.GetAuditLog(ctx, org, &ghgithub.GetAuditLogOptions{
 		ListCursorOptions: ghgithub.ListCursorOptions{PerPage: 1},

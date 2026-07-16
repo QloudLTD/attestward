@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/sioakim/ssdf/internal/collect"
@@ -247,6 +248,58 @@ func TestCollect_UserAccountNotOrg404AllNotCheckable(t *testing.T) {
 			t.Errorf("unexpected CheckID %q — not one of the four C01 checks", r.CheckID)
 		}
 	}
+}
+
+// TestCollect_KnownUserAccountSkipsAPICallEntirely proves the issue #102
+// short-circuit: when the orchestrator already knows (from preflight)
+// scope.AccountType is collect.AccountTypeUser, Collect must not attempt
+// Organizations.Get at all — a handler that fails the test if hit is the
+// only way to prove "no call was made", as opposed to
+// TestCollect_UserAccountNotOrg404AllNotCheckable above, which proves the
+// OLDER fallback behavior for when AccountType is unknown and the call is
+// attempted and 404s.
+func TestCollect_KnownUserAccountSkipsAPICallEntirely(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(_ http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected API call %s %s — a known user-account target must short-circuit before any org-scoped call", r.Method, r.URL.Path)
+	})
+
+	c := newTestCollector(t, mux)
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "sioakim", AccountType: collect.AccountTypeUser})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(results) != len(checkTitles) {
+		t.Fatalf("len(results) = %d, want %d (one per registered check)", len(results), len(checkTitles))
+	}
+	for _, r := range results {
+		if r.Status != model.StatusNotCheckable {
+			t.Errorf("%s status = %q, want not-checkable", r.CheckID, r.Status)
+		}
+		if !containsAll(r.Reason, "sioakim", "personal", "not an organization") {
+			t.Errorf("%s reason = %q, want it to name the account and explain it's personal, not an organization", r.CheckID, r.Reason)
+		}
+		if _, known := checkTitles[r.CheckID]; !known {
+			t.Errorf("unexpected CheckID %q — not one of the four C01 checks", r.CheckID)
+		}
+		// model.CheckResult.Provenance is `json:"provenance"` with no
+		// omitempty, and the evidence-pack schema requires it as an array
+		// — a nil slice marshals to JSON null, which fails pre-write
+		// schema validation and would abort attestor scan entirely for
+		// any user-account target (found in Fable review of PR #103).
+		if r.Provenance == nil {
+			t.Errorf("%s Provenance is nil, want a non-nil (possibly empty) slice — a nil Provenance marshals to JSON null and fails the evidence-pack schema's required array type", r.CheckID)
+		}
+	}
+}
+
+func containsAll(s string, substrs ...string) bool {
+	for _, sub := range substrs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
 }
 
 func TestCollect_MissingFieldIsNotCheckableNotFalse(t *testing.T) {

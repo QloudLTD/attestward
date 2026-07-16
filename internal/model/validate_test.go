@@ -46,6 +46,25 @@ func TestValidateAgainstSchema_NilResultsFails(t *testing.T) {
 	}
 }
 
+// TestValidateAgainstSchema_NilProvenanceFails pins the exact bug PR #103's
+// review caught: CheckResult.Provenance is `json:"provenance"` with no
+// omitempty, and the schema requires it as an array — a nil (as opposed to
+// empty) slice marshals to JSON null and fails validation just like nil
+// Results does above. Three collectors (C01/C04/C09) built not-checkable
+// results with a nil Provenance for a personal-account scan target and
+// this went undetected by every collector-level unit test, because none of
+// them pushed the result through schema validation — only an
+// orchestration-level test (or this one, at the layer the bug actually
+// bites) catches it. Any future collector that leaves Provenance nil on
+// some path should fail here first.
+func TestValidateAgainstSchema_NilProvenanceFails(t *testing.T) {
+	pack := minimalValidPack()
+	pack.Results[0].Provenance = nil
+	if err := pack.ValidateAgainstSchema(); err == nil {
+		t.Fatal("ValidateAgainstSchema() with a nil Provenance = nil error, want a schema-validation error (nil marshals as JSON null, which fails the array-typed provenance field)")
+	}
+}
+
 func TestValidateAgainstSchema_BadStatusFails(t *testing.T) {
 	pack := minimalValidPack()
 	pack.Results[0].Status = Status("not-a-real-status")

@@ -383,7 +383,7 @@ func TestRunScan_TypoedCheckFilterErrorsLoudly(t *testing.T) {
 func TestRunScan_OrgCheckerFailurePropagates(t *testing.T) {
 	deps := scanDeps{
 		repoLister: &fakeRepoLister{},
-		orgChecker: &fakeOrgChecker{err: errors.New("404 org not found")},
+		orgChecker: &fakeOrgChecker{err: errors.New("404 account not found")},
 		stdout:     &bytes.Buffer{},
 	}
 	cfg := mergeScanConfig(scanConfig{Org: "nonexistent-org"}, scanConfig{}, nil)
@@ -394,9 +394,55 @@ func TestRunScan_OrgCheckerFailurePropagates(t *testing.T) {
 	}
 }
 
-type fakeOrgChecker struct{ err error }
+// TestRunScan_AccountTypeFlowsIntoScope confirms runScan threads the
+// account type CheckAccount discovers all the way into collect.Scope
+// (issue #102) — every collector that branches on scope.AccountType
+// depends on this actually happening, not just compiling.
+func TestRunScan_AccountTypeFlowsIntoScope(t *testing.T) {
+	var gotScope collect.Scope
+	collectors := []collect.Collector{
+		fakeScanCollectorFunc{id: "DEMO.check", fn: func(_ context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+			gotScope = scope
+			return []model.CheckResult{{CheckID: "DEMO.check", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: scope.Org}}}, nil
+		}},
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "ssdf"}}},
+		orgChecker: &fakeOrgChecker{accountType: collect.AccountTypeUser},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "sioakim", Repos: []string{"ssdf"}}, scanConfig{}, nil)
 
-func (f *fakeOrgChecker) CheckOrgVisible(context.Context, string) error { return f.err }
+	if _, err := runScan(context.Background(), cfg, nil, deps); err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if gotScope.AccountType != collect.AccountTypeUser {
+		t.Errorf("scope.AccountType = %q, want user (CheckAccount reported user)", gotScope.AccountType)
+	}
+}
+
+type fakeOrgChecker struct {
+	err         error
+	accountType collect.AccountType
+}
+
+func (f *fakeOrgChecker) CheckAccount(context.Context, string) (collect.AccountType, error) {
+	return f.accountType, f.err
+}
+
+// fakeScanCollectorFunc is fakeScanCollector's function-backed sibling —
+// used only by tests that need to observe the Scope a collector was
+// actually called with, rather than just returning fixed results.
+type fakeScanCollectorFunc struct {
+	id string
+	fn func(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error)
+}
+
+func (f fakeScanCollectorFunc) ID() string { return f.id }
+func (f fakeScanCollectorFunc) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+	return f.fn(ctx, scope)
+}
 
 func TestWriteEvidencePack_WritesValidJSON(t *testing.T) {
 	dir := t.TempDir()

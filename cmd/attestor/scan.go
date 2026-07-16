@@ -70,7 +70,7 @@ error.`,
 }
 
 func init() {
-	scanCmd.Flags().StringVar(&scanFlags.Org, "org", "", "GitHub org to scan (required, unless set in --config)")
+	scanCmd.Flags().StringVar(&scanFlags.Org, "org", "", "GitHub account to scan — an org or a personal user account (required, unless set in --config)")
 	scanCmd.Flags().StringArrayVar(&scanFlags.Repos, "repo", nil, "repo to scan (repeatable); empty scans all non-archived, non-fork repos")
 	scanCmd.Flags().StringVar(&scanConfigPath, "config", "", "path to a YAML config file (see examples/attestor.yaml); flags override its values")
 	scanCmd.Flags().StringVar(&scanFlags.ReleaseTagPattern, "release-tag-pattern", "", "glob (filepath.Match syntax, not regex) for release tags in scope (default \"v*\")")
@@ -226,22 +226,35 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 	}
 	startedAt := now().UTC()
 
-	// Preflight: confirm the org is actually visible with this token
+	// Preflight: confirm the account is actually visible with this token
 	// (issue #10's explicit "org visible" requirement) *before* resolving
-	// scope or collecting. This doubles as the guaranteed first
-	// authenticated call: the write-scope warning below reads
-	// Client.HasWriteScope(), which has nothing to report on until at
-	// least one authenticated response has been observed (scopes.go) — so
-	// checking write-scope before any call ever fires would silently skip
-	// the warning whenever repos are given explicitly (resolveRepos then
-	// makes zero API calls).
+	// scope or collecting, and (issue #102) discover whether it's an
+	// Organization or a personal User account — every collector that makes
+	// an org-scoped call needs this to give an honest, specific
+	// not-checkable reason for a user-account target instead of guessing
+	// from a 404. This doubles as the guaranteed first authenticated call:
+	// the write-scope warning below reads Client.HasWriteScope(), which has
+	// nothing to report on until at least one authenticated response has
+	// been observed (scopes.go) — so checking write-scope before any call
+	// ever fires would silently skip the warning whenever repos are given
+	// explicitly (resolveRepos then makes zero API calls).
+	//
+	// accountType is left at its zero value (collect.AccountTypeUnknown)
+	// when deps.orgChecker is nil (every test that doesn't exercise
+	// preflight directly) — collect.AccountTypeUnknown's own doc comment
+	// requires collectors to treat it exactly like
+	// collect.AccountTypeOrganization, so this preserves every existing
+	// test's behavior unchanged.
+	var accountType collect.AccountType
 	if deps.orgChecker != nil {
-		if err := deps.orgChecker.CheckOrgVisible(ctx, cfg.Org); err != nil {
-			return scanResult{}, fmt.Errorf("preflight: org %s not visible: %w", cfg.Org, err)
+		at, err := deps.orgChecker.CheckAccount(ctx, cfg.Org)
+		if err != nil {
+			return scanResult{}, fmt.Errorf("preflight: account %s not visible: %w", cfg.Org, err)
 		}
+		accountType = at
 	}
 
-	repos, err := resolveRepos(ctx, deps.repoLister, cfg.Org, cfg.Repos, func(msg string) {
+	repos, err := resolveRepos(ctx, deps.repoLister, cfg.Org, accountType, cfg.Repos, func(msg string) {
 		logf(deps.stdout, "warning: %s\n", msg)
 	})
 	if err != nil {
@@ -250,13 +263,18 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 
 	scope := collect.Scope{
 		Org:               cfg.Org,
+		AccountType:       accountType,
 		Repos:             repos,
 		ReleaseTagPattern: cfg.ReleaseTagPattern,
 		LookbackReleases:  cfg.LookbackReleases,
 		LookbackMonths:    cfg.LookbackMonths,
 	}
-	logf(deps.stdout, "scope: org=%s repos=%d release_tag_pattern=%s lookback=%d releases/%d months\n",
-		scope.Org, len(scope.Repos), scope.ReleaseTagPattern, scope.LookbackReleases, scope.LookbackMonths)
+	accountTypeLabel := string(scope.AccountType)
+	if accountTypeLabel == "" {
+		accountTypeLabel = "unknown"
+	}
+	logf(deps.stdout, "scope: org=%s account_type=%s repos=%d release_tag_pattern=%s lookback=%d releases/%d months\n",
+		scope.Org, accountTypeLabel, len(scope.Repos), scope.ReleaseTagPattern, scope.LookbackReleases, scope.LookbackMonths)
 
 	if deps.client != nil && deps.client.HasWriteScope() {
 		logf(deps.stdout, "warning: token has scopes beyond read-only: %v (least-privilege guidance: use a read-only fine-grained PAT)\n", deps.client.Scopes())
@@ -330,7 +348,19 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 			CISAForm:        cisa.Version,
 			SelfAttestation: saQuestions.Version,
 		},
-		Scope:         model.ScanScope(scope),
+		// Built field-by-field, not a model.ScanScope(scope) conversion:
+		// collect.Scope carries AccountType (issue #102), which the
+		// persisted evidence-pack schema doesn't need — the same
+		// information already surfaces per-check via each not-checkable
+		// CheckResult's own Reason text, so it'd be redundant schema
+		// surface, not new honesty.
+		Scope: model.ScanScope{
+			Org:               scope.Org,
+			Repos:             scope.Repos,
+			ReleaseTagPattern: scope.ReleaseTagPattern,
+			LookbackReleases:  scope.LookbackReleases,
+			LookbackMonths:    scope.LookbackMonths,
+		},
 		ScanStartedAt: startedAt,
 		ScanEndedAt:   endedAt,
 		Results:       results,

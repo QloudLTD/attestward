@@ -461,6 +461,41 @@ func TestCollect_OrgFetchFailure404NotCheckable(t *testing.T) {
 	}
 }
 
+// TestCollect_KnownUserAccountSkipsOrgAPICallEntirely proves the issue #102
+// short-circuit: when scope.AccountType is collect.AccountTypeUser,
+// checkOrgSecurityDefaults must not attempt Organizations.Get at all — a
+// handler that fails the test if hit is the only way to prove that, versus
+// TestCollect_OrgFetchFailure404NotCheckable above, which proves the older
+// fallback for an unknown account type where the call is attempted and
+// 404s.
+func TestCollect_KnownUserAccountSkipsOrgAPICallEntirely(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(_ http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected API call %s %s — a known user-account target must short-circuit before any org-scoped call", r.Method, r.URL.Path)
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "sioakim", AccountType: collect.AccountTypeUser, Repos: nil})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	r := byID(results)["C04.org.security-defaults"]
+	if r.Status != model.StatusNotCheckable {
+		t.Errorf("status = %q, want not-checkable", r.Status)
+	}
+	if !strings.Contains(r.Reason, "sioakim") || !strings.Contains(r.Reason, "personal") || !strings.Contains(r.Reason, "not an organization") {
+		t.Errorf("Reason = %q, want it to name the account and explain it's personal, not an organization", r.Reason)
+	}
+	// model.CheckResult.Provenance is `json:"provenance"` with no
+	// omitempty, and the evidence-pack schema requires it as an array —
+	// a nil slice marshals to JSON null and fails pre-write schema
+	// validation, aborting attestor scan entirely for any user-account
+	// target (found in Fable review of PR #103).
+	if r.Provenance == nil {
+		t.Errorf("Provenance is nil, want a non-nil (possibly empty) slice — a nil Provenance marshals to JSON null and fails the evidence-pack schema's required array type")
+	}
+}
+
 func TestCollect_MultiRepoScanIncludesOneOrgResultAndFourPerRepo(t *testing.T) {
 	mux := http.NewServeMux()
 	orgHandler(t, mux, "attestor-demo")

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/sioakim/ssdf/internal/collect"
@@ -148,6 +149,47 @@ func TestCollect_AuditLogForbidden_NotCheckablePermissionReason(t *testing.T) {
 
 	if got := m[orgLogAvailableID].Status; got != model.StatusNotCheckable {
 		t.Errorf("org-log-available = %q, want not-checkable", got)
+	}
+}
+
+// TestCollect_KnownUserAccountSkipsOrgLogAPICallEntirely proves the issue
+// #102 short-circuit: when scope.AccountType is collect.AccountTypeUser,
+// checkOrgLogAvailable must not attempt Organizations.GetAuditLog (or the
+// Facts-only org-plan lookup) at all — a handler that fails the test if hit
+// is the only way to prove that, versus
+// TestCollect_AuditLogNotFound_NotCheckableNamesPlanAndScope above, which
+// proves the older fallback for an unknown account type where the call is
+// attempted and 404s.
+func TestCollect_KnownUserAccountSkipsOrgLogAPICallEntirely(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(_ http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected API call %s %s — a known user-account target must short-circuit before any org-scoped call", r.Method, r.URL.Path)
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "sioakim", AccountType: collect.AccountTypeUser, Repos: nil})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	got := m[orgLogAvailableID]
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("org-log-available = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if !strings.Contains(got.Reason, "sioakim") || !strings.Contains(got.Reason, "personal") || !strings.Contains(got.Reason, "not an organization") {
+		t.Errorf("Reason = %q, want it to name the account and explain it's personal, not an organization", got.Reason)
+	}
+	if got.Facts["org_plan"] != nil {
+		t.Errorf("Facts[org_plan] = %v, want absent — no API call (including the plan lookup) should have been made", got.Facts["org_plan"])
+	}
+	// model.CheckResult.Provenance is `json:"provenance"` with no
+	// omitempty, and the evidence-pack schema requires it as an array —
+	// a nil slice marshals to JSON null and fails pre-write schema
+	// validation, aborting attestor scan entirely for any user-account
+	// target (found in Fable review of PR #103).
+	if got.Provenance == nil {
+		t.Errorf("Provenance is nil, want a non-nil (possibly empty) slice — a nil Provenance marshals to JSON null and fails the evidence-pack schema's required array type")
 	}
 }
 

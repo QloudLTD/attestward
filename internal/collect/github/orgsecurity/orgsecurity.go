@@ -136,7 +136,19 @@ func (c *Collector) ID() string { return collectorID }
 // not-checkable result keyed by the *collector* ID ("C01.org-security"),
 // which matches no task's checks[] entry and would silently vanish from the
 // rollup.
+//
+// When the orchestrator already knows (from preflight) that scope.Org is a
+// personal user account, every check short-circuits straight to that
+// specific not-checkable reason without attempting Organizations.Get at
+// all — issue #102: this collector's checks structurally can never
+// succeed against a user account, so there's no reason to make (and pay
+// the rate-limit/latency cost of) a doomed API call just to rediscover
+// that.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+	if scope.AccountType == collect.AccountTypeUser {
+		return allNotCheckable(scope, ghcollect.UserAccountNotCheckableReason(scope.Org), []model.Provenance{}), nil
+	}
+
 	start := len(c.client.Provenance())
 	org, resp, err := c.client.REST.Organizations.Get(ctx, scope.Org)
 	if err != nil {

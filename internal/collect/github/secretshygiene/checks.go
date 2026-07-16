@@ -6,6 +6,7 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
+	"github.com/sioakim/ssdf/internal/collect"
 	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
 	"github.com/sioakim/ssdf/internal/model"
 )
@@ -158,8 +159,23 @@ func strOrEmpty(s *string) string {
 // gate. Viewing these fields requires org owner or security manager
 // permission; a token without it gets all four fields back nil, which this
 // treats as not-checkable rather than four false negatives.
-func checkOrgSecurityDefaults(ctx context.Context, client *ghcollect.Client, org string) model.CheckResult {
+//
+// When accountType is collect.AccountTypeUser (issue #102), this
+// short-circuits to a specific not-checkable reason without attempting
+// Organizations.Get at all — org is a personal account, so this check's
+// org-scoped endpoint has no equivalent for it and the call would only
+// ever 404.
+func checkOrgSecurityDefaults(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType) model.CheckResult {
 	const id = "C04.org.security-defaults"
+	if accountType == collect.AccountTypeUser {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason:     ghcollect.UserAccountNotCheckableReason(org),
+			Scope:      model.ScopeRef{Org: org},
+			Provenance: []model.Provenance{},
+		}
+	}
+
 	orgObj, resp, err := client.REST.Organizations.Get(ctx, org)
 	if err != nil {
 		return model.CheckResult{

@@ -12,13 +12,19 @@
 # a tool whose whole point is truthful evidence) — so if attestor rejects
 # this file after you've edited it, check for a misspelled key first.
 
-# Required. The GitHub org to scan.
+# Required. The GitHub account to scan — an Organization or a personal User
+# account both work (attestor detects which automatically). Org-scoped
+# checks (e.g. C01 org-security, C09 audit-logging) report not-checkable
+# with a specific reason for a personal-account target, since GitHub's
+# org-level API has no equivalent for one.
 org: my-org
 
 # The "product line" being attested for. Leave empty (or omit entirely) to
-# scan every non-archived, non-fork repo in the org — attestor prints a
+# scan every non-archived, non-fork repo in the account — attestor prints a
 # warning when it falls back to this, since scanning "everything" instead
-# of an intentional subset is worth knowing about.
+# of an intentional subset is worth knowing about (and, for a personal
+# account target, only public repos are listed this way — pass explicit
+# repos to include private ones).
 repos:
   - my-product-api
   - my-product-web
