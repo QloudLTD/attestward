@@ -32,8 +32,18 @@ import (
 // domain would), so a SECURITY.md whose only "@"-shaped text is an
 // install command in a code block would also false-positive.
 //
-// Fixing either precisely would need markdown-aware code-fence
-// exclusion, not just a regex — out of scope for the "content
+// githubReportingPattern has a related but distinct imprecision, caught
+// during checks-reference rubric review (issue #30): it matches the bare
+// phrase "report a vulnerability" anywhere in the content, so a SECURITY.md
+// that only says something like "Please report a vulnerability responsibly"
+// — prose with no actual email, URL, or GitHub-reporting-feature reference —
+// still verified-passes intake-channel. Unlike the two false positives
+// above, this isn't a code-block artifact; it's the phrase itself being
+// too generic to guarantee a genuine channel is present.
+//
+// Fixing the two code-block classes precisely would need markdown-aware
+// code-fence exclusion, not just a regex; the phrase-genericity class has
+// no regex-level fix at all. All three are out of scope for the "content
 // heuristics" this issue asks for; flagged here rather than silently
 // accepted.
 var (

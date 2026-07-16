@@ -60,6 +60,78 @@ var checkRemediations = map[string]string{
 		"have its own.",
 }
 
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce — see the check functions below for the pass/fail
+// logic each rubric summarizes. Like C09, this collector has no single
+// shared upstream not-checkable gate across ALL checks: collectRepo never
+// early-returns, so C10.vdp.private-reporting's own independent API call
+// runs and is judged regardless of whether SECURITY.md resolution
+// succeeded. C10.vdp.security-md and C10.vdp.intake-channel DO share a
+// not-checkable cause with each other specifically, since both read the
+// same resolveSecurityMD result — see sharedSecurityMDResolveErrRubric.
+var checkRubrics = map[string]map[model.Status]string{
+	securityMDID: {
+		model.StatusVerifiedPass: "a SECURITY.md resolved somewhere in GitHub's documented fallback chain " +
+			"(`.github/`, repo root, or `docs/`, tried in that order) — either in this repo directly, or in " +
+			"the org's own `.github` repo if this repo has none of its own",
+		model.StatusVerifiedFail: "no SECURITY.md was found at any of the six candidate locations (three " +
+			"paths × [this repo, the org's `.github` repo])",
+		model.StatusNotCheckable: sharedSecurityMDResolveErrRubric,
+	},
+	intakeChannelID: {
+		model.StatusVerifiedPass: "SECURITY.md resolved (see C10.vdp.security-md) and its content matches " +
+			"at least one of three signals: an email address, an `http(s)://` URL, or a GitHub " +
+			"private-vulnerability-reporting mention",
+		model.StatusPartial: "SECURITY.md resolved, but none of the three intake-channel signals were " +
+			"found in its content — the file exists but doesn't tell a reporter how to actually reach the " +
+			"producer",
+		model.StatusVerifiedFail: "no SECURITY.md exists to advertise an intake channel at all — shares " +
+			"C10.vdp.security-md's own fail condition, since there's nothing to inspect for a channel",
+		model.StatusNotCheckable: sharedSecurityMDResolveErrRubric,
+	},
+	privateReportingID: {
+		model.StatusVerifiedPass: "GET /repos/{owner}/{repo}/private-vulnerability-reporting succeeded and " +
+			"reports the feature enabled",
+		model.StatusVerifiedFail: "GET /repos/{owner}/{repo}/private-vulnerability-reporting succeeded and " +
+			"reports the feature not enabled",
+		model.StatusNotCheckable: "the call failed — a plan-gated response (402/404; only the 404 case has " +
+			"been empirically observed, on private repos without GHAS — 402 is included on the strength of " +
+			"this codebase's general plan-gate predicate, not a separate observation of its own — and " +
+			"neither is confirmed against GitHub's own docs for this specific endpoint, which document only " +
+			"200/422), a 403 (token lacks permission), or another error; never asserted as a confirmed " +
+			"\"disabled\" state",
+	},
+	securityPolicyOrgID: {
+		model.StatusVerifiedPass: "the org's own `.github` repo exists and a SECURITY.md resolved within " +
+			"it (the same three-path fallback), serving as the org-wide default",
+		model.StatusVerifiedFail: "the org's `.github` repo exists, but no SECURITY.md resolved within it " +
+			"at any of the three candidate paths",
+		model.StatusNotCheckable: "the org has no `.github` repo at all (a 404 on `GET /repos/{org}/.github` " +
+			"— no org-wide default mechanism exists, which most orgs never create and isn't itself a gap), " +
+			"or the repo-existence check itself failed for another reason, or resolving SECURITY.md within " +
+			"`.github` failed with a genuine API error",
+	},
+}
+
+// sharedSecurityMDResolveErrRubric is shared by security-md and
+// intake-channel: both are computed from the SAME resolveSecurityMD call
+// in collectRepo, so a resolution failure (a genuine API error, not a
+// 404 at any one candidate path — that just means "try the next path")
+// reaches both checks identically.
+const sharedSecurityMDResolveErrRubric = "resolving SECURITY.md failed with a genuine API error — " +
+	"permission denied, a file GitHub found but couldn't decode (e.g. an over-1MB file with " +
+	"`encoding: none`), or another failure; a plain 404 at any one candidate path is never this cause, " +
+	"since that just means the next path is tried"
+
+var checkEndpoints = map[string][]string{
+	securityMDID:        {"GET /repos/{owner}/{repo}/contents/{path}"},
+	intakeChannelID:     {"GET /repos/{owner}/{repo}/contents/{path}"},
+	privateReportingID:  {"GET /repos/{owner}/{repo}/private-vulnerability-reporting"},
+	securityPolicyOrgID: {"GET /repos/{owner}/{repo}", "GET /repos/{owner}/{repo}/contents/{path}"},
+}
+
+const fixtureRef = "internal/collect/github/vdp/vdp_test.go"
+
 func init() {
 	for _, id := range repoCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -70,6 +142,9 @@ func init() {
 				"private-reporting additionally needs whatever category gates that endpoint; exact fine-grained " +
 				"category unverified, see C05's TokenScope for the same kind of hedge",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 	collect.Register(collect.CheckMeta{
@@ -79,6 +154,9 @@ func init() {
 		TokenScope: "public_repo/repo (classic) or Contents: read-only (fine-grained), against the org's own " +
 			"\".github\" repo if one exists",
 		Remediation: checkRemediations[securityPolicyOrgID],
+		Rubric:      checkRubrics[securityPolicyOrgID],
+		Endpoints:   checkEndpoints[securityPolicyOrgID],
+		FixtureRef:  fixtureRef,
 	})
 }
 
