@@ -43,7 +43,7 @@ func TestCheckPinned(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := loadFixture(t, tt.file)
-			got := checkPinned(org, repo, []workflowUnit{u}, nil, nil)
+			got := checkPinned(org, repo, []workflowUnit{u}, nil, nil, nil)
 			if got.Status != tt.want {
 				t.Errorf("status = %q, want %q; reason=%q", got.Status, tt.want, got.Reason)
 			}
@@ -52,7 +52,7 @@ func TestCheckPinned(t *testing.T) {
 }
 
 func TestCheckPinned_NoWorkflows_NotCheckable(t *testing.T) {
-	got := checkPinned(org, repo, nil, nil, nil)
+	got := checkPinned(org, repo, nil, nil, nil, nil)
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("status = %q, want not-checkable", got.Status)
 	}
@@ -61,7 +61,7 @@ func TestCheckPinned_NoWorkflows_NotCheckable(t *testing.T) {
 func TestCheckPinned_UnresolvedExternalWorkflowSurfacedAsFact(t *testing.T) {
 	u := loadFixture(t, "pinned_none.yaml")
 	unresolved := []unresolvedExternalWorkflow{{FromFile: "caller.yaml", Line: 3, Ref: "other/repo/.github/workflows/x.yml@v1"}}
-	got := checkPinned(org, repo, []workflowUnit{u}, unresolved, nil)
+	got := checkPinned(org, repo, []workflowUnit{u}, unresolved, nil, nil)
 	facts, ok := got.Facts["unresolved_external_workflows"].([]map[string]any)
 	if !ok || len(facts) != 1 {
 		t.Fatalf("unresolved_external_workflows facts = %#v, want one entry", got.Facts["unresolved_external_workflows"])
@@ -82,7 +82,7 @@ func TestCheckTokenPermissions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := loadFixture(t, tt.file)
-			got := checkTokenPermissions(org, repo, []workflowUnit{u}, "", false, nil)
+			got := checkTokenPermissions(org, repo, []workflowUnit{u}, "", false, nil, nil)
 			if got.Status != tt.want {
 				t.Errorf("status = %q, want %q; reason=%q", got.Status, tt.want, got.Reason)
 			}
@@ -92,7 +92,7 @@ func TestCheckTokenPermissions(t *testing.T) {
 
 func TestCheckTokenPermissions_DefaultWorkflowPermissionSurfacedAsContextFact(t *testing.T) {
 	u := loadFixture(t, "permissions_missing.yaml")
-	got := checkTokenPermissions(org, repo, []workflowUnit{u}, "write", true, nil)
+	got := checkTokenPermissions(org, repo, []workflowUnit{u}, "write", true, nil, nil)
 	if got.Facts["repo_default_workflow_permissions"] != "write" {
 		t.Errorf("repo_default_workflow_permissions fact = %v, want %q", got.Facts["repo_default_workflow_permissions"], "write")
 	}
@@ -119,7 +119,7 @@ func TestCheckPullRequestTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := loadFixture(t, tt.file)
-			got := checkPullRequestTarget(org, repo, []workflowUnit{u}, nil)
+			got := checkPullRequestTarget(org, repo, []workflowUnit{u}, nil, nil)
 			if got.Status != tt.want {
 				t.Errorf("status = %q, want %q; reason=%q", got.Status, tt.want, got.Reason)
 			}
@@ -143,7 +143,7 @@ func TestCheckOIDCvsSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := loadFixture(t, tt.file)
-			got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil)
+			got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil, nil)
 			if got.Status != tt.want {
 				t.Errorf("status = %q, want %q; reason=%q", got.Status, tt.want, got.Reason)
 			}
@@ -153,7 +153,7 @@ func TestCheckOIDCvsSecrets(t *testing.T) {
 
 func TestCheckOIDCvsSecrets_NoDeployWorkflow_NotCheckable(t *testing.T) {
 	u := loadFixture(t, "pinned_none.yaml")
-	got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil)
+	got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil, nil)
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("status = %q, want not-checkable", got.Status)
 	}
@@ -168,7 +168,7 @@ func TestCheckOIDCvsSecrets_NoDeployWorkflow_NotCheckable(t *testing.T) {
 // parameter, so "neither" would be literally false here.
 func TestCheckOIDCvsSecrets_AzureClientIDOnly_AmbiguousReasonDoesNotClaimNeither(t *testing.T) {
 	u := loadFixture(t, "deploy_azure_partial_client_id_only.yaml")
-	got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil)
+	got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil, nil)
 	if got.Status != model.StatusPartial {
 		t.Fatalf("status = %q, want partial; reason=%q", got.Status, got.Reason)
 	}
@@ -192,7 +192,7 @@ func TestCheckSelfHosted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := loadFixture(t, tt.file)
-			got := checkSelfHosted(org, repo, []workflowUnit{u}, tt.private, nil)
+			got := checkSelfHosted(org, repo, []workflowUnit{u}, tt.private, nil, nil)
 			if got.Status != tt.want {
 				t.Errorf("status = %q, want %q; reason=%q", got.Status, tt.want, got.Reason)
 			}
@@ -201,7 +201,7 @@ func TestCheckSelfHosted(t *testing.T) {
 }
 
 func TestCheckSelfHosted_NoWorkflows_NotCheckable(t *testing.T) {
-	got := checkSelfHosted(org, repo, nil, false, nil)
+	got := checkSelfHosted(org, repo, nil, false, nil, nil)
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("status = %q, want not-checkable", got.Status)
 	}
@@ -212,7 +212,7 @@ func TestCheckSelfHosted_NoWorkflows_NotCheckable(t *testing.T) {
 // check per kind of finding.
 func TestFindingsIncludeFileAndLine(t *testing.T) {
 	u := loadFixture(t, "pinned_thirdparty_unpinned.yaml")
-	got := checkPinned(org, repo, []workflowUnit{u}, nil, nil)
+	got := checkPinned(org, repo, []workflowUnit{u}, nil, nil, nil)
 	findings, ok := got.Facts["third_party_unpinned"].([]map[string]any)
 	if !ok || len(findings) != 1 {
 		t.Fatalf("third_party_unpinned facts = %#v, want one entry", got.Facts["third_party_unpinned"])
@@ -236,8 +236,8 @@ func TestFindingsIncludeFileAndLine(t *testing.T) {
 func TestLineNumbers_IndependentAcrossChecks(t *testing.T) {
 	units := []workflowUnit{loadFixture(t, "prtarget_dangerous.yaml")}
 
-	pinned := checkPinned(org, repo, units, nil, nil)
-	prTarget := checkPullRequestTarget(org, repo, units, nil)
+	pinned := checkPinned(org, repo, units, nil, nil, nil)
+	prTarget := checkPullRequestTarget(org, repo, units, nil, nil)
 
 	pinnedRefs, _ := pinned.Facts["first_party_unpinned"].([]map[string]any)
 	if len(pinnedRefs) != 1 {

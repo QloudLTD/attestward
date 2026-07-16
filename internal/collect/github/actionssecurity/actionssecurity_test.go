@@ -148,6 +148,45 @@ func TestCollect_NoWorkflows_AllChecksNotCheckable(t *testing.T) {
 	}
 }
 
+// TestCollect_AllWorkflowsUnreadable_NotCheckableFactsIncludeSkipped
+// covers the len(units)==0-with-skipped case for the four checks that
+// share noWorkflowsReason: GitHub listed a workflow file, but it
+// couldn't be fetched (403) — the not-checkable reason correctly names
+// this ("every one failed to fetch or parse (see skipped_workflows)"),
+// and Facts must actually carry that skipped_workflows entry for the
+// claim to be honest — a rubric/reason pointing readers at a Facts key
+// that doesn't exist would be its own inaccuracy.
+func TestCollect_AllWorkflowsUnreadable_NotCheckableFactsIncludeSkipped(t *testing.T) {
+	org, repoName, branch := "acme", "all-unreadable-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repoName, branch, false)
+	registerDefaultWorkflowPermissions(t, mux, org, repoName, "read")
+	registerWorkflows(t, mux, org, repoName, []string{".github/workflows/build.yml"})
+	mux.HandleFunc("/repos/"+org+"/"+repoName+"/contents/.github/workflows/build.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	for _, id := range []string{checkPinnedID, checkTokenPermissionsID, checkPRTargetID, checkSelfHostedID} {
+		if got := m[id].Status; got != model.StatusNotCheckable {
+			t.Errorf("%s = %q, want not-checkable; reason=%q", id, got, m[id].Reason)
+		}
+		if !strings.Contains(m[id].Reason, "skipped_workflows") {
+			t.Errorf("%s reason doesn't mention skipped_workflows: %q", id, m[id].Reason)
+		}
+		skipped, ok := m[id].Facts["skipped_workflows"].([]map[string]any)
+		if !ok || len(skipped) != 1 || skipped[0]["path"] != ".github/workflows/build.yml" {
+			t.Errorf("%s Facts[skipped_workflows] = %v, want exactly one entry for build.yml — the reason text points readers here, so it must actually be populated", id, m[id].Facts["skipped_workflows"])
+		}
+	}
+}
+
 func TestCollect_RepoFetchFailure403_AllChecksNotCheckable(t *testing.T) {
 	org, repoName := "acme", "forbidden-repo"
 	mux := http.NewServeMux()
@@ -166,6 +205,164 @@ func TestCollect_RepoFetchFailure403_AllChecksNotCheckable(t *testing.T) {
 		if got := m[id].Status; got != model.StatusNotCheckable {
 			t.Errorf("%s = %q, want not-checkable", id, got)
 		}
+	}
+}
+
+// TestCollect_OneWorkflowUnreadable_DoesNotFalselyPassOnIncompleteEvidence
+// pins the fix for issue #96: fetchOneWorkflow (workflows.go) used to
+// fold ANY GetContents failure — a genuine 403/500, not just a benign
+// 404-at-ref — into the same silent skip as a workflow that legitimately
+// doesn't exist at this ref. Three of five checks (pinned, pull-request-
+// target, self-hosted) default to verified-pass when no violation is
+// found among the workflows that WERE fetched — so the one workflow
+// that couldn't be read (here, the one containing the dangerous
+// pull_request_target+checkout-of-PR-head pattern) was silently
+// invisible, and the check confidently asserted "no workflow triggers
+// on pull_request_target at all" when the truth is "one workflow's
+// content couldn't be confirmed either way."
+func TestCollect_OneWorkflowUnreadable_DoesNotFalselyPassOnIncompleteEvidence(t *testing.T) {
+	org, repoName, branch := "acme", "partial-read-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repoName, branch, false)
+	registerDefaultWorkflowPermissions(t, mux, org, repoName, "read")
+	registerWorkflows(t, mux, org, repoName, []string{
+		".github/workflows/build.yml",
+		".github/workflows/label.yml",
+	})
+	registerContent(t, mux, org, repoName, ".github/workflows/build.yml", "pinned_thirdparty_sha.yaml")
+	mux.HandleFunc("/repos/"+org+"/"+repoName+"/contents/.github/workflows/label.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	// pinned, token-permissions, pull-request-target, and self-hosted all
+	// default to verified-pass when no violation is found among the
+	// workflows successfully read — build.yml (the one readable
+	// workflow) has an explicit permissions: block, so token-permissions
+	// has no real missing-permissions finding here either, and is
+	// affected by the same incomplete-evidence downgrade as the other
+	// three. oidc-vs-secrets is the only one genuinely unaffected: it
+	// has no cloud-login evidence anywhere among what was read, so it's
+	// not-checkable regardless of the skipped workflow.
+	for _, id := range []string{checkPinnedID, checkTokenPermissionsID, checkPRTargetID, checkSelfHostedID} {
+		if got := m[id].Status; got != model.StatusPartial {
+			t.Errorf("%s = %q, want partial (incomplete evidence — one workflow's content couldn't be fetched); reason=%q", id, got, m[id].Reason)
+		}
+		skipped, ok := m[id].Facts["skipped_workflows"].([]map[string]any)
+		if !ok || len(skipped) != 1 || skipped[0]["path"] != ".github/workflows/label.yml" {
+			t.Errorf("%s Facts[skipped_workflows] = %v, want exactly one entry for the unreadable label.yml", id, m[id].Facts["skipped_workflows"])
+		}
+	}
+}
+
+// TestCollect_SelfHostedOnPrivateRepo_NotDowngradedByUnrelatedSkip pins
+// that checkSelfHosted's "found on a private repo, still passes" branch
+// (checks.go) is NOT capped at partial just because some other,
+// unrelated workflow was unreadable — that verdict already rests on a
+// real, confirmed finding, and private-ness caps it at pass regardless
+// of how many self-hosted usages exist, found or not. Only the
+// zero-findings pass needs the incomplete-evidence caveat.
+func TestCollect_SelfHostedOnPrivateRepo_NotDowngradedByUnrelatedSkip(t *testing.T) {
+	org, repoName, branch := "acme", "private-selfhosted-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repoName, branch, true)
+	registerDefaultWorkflowPermissions(t, mux, org, repoName, "read")
+	registerWorkflows(t, mux, org, repoName, []string{
+		".github/workflows/deploy.yml",
+		".github/workflows/unreadable.yml",
+	})
+	registerContent(t, mux, org, repoName, ".github/workflows/deploy.yml", "selfhosted_bare_string.yaml")
+	mux.HandleFunc("/repos/"+org+"/"+repoName+"/contents/.github/workflows/unreadable.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m[checkSelfHostedID].Status; got != model.StatusVerifiedPass {
+		t.Errorf("%s = %q, want verified-pass — a confirmed self-hosted finding on a private repo isn't weakened by an unrelated unreadable workflow; reason=%q", checkSelfHostedID, got, m[checkSelfHostedID].Reason)
+	}
+}
+
+// TestCollect_SameOrgReusableWorkflowFetchFails_DoesNotFalselyPass pins
+// the same incomplete-evidence fix for resolveReusableWorkflows'
+// (workflows.go) own fetch path — distinct code from fetchWorkflows'
+// direct-listing path, and needs its own coverage: a same-org reusable
+// workflow reference that fails to fetch (403) must also prevent a
+// confident verified-pass, not just vanish.
+func TestCollect_SameOrgReusableWorkflowFetchFails_DoesNotFalselyPass(t *testing.T) {
+	org, repoName, branch := "my-org", "caller-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repoName, branch, false)
+	registerDefaultWorkflowPermissions(t, mux, org, repoName, "read")
+	registerWorkflows(t, mux, org, repoName, []string{".github/workflows/caller.yml"})
+	// caller.yml's own job-level uses: is pinned to a full SHA, so it
+	// contributes zero unpinned findings on its own — pinned would
+	// otherwise reach verified-pass purely from what it CAN see; the
+	// unreadable same-org callee must be what prevents that.
+	const callerYAML = "name: build\non: [push]\npermissions:\n  contents: read\njobs:\n  call-internal:\n    uses: my-org/shared-workflows/.github/workflows/build.yml@1111111111111111111111111111111111111111\n"
+	mux.HandleFunc("/repos/"+org+"/"+repoName+"/contents/.github/workflows/caller.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": callerYAML, "sha": "content-sha"})
+	})
+	mux.HandleFunc("/repos/"+org+"/shared-workflows/contents/.github/workflows/build.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m[checkPinnedID].Status; got != model.StatusPartial {
+		t.Errorf("%s = %q, want partial (the same-org reusable workflow reference couldn't be fetched); reason=%q", checkPinnedID, got, m[checkPinnedID].Reason)
+	}
+}
+
+// TestCollect_SameOrgReusableWorkflowReturns404_DoesNotFalselyPass covers
+// the 404 variant of the previous test — a materially different, and
+// arguably more realistic, cause: GitHub returns 404 (not 403) for a
+// private repo the token can't see, specifically to avoid leaking
+// whether it exists. Unlike fetchWorkflows' direct-listing path (where
+// ListWorkflows already proved read access to the SAME repo, so a
+// content-fetch 404 there really is a benign "not at this ref"),
+// resolveReusableWorkflows has no such prior proof for the callee repo
+// a reusable-workflow reference points at — so a 404 here must NOT be
+// silently trusted as a genuine absence.
+func TestCollect_SameOrgReusableWorkflowReturns404_DoesNotFalselyPass(t *testing.T) {
+	org, repoName, branch := "my-org", "caller-404-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repoName, branch, false)
+	registerDefaultWorkflowPermissions(t, mux, org, repoName, "read")
+	registerWorkflows(t, mux, org, repoName, []string{".github/workflows/caller.yml"})
+	const callerYAML = "name: build\non: [push]\npermissions:\n  contents: read\njobs:\n  call-internal:\n    uses: my-org/shared-workflows/.github/workflows/build.yml@2222222222222222222222222222222222222222\n"
+	mux.HandleFunc("/repos/"+org+"/"+repoName+"/contents/.github/workflows/caller.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": callerYAML, "sha": "content-sha"})
+	})
+	mux.HandleFunc("/repos/"+org+"/shared-workflows/contents/.github/workflows/build.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m[checkPinnedID].Status; got != model.StatusPartial {
+		t.Errorf("%s = %q, want partial (a 404 on the callee repo can't be trusted as a benign absence — it's GitHub's identical response for \"no access\"); reason=%q", checkPinnedID, got, m[checkPinnedID].Reason)
 	}
 }
 

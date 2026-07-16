@@ -23,14 +23,33 @@ func notCheckableResult(id, org, repo, reason string, prov []model.Provenance) m
 	}
 }
 
-// noWorkflowsReason is deliberately weaker than "no workflow files
-// exist": fetchWorkflows silently skips a listed file whose content
-// can't be fetched or parsed (see its own doc comment), so zero
-// resulting units doesn't distinguish "genuinely zero workflow files"
-// from "GitHub listed one or more, but every one failed to read" — this
-// wording is honest under either cause. See issue #96 for tightening
-// this further (tracking which/why a listed file was skipped).
-const noWorkflowsReason = "no GitHub Actions workflow file could be fetched and parsed from the default branch"
+// noWorkflowsReason is the len(units)==0 not-checkable reason shared by
+// four of the five checks. When skipped is non-empty, zero readable
+// units doesn't mean zero workflow files exist — it means GitHub listed
+// one or more but every one failed to fetch or parse — so the reason
+// names that instead of the weaker, less specific default text (see
+// issue #96, now closed by this distinction).
+func noWorkflowsReason(skipped []skippedWorkflow) string {
+	if len(skipped) == 0 {
+		return "no GitHub Actions workflow file could be fetched and parsed from the default branch"
+	}
+	return fmt.Sprintf("no GitHub Actions workflow file could be fetched and parsed from the default branch — GitHub listed %d, but every one failed to fetch or parse (see skipped_workflows)", len(skipped))
+}
+
+// downgradeIfIncompleteEvidence caps status at partial when it would
+// otherwise be verified-pass and skipped is non-empty: "no violation
+// found" among the workflows this collector managed to read is not the
+// same claim as "no violation exists" when some listed or referenced
+// workflow couldn't be fetched or parsed at all. A status that already
+// reached fail or partial from real findings is left untouched — a
+// confirmed violation among what WAS read stays confirmed regardless of
+// what else might be unread.
+func downgradeIfIncompleteEvidence(status model.Status, reason string, skipped []skippedWorkflow) (model.Status, string) {
+	if status != model.StatusVerifiedPass || len(skipped) == 0 {
+		return status, reason
+	}
+	return model.StatusPartial, fmt.Sprintf("no violation was found among the workflows successfully read, but %d workflow(s)/reusable-workflow reference(s) could not be fetched or parsed — this result may be incomplete (see skipped_workflows)", len(skipped))
+}
 
 func splitActionRefLocal(uses string) (slug, ref string) {
 	slug, ref, _ = strings.Cut(uses, "@")
@@ -124,9 +143,11 @@ func unresolvedToFacts(items []unresolvedExternalWorkflow) []map[string]any {
 // action/reusable-workflow reference not pinned to a full 40-char commit
 // SHA is a hard fail; a first-party actions/* reference on a mutable
 // major-version tag is tolerated but caps the result at partial.
-func checkPinned(org, repo string, units []workflowUnit, unresolvedExternal []unresolvedExternalWorkflow, prov []model.Provenance) model.CheckResult {
+func checkPinned(org, repo string, units []workflowUnit, unresolvedExternal []unresolvedExternalWorkflow, skipped []skippedWorkflow, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkPinnedID, org, repo, noWorkflowsReason, prov)
+		result := notCheckableResult(checkPinnedID, org, repo, noWorkflowsReason(skipped), prov)
+		result.Facts = map[string]any{"skipped_workflows": skippedToFacts(skipped)}
+		return result
 	}
 
 	var allRefs []actionRefFinding
@@ -135,15 +156,6 @@ func checkPinned(org, repo string, units []workflowUnit, unresolvedExternal []un
 	}
 
 	unresolvedFacts := unresolvedToFacts(unresolvedExternal)
-
-	if len(allRefs) == 0 {
-		return model.CheckResult{
-			CheckID: checkPinnedID, Title: checkTitles[checkPinnedID], Status: model.StatusVerifiedPass,
-			Reason: "no external action or reusable-workflow references found; nothing to pin",
-			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-			Facts: map[string]any{"unresolved_external_workflows": unresolvedFacts},
-		}
-	}
 
 	var thirdPartyUnpinned, firstPartyUnpinned []actionRefFinding
 	for _, r := range allRefs {
@@ -160,6 +172,8 @@ func checkPinned(org, repo string, units []workflowUnit, unresolvedExternal []un
 	status := model.StatusVerifiedPass
 	reason := "every third-party action and reusable-workflow reference is pinned to a full-length commit SHA"
 	switch {
+	case len(allRefs) == 0:
+		reason = "no external action or reusable-workflow references found; nothing to pin"
 	case len(thirdPartyUnpinned) > 0:
 		status = model.StatusVerifiedFail
 		reason = fmt.Sprintf("%d third-party action/reusable-workflow reference(s) are not pinned to a full-length commit SHA", len(thirdPartyUnpinned))
@@ -167,6 +181,7 @@ func checkPinned(org, repo string, units []workflowUnit, unresolvedExternal []un
 		status = model.StatusPartial
 		reason = fmt.Sprintf("every third-party reference is SHA-pinned, but %d first-party actions/* reference(s) use a mutable tag instead of a SHA", len(firstPartyUnpinned))
 	}
+	status, reason = downgradeIfIncompleteEvidence(status, reason, skipped)
 
 	return model.CheckResult{
 		CheckID: checkPinnedID, Title: checkTitles[checkPinnedID], Status: status, Reason: reason,
@@ -175,6 +190,7 @@ func checkPinned(org, repo string, units []workflowUnit, unresolvedExternal []un
 			"third_party_unpinned":          actionRefFindingsToFacts(thirdPartyUnpinned),
 			"first_party_unpinned":          actionRefFindingsToFacts(firstPartyUnpinned),
 			"unresolved_external_workflows": unresolvedFacts,
+			"skipped_workflows":             skippedToFacts(skipped),
 		},
 	}
 }
@@ -254,9 +270,11 @@ func permissionsFindingsToFacts(findings []permissionsFinding) []map[string]any 
 // block actually is) — never as a substitute for an explicit block, per
 // the issue's own wording ("absence ... flagged; ... setting collected as
 // context fact").
-func checkTokenPermissions(org, repo string, units []workflowUnit, defaultWorkflowPermission string, defaultWorkflowPermissionKnown bool, prov []model.Provenance) model.CheckResult {
+func checkTokenPermissions(org, repo string, units []workflowUnit, defaultWorkflowPermission string, defaultWorkflowPermissionKnown bool, skipped []skippedWorkflow, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkTokenPermissionsID, org, repo, noWorkflowsReason, prov)
+		result := notCheckableResult(checkTokenPermissionsID, org, repo, noWorkflowsReason(skipped), prov)
+		result.Facts = map[string]any{"skipped_workflows": skippedToFacts(skipped)}
+		return result
 	}
 
 	var allFindings []permissionsFinding
@@ -287,8 +305,9 @@ func checkTokenPermissions(org, repo string, units []workflowUnit, defaultWorkfl
 		status = model.StatusPartial
 		reason = fmt.Sprintf("every job declares explicit permissions, but %d declare write-all rather than a scoped, least-privilege set", writeAll)
 	}
+	status, reason = downgradeIfIncompleteEvidence(status, reason, skipped)
 
-	facts := map[string]any{"findings": permissionsFindingsToFacts(allFindings)}
+	facts := map[string]any{"findings": permissionsFindingsToFacts(allFindings), "skipped_workflows": skippedToFacts(skipped)}
 	if defaultWorkflowPermissionKnown {
 		facts["repo_default_workflow_permissions"] = defaultWorkflowPermission
 	}
@@ -341,9 +360,11 @@ func findCheckoutOfPRHead(u workflowUnit) (uses string, line int, found bool) {
 // pull_request_target usage without a detected head checkout is still
 // risky by design (GitHub itself documents this), so it caps at partial
 // rather than being waved through as a pass.
-func checkPullRequestTarget(org, repo string, units []workflowUnit, prov []model.Provenance) model.CheckResult {
+func checkPullRequestTarget(org, repo string, units []workflowUnit, skipped []skippedWorkflow, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkPRTargetID, org, repo, noWorkflowsReason, prov)
+		result := notCheckableResult(checkPRTargetID, org, repo, noWorkflowsReason(skipped), prov)
+		result.Facts = map[string]any{"skipped_workflows": skippedToFacts(skipped)}
+		return result
 	}
 
 	var dangerous, bare []map[string]any
@@ -368,11 +389,12 @@ func checkPullRequestTarget(org, repo string, units []workflowUnit, prov []model
 		status = model.StatusPartial
 		reason = "pull_request_target is used without a detected checkout of the PR head — still a risky trigger by design, but no confirmed exploit pattern found"
 	}
+	status, reason = downgradeIfIncompleteEvidence(status, reason, skipped)
 
 	return model.CheckResult{
 		CheckID: checkPRTargetID, Title: checkTitles[checkPRTargetID], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{"dangerous": dangerous, "bare_usage": bare},
+		Facts: map[string]any{"dangerous": dangerous, "bare_usage": bare, "skipped_workflows": skippedToFacts(skipped)},
 	}
 }
 
@@ -448,7 +470,7 @@ func cloudLoginFindingsToFacts(findings []cloudLoginFinding) []map[string]any {
 // static secret stored in the repo/org. A repo with no such step at all
 // has nothing this check can evaluate — not-checkable, not a pass, since
 // "no cloud deployment detected" isn't itself a security property.
-func checkOIDCvsSecrets(org, repo string, units []workflowUnit, prov []model.Provenance) model.CheckResult {
+func checkOIDCvsSecrets(org, repo string, units []workflowUnit, skipped []skippedWorkflow, prov []model.Provenance) model.CheckResult {
 	var findings []cloudLoginFinding
 	for _, u := range units {
 		finder := newLineFinder(u.Raw)
@@ -468,7 +490,13 @@ func checkOIDCvsSecrets(org, repo string, units []workflowUnit, prov []model.Pro
 	}
 
 	if len(findings) == 0 {
-		return notCheckableResult(checkOIDCID, org, repo, "no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch", prov)
+		reason := "no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch"
+		if len(skipped) > 0 {
+			reason = fmt.Sprintf("no cloud-deployment login action (AWS/Azure/GCP) detected among the workflows successfully read, but %d workflow(s)/reusable-workflow reference(s) could not be fetched or parsed (see skipped_workflows)", len(skipped))
+		}
+		result := notCheckableResult(checkOIDCID, org, repo, reason, prov)
+		result.Facts = map[string]any{"skipped_workflows": skippedToFacts(skipped)}
+		return result
 	}
 
 	static, ambiguous := 0, 0
@@ -491,11 +519,12 @@ func checkOIDCvsSecrets(org, repo string, units []workflowUnit, prov []model.Pro
 		status = model.StatusPartial
 		reason = fmt.Sprintf("%d cloud-deployment login step(s) set no recognized static-credential parameter, and no complete OIDC parameter set either (e.g. azure/login needs both client-id and tenant-id — one alone still counts as ambiguous)", ambiguous)
 	}
+	status, reason = downgradeIfIncompleteEvidence(status, reason, skipped)
 
 	return model.CheckResult{
 		CheckID: checkOIDCID, Title: checkTitles[checkOIDCID], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{"logins": cloudLoginFindingsToFacts(findings)},
+		Facts: map[string]any{"logins": cloudLoginFindingsToFacts(findings), "skipped_workflows": skippedToFacts(skipped)},
 	}
 }
 
@@ -522,9 +551,11 @@ func runsOnSelfHosted(runsOn any) bool {
 // external contributor's pull request is a potential path to the runner —
 // on a private repo, that specific attack vector doesn't apply, so usage
 // there is recorded as a fact but doesn't fail the check.
-func checkSelfHosted(org, repo string, units []workflowUnit, private bool, prov []model.Provenance) model.CheckResult {
+func checkSelfHosted(org, repo string, units []workflowUnit, private bool, skipped []skippedWorkflow, prov []model.Provenance) model.CheckResult {
 	if len(units) == 0 {
-		return notCheckableResult(checkSelfHostedID, org, repo, noWorkflowsReason, prov)
+		result := notCheckableResult(checkSelfHostedID, org, repo, noWorkflowsReason(skipped), prov)
+		result.Facts = map[string]any{"skipped_workflows": skippedToFacts(skipped)}
+		return result
 	}
 
 	var findings []map[string]any
@@ -547,11 +578,18 @@ func checkSelfHosted(org, repo string, units []workflowUnit, private bool, prov 
 		reason = "self-hosted runner(s) are used on a public repository — an external contributor's pull request is a potential path to them"
 	case len(findings) > 0:
 		reason = "self-hosted runner(s) are used, but the repository is private — the public-fork attack vector this check flags does not apply"
+	default:
+		// Only the zero-findings pass needs the incomplete-evidence
+		// caveat: once real self-hosted usage IS found on a private
+		// repo, that verdict is already robust to whatever else might
+		// be in a skipped workflow — private-ness caps it at pass
+		// regardless of how many usages exist, found or not.
+		status, reason = downgradeIfIncompleteEvidence(status, reason, skipped)
 	}
 
 	return model.CheckResult{
 		CheckID: checkSelfHostedID, Title: checkTitles[checkSelfHostedID], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{"self_hosted_jobs": findings, "repo_private": private},
+		Facts: map[string]any{"self_hosted_jobs": findings, "repo_private": private, "skipped_workflows": skippedToFacts(skipped)},
 	}
 }

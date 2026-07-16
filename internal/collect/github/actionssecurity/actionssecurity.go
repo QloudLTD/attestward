@@ -87,13 +87,27 @@ const sharedUpstreamFetchFailureRubric = "the repo fetch or the workflow listing
 // sharedNoWorkflowsRubric is shared by four of the five checks (every one
 // except oidc-vs-secrets, which folds this same cause into a differently-
 // worded not-checkable reason — see its own rubric entry below). Kept
-// word-for-word identical to checks.go's noWorkflowsReason const:
-// deliberately weaker than "no workflow files exist" — a listed file
-// whose content couldn't be fetched or parsed reaches this same
-// not-checkable status without being distinguished from a genuine
-// absence (see issue #96 for tightening this further).
+// in sync with checks.go's noWorkflowsReason: deliberately weaker than
+// "no workflow files exist" — a listed file whose content couldn't be
+// fetched or parsed also reaches this same not-checkable status,
+// distinguished in the reason text (and skipped_workflows) once any
+// were actually skipped.
 const sharedNoWorkflowsRubric = "no GitHub Actions workflow file could be fetched and parsed from the " +
-	"default branch"
+	"default branch — either none exist there, or GitHub listed one or more but every one failed to fetch " +
+	"or parse (see skipped_workflows for which and why)"
+
+// sharedIncompleteEvidencePartialRubric is shared by the four checks
+// whose pass path is "no violation found among the workflows this
+// collector could read" — pinned, token-permissions, pull-request-
+// target, and oidc-vs-secrets. Each also caps at partial (rather than a
+// confident pass) when a listed or referenced workflow couldn't be
+// fetched or parsed at all: a clean result over incomplete evidence
+// isn't the same claim as a clean result over everything that exists.
+// self-hosted has its own, narrower version of this same idea — see its
+// own rubric entry for why only ONE of its two pass sub-cases needs it.
+const sharedIncompleteEvidencePartialRubric = "no violation was found among the workflows successfully " +
+	"read, but one or more listed/referenced workflows could not be fetched or parsed — this result may be " +
+	"incomplete (see skipped_workflows)"
 
 // checkRubrics gives each check's own concrete meaning for every status it
 // can actually produce — see checks.go for the pass/fail/partial logic
@@ -106,27 +120,32 @@ var checkRubrics = map[string]map[model.Status]string{
 	checkPinnedID: {
 		model.StatusVerifiedPass: "no external action or reusable-workflow reference exists at all, or " +
 			"every third-party reference (and every first-party `actions/*` reference) is pinned to a " +
-			"full 40-character commit SHA",
+			"full 40-character commit SHA — and every listed or referenced workflow was successfully " +
+			"fetched and parsed (no skipped_workflows entries)",
 		model.StatusPartial: "every third-party reference is pinned to a full commit SHA, but at least " +
-			"one first-party `actions/*` reference uses a mutable tag instead",
+			"one first-party `actions/*` reference uses a mutable tag instead; or " +
+			sharedIncompleteEvidencePartialRubric,
 		model.StatusVerifiedFail: "at least one third-party action or reusable-workflow reference is not " +
 			"pinned to a full 40-character commit SHA",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoWorkflowsRubric,
 	},
 	checkTokenPermissionsID: {
 		model.StatusVerifiedPass: "every job (or its workflow, inherited when the job declares none of " +
-			"its own) declares an explicit `permissions:` block that isn't `write-all`",
+			"its own) declares an explicit `permissions:` block that isn't `write-all` — and every listed " +
+			"or referenced workflow was successfully fetched and parsed",
 		model.StatusPartial: "some but not all jobs/workflows declare an explicit `permissions:` block; " +
-			"or every one does, but at least one is `write-all` rather than a scoped, least-privilege set",
+			"or every one does, but at least one is `write-all` rather than a scoped, least-privilege set; " +
+			"or " + sharedIncompleteEvidencePartialRubric,
 		model.StatusVerifiedFail: "no job or workflow declares an explicit `permissions:` block at all — " +
 			"every job runs with the ambient default GITHUB_TOKEN permissions",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoWorkflowsRubric,
 	},
 	checkPRTargetID: {
-		model.StatusVerifiedPass: "no workflow triggers on `pull_request_target` at all",
+		model.StatusVerifiedPass: "no workflow triggers on `pull_request_target` at all — and every " +
+			"listed or referenced workflow was successfully fetched and parsed",
 		model.StatusPartial: "`pull_request_target` is used, but no checkout of the PR head commit/" +
 			"branch was detected in any of its jobs — still a risky trigger by design, but no confirmed " +
-			"exploit pattern found",
+			"exploit pattern found; or " + sharedIncompleteEvidencePartialRubric,
 		model.StatusVerifiedFail: "at least one `pull_request_target`-triggered workflow checks out the " +
 			"PR head commit/branch (an `actions/checkout` step whose `with.ref` references " +
 			"`github.event.pull_request.head.{sha,ref}` or the `github.head_ref` alias) — the classic " +
@@ -136,25 +155,31 @@ var checkRubrics = map[string]map[model.Status]string{
 	checkOIDCID: {
 		model.StatusVerifiedPass: "every detected cloud-deployment login step (AWS/Azure/GCP's official " +
 			"login action) sets a recognized OIDC parameter — for azure/login specifically, BOTH " +
-			"`client-id` and `tenant-id` — and no recognized static-credential parameter",
+			"`client-id` and `tenant-id` — and no recognized static-credential parameter; and every " +
+			"listed or referenced workflow was successfully fetched and parsed",
 		model.StatusPartial: "at least one detected cloud-deployment login step sets no recognized " +
 			"static-credential parameter, and doesn't set a complete OIDC parameter set either (for " +
 			"azure/login, setting only `client-id` or only `tenant-id` — not both — still counts as " +
-			"ambiguous here, not OIDC) — not confirmed either way",
+			"ambiguous here, not OIDC) — not confirmed either way; or " + sharedIncompleteEvidencePartialRubric,
 		model.StatusVerifiedFail: "at least one detected cloud-deployment login step sets a recognized " +
 			"long-lived static-credential parameter (a static parameter always wins over an OIDC one if " +
 			"both are somehow present)",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no cloud-deployment login " +
 			"action (aws-actions/configure-aws-credentials, azure/login, or google-github-actions/auth) " +
-			"was detected among the workflow files that could be fetched and parsed on the default branch " +
-			"— including when zero workflow files exist at all, which reads the same as this cause rather " +
-			"than getting its own distinct reason text",
+			"was found among the workflows successfully read — either because none exists there, or " +
+			"because one or more listed/referenced workflows couldn't be fetched or parsed at all (see " +
+			"skipped_workflows for which)",
 	},
 	checkSelfHostedID: {
-		model.StatusVerifiedPass: "no job uses `runs-on: self-hosted` at all, or one or more do but the " +
-			"repository is private (the public-fork attack vector this check flags doesn't apply)",
+		model.StatusVerifiedPass: "no job uses `runs-on: self-hosted` at all, and every listed or " +
+			"referenced workflow was successfully fetched and parsed; or one or more self-hosted usages " +
+			"ARE found but the repository is private (the public-fork attack vector this check flags " +
+			"doesn't apply) — that specific pass sub-case is unaffected by any skipped workflow, since a " +
+			"confirmed finding on a private repo can't be weakened by what else might be unread",
 		model.StatusPartial: "one or more jobs use `runs-on: self-hosted` and the repository is public — " +
-			"an external contributor's pull request is a potential path to the runner. This check has no " +
+			"an external contributor's pull request is a potential path to the runner; or no self-hosted " +
+			"usage was found among the workflows successfully read, but one or more listed/referenced " +
+			"workflows could not be fetched or parsed — this result may be incomplete. This check has no " +
 			"verified-fail outcome: self-hosted-runner usage is only ever capped at partial, by design, " +
 			"never a hard fail",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoWorkflowsRubric,
@@ -284,24 +309,31 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 	defaultBranch := repository.GetDefaultBranch()
 	private := repository.GetPrivate()
 
-	units, wfResp, err := fetchWorkflows(ctx, client, org, repo, defaultBranch)
+	units, skippedDirect, wfResp, err := fetchWorkflows(ctx, client, org, repo, defaultBranch)
 	if err != nil {
 		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
 	}
 
-	reusable, unresolvedExternal := resolveReusableWorkflows(ctx, client, org, units)
+	reusable, unresolvedExternal, skippedReusable := resolveReusableWorkflows(ctx, client, org, units)
 	units = append(units, reusable...)
 	coreProv := snapshot()
+
+	// skipped is every listed or referenced workflow this collector
+	// couldn't turn into evidence for a reason other than a benign
+	// 404-at-ref — passed to every check so none of them assert a
+	// confident verified-pass ("no violation found") over evidence that
+	// was actually incomplete. See skippedWorkflow's doc comment.
+	skipped := append(append([]skippedWorkflow{}, skippedDirect...), skippedReusable...)
 
 	defaultPerm, defaultPermKnown := fetchDefaultWorkflowPermissions(ctx, client, org, repo)
 	permProv := snapshot()
 
 	return []model.CheckResult{
-		checkPinned(org, repo, units, unresolvedExternal, coreProv),
-		checkTokenPermissions(org, repo, units, defaultPerm, defaultPermKnown, concatProv(coreProv, permProv)),
-		checkPullRequestTarget(org, repo, units, coreProv),
-		checkOIDCvsSecrets(org, repo, units, coreProv),
-		checkSelfHosted(org, repo, units, private, coreProv),
+		checkPinned(org, repo, units, unresolvedExternal, skipped, coreProv),
+		checkTokenPermissions(org, repo, units, defaultPerm, defaultPermKnown, skipped, concatProv(coreProv, permProv)),
+		checkPullRequestTarget(org, repo, units, skipped, coreProv),
+		checkOIDCvsSecrets(org, repo, units, skipped, coreProv),
+		checkSelfHosted(org, repo, units, private, skipped, coreProv),
 	}
 }
 

@@ -2,6 +2,7 @@ package actionssecurity
 
 import (
 	"context"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -11,6 +12,40 @@ import (
 	"github.com/sioakim/ssdf/internal/collect/github/runhistory"
 	"github.com/sioakim/ssdf/internal/mapping"
 )
+
+// skippedWorkflow is a listed or referenced workflow this collector
+// could not turn into a workflowUnit for a reason other than a benign
+// "doesn't exist at this ref" 404 — see fetchOneWorkflow's doc comment
+// for why that distinction matters. Every check function receives this
+// list so it can avoid asserting a confident verified-pass ("no
+// violation found") when the evidence it searched was known-incomplete.
+type skippedWorkflow struct {
+	Path   string
+	Reason string
+}
+
+const (
+	skipReasonFetchOrParseFailed = "content fetch, decode, or YAML parse failed"
+	skipReasonResolutionCapped   = "same-org reusable workflow reference exceeded the resolution cap"
+	// skipReasonReusableNotFoundOrNoAccess is deliberately NOT split into
+	// separate "doesn't exist" and "no access" reasons: GitHub returns an
+	// identical 404 for both on a private repo (to avoid leaking whether
+	// it exists), and unlike fetchWorkflows' direct-listing path — where
+	// ListWorkflows already proved this token can read THIS SAME repo —
+	// resolveReusableWorkflows has no prior proof of access to the
+	// callee repo a reusable-workflow reference points at. A 404 here
+	// therefore can't be trusted as a benign absence the way it can on
+	// the direct path; see resolveReusableWorkflows' own doc comment.
+	skipReasonReusableNotFoundOrNoAccess = "not found at ref, or token lacks access to the callee repository"
+)
+
+func skippedToFacts(skipped []skippedWorkflow) []map[string]any {
+	out := make([]map[string]any, 0, len(skipped))
+	for _, s := range skipped {
+		out = append(out, map[string]any{"path": s.Path, "reason": s.Reason})
+	}
+	return out
+}
 
 // workflowUnit is one workflow file's content, already fetched and parsed,
 // plus its raw text so check functions can attach best-effort file+line
@@ -35,42 +70,57 @@ type workflowUnit struct {
 }
 
 // fetchWorkflows fetches and parses every workflow file GitHub lists for
-// org/repo on its default branch. A workflow whose content can't be
-// fetched or parsed is skipped, not a hard error — matches
-// runhistory.MatchWorkflows' same "an unreadable listed file is an edge
-// case" reasoning.
-func fetchWorkflows(ctx context.Context, client *ghcollect.Client, org, repo, defaultBranch string) ([]workflowUnit, *ghgithub.Response, error) {
+// org/repo on its default branch. A workflow whose content 404s at this
+// ref is skipped silently — a real, expected absence (e.g. a file GitHub
+// still lists from historical runs but that no longer exists on the
+// current default branch), not evidence loss. Any other failure (a
+// genuine fetch error, a content-decode failure, or a YAML-parse
+// failure) is also skipped from units, but recorded in the returned
+// skippedWorkflow list — see checkPinned and its siblings for why that
+// distinction matters to their pass/fail logic.
+func fetchWorkflows(ctx context.Context, client *ghcollect.Client, org, repo, defaultBranch string) ([]workflowUnit, []skippedWorkflow, *ghgithub.Response, error) {
 	listed, resp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
-		return nil, resp, err
+		return nil, nil, resp, err
 	}
 	var out []workflowUnit
+	var skipped []skippedWorkflow
 	for _, wf := range listed {
 		path := wf.GetPath()
-		unit, ok := fetchOneWorkflow(ctx, client, org, repo, path, defaultBranch)
+		unit, ok, notFoundAtRef := fetchOneWorkflow(ctx, client, org, repo, path, defaultBranch)
 		if !ok {
+			if !notFoundAtRef {
+				skipped = append(skipped, skippedWorkflow{Path: path, Reason: skipReasonFetchOrParseFailed})
+			}
 			continue
 		}
 		unit.Label = path
 		out = append(out, unit)
 	}
-	return out, nil, nil
+	return out, skipped, nil, nil
 }
 
-func fetchOneWorkflow(ctx context.Context, client *ghcollect.Client, org, repo, path, ref string) (workflowUnit, bool) {
-	content, _, _, err := client.REST.Repositories.GetContents(ctx, org, repo, path, &ghgithub.RepositoryContentGetOptions{Ref: ref})
+// fetchOneWorkflow fetches and parses one workflow file. notFoundAtRef
+// is true only when GetContents itself returned 404 — the benign "this
+// file doesn't exist at this ref" case — so callers can distinguish it
+// from every other failure mode (permission denied, rate limiting, a
+// transient error, a content-decode failure, a YAML-parse failure),
+// which represents real evidence this collector failed to read, not a
+// confirmed absence.
+func fetchOneWorkflow(ctx context.Context, client *ghcollect.Client, org, repo, path, ref string) (unit workflowUnit, ok bool, notFoundAtRef bool) {
+	content, _, resp, err := client.REST.Repositories.GetContents(ctx, org, repo, path, &ghgithub.RepositoryContentGetOptions{Ref: ref})
 	if err != nil || content == nil {
-		return workflowUnit{}, false
+		return workflowUnit{}, false, resp != nil && resp.StatusCode == http.StatusNotFound
 	}
 	raw, err := content.GetContent()
 	if err != nil {
-		return workflowUnit{}, false
+		return workflowUnit{}, false, false
 	}
 	parsed, err := mapping.ParseWorkflowFile([]byte(raw))
 	if err != nil {
-		return workflowUnit{}, false
+		return workflowUnit{}, false, false
 	}
-	return workflowUnit{Parsed: parsed, Raw: raw}, true
+	return workflowUnit{Parsed: parsed, Raw: raw}, true, false
 }
 
 // maxReusableWorkflowResolutions bounds how many cross-repo reusable
@@ -106,7 +156,11 @@ type unresolvedExternalWorkflow struct {
 // nested. References to a different owner are recorded as unresolved, not
 // fetched — resolving arbitrary external repos' content is outside this
 // collector's read scope for the org being scanned.
-func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org string, units []workflowUnit) (resolved []workflowUnit, unresolved []unresolvedExternalWorkflow) {
+// A reference dropped by maxReusableWorkflowResolutions, or one whose
+// fetch/parse genuinely failed (not a benign 404-at-ref), is recorded
+// in the returned skippedWorkflow list rather than silently vanishing —
+// see fetchWorkflows' identical distinction for why.
+func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org string, units []workflowUnit) (resolved []workflowUnit, unresolved []unresolvedExternalWorkflow, skipped []skippedWorkflow) {
 	seen := map[string]bool{}
 	for _, u := range units {
 		seen[u.Label] = true
@@ -124,19 +178,28 @@ func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org
 				continue
 			}
 			label := owner + "/" + repo + ":" + path
-			if seen[label] || len(resolved) >= maxReusableWorkflowResolutions {
+			if seen[label] {
 				continue
 			}
 			seen[label] = true
-			unit, ok := fetchOneWorkflow(ctx, client, owner, repo, path, ref)
+			if len(resolved) >= maxReusableWorkflowResolutions {
+				skipped = append(skipped, skippedWorkflow{Path: label, Reason: skipReasonResolutionCapped})
+				continue
+			}
+			// Unlike fetchWorkflows, a 404 here is NOT trusted as a
+			// benign absence — see skipReasonReusableNotFoundOrNoAccess's
+			// doc comment for why this repo has no prior proof of access
+			// the way the scanned repo itself does.
+			unit, ok, _ := fetchOneWorkflow(ctx, client, owner, repo, path, ref)
 			if !ok {
+				skipped = append(skipped, skippedWorkflow{Path: label, Reason: skipReasonReusableNotFoundOrNoAccess})
 				continue
 			}
 			unit.Label = label
 			resolved = append(resolved, unit)
 		}
 	}
-	return resolved, unresolved
+	return resolved, unresolved, skipped
 }
 
 // looksLikeReusableWorkflowRef reports whether uses looks like a
