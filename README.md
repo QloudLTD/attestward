@@ -100,7 +100,10 @@ least-privilege warning if it detects write access.
 | `vdp` (C10) | `public_repo`/`repo` (classic) or `Contents: read-only` (fine-grained) for SECURITY.md content; private-reporting additionally needs whatever category gates that endpoint, exact fine-grained category unverified |
 
 This table only lists collectors that exist as code today; `attestor checks list` is
-the live source of truth as more land (each row's `TOKEN SCOPE` column).
+the live source of truth as more land (each row's `TOKEN SCOPE` column). For what each
+check's own pass/fail/partial/not-checkable statuses actually mean, the API evidence
+behind it, and its SSDF task/CISA cluster citations, see the generated
+[Checks Reference](docs/checks-reference.md).
 
 ## Verifying an evidence pack
 
@@ -178,6 +181,9 @@ build of `attestor` doesn't understand fails with a friendly error rather than a
 ## Documentation
 
 - [v0.1 epic](../../issues/1) — canonical scope and build-phase tracking (GitHub Issues)
+- [Checks Reference](docs/checks-reference.md) — every check's rubric, API evidence, SSDF/CISA
+  citations, and remediation, generated from `mappings/*.yaml` and the collector registry
+  (never hand-edited — regenerate with `make checks-docs`)
 - [Architecture](docs/architecture.md) — components, data flow, extension seams
 - [Threat model](docs/threat-model.md) — what the tool accesses, what it never does
 - [Architecture decision records](docs/adr/)

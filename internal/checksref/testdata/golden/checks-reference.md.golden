@@ -3,7 +3,8 @@
 > **GENERATED — do not hand-edit.** Regenerate with `attestor checks docs` from
 > `mappings/*.yaml` and each collector's registered check metadata. A pull request that
 > changes mapping or registry data without regenerating this file fails CI's drift check
-> (`git diff --exit-code -- docs/checks-reference.md`).
+> (`attestor checks docs --check`, which renders in memory and compares against this file
+> without writing).
 
 Source data:
 
@@ -13,6 +14,13 @@ Source data:
 No wall-clock generation timestamp is recorded here on purpose: this file is regenerated
 byte-for-byte identical from unchanged input, which is what lets CI's drift check compare it
 against a plain diff rather than tolerate spurious churn.
+
+Each check's "SSDF task(s)" cites the task ID and quotes the task's verbatim text below its
+own section, plus the source link above — that's the cross-link to SP 800-218 this file
+provides. It's deliberately not a deep link into a specific SP 800-218 page or section: the
+publication is a PDF with no addressable per-task anchors, so a fabricated page/section
+number would be a citation this tool can't actually stand behind (see this repo's own rule
+against inventing SSDF citations).
 
 ## Contents
 

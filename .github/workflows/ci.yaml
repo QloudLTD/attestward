@@ -53,6 +53,19 @@ jobs:
           name: coverage
           path: coverage.out
 
+  # Issue #30's drift guard: docs/checks-reference.md is generated from
+  # mappings/*.yaml + the collector registry (never hand-edited — see the
+  # file's own header). A PR that changes either without regenerating fails
+  # here rather than letting the reference silently go stale.
+  checks-docs-drift:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - run: make checks-docs-check
+
   # One matrix entry per Phase 0 target platform/arch, each on a runner that
   # can execute the binary natively (no cross-arch execution gaps) so this
   # job proves `attestor version` actually runs on linux, macOS, and windows —

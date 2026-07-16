@@ -34,8 +34,12 @@ render a hash mismatch unless `--force`, which then renders with a visible
 banner), and sets Integrity.SHA256 so report.md/html always show the hash
 of the exact bytes rendered. Phase 5 is otherwise complete; #25 stays open
 pending its own non-engineer sign-off requirement (renderers themselves
-are merged). Build is issue-driven and in progress (see Progress tracker
-below).
+are merged). Phase 6 is in progress: #30 (generated `docs/checks-reference.md`)
+is merged — the `internal/checksref` renderer plus `attestor checks docs`
+(`--check` for the CI drift guard, wired into `.github/workflows/ci.yaml`)
+generate the reference from `mappings/*.yaml` and the C01–C10 registry, with
+the file itself committed and cross-linked from the README. Build is
+issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -56,6 +60,7 @@ accuracy standard that does (every signature backed by a real fixture workflow).
 
 | Path | Purpose |
 |---|---|
+| `docs/checks-reference.md` | Generated (issue #30) — never hand-edit; regenerate with `make checks-docs` from `mappings/*.yaml` + the collector registry, CI enforces via `make checks-docs-check` |
 | `docs/architecture.md` | Living architecture doc — update in the same PR as any structural change |
 | `docs/threat-model.md` | Living threat model — finalized in issue #31, update as claims change |
 | `docs/adr/` | Permanent decision records (Nygard format) — never edited after acceptance, superseded instead |
@@ -140,7 +145,8 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #28 `attestor report`
 
 **Phase 6 — Polish & launch**
-- [ ] #29 README rewrite · #30 generated checks-reference · #31 threat model finalization · #32 self-scan badge · #33 launch checklist
+- [x] #30 Generated checks-reference (`docs/checks-reference.md`, CI drift guard)
+- [ ] #29 README rewrite · #31 threat model finalization · #32 self-scan badge · #33 launch checklist
 
 **Post-v0.1 (seams only, do not build)**
 - #34 Azure DevOps · #35 GitLab/SLSA/VEX · #36 Continuous mode GitHub Action
