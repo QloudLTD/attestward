@@ -38,8 +38,20 @@ are merged). Phase 6 is in progress: #30 (generated `docs/checks-reference.md`)
 is merged — the `internal/checksref` renderer plus `attestor checks docs`
 (`--check` for the CI drift guard, wired into `.github/workflows/ci.yaml`)
 generate the reference from `mappings/*.yaml` and the C01–C10 registry, with
-the file itself committed and cross-linked from the README. Build is
-issue-driven and in progress (see Progress tracker below).
+the file itself committed and cross-linked from the README. #32 (self-scan
+workflow) is also merged and closed — `.github/workflows/self-scan.yaml`
+runs `attestor scan` against `sioakim/ssdf` itself on release/weekly/manual
+dispatch, verified live (not just reasoned about) under the real restricted
+`GITHUB_TOKEN`: a first clean run, a deliberate-red test (disabled
+Dependabot alerts, confirmed the job failed, reverted, confirmed green
+again), badge + a "Self-scan" README section linking real (not demo-org)
+sample runs. Building it surfaced and fixed #102 (`attestor scan` couldn't
+target a personal-GitHub-account-owned repo — this repo itself — at all)
+and 3 of 8 real gaps in this repo's own posture (PR #104); 2 more gaps are
+tracked as their own issues (#105, #106) rather than fixed unilaterally,
+and one (GHAS-gated dependency review) is a documented, accepted gap
+(DECISIONS.md D7) alongside CodeQL. Build is issue-driven and in progress
+(see Progress tracker below).
 
 ## The one rule that overrides convenience
 
@@ -146,7 +158,8 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 6 — Polish & launch**
 - [x] #30 Generated checks-reference (`docs/checks-reference.md`, CI drift guard)
-- [ ] #29 README rewrite · #31 threat model finalization · #32 self-scan badge · #33 launch checklist
+- [x] #32 Self-scan workflow + badge (verified live: clean run + deliberate-red/revert test)
+- [ ] #29 README rewrite · #31 threat model finalization · #33 launch checklist
 
 **Post-v0.1 (seams only, do not build)**
 - #34 Azure DevOps · #35 GitLab/SLSA/VEX · #36 Continuous mode GitHub Action
