@@ -1,0 +1,135 @@
+name: Self-scan
+
+# Issue #32: the repo is the first case study. Runs attestor against
+# sioakim/ssdf itself and publishes the evidence pack as an artifact.
+#
+# Token strategy: the ambient GITHUB_TOKEN, scoped read-only by the
+# `permissions:` block below — not a fine-grained PAT. This is one of the
+# two options issue #32's own text anticipates ("org-level checks scoped
+# to what a repo-level GITHUB_TOKEN/fine-grained PAT can see"). The
+# tradeoff: GITHUB_TOKEN has no "Administration" permission category at
+# all (not grantable via `permissions:`, unlike a fine-grained PAT), so
+# checks needing admin-level repo reads (parts of C02/C04/C08) will likely
+# show not-checkable here even where they'd resolve with a broader token —
+# an honest degradation, not a bug (not-checkable never fails the exit
+# code below). Upgrading to a dedicated fine-grained PAT for deeper
+# coverage is a deliberate future enhancement, not done here: creating and
+# storing a new credential is a more consequential step than this
+# workflow's own read-only scope, left for the repo owner's own call.
+on:
+  release:
+    types: [published]
+  schedule:
+    # Monday 06:00 UTC — arbitrary but fixed, so drift is visible weekly
+    # even between releases.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+concurrency:
+  group: self-scan
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  security-events: read
+
+jobs:
+  self-scan:
+    runs-on: [self-hosted, macOS]
+    steps:
+      # Default clean:true is quietly load-bearing on this self-hosted
+      # runner: it wipes any evidence/ left behind by a prior run, so a
+      # catastrophically-failed scan step can't have the evaluate step
+      # below accidentally read stale evidence.json from a previous run
+      # and pass against it.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build attestor
+        run: go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }}" -o attestor ./cmd/attestor
+
+      # attestor scan exits 2 on gaps (any verified-fail/partial) — that's
+      # a real, informative outcome we want to inspect below, not a step
+      # failure to short-circuit on before the render/artifact-upload/
+      # evaluate steps (all `if: always()`) get to run. The evaluate step
+      # re-derives the pass/fail verdict from evidence.json itself rather
+      # than reading this step's own exit code or outcome.
+      - name: Scan sioakim/ssdf
+        id: scan
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./attestor scan --org sioakim --repo ssdf --out evidence/
+
+      - name: Render report.html
+        if: always()
+        run: ./attestor report evidence/evidence.json --format html
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: self-scan-evidence
+          path: evidence/
+          # Explicit, not the repo default: this artifact is small
+          # (a JSON pack + one HTML file) and is meant to be inspectable
+          # for a reasonable stretch between releases, not indefinitely.
+          retention-days: 90
+
+      # The exception list below is the "deliberate, documented exception
+      # list" issue #32 asks for, rather than letting exit 2 fail every
+      # run indefinitely for known, currently-unfixable gaps. It's
+      # deliberately narrow (individual check IDs, not whole collectors)
+      # since attestor scan's own --check flag only scopes at collector
+      # granularity and several of these collectors have other checks that
+      # DO pass — excluding a whole collector would hide real, currently
+      # -passing coverage, not just the known gap.
+      #
+      # Every entry here must cite why it's here and where the real fix
+      # (not the exception) is tracked:
+      #   - C06.sca.dependency-review: GHAS-gated on a private repo (same
+      #     as DECISIONS.md D7's CodeQL entry) — resolves when this repo
+      #     goes public or GHAS is purchased, not before.
+      #   - C02.branch.required-reviews, C02.branch.admin-enforced: real,
+      #     accepted gaps pending the repo owner's own branch-protection
+      #     decision — see issue #105.
+      #   - C09.repo.webhooks: needs a real receiving endpoint that
+      #     doesn't exist yet — see issue #106.
+      - name: Evaluate gaps against the documented exception list
+        if: always()
+        run: |
+          set -euo pipefail
+          allowed='["C06.sca.dependency-review","C02.branch.required-reviews","C02.branch.admin-enforced","C09.repo.webhooks"]'
+          unexpected=$(jq --argjson allowed "$allowed" '
+            [.results[] | select(.status == "verified-fail" or .status == "partial") | select(.check_id as $id | $allowed | index($id) | not)]
+          ' evidence/evidence.json)
+          count=$(jq 'length' <<<"$unexpected")
+          if [ "$count" -gt 0 ]; then
+            echo "::error::$count check(s) failed outside the documented exception list:"
+            jq -r '.[] | "  - \(.check_id): \(.status) — \(.reason)"' <<<"$unexpected"
+            exit 1
+          fi
+
+          # A green run with zero verified-fail/partial results is NOT the
+          # same claim as "every check actually ran and passed" — every
+          # collector error degrades to not-checkable (never a false
+          # verified-fail), so a broken token, an API outage, or a runner
+          # misconfiguration could silently turn every single check
+          # not-checkable and still reach this line with nothing to
+          # complain about. For an unattended weekly cron, that's a green
+          # badge that verified nothing — worse than a red one, since
+          # nobody's watching to notice (found in code review of PR #108).
+          # This floor doesn't assert a specific expected count (this
+          # workflow's own GITHUB_TOKEN has narrower reach than the
+          # broader token this workflow was developed against, so the
+          # real pass count isn't pinned down yet) — it only catches the
+          # total-collapse case.
+          pass_count=$(jq '[.results[] | select(.status == "verified-pass")] | length' evidence/evidence.json)
+          if [ "$pass_count" -eq 0 ]; then
+            echo "::error::zero verified-pass results in this scan — every check is either not-checkable, self-attested, or on the exception list. That's not the same as 'no gaps' and likely means something (token, API access, a broken build) failed silently rather than a genuinely clean posture."
+            exit 1
+          fi
+
+          echo "no undocumented gaps — every verified-fail/partial result (if any) is on the documented exception list, and $pass_count check(s) genuinely verified-pass"

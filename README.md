@@ -7,6 +7,7 @@
 **License:** [Apache-2.0](LICENSE)
 
 [![CI](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml)
+[![Self-scan](https://github.com/sioakim/ssdf/actions/workflows/self-scan.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/self-scan.yaml)
 
 ---
 
@@ -177,6 +178,18 @@ visible tamper-warning banner — rendering possibly-tampered evidence has to be
 visible act, never silent. A pack with no sidecar at all isn't itself a problem; there's
 nothing to verify, so it renders normally. An `evidence.json` from a schema version this
 build of `attestor` doesn't understand fails with a friendly error rather than a guess.
+
+## Self-scan
+
+The repo is its own first case study: [`self-scan.yaml`](.github/workflows/self-scan.yaml)
+runs `attestor scan` against `sioakim/ssdf` on every release, weekly, and on manual
+dispatch, then publishes the evidence pack and rendered `report.html` as a downloadable
+workflow artifact — see the [latest self-scan runs](../../actions/workflows/self-scan.yaml)
+for a real (not demo-org) sample pack. The workflow fails the build on any gap outside a
+small, deliberately documented exception list (see the workflow file's own comments for
+what's on it and why — mostly controls this repo can't satisfy while private, like
+GitHub Advanced Security-gated dependency review), rather than silently ignoring
+failures.
 
 ## Documentation
 
