@@ -76,6 +76,62 @@ var checkRemediations = map[string]string{
 		"endpoint.",
 }
 
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce — see the check functions above for the pass/fail
+// logic each rubric below summarizes. Unlike every other collector in
+// this codebase, C09 has no shared cross-check not-checkable gate at
+// all: each of the four checks is independently computed (collectOrg
+// calls all three org-scoped checks unconditionally, with no early
+// return on any one's failure), so there's no sharedUpstreamFetchFailureRubric
+// here. logStreamingID and retentionAwarenessID are further notable:
+// each can ONLY ever produce not-checkable — never pass, fail, or
+// partial — since neither makes any API call at all (see their own doc
+// comments for why no such call could exist).
+var checkRubrics = map[string]map[model.Status]string{
+	orgLogAvailableID: {
+		model.StatusVerifiedPass: "GET /orgs/{org}/audit-log succeeded — the endpoint is reachable; this " +
+			"check never inspects the returned entries themselves, only whether the call succeeded",
+		model.StatusNotCheckable: "the call failed — a plan-gated response (402/404: the org's plan " +
+			"doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the " +
+			"`read:audit_log` scope; GitHub returns the same status for both, so this can't be told apart " +
+			"from the response alone), a 403 (token lacks org-owner status or the `read:audit_log` scope), " +
+			"or another API error",
+	},
+	logStreamingID: {
+		model.StatusNotCheckable: "always — audit-log streaming/export configuration exists exclusively " +
+			"at the GitHub Enterprise account level (`/enterprises/{enterprise}/audit-log/streams`), never " +
+			"the organization level; no org/repo-scoped endpoint exists for this tool to query, so this " +
+			"check can never reach any other status",
+	},
+	retentionAwarenessID: {
+		model.StatusNotCheckable: "always — this check is purely informational; no GitHub API reports an " +
+			"org's actually-applied audit-log retention, so there is nothing to verify. Facts carry " +
+			"GitHub's documented 180-day retention window as context only",
+	},
+	webhooksID: {
+		model.StatusVerifiedPass: "at least one active webhook on this repo subscribes to `push`, " +
+			"`release`, `deployment`, or the `*` wildcard event",
+		model.StatusVerifiedFail: "no active webhook on this repo subscribes to any of `push`, `release`, " +
+			"`deployment`, or the wildcard event — includes the case where the repo has zero webhooks at " +
+			"all (a definitive \"no\", not a gap). Scoped to per-repo webhooks only: a repo covered solely " +
+			"by an org-level webhook (a different, unevaluated endpoint) will still show fail here even " +
+			"though event export genuinely happens elsewhere",
+		model.StatusNotCheckable: "the webhook-listing call itself failed (403/404/other API error)",
+	},
+}
+
+var checkEndpoints = map[string][]string{
+	orgLogAvailableID: {"GET /orgs/{org}/audit-log"},
+	// logStreamingID and retentionAwarenessID are deliberately empty:
+	// neither makes any API call at all, so no endpoint backs their
+	// (permanently fixed) status — see checkRubrics' own doc comment.
+	logStreamingID:       nil,
+	retentionAwarenessID: nil,
+	webhooksID:           {"GET /repos/{owner}/{repo}/hooks"},
+}
+
+const fixtureRef = "internal/collect/github/auditlogging/auditlogging_test.go"
+
 func init() {
 	for _, id := range orgCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -87,6 +143,9 @@ func init() {
 				"include the Enterprise Cloud audit-log API in the response this collector sees, both surface " +
 				"identically (see C09.audit.org-log-available's Reason wording)",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 	collect.Register(collect.CheckMeta{
@@ -96,6 +155,9 @@ func init() {
 		TokenScope: "repo (classic) or Webhooks: read-only (fine-grained) — exact fine-grained category not " +
 			"independently verified against GitHub's docs, see C05's TokenScope for the same kind of hedge",
 		Remediation: checkRemediations[webhooksID],
+		Rubric:      checkRubrics[webhooksID],
+		Endpoints:   checkEndpoints[webhooksID],
+		FixtureRef:  fixtureRef,
 	})
 }
 

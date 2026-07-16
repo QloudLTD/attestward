@@ -54,7 +54,11 @@ type CheckMeta struct {
 	// actually called. Not necessarily every endpoint the collector's
 	// package calls (a collector may share one upstream call — like an
 	// org GET — across several checks); this lists what backs THIS
-	// check's status specifically.
+	// check's status specifically. May legitimately be empty (nil/[]) for a
+	// check whose result is a fixed, documented fact rather than an
+	// API-derived one — e.g. C09.audit.log-streaming, which reports
+	// not-checkable unconditionally because no org-scoped endpoint for
+	// that control exists at all (see that check's own doc comment).
 	Endpoints []string
 	// FixtureRef is the path (repo-relative, no "#TestFunc" suffix — as
 	// of this writing every collector package's tests are scenario-based
