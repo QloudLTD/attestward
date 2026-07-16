@@ -22,9 +22,10 @@ const maxAttestationLookupsPerRelease = 5
 // result can honestly disclose it wasn't an exhaustive search rather than
 // reading as a confident negative; and the first real lookup error
 // encountered, if any — one asset's attestation lookup failing doesn't
-// invalidate the others, the caller only needs firstErr for an honest
-// Facts/Reason note, since checkSignatures also has the asset-naming-
-// convention path as an independent way to pass.
+// invalidate the others (a later digest can still short-circuit to a
+// match), but the caller treats a lookup error with no match found as
+// unresolved rather than a confirmed absence, since the errored digest
+// might well have an attestation.
 func hasAnyAttestation(ctx context.Context, client *ghcollect.Client, org, repo string, assetDigests []string) (matchedDigest string, capped bool, firstErr error) {
 	checked := 0
 	for _, digest := range assetDigests {

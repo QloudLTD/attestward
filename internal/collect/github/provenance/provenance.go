@@ -59,6 +59,119 @@ var checkRemediations = map[string]string{
 		"trigger — rather than run manually (workflow_dispatch) against an unrelated commit.",
 }
 
+// sharedUpstreamFetchFailureRubric is shared by all five checks: like
+// C05 (and unlike C06), the repo fetch, the workflow listing, AND the
+// release listing all early-return allNotCheckable in collectRepo — none
+// of the five checks below can be computed without this shared evidence,
+// regardless of whether a given check actually reads workflow or release
+// data. Collect's own embedded-registry-load failure is a distinct,
+// binary-level cause that also reaches every check for every repo in
+// scope, independent of the target repo's own state.
+const sharedUpstreamFetchFailureRubric = "the repo fetch, the workflow listing, or the release listing " +
+	"failed (403/plan-gated/other API error) — collectRepo returns not-checkable for every check on the " +
+	"first such failure, since none of them can be computed without this shared evidence; or the embedded " +
+	"scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo)"
+
+// sharedNoMatchingReleasesRubric is shared by the four per-release
+// checks (every check except provenance.workflow, which is release-
+// independent): each returns this not-checkable reason directly, before
+// any per-release evaluation, when zero releases match the configured
+// tag pattern within the lookback window.
+const sharedNoMatchingReleasesRubric = "no releases match the configured release tag pattern within the " +
+	"lookback window"
+
+// checkRubrics gives each check's own concrete meaning for every status it
+// can actually produce — see checks.go for the pass/fail/partial logic
+// each rubric below summarizes. C07.release.checksums is notable: unlike
+// every other check in this package, it has no partial branch at all —
+// its per-release evaluation is pure computation over already-fetched
+// release/asset data with no further I/O that could leave a release
+// unresolved (see checkChecksums).
+var checkRubrics = map[string]map[model.Status]string{
+	"C07.release.tags-signed": {
+		model.StatusVerifiedPass: "every release tag in the lookback window is annotated, signed, and " +
+			"GitHub reports its signature verified",
+		model.StatusVerifiedFail: "at least one resolved release tag in the lookback window is either a " +
+			"lightweight tag (which can never be signed — git's own object model only lets an annotated " +
+			"tag carry a signature) or an annotated tag that's unsigned or whose signature GitHub doesn't " +
+			"report as verified",
+		model.StatusPartial: "every resolvable release tag in the lookback window is signed and verified, " +
+			"but at least one tag's resolution (Git.GetRef/Git.GetTag) itself failed — unresolved, not a " +
+			"confirmed pass or fail",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoMatchingReleasesRubric,
+	},
+	"C07.release.checksums": {
+		model.StatusVerifiedPass: "every release in the lookback window ships at least one asset matching " +
+			"a known checksum-file naming convention (checksums.txt, SHA256SUMS, or a per-file " +
+			"`.sha256`/`.sha256sum` sidecar)",
+		model.StatusVerifiedFail: "at least one release in the lookback window has no asset matching a " +
+			"known checksum-file naming convention",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoMatchingReleasesRubric,
+	},
+	"C07.release.signatures": {
+		model.StatusVerifiedPass: "every release in the lookback window ships an asset matching a known " +
+			"signature/attestation naming convention (`.sig`, `.pem`, `.intoto.jsonl`, `.sigstore`, " +
+			"`.bundle`), or has at least one GitHub Artifact Attestation found for one of its asset digests",
+		model.StatusVerifiedFail: "at least one release in the lookback window has neither a matching " +
+			"signature/attestation asset nor a GitHub Artifact Attestation for any of its asset digests — " +
+			"every attestation lookup attempted for it completed cleanly with zero results",
+		model.StatusPartial: "every release with confirmed evidence ships a matching asset or has a " +
+			"GitHub Artifact Attestation, but at least one release has no matching asset and its " +
+			"attestation lookup itself failed before confirming an absence — unresolved, not a confirmed " +
+			"absence (the digest that errored might well have an attestation)",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoMatchingReleasesRubric,
+	},
+	"C07.provenance.workflow": {
+		model.StatusVerifiedPass: "at least one matched workflow reaches medium-or-high confidence (an " +
+			"action slug or CLI pattern recognized as Sigstore/cosign, a SLSA generator, or GitHub " +
+			"Attestations — not just a suggestive workflow name)",
+		model.StatusPartial: "only a low-confidence (workflow-name-only) match was found — not enough " +
+			"signal alone to confirm a provenance tool is genuinely configured",
+		model.StatusVerifiedFail: "no provenance-generating tool of any confidence was detected in any " +
+			"workflow",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric,
+	},
+	"C07.provenance.commit-linkage": {
+		model.StatusVerifiedPass: "every release in the lookback window has at least one workflow run " +
+			"(any workflow, any conclusion) whose HeadSHA equals the release's resolved commit",
+		model.StatusVerifiedFail: "at least one resolved release in the lookback window has zero workflow " +
+			"runs on its commit",
+		model.StatusPartial: "every release with a resolved commit is traceable to a workflow run on it, " +
+			"but at least one release's commit could not be resolved (tag resolution failed) or its run " +
+			"listing itself failed — unresolved, not a confirmed pass or fail",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or " + sharedNoMatchingReleasesRubric,
+	},
+}
+
+// sharedProvenanceEvidenceEndpoints are the calls that determine
+// matchedWorkflows and defaultBranch — used only by
+// C07.provenance.workflow, which is the sole check drawing on
+// workflow-content-match evidence rather than release/tag/attestation
+// evidence.
+var sharedProvenanceEvidenceEndpoints = []string{
+	"GET /repos/{owner}/{repo}",
+	"GET /repos/{owner}/{repo}/actions/workflows",
+	"GET /repos/{owner}/{repo}/contents/{path}",
+}
+
+const releasesAPIEndpoint = "GET /repos/{owner}/{repo}/releases"
+const gitRefAPIEndpoint = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+const gitTagAPIEndpoint = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
+const attestationsAPIEndpoint = "GET /repos/{owner}/{repo}/attestations/{subject_digest}"
+const workflowRunsByCommitAPIEndpoint = "GET /repos/{owner}/{repo}/actions/runs?head_sha={sha}"
+
+// checkEndpoints lists which REST endpoint(s) actually back each check's
+// status.
+var checkEndpoints = map[string][]string{
+	"C07.release.tags-signed":       {releasesAPIEndpoint, gitRefAPIEndpoint, gitTagAPIEndpoint},
+	"C07.release.checksums":         {releasesAPIEndpoint},
+	"C07.release.signatures":        {releasesAPIEndpoint, attestationsAPIEndpoint},
+	"C07.provenance.workflow":       append([]string{}, sharedProvenanceEvidenceEndpoints...),
+	"C07.provenance.commit-linkage": {releasesAPIEndpoint, gitRefAPIEndpoint, gitTagAPIEndpoint, workflowRunsByCommitAPIEndpoint},
+}
+
+const fixtureRef = "internal/collect/github/provenance/provenance_test.go"
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -67,6 +180,9 @@ func init() {
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)",
 			Remediation: checkRemediations[id],
+			Rubric:      checkRubrics[id],
+			Endpoints:   checkEndpoints[id],
+			FixtureRef:  fixtureRef,
 		})
 	}
 }

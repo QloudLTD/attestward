@@ -258,7 +258,14 @@ func checkSignatures(org, repo string, filteredReleases []runhistory.ReleaseInfo
 			verdict = releasePassed
 			reason = fmt.Sprintf("a GitHub Artifact Attestation was found for asset digest %s", ev.AttestedDigest)
 		} else if ev.AttestationErr != nil {
-			reason = fmt.Sprintf("no signature asset found by naming convention; attestation lookup also failed: %v", ev.AttestationErr)
+			// No naming-convention match, and the attestation lookup that
+			// would have confirmed or ruled out the other kind of evidence
+			// itself failed — the digest that errored might well have an
+			// attestation, so this is unresolved, not a confirmed absence
+			// (see checkTagsSigned/checkCommitLinkage's identical
+			// releaseUnresolved use for the same reasoning).
+			verdict = releaseUnresolved
+			reason = fmt.Sprintf("no signature asset found by naming convention, and the attestation lookup itself failed: %v", ev.AttestationErr)
 		}
 		results = append(results, releaseCheckResult{
 			TagName: rel.TagName, Verdict: verdict, Reason: reason,
@@ -272,8 +279,11 @@ func checkSignatures(org, repo string, filteredReleases []runhistory.ReleaseInfo
 
 	status, table := rollupReleaseResults(results)
 	reason := "every release in the lookback window ships a signature/attestation asset or has a GitHub Artifact Attestation"
-	if status == model.StatusVerifiedFail {
+	switch status {
+	case model.StatusVerifiedFail:
 		reason = "at least one release in the lookback window has neither a signature/attestation asset nor a GitHub Artifact Attestation"
+	case model.StatusPartial:
+		reason = "every release with confirmed evidence in the lookback window ships a signature/attestation asset or has a GitHub Artifact Attestation, but at least one release's attestation lookup failed and couldn't be resolved"
 	}
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
