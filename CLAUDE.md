@@ -57,7 +57,21 @@ legal-claims accuracy pass that caught a real staleness issue (OMB
 M-26-05 rescinded the CISA Common Form mandate in January 2026) — but
 #29 itself stays open, same shape as #25, pending gates only a human or
 a public repo can satisfy: the cold-visitor timed quickstart test,
-PAT-minimality testing, and a professional legal sign-off. Build is
+PAT-minimality testing, and a professional legal sign-off. #31 (threat
+model finalization) is merged and closed — `docs/threat-model.md` was
+rewritten with every normative claim traced to specific code/tests
+(re-verified against v0.1, not the pre-implementation draft it started
+as), and `provenanceTransport.RoundTrip`
+(`internal/collect/github/transport.go`) now structurally rejects any
+non-GET/HEAD request before auth injection or the network call — the
+"read-only, forever" claim (ADR-0004) is enforced at runtime, not just
+by review, covering both the REST and GraphQL clients since they share
+one transport. Unlike #25/#29, #31's external-reader review requirement
+was genuinely satisfiable in this session: an independent review agent
+adversarially verified every claim against the code, found two real
+gaps across two passes (three missing orchestrator-level call sites,
+then an overstated call-frequency claim), both fixed and re-verified,
+before posting its own sign-off comment directly on the issue. Build is
 issue-driven and in progress (see Progress tracker below).
 
 ## The one rule that overrides convenience
@@ -167,7 +181,8 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #30 Generated checks-reference (`docs/checks-reference.md`, CI drift guard)
 - [x] #32 Self-scan workflow + badge (verified live: clean run + deliberate-red/revert test)
 - [ ] #29 README rewrite (PR #110 merged; issue open pending cold-visitor timed test + PAT-minimality test + legal sign-off)
-- [ ] #31 threat model finalization · #33 launch checklist
+- [x] #31 threat model finalization (runtime read-only guard + claim-by-claim audit + external-reader sign-off)
+- [ ] #33 launch checklist
 
 **Post-v0.1 (seams only, do not build)**
 - #34 Azure DevOps · #35 GitLab/SLSA/VEX · #36 Continuous mode GitHub Action
