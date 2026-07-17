@@ -294,4 +294,69 @@ func TestResolveEffectiveProtection_LegacyExplicitlyAllowsForcePushAndDeletion(t
 	}
 }
 
+// TestResolveEffectiveProtection_LegacyBypassAllowanceDowngradesRequiredReviews
+// is the fix for issue #54: legacy branch protection's own
+// bypass_pull_request_allowances (named users/teams/apps who skip the
+// review requirement entirely) was read nowhere — not surfaced in Facts,
+// not affecting status — even though it's already present in every
+// GetBranchProtection response at zero extra API cost, and the ruleset
+// side gets equivalent treatment (an "always" bypass actor caps
+// admin-enforced at partial). Unlike ruleset bypass actors,
+// bypass_pull_request_allowances has no conditional mode: any entry on the
+// list bypasses unconditionally, so a non-empty list always caps
+// required-reviews at partial rather than needing an always-vs-conditional
+// distinction.
+func TestResolveEffectiveProtection_LegacyBypassAllowanceDowngradesRequiredReviews(t *testing.T) {
+	login, slug := "octocat", "release-managers"
+	legacy := legacyProtection(withReviews(2))
+	legacy.RequiredPullRequestReviews.BypassPullRequestAllowances = &ghgithub.BypassPullRequestAllowances{
+		Users: []*ghgithub.User{{Login: &login}},
+		Teams: []*ghgithub.Team{{Slug: &slug}},
+	}
+
+	eff := resolveEffectiveProtection(legacy, nil, nil)
+
+	if !eff.reviewRequired {
+		t.Fatal("reviewRequired = false, want true (required_approving_review_count is 2)")
+	}
+	want := []string{"team (release-managers)", "user (octocat)"}
+	if len(eff.reviewBypassActors) != len(want) {
+		t.Fatalf("reviewBypassActors = %v, want %v", eff.reviewBypassActors, want)
+	}
+	for i, w := range want {
+		if eff.reviewBypassActors[i] != w {
+			t.Errorf("reviewBypassActors[%d] = %q, want %q", i, eff.reviewBypassActors[i], w)
+		}
+	}
+
+	result := checkRequiredReviews("org", "repo", eff, nil)
+	if result.Status != model.StatusPartial {
+		t.Errorf("Status = %q, want partial — a named bypass allowance exists even though review is otherwise required", result.Status)
+	}
+	facts, ok := result.Facts["review_bypass_actors"].([]string)
+	if !ok || len(facts) != 2 {
+		t.Errorf("Facts[review_bypass_actors] = %v, want the 2 bypass entries", result.Facts["review_bypass_actors"])
+	}
+}
+
+// TestResolveEffectiveProtection_NoBypassAllowanceStaysVerifiedPass pins the
+// non-regression case directly alongside the fix above: an empty (or nil)
+// bypass_pull_request_allowances must not affect required-reviews at all —
+// the field being present-but-empty in a real API response (GitHub always
+// includes the key) must not be misread as "at least one bypass actor".
+func TestResolveEffectiveProtection_NoBypassAllowanceStaysVerifiedPass(t *testing.T) {
+	legacy := legacyProtection(withReviews(1))
+	legacy.RequiredPullRequestReviews.BypassPullRequestAllowances = &ghgithub.BypassPullRequestAllowances{}
+
+	eff := resolveEffectiveProtection(legacy, nil, nil)
+	result := checkRequiredReviews("org", "repo", eff, nil)
+
+	if result.Status != model.StatusVerifiedPass {
+		t.Errorf("Status = %q, want verified-pass — bypass_pull_request_allowances is present but empty", result.Status)
+	}
+	if len(eff.reviewBypassActors) != 0 {
+		t.Errorf("reviewBypassActors = %v, want empty", eff.reviewBypassActors)
+	}
+}
+
 func int64Ptr(v int64) *int64 { return &v }

@@ -23,6 +23,15 @@ type effectiveProtection struct {
 	reviewCount    int
 	dismissStale   bool
 	reviewVia      []string
+	// reviewBypassActors lists named users/teams/apps that legacy branch
+	// protection's bypass_pull_request_allowances lets skip the review
+	// requirement entirely — unlike rulesets' bypassActors, this has no
+	// conditional mode; any name on this list bypasses unconditionally, so
+	// a non-empty list always caps checkRequiredReviews at partial rather
+	// than needing an hasAlwaysBypass-style distinction. Rulesets have no
+	// equivalent field: a ruleset's own bypass actors (bypassActors above)
+	// already cover every rule the ruleset contributes, review included.
+	reviewBypassActors []string
 
 	statusCheckNames []string
 	statusChecksVia  []string
@@ -95,6 +104,7 @@ func resolveEffectiveProtection(legacy *ghgithub.Protection, rules *ghgithub.Bra
 
 	sort.Strings(eff.statusCheckNames)
 	sort.Strings(eff.bypassActors)
+	sort.Strings(eff.reviewBypassActors)
 	return eff
 }
 
@@ -114,6 +124,9 @@ func applyLegacy(eff *effectiveProtection, legacy *ghgithub.Protection) bool {
 		}
 		if rpr.DismissStaleReviews {
 			eff.dismissStale = true
+		}
+		if rpr.BypassPullRequestAllowances != nil {
+			eff.reviewBypassActors = appendUniqueAll(eff.reviewBypassActors, describeLegacyBypassAllowances(rpr.BypassPullRequestAllowances))
 		}
 	}
 
@@ -231,6 +244,26 @@ func applyRules(eff *effectiveProtection, rules *ghgithub.BranchRules, rulesets 
 	return true, hasAlwaysBypass
 }
 
+// describeLegacyBypassAllowances turns legacy branch protection's named
+// bypass_pull_request_allowances into the same "type (identifier)" shape
+// describeBypassActor uses for ruleset bypass actors, so
+// C02.branch.required-reviews' review_bypass_actors Facts and
+// C02.branch.admin-enforced's bypass_actors Facts read consistently even
+// though they come from two entirely different GitHub API shapes.
+func describeLegacyBypassAllowances(a *ghgithub.BypassPullRequestAllowances) []string {
+	var out []string
+	for _, u := range a.Users {
+		out = append(out, fmt.Sprintf("user (%s)", u.GetLogin()))
+	}
+	for _, t := range a.Teams {
+		out = append(out, fmt.Sprintf("team (%s)", t.GetSlug()))
+	}
+	for _, app := range a.Apps {
+		out = append(out, fmt.Sprintf("app (%s)", app.GetSlug()))
+	}
+	return out
+}
+
 func describeBypassActor(actor *ghgithub.BypassActor) string {
 	actorType := "unknown"
 	if actor.ActorType != nil {
@@ -275,7 +308,12 @@ func checkProtectionExists(org, repo string, eff effectiveProtection, prov []mod
 func checkRequiredReviews(org, repo string, eff effectiveProtection, prov []model.Provenance) model.CheckResult {
 	const id = "C02.branch.required-reviews"
 	status, reason := model.StatusVerifiedFail, "default branch does not require an approving review before merge"
-	if eff.reviewRequired {
+	switch {
+	case eff.reviewRequired && len(eff.reviewBypassActors) > 0:
+		status = model.StatusPartial
+		reason = fmt.Sprintf("default branch requires %d approving review(s), but %d named user/team/app "+
+			"can bypass that requirement (bypass_pull_request_allowances)", eff.reviewCount, len(eff.reviewBypassActors))
+	case eff.reviewRequired:
 		status = model.StatusVerifiedPass
 		reason = fmt.Sprintf("default branch requires %d approving review(s)", eff.reviewCount)
 	}
@@ -286,6 +324,7 @@ func checkRequiredReviews(org, repo string, eff effectiveProtection, prov []mode
 			"required_approving_review_count": eff.reviewCount,
 			"dismiss_stale_reviews":           eff.dismissStale,
 			"via":                             eff.reviewVia,
+			"review_bypass_actors":            eff.reviewBypassActors,
 		},
 	}
 }

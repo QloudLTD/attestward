@@ -223,6 +223,59 @@ func TestCollect_AlwaysBypassActorProducesPartialAdminEnforced(t *testing.T) {
 	}
 }
 
+// TestCollect_LegacyBypassAllowanceProducesPartialRequiredReviews is the
+// fixture-level counterpart to
+// TestResolveEffectiveProtection_LegacyBypassAllowanceDowngradesRequiredReviews
+// (effective_test.go): a real GetBranchProtection response with a non-empty
+// bypass_pull_request_allowances flows all the way through Collect() to a
+// partial C02.branch.required-reviews, leaving every other check
+// unaffected — costs no extra API call since the field is already part of
+// the branch-protection response every repo in this suite already fetches.
+func TestCollect_LegacyBypassAllowanceProducesPartialRequiredReviews(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/attestor-demo/review-bypass-repo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
+	})
+	mux.HandleFunc("/repos/attestor-demo/review-bypass-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"required_pull_request_reviews": map[string]any{
+				"required_approving_review_count": 1,
+				"bypass_pull_request_allowances": map[string]any{
+					"users": []map[string]any{{"login": "octocat"}},
+				},
+			},
+			"required_status_checks": map[string]any{"contexts": []string{"ci/test"}},
+			"enforce_admins":         map[string]any{"enabled": true},
+			"allow_force_pushes":     map[string]any{"enabled": false},
+			"allow_deletions":        map[string]any{"enabled": false},
+		})
+	})
+	mux.HandleFunc("/repos/attestor-demo/review-bypass-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []wireBranchRule{})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"review-bypass-repo"}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	byID := map[string]model.CheckResult{}
+	for _, r := range results {
+		byID[r.CheckID] = r
+	}
+	if got := byID["C02.branch.required-reviews"].Status; got != model.StatusPartial {
+		t.Errorf("required-reviews status = %q, want partial; reason=%q", got, byID["C02.branch.required-reviews"].Reason)
+	}
+	for id, r := range byID {
+		if id == "C02.branch.required-reviews" {
+			continue
+		}
+		if r.Status != model.StatusVerifiedPass {
+			t.Errorf("%s status = %q, want verified-pass (unaffected by the review bypass allowance)", id, r.Status)
+		}
+	}
+}
+
 // TestCollect_RulesetLookupFailureOnlyAffectsAdminEnforced proves a failed
 // bypass-actor lookup (GET .../rulesets/{id}) narrows to not-checkable on
 // exactly the one check that needs it — the other five still resolve from
@@ -394,12 +447,15 @@ func TestChecksRegistered(t *testing.T) {
 
 // checkWantStatuses is a human-reviewed declaration of exactly which
 // statuses each check can produce (see orgsecurity's own copy of this
-// pattern for the full rationale). Five of C02's six checks are binary
-// pass/fail-with-not-checkable; admin-enforced is this package's one
-// genuine partial-status check (see checkAdminEnforced's switch).
+// pattern for the full rationale). Four of C02's six checks are binary
+// pass/fail-with-not-checkable; required-reviews and admin-enforced are
+// this package's two checks with a genuine partial status — required-reviews
+// since issue #54 added the legacy bypass_pull_request_allowances downgrade
+// (see checkRequiredReviews' switch), admin-enforced since checkAdminEnforced's
+// switch predates it.
 var checkWantStatuses = map[string][]model.Status{
 	"C02.branch.protection-exists":      {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
-	"C02.branch.required-reviews":       {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
+	"C02.branch.required-reviews":       {model.StatusVerifiedPass, model.StatusPartial, model.StatusVerifiedFail, model.StatusNotCheckable},
 	"C02.branch.required-status-checks": {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
 	"C02.branch.force-push-blocked":     {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
 	"C02.branch.deletion-blocked":       {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},

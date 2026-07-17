@@ -51,7 +51,9 @@ var checkRemediations = map[string]string{
 	"C02.branch.protection-exists": "Repo Settings -> Rules -> Rulesets (or the legacy Settings -> " +
 		"Branches -> Branch protection rules) -> add a rule targeting the default branch.",
 	"C02.branch.required-reviews": "In that ruleset/protection rule, enable \"Require a pull request " +
-		"before merging\" with at least 1 required approving review.",
+		"before merging\" with at least 1 required approving review, and leave legacy branch " +
+		"protection's \"Allow specified actors to bypass required pull requests\" empty — or remove " +
+		"any users/teams/apps already listed there.",
 	"C02.branch.required-status-checks": "In that ruleset/protection rule, enable \"Require status checks " +
 		"to pass before merging\" and select the CI checks that must pass.",
 	"C02.branch.force-push-blocked": "In a ruleset, enable \"Block force pushes\"; in legacy branch " +
@@ -78,12 +80,13 @@ const sharedNotCheckableRubric = "the repo read failed, the repo has no default 
 	"protection configured\", not an error), or the rules-for-branch read failed (403/404/other API error)"
 
 // checkRubrics gives each check's own concrete meaning for every status it
-// can actually produce. Five of the six checks are binary pass/fail (plus
+// can actually produce. Four of the six checks are binary pass/fail (plus
 // not-checkable) — each reduces to one boolean field on the merged
 // effectiveProtection (see effective.go's resolveEffectiveProtection).
-// admin-enforced is the one exception: it can genuinely produce `partial`,
-// for either of two distinct reasons (see checkAdminEnforced), both
-// spelled out below rather than collapsed into one vague sentence.
+// required-reviews and admin-enforced can each genuinely produce `partial`
+// — required-reviews for a named legacy bypass allowance (issue #54),
+// admin-enforced for either of two distinct reasons (see checkAdminEnforced)
+// — both spelled out below rather than collapsed into one vague sentence.
 var checkRubrics = map[string]map[model.Status]string{
 	"C02.branch.protection-exists": {
 		model.StatusVerifiedPass: "legacy branch protection is configured on the default branch, or at " +
@@ -95,7 +98,13 @@ var checkRubrics = map[string]map[model.Status]string{
 	"C02.branch.required-reviews": {
 		model.StatusVerifiedPass: "legacy protection's `required_approving_review_count` is >= 1, or a " +
 			"ruleset's pull-request rule sets `required_approving_review_count` >= 1 (whichever regime " +
-			"requires more reviews sets the reported count)",
+			"requires more reviews sets the reported count), and legacy protection names no " +
+			"`bypass_pull_request_allowances`",
+		model.StatusPartial: "a review is required (as above), but legacy branch protection also names at " +
+			"least one specific user, team, or app in `bypass_pull_request_allowances` who can skip the " +
+			"review requirement entirely — a ruleset's own bypass actors have no separate effect here " +
+			"(bypassing a ruleset's rule already bypasses its review requirement, and that's captured by " +
+			"C02.branch.admin-enforced instead)",
 		model.StatusVerifiedFail: "neither legacy protection nor any ruleset requires an approving review",
 		model.StatusNotCheckable: sharedNotCheckableRubric,
 	},

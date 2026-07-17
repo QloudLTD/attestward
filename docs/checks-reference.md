@@ -230,10 +230,11 @@ against inventing SSDF citations).
 **Status rubric:**
 
 - **verified-fail:** neither legacy protection nor any ruleset requires an approving review
+- **partial:** a review is required (as above), but legacy branch protection also names at least one specific user, team, or app in `bypass_pull_request_allowances` who can skip the review requirement entirely — a ruleset's own bypass actors have no separate effect here (bypassing a ruleset's rule already bypasses its review requirement, and that's captured by C02.branch.admin-enforced instead)
 - **not-checkable:** the repo read failed, the repo has no default branch, the legacy branch-protection read failed with anything other than a 404 (a 404 there just means "no legacy protection configured", not an error), or the rules-for-branch read failed (403/404/other API error)
-- **verified-pass:** legacy protection's `required_approving_review_count` is >= 1, or a ruleset's pull-request rule sets `required_approving_review_count` >= 1 (whichever regime requires more reviews sets the reported count)
+- **verified-pass:** legacy protection's `required_approving_review_count` is >= 1, or a ruleset's pull-request rule sets `required_approving_review_count` >= 1 (whichever regime requires more reviews sets the reported count), and legacy protection names no `bypass_pull_request_allowances`
 
-**Remediation:** In that ruleset/protection rule, enable "Require a pull request before merging" with at least 1 required approving review.
+**Remediation:** In that ruleset/protection rule, enable "Require a pull request before merging" with at least 1 required approving review, and leave legacy branch protection's "Allow specified actors to bypass required pull requests" empty — or remove any users/teams/apps already listed there.
 
 **SSDF task text (verbatim from NIST SP 800-218):**
 
