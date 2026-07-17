@@ -79,17 +79,18 @@ jobs:
           # linux/amd64 runs on the self-hosted Ubuntu VM (spyros-ionos-ssdf,
           # x86_64, an IONOS-hosted Proxmox guest — always-on, unlike the
           # power-cycled local machines) rather than ubuntu-latest — same hard
-          # rule as everything else in this repo's CI. linux/arm64 stays
-          # GitHub-hosted: this runner can't natively execute an arm64 binary
-          # (no Rosetta-style fallback on Linux without adding a qemu
-          # dependency), so cross-arch execution genuinely isn't possible
-          # here.
+          # rule as everything else in this repo's CI. linux/arm64 runs on
+          # spyros-parallels-ssdf, a Parallels-hosted Ubuntu 24.04 arm64 VM
+          # (10.0.0.159) — this used to be GitHub-hosted (ubuntu-24.04-arm)
+          # since no self-hosted arm64 Linux machine existed yet; that
+          # runner was also hitting this account's GitHub-hosted billing
+          # block, independent of the self-hosted-preference rule.
           - goos: linux
             goarch: amd64
             os: [self-hosted, Linux, X64]
           - goos: linux
             goarch: arm64
-            os: ubuntu-24.04-arm
+            os: [self-hosted, Linux, ARM64]
           # Both darwin builds run on the self-hosted Apple Silicon runner
           # (spyros-mac-mini-ssdf): amd64 executes fine there too since it
           # has Rosetta 2 installed, and self-hosted avoids GitHub-hosted
