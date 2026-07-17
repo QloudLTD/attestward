@@ -3,7 +3,7 @@
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
 **Working name:** `attestor` (final name TBD — see [DECISIONS.md](DECISIONS.md))
-**Status:** pre-alpha — v0.1 under active, issue-driven development. Nothing here is usable yet.
+**Status:** pre-alpha — v0.1 under active, issue-driven development.
 **License:** [Apache-2.0](LICENSE)
 
 [![CI](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml)
@@ -15,21 +15,45 @@
 
 An open-source CLI tool that connects to a software producer's source-control and CI/CD
 platform (GitHub first) and **verifies** — rather than asks about — the technical controls
-behind the CISA Secure Software Development Attestation (SSDA) form. It maps findings to
-NIST SSDF (SP 800-218) practices and the form's four practice clusters, and emits a signed,
-timestamped **evidence pack** (JSON + human-readable report) plus a **gap analysis** and a
-**draft POA&M** for anything that fails.
+behind a secure-software-development attestation. It maps findings to NIST SSDF (SP 800-218)
+practices and the CISA Secure Software Development Attestation (SSDA) Common Form's four
+practice clusters, and emits a signed, timestamped **evidence pack** (JSON + human-readable
+report) plus a **gap analysis** and a **draft POA&M** for anything that fails.
 
-### Why
+### The problem
 
-- Software producers selling to US federal agencies must sign the CISA SSDA form. An officer
-  signs **under False Claims Act exposure**. DOJ's Civil Cyber-Fraud Initiative actively
-  prosecutes inaccurate cybersecurity representations.
-- Today's options for the long tail of small federal software vendors: sign-and-hope, or pay
-  a consulting firm for a manual assessment. Nothing self-serve verifies the actual pipeline.
+- In September 2022, [OMB M-22-18](https://bidenwhitehouse.archives.gov/wp-content/uploads/2022/09/M-22-18.pdf)
+  directed federal agencies to collect a secure-software-development attestation from
+  software producers before using their software; CISA published a [Common
+  Form](https://www.cisa.gov/sites/default/files/2024-03/Self-Attestation-Common-Form-03082024-FINAL.pdf)
+  for it in March 2024, and agencies began collecting attestations against it from then.
+  **In January 2026, OMB [M-26-05](https://www.whitehouse.gov/wp-content/uploads/2026/01/M-26-05-Adopting-a-Risk-based-Approach-to-Software-and-Hardware-Security.pdf)
+  rescinded the government-wide *mandate* to use that Common Form** — agencies now set
+  their own risk-based approach to software security, and may still require the Common
+  Form, an equivalent of their own, or nothing at all, at their own discretion. This tool's
+  README used to describe the Common Form as something "you must sign"; as of this
+  rewrite, that's no longer accurate, and we'd rather correct it than leave a stale claim
+  in a document about a tool built to catch inaccurate claims.
+- That policy change doesn't reduce the stakes of *actually signing* one. Whenever a
+  producer attests to something the government relies on — the CISA Common Form, an
+  agency-specific equivalent, or any other representation made in connection with a
+  federal contract or a claim for payment — an inaccurate attestation is False Claims Act
+  exposure, personally, for whoever signs it. DOJ's Civil Cyber-Fraud Initiative (launched
+  2021) hasn't slowed down because the mandate did: DOJ's own [January 2026
+  report](https://www.justice.gov/opa/pr/false-claims-act-settlements-and-judgments-exceed-68b-fiscal-year-2025)
+  puts total FY2025 False Claims Act recoveries at a record $6.8B — its highest ever —
+  and independent analyses of DOJ's own published settlement data (not the DOJ report
+  itself, which doesn't break out a cyber-specific figure) put cybersecurity-related FCA
+  recoveries at roughly $52M across nine settlements for FY2025, more than tripling in
+  each of the past two years ([Mayer Brown, March
+  2026](https://www.mayerbrown.com/en/insights/publications/2026/03/false-claims-act-enforcement-record-breaking-year-signals-continued-attention-to-cybersecurity)).
+- Today's options for the long tail of small federal software vendors: sign-and-hope, or
+  pay a consulting firm for a manual assessment. Nothing self-serve verifies the actual
+  pipeline before you sign anything — whether what you're signing is the CISA form
+  specifically or whatever your own agency now asks for instead.
 - Existing "compliance automation" products primarily *ask questions and store documents*.
-  This tool's differentiator is **harvested proof**: it reads the real configuration and run
-  history and shows what is actually true.
+  This tool's differentiator is **harvested proof**: it reads the real configuration and
+  run history and shows what is actually true.
 
 ## Product principles
 
@@ -43,22 +67,6 @@ timestamped **evidence pack** (JSON + human-readable report) plus a **gap analys
 5. **Mappings are data, not code.** SSDF/CISA-form mappings live in versioned YAML so the
    community can extend to other frameworks without touching Go.
 6. **Boring, auditable code.** Minimal dependencies, no clever magic, everything reviewable.
-
-## Planned CLI (v0.1)
-
-```
-attestor scan --org my-org [--repo my-repo ...] --out ./evidence/
-attestor scan --config attestor.yaml          # repeatable, CI-friendly
-attestor scan --self-attestation-file self-attestation.yaml  # include self-attested answers
-attestor scan --org my-org --sign             # also sign evidence.json (see "Verifying an evidence pack")
-attestor attest init --out self-attestation.yaml  # generate a commented answers template
-attestor verify ./evidence/                   # check evidence.json's hash (and signature, if signed)
-attestor report ./evidence/evidence.json      # regenerate reports
-attestor checks list                          # show all checks + mappings
-attestor version
-```
-
-Exit codes: `0` all verified-pass · `2` gaps found (for CI usage) · `1` execution error.
 
 ## What v0.1 verifies (GitHub only)
 
@@ -75,9 +83,97 @@ Exit codes: `0` all verified-pass · `2` gaps found (for CI usage) · `1` execut
 | C09 | `audit-logging` | Org audit-log availability, event visibility |
 | C10 | `vdp` | SECURITY.md intake channel, private vulnerability reporting |
 
-Controls that cannot be verified via API (training, threat modeling, triage SLAs) are
-collected via a small questionnaire and clearly flagged `self-attested` — the tool never
-fakes verification where none is possible.
+Every check lands in one of five statuses: **`verified-pass`**/**`verified-fail`** (the API
+confirmed the answer either way), **`partial`** (real evidence, but not a clean pass —
+e.g. some but not all workflows pin their actions), **`not-checkable`** (the platform API
+couldn't settle it — a permission gap, a plan limit, or a genuine "no API for this exists" —
+never guessed at either direction), or **`self-attested`** (a control the API structurally
+can't see, like whether developers get security training; collected via a short
+questionnaire, never faked as verified). See the generated [Checks
+Reference](docs/checks-reference.md) for exactly what each individual check's own statuses
+mean and what API evidence backs them.
+
+## 5-minute quickstart
+
+> **This repo is currently private** (see [DECISIONS.md](DECISIONS.md) D7 for the
+> public-launch plan). Until it flips public, the install steps below only work for
+> invited collaborators with GitHub access to it — `go install` needs `GOPRIVATE` plus a
+> configured git credential for a private module, and downloading a release asset needs
+> an authenticated request. Nothing here is usable by a true "cold visitor" yet; this
+> section documents the intended post-launch experience and is being written and tested
+> ahead of that, not claimed as already validated end-to-end by someone with no prior
+> context (see issue #29 for that gate).
+
+### 1. Install
+
+**Download a release** (once one is tagged — this repo is pre-alpha, see
+[DECISIONS.md](DECISIONS.md) D1 for the naming question blocking a v1.0.0):
+
+```bash
+# Substitute the real version/os/arch from the releases page.
+curl -LO https://github.com/sioakim/ssdf/releases/latest/download/attestor_<version>_<os>_<arch>.tar.gz
+curl -LO https://github.com/sioakim/ssdf/releases/latest/download/checksums.txt
+shasum -a 256 -c checksums.txt --ignore-missing   # macOS; use sha256sum -c on Linux
+tar -xzf attestor_<version>_<os>_<arch>.tar.gz
+```
+
+**Or with Go installed** (works today, pre-release):
+
+```bash
+go install github.com/sioakim/ssdf/cmd/attestor@latest
+```
+
+### 2. Create a fine-grained PAT
+
+GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens.
+Scope it to just the repo(s) you're about to scan, read-only, with the permissions your
+target collectors need — see the [token table](#required-token-permissions) below. For a
+single repo you don't administer at the org level, `Contents: read-only`, `Actions:
+read-only`, and `Administration: read-only` cover most of C02-C08.
+
+### 3. Scan
+
+```bash
+export GITHUB_TOKEN=github_pat_...
+attestor scan --org my-org --repo my-repo --out ./evidence/
+```
+
+No `--repo` scans every non-archived, non-fork repo in the account (with a warning) —
+works against a GitHub Organization or a personal user account, either one. For a
+personal account specifically, this only lists **public** repos; pass `--repo` explicitly
+to include a private one you own.
+
+### 4. Read the result
+
+- **Exit code `0`**: no `verified-fail` or `partial` results — some checks may still be
+  `not-checkable` or `self-attested`, which don't count as gaps on their own.
+- **Exit code `2`**: at least one `verified-fail` or `partial` — see `evidence/report.md`,
+  or run `attestor report ./evidence/evidence.json --format html` for a browser-friendly
+  version, and `evidence/poam.md` for a draft remediation plan grouped by SSDF/CISA
+  cluster.
+- **Exit code `1`**: something actually went wrong (bad token, network failure) — not a
+  finding.
+- `evidence/evidence.json` is the full evidence pack: every result plus provenance (which
+  API call, when, HTTP status, response digest). See
+  [examples/demo-org-pack](examples/demo-org-pack) for a real one, and
+  [examples/scan-demo.cast](examples/scan-demo.cast) (play with `asciinema play`) for a
+  recording of this exact flow against the public demo repo.
+
+That's the whole loop — no config file required for a single scan. `--config` exists for
+repeatable, CI-friendly use (see [examples/attestor.yaml](examples/attestor.yaml)):
+
+```
+attestor scan --org my-org [--repo my-repo ...] --out ./evidence/
+attestor scan --config attestor.yaml
+attestor scan --self-attestation-file self-attestation.yaml  # include self-attested answers
+attestor scan --org my-org --sign             # also sign evidence.json (see "Verifying an evidence pack")
+attestor attest init --out self-attestation.yaml  # generate a commented answers template
+attestor verify ./evidence/                   # check evidence.json's hash (and signature, if signed)
+attestor report ./evidence/evidence.json      # regenerate reports
+attestor checks list                          # show all checks + mappings
+attestor checks docs                          # regenerate docs/checks-reference.md
+attestor version
+```
 
 ### Required token permissions
 
@@ -92,19 +188,22 @@ least-privilege warning if it detects write access.
 | `org-security` (C01) | `read:org` |
 | `repo-protection` (C02) | `repo` (classic) or `Administration: read-only` (fine-grained) |
 | `env-separation` (C03) | `repo` (classic) or `Actions: read-only` (fine-grained) |
-| `secrets-hygiene` (C04) | `repo` (classic); fine-grained equivalent needs repo admin-level read access — exact permission category unverified, see `attestor checks list`'s notes for that collector |
-| `sast-history` (C05) | `repo` (classic) or `Actions: read-only` + `Contents: read-only` (fine-grained) — plus code-scanning read access for the default-setup check specifically; exact fine-grained category for that one unverified |
-| `sca-history` (C06) | `repo` (classic) or `Actions: read-only` + `Contents: read-only` (fine-grained) — plus `Administration: read-only` (shared with C02, for the dependency-review required-status-check cross-check) and Dependabot-alerts read access; exact fine-grained category for the latter unverified |
-| `provenance` (C07) | `repo` (classic) or `Contents: read-only` (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically; exact fine-grained category for those unverified |
+| `secrets-hygiene` (C04) | `repo` (classic); fine-grained equivalent requires repo admin-level read access (`security_and_analysis` and `vulnerability-alerts` are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs; org-level check additionally needs org owner or security-manager status |
+| `sast-history` (C05) | `repo` (classic) or `Actions: read-only` + `Contents: read-only` (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs |
+| `sca-history` (C06) | `repo` (classic) or `Actions: read-only` + `Contents: read-only` (fine-grained), plus `Administration: read-only` (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs |
+| `provenance` (C07) | `repo` (classic) or `Contents: read-only` (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs |
 | `actions-security` (C08) | `repo` (classic) or `Contents: read-only` (fine-grained) for workflow file content — plus `Administration: read-only` (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified |
-| `audit-logging` (C09) | `read:audit_log` (classic OAuth/PAT scope) plus organization-owner status for the org audit-log checks — GitHub's docs don't distinguish a missing scope from a plan without the Enterprise Cloud audit-log API, both surface identically; `repo` (classic) or `Webhooks: read-only` (fine-grained, unverified) for the webhooks check |
-| `vdp` (C10) | `public_repo`/`repo` (classic) or `Contents: read-only` (fine-grained) for SECURITY.md content; private-reporting additionally needs whatever category gates that endpoint, exact fine-grained category unverified |
+| `audit-logging` (C09) | `read:audit_log` (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API, both surface identically. The per-repo webhooks check needs its own, separate scope: `repo` (classic) or `Webhooks: read-only` (fine-grained) — exact fine-grained category not independently verified against GitHub's docs |
+| `vdp` (C10) | `public_repo`/`repo` (classic) or `Contents: read-only` (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint, exact fine-grained category unverified |
 
-This table only lists collectors that exist as code today; `attestor checks list` is
-the live source of truth as more land (each row's `TOKEN SCOPE` column). For what each
-check's own pass/fail/partial/not-checkable statuses actually mean, the API evidence
-behind it, and its SSDF task/CISA cluster citations, see the generated
-[Checks Reference](docs/checks-reference.md).
+This table is generated from (and must stay in sync with) `attestor checks list`'s live
+`TOKEN SCOPE` column, the authoritative source as more collectors land. Every "not
+independently verified against GitHub's docs" hedge above is deliberate: it means this
+project confirmed the behavior empirically (against a real token/repo) but couldn't find
+GitHub's own documentation stating it outright — see each collector's own `CheckMeta`
+doc comments (`attestor checks docs` / [docs/checks-reference.md](docs/checks-reference.md))
+for exactly what was and wasn't confirmed. Scanning with a broader token than a check
+needs still works — the check just doesn't need the extra access it was given.
 
 ## Verifying an evidence pack
 
@@ -179,6 +278,21 @@ visible act, never silent. A pack with no sidecar at all isn't itself a problem;
 nothing to verify, so it renders normally. An `evidence.json` from a schema version this
 build of `attestor` doesn't understand fails with a friendly error rather than a guess.
 
+## Safety posture
+
+- **Read-only, forever.** No code path in this tool makes a write call against any
+  platform API — see [ADR-0004](docs/adr/0004-read-only-local-first.md). If a future
+  feature seemed to need one, it would be flagged and stopped, not added.
+- **Local-first, no telemetry.** No network egress besides the platform API you point it
+  at. No update checks, no crash reporting, no phone-home of any kind.
+- **Tokens are never persisted.** `GITHUB_TOKEN` is read from the environment for the life
+  of the process only; never logged, never written to disk, never included in evidence
+  output.
+- **Secret-shaped strings are scrubbed** from every log/error path and evidence output
+  before it's written, as a second line of defense beyond "never log the token."
+
+Full detail, trust boundaries, and residual risks: [docs/threat-model.md](docs/threat-model.md).
+
 ## Self-scan
 
 The repo is its own first case study: [`self-scan.yaml`](.github/workflows/self-scan.yaml)
@@ -212,4 +326,5 @@ before opening a PR. New verification checks and scanner signatures have dedicat
 ## Security
 
 See [SECURITY.md](SECURITY.md). This repo aims to practice what the tool preaches: branch
-protection, pinned actions, signed releases — and will publicly scan itself.
+protection, pinned actions, signed releases — and publicly scans itself (see "Self-scan"
+above).

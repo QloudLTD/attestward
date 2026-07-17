@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Software Development Security Report — Qloud-LTD</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  h1, h2, h3, h4, h5 { line-height: 1.2; }
+  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+  th, td { border: 1px solid #8887; padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: #8881; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; }
+  blockquote { border-left: 3px solid #8887; margin: 0.5rem 0; padding: 0.25rem 0.75rem; opacity: 0.85; }
+  .badge { font-weight: 600; font-family: ui-monospace, Menlo, Consolas, monospace; padding: 0.05rem 0.4rem; border: 1px solid currentColor; border-radius: 0.25rem; white-space: nowrap; }
+  .badge-verified-pass { color: #1a7f37; }
+  .badge-verified-fail { color: #cf222e; }
+  .badge-partial { color: #9a6700; }
+  .badge-self-attested { color: #6639ba; }
+  .badge-not-checkable { color: #57606a; }
+  .evidence-list, .facts-list { margin: 0.25rem 0; padding-left: 1.25rem; }
+  .check { border: 1px solid #8884; border-radius: 0.4rem; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+  .note { border: 1px solid #9a6700; border-radius: 0.4rem; padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #8887; opacity: 0.75; font-size: 0.9em; }
+  @media print { .check { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<h1>Software Development Security Report</h1>
+
+
+
+<h2 id="executive-summary">Executive Summary</h2>
+<table>
+  <tr><th>Org</th><td>Qloud-LTD</td></tr>
+  <tr><th>Repos in scope</th><td>demo-good</td></tr>
+  <tr><th>Scan window</th><td>2026-07-17 06:30:01 UTC &ndash; 2026-07-17 06:30:06 UTC</td></tr>
+  <tr><th>Tool version</th><td>dev</td></tr>
+  <tr><th>Mapping versions</th><td>SSDF 1.11.0 &middot; CISA form 1.0.0 &middot; self-attestation 1.0.0</td></tr>
+  <tr><th>Pack SHA-256</th><td><code>69df4d3c531240ea35cc93cfce0f95c422e89e08830ea4640b0b05cc91e09e9c</code></td></tr>
+</table>
+
+<h3>Cluster status</h3>
+<table>
+  <tr><th>Cluster</th><th>Status</th></tr>
+  <tr><td>1. Secure development and build environments</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td></tr>
+  <tr><td>2. Trusted source code supply chain (good-faith effort)</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td></tr>
+  <tr><td>3. Provenance for internal and third-party code</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td></tr>
+  <tr><td>4. Automated vulnerability checking, pre-release, and disclosure program</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td></tr>
+  
+</table>
+
+<h3>Result counts</h3>
+<table>
+  <tr><th>Status</th><th>Count</th></tr>
+  <tr><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>14</td></tr>
+  <tr><td><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>2</td></tr>
+  <tr><td><span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</td><td>13</td></tr>
+  <tr><td><span class="badge badge-self-attested">[SELF-ATTESTED]</span> Self-Attested</td><td>0</td></tr>
+  <tr><td><span class="badge badge-verified-pass">[PASS]</span> Verified Pass</td><td>23</td></tr>
+  
+</table>
+
+<h2 id="cluster-detail">Cluster Detail</h2>
+
+<h3>Cluster 1: Secure development and build environments &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h3>
+<blockquote>The software is developed and built in secure environments. Those environments are secured by the following actions, at a minimum: a) Separating and protecting each environment involved in developing and building software; b) Regularly logging, monitoring, and auditing trust relationships used for authorization and access: i) to any software development and build environments; and ii) among components within each environment; c) Enforcing multi-factor authentication and conditional access across the environments relevant to developing and building software in a manner that minimizes security risk; d) Taking consistent and reasonable steps to document, as well as minimize use or inclusion of software products that create undue risk within the environments used to develop and build software; e) Encrypting sensitive data, such as credentials, to the extent practicable and based on risk; f) Implementing defensive cybersecurity practices, including continuous monitoring of operations and alerts and, as necessary, responding to suspected and confirmed cyber incidents.</blockquote>
+
+
+<h4>PO.3.2 &mdash; <em>no data</em></h4>
+<p>Follow recommended security practices to deploy, operate, and maintain tools and toolchains.</p>
+
+
+
+<h4>PO.3.3 &mdash; <em>no data</em></h4>
+<p>Configure tools to generate artifacts of their support of secure software development practices as defined by the organization.</p>
+
+
+
+<h4>PO.5.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Separate and protect each environment involved in software development.</p>
+
+
+<div class="check">
+<h5>Org requires two-factor authentication (<code>C01.org.2fa-required</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>org does not require two-factor authentication for members</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>two_factor_requirement_enabled: false</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Count of members without two-factor authentication (<code>C01.org.members-without-2fa</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>all org members have two-factor authentication enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD/members</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>members_without_2fa_count: 0</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments restrict which branches/tags can deploy (<code>C03.env.branch-policy</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment restricts which branches/tags can deploy</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_allowing_any_branch: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A production-like environment exists (<code>C03.env.exists</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. 1 production-like environment(s) found among 1 total</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>production_like_heuristic: name matches prod*/production, case-insensitive</li></ul>
+<ul class="facts-list"><li>all_environment_names: production</li><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments have at least one protection rule (<code>C03.env.protection-rules</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment has at least one protection rule</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_without_protection: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments require reviewer approval before deployment (<code>C03.env.required-reviewers</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment requires reviewer approval</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_without_required_reviewers: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Org enables secret/dependency security features by default for new repos (<code>C04.org.security-defaults</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>not every security feature is enabled by default for new repositories</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>advanced_security_enabled_for_new_repositories: false</li><li>dependabot_alerts_enabled_for_new_repositories: true</li><li>secret_scanning_enabled_for_new_repositories: true</li><li>secret_scanning_push_protection_enabled_for_new_repositories: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>GitHub Advanced Security is enabled where applicable (<code>C04.secrets.advanced-security</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. not applicable to public repositories (GHAS licensing only gates private-repo features)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Secret scanning push protection is active (<code>C04.secrets.push-protection</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. secret scanning push protection is enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+<ul class="facts-list"><li>private: false</li><li>push_protection_status: enabled</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Secret scanning is active (<code>C04.secrets.scanning-enabled</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. secret scanning is enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+<ul class="facts-list"><li>private: false</li><li>secret_scanning_status: enabled</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Cloud deployments use OIDC rather than long-lived static credentials (<code>C08.actions.oidc-vs-secrets</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>pull_request_target is not combined with checking out the PR head (<code>C08.actions.pull-request-target</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. no workflow triggers on pull_request_target</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+<ul class="facts-list"><li>bare_usage: </li><li>dangerous: </li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Self-hosted runners are not exposed to public-repo pull requests (<code>C08.actions.self-hosted</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. no self-hosted runner usage detected</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+<ul class="facts-list"><li>repo_private: false</li><li>self_hosted_jobs: </li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Workflows declare explicit, least-privilege GITHUB_TOKEN permissions (<code>C08.actions.token-permissions</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>demo-good</code>. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB_TOKEN permissions</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924</code>)</li></ul>
+
+
+<ul class="facts-list"><li>repo_default_workflow_permissions: read</li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+<p><strong>findings</strong></p>
+<table><tr><th>file</th><th>job</th><th>line</th><th>verdict</th></tr>
+<tr><td>.github/workflows/ci.yaml</td><td>build</td><td>4</td><td>missing</td></tr>
+<tr><td>.github/workflows/release.yaml</td><td>release</td><td>9</td><td>explicit</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>Audit-log export/streaming is configured (<code>C09.audit.log-streaming</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it&#39;s configured</p>
+
+
+
+
+</div>
+
+<div class="check">
+<h5>Organization audit log is reachable via the API (<code>C09.audit.org-log-available</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include GitHub Enterprise Cloud&#39;s audit-log API, or the token lacks the read:audit_log scope (GitHub returns the same status for both, so this can&#39;t be told apart from the response alone)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD/audit-log</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8</code>)</li><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>org_plan: free</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Audit-log retention window (informational) (<code>C09.audit.retention-awareness</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>informational only — GitHub&#39;s documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org</p>
+
+
+
+
+<ul class="facts-list"><li>documented_retention_days: 180</li><li>note: GitHub&#39;s docs state the audit log lists events from the last 180 days. Exporting/streaming (Enterprise-only, see C09.audit.log-streaming) is GitHub&#39;s documented mechanism for retention beyond that window.</li><li>source_url: https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>A webhook exports push/release/deployment events (<code>C09.repo.webhooks</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no active webhook subscribes to push, release, or deployment events</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/hooks</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>webhooks: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>If GitHub&#39;s own audit-log API or streaming isn&#39;t available (e.g. a non-Enterprise plan, or streaming being an Enterprise-account-only feature this tool can&#39;t query — see C09.audit.log-streaming), does the producer export or retain audit/access logs through another mechanism, and for how long? (<code>SA.audit-log-export-fallback</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>no self-attestation provided for this question</p>
+
+
+
+
+</div>
+
+
+<h4>PO.5.2 &mdash; <em>no data</em></h4>
+<p>Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.</p>
+
+
+
+
+<h3>Cluster 2: Trusted source code supply chain (good-faith effort) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h3>
+<blockquote>The software producer makes a good-faith effort to maintain trusted source code supply chains by employing automated tools or comparable processes to address the security of internal code and third-party components and manage related vulnerabilities.</blockquote>
+
+
+<h4>PO.1.1 &mdash; <em>no data</em></h4>
+<p>Identify and document all security requirements for the organization&#39;s software development infrastructures and processes, and maintain the requirements over time.</p>
+
+
+
+<h4>PO.3.1 &mdash; <em>no data</em></h4>
+<p>Specify which tools or tool types must or should be included in each toolchain to mitigate identified risks, as well as how the toolchain components are to be integrated with each other.</p>
+
+
+
+<h4>PO.3.2 &mdash; <em>no data</em></h4>
+<p>Follow recommended security practices to deploy, operate, and maintain tools and toolchains.</p>
+
+
+
+<h4>PO.5.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Separate and protect each environment involved in software development.</p>
+
+
+<div class="check">
+<h5>Org requires two-factor authentication (<code>C01.org.2fa-required</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>org does not require two-factor authentication for members</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>two_factor_requirement_enabled: false</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Count of members without two-factor authentication (<code>C01.org.members-without-2fa</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>all org members have two-factor authentication enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD/members</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>members_without_2fa_count: 0</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments restrict which branches/tags can deploy (<code>C03.env.branch-policy</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment restricts which branches/tags can deploy</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_allowing_any_branch: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A production-like environment exists (<code>C03.env.exists</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. 1 production-like environment(s) found among 1 total</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>production_like_heuristic: name matches prod*/production, case-insensitive</li></ul>
+<ul class="facts-list"><li>all_environment_names: production</li><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments have at least one protection rule (<code>C03.env.protection-rules</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment has at least one protection rule</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_without_protection: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments require reviewer approval before deployment (<code>C03.env.required-reviewers</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment requires reviewer approval</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_without_required_reviewers: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Org enables secret/dependency security features by default for new repos (<code>C04.org.security-defaults</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>not every security feature is enabled by default for new repositories</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>advanced_security_enabled_for_new_repositories: false</li><li>dependabot_alerts_enabled_for_new_repositories: true</li><li>secret_scanning_enabled_for_new_repositories: true</li><li>secret_scanning_push_protection_enabled_for_new_repositories: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>GitHub Advanced Security is enabled where applicable (<code>C04.secrets.advanced-security</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. not applicable to public repositories (GHAS licensing only gates private-repo features)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Secret scanning push protection is active (<code>C04.secrets.push-protection</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. secret scanning push protection is enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+<ul class="facts-list"><li>private: false</li><li>push_protection_status: enabled</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Secret scanning is active (<code>C04.secrets.scanning-enabled</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. secret scanning is enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+<ul class="facts-list"><li>private: false</li><li>secret_scanning_status: enabled</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Cloud deployments use OIDC rather than long-lived static credentials (<code>C08.actions.oidc-vs-secrets</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>pull_request_target is not combined with checking out the PR head (<code>C08.actions.pull-request-target</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. no workflow triggers on pull_request_target</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+<ul class="facts-list"><li>bare_usage: </li><li>dangerous: </li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Self-hosted runners are not exposed to public-repo pull requests (<code>C08.actions.self-hosted</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. no self-hosted runner usage detected</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+<ul class="facts-list"><li>repo_private: false</li><li>self_hosted_jobs: </li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Workflows declare explicit, least-privilege GITHUB_TOKEN permissions (<code>C08.actions.token-permissions</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>demo-good</code>. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB_TOKEN permissions</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924</code>)</li></ul>
+
+
+<ul class="facts-list"><li>repo_default_workflow_permissions: read</li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+<p><strong>findings</strong></p>
+<table><tr><th>file</th><th>job</th><th>line</th><th>verdict</th></tr>
+<tr><td>.github/workflows/ci.yaml</td><td>build</td><td>4</td><td>missing</td></tr>
+<tr><td>.github/workflows/release.yaml</td><td>release</td><td>9</td><td>explicit</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>Audit-log export/streaming is configured (<code>C09.audit.log-streaming</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it&#39;s configured</p>
+
+
+
+
+</div>
+
+<div class="check">
+<h5>Organization audit log is reachable via the API (<code>C09.audit.org-log-available</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include GitHub Enterprise Cloud&#39;s audit-log API, or the token lacks the read:audit_log scope (GitHub returns the same status for both, so this can&#39;t be told apart from the response alone)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD/audit-log</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8</code>)</li><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>org_plan: free</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Audit-log retention window (informational) (<code>C09.audit.retention-awareness</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>informational only — GitHub&#39;s documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org</p>
+
+
+
+
+<ul class="facts-list"><li>documented_retention_days: 180</li><li>note: GitHub&#39;s docs state the audit log lists events from the last 180 days. Exporting/streaming (Enterprise-only, see C09.audit.log-streaming) is GitHub&#39;s documented mechanism for retention beyond that window.</li><li>source_url: https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>A webhook exports push/release/deployment events (<code>C09.repo.webhooks</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no active webhook subscribes to push, release, or deployment events</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/hooks</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>webhooks: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>If GitHub&#39;s own audit-log API or streaming isn&#39;t available (e.g. a non-Enterprise plan, or streaming being an Enterprise-account-only feature this tool can&#39;t query — see C09.audit.log-streaming), does the producer export or retain audit/access logs through another mechanism, and for how long? (<code>SA.audit-log-export-fallback</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>no self-attestation provided for this question</p>
+
+
+
+
+</div>
+
+
+<h4>PO.5.2 &mdash; <em>no data</em></h4>
+<p>Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.</p>
+
+
+
+<h4>PS.1.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Store all forms of code – including source code, executable code, and configuration-as-code – based on the principle of least privilege so that only authorized personnel, tools, services, etc. have access.</p>
+
+
+<div class="check">
+<h5>Default repository permission for members (<code>C01.org.default-repo-permission</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>default repository permission is &#34;read&#34;</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>default_repository_permission: read</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Whether members can create public repositories (<code>C01.org.members-can-create-public</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>members can create public repositories (potential leak vector)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>members_can_create_public_repositories: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Default branch protections apply to admins (no unconditional bypass actor) (<code>C02.branch.admin-enforced</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch protections apply to admins with no bypass actors</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>bypass_actors: </li></ul>
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch blocks branch deletion (<code>C02.branch.deletion-blocked</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch blocks deletion</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch blocks force pushes (<code>C02.branch.force-push-blocked</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch blocks force pushes</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch has protection (legacy branch protection or a ruleset) (<code>C02.branch.protection-exists</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch is protected via: [legacy]</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>protected_via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch requires at least one approving review before merge (<code>C02.branch.required-reviews</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch requires 1 approving review(s)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dismiss_stale_reviews: false</li><li>required_approving_review_count: 1</li></ul>
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch requires status checks before merge (<code>C02.branch.required-status-checks</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch requires 1 status check(s)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>required_status_check_names: build</li><li>via: legacy</li></ul>
+
+
+</div>
+
+
+<h4>PS.2.1 &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h4>
+<p>Make software integrity verification information available to software acquirers.</p>
+
+
+<div class="check">
+<h5>Releases ship checksum assets (<code>C07.release.checksums</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every release in the lookback window ships a checksum asset</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li></ul>
+
+
+
+
+<p><strong>per_release</strong></p>
+<table><tr><th>matched_assets</th><th>passed</th><th>reason</th><th>tag</th></tr>
+<tr><td>[&#34;checksums.txt&#34;]</td><td>true</td><td>checksum asset(s) found: [checksums.txt]</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>Releases ship signature or attestation assets (<code>C07.release.signatures</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every release in the lookback window ships a signature/attestation asset or has a GitHub Artifact Attestation</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li></ul>
+
+
+
+
+<p><strong>per_release</strong></p>
+<table><tr><th>attestation_lookup_capped</th><th>attested_digest</th><th>matched_assets</th><th>passed</th><th>reason</th><th>tag</th></tr>
+<tr><td>false</td><td></td><td>[&#34;checksums.txt.bundle&#34;]</td><td>true</td><td>signature asset(s) found: [checksums.txt.bundle]</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>Release tags are signed and GitHub reports the signature verified (<code>C07.release.tags-signed</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every release tag in the lookback window is signed and its signature is verified</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+
+
+<p><strong>per_release</strong></p>
+<table><tr><th>annotated</th><th>passed</th><th>reason</th><th>signed</th><th>tag</th><th>verified</th></tr>
+<tr><td>true</td><td>true</td><td>valid</td><td>true</td><td>v1.0.0</td><td>true</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PS.3.1 &mdash; <em>no data</em></h4>
+<p>Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.</p>
+
+
+
+<h4>PW.4.1 &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h4>
+<p>Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization&#39;s software.</p>
+
+
+<div class="check">
+<h5>Third-party actions and reusable workflows are pinned to a full commit SHA (<code>C08.actions.pinned</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>demo-good</code>. every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>skipped_workflows: (none)</li><li>third_party_unpinned: (none)</li><li>unresolved_external_workflows: (none)</li></ul>
+<p><strong>first_party_unpinned</strong></p>
+<table><tr><th>class</th><th>file</th><th>line</th><th>ref</th><th>slug</th><th>uses</th></tr>
+<tr><td>first-party</td><td>.github/workflows/release.yaml</td><td>12</td><td>v5</td><td>actions/checkout</td><td>actions/checkout@v5</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PW.4.4 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.</p>
+
+
+<div class="check">
+<h5>Dependabot vulnerability alerts are enabled (<code>C04.deps.dependabot-alerts</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. Dependabot vulnerability alerts are enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/vulnerability-alerts</code> at 2026-07-17 06:30:02 UTC (HTTP 204, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_alerts_enabled: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Open Dependabot alerts are triaged within the default window (<code>C06.sca.alerts-triaged</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. 0 open alert(s), no critical alert open beyond the 30-day triage window</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/dependabot/alerts</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>oldest_open_age_days: 0</li><li>open_critical_count: 0</li><li>open_high_count: 0</li><li>open_low_count: 0</li><li>open_medium_count: 0</li><li>open_total_count: 0</li><li>triage_threshold_days: 30</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Dependabot config covers the repo&#39;s detected dependency ecosystems (<code>C06.sca.dependabot-config</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no Dependabot config found; 1 detected ecosystem(s) are uncovered</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>66bc93fa29b4f2f542ad5636d5315d3ea5724ec3149d7f872638948aef1a0135</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>detected_ecosystems: github-actions</li><li>uncovered_ecosystems: github-actions</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Dependency review is enforced as a required check on pull requests (<code>C06.sca.dependency-review</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no dependency-review-action (or equivalent) workflow detected</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool ran for each release in the lookback window (<code>C06.sca.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SCA run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool is configured (<code>C06.sca.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SCA tool detected in any workflow, and no Dependabot config found</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_configured: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+
+<h4>PW.7.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Determine whether code review (a person looks directly at the code to find issues) and/or code analysis (tools are used to find issues in code, either in a fully automated way or in conjunction with a person) should be used, as defined by the organization.</p>
+
+
+<div class="check">
+<h5>CodeQL default setup is configured (<code>C05.sast.default-setup</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. CodeQL default setup is &#34;not-configured&#34;</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad</code>)</li></ul>
+
+
+<ul class="facts-list"><li>state: not-configured</li></ul>
+<ul class="facts-list"><li>languages: actions</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A SAST tool is configured (<code>C05.sast.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SAST tool detected in any workflow, and CodeQL default setup is not configured</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>codeql_default_setup: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+
+<h4>PW.8.1 &mdash; <em>no data</em></h4>
+<p>Determine whether executable code testing should be performed to find vulnerabilities not identified by previous reviews, analysis, or testing and, if so, which types of testing should be used.</p>
+
+
+
+<h4>RV.1.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.</p>
+
+
+<div class="check">
+<h5>SECURITY.md advertises an actionable intake channel (<code>C10.vdp.intake-channel</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SECURITY.md exists to advertise an intake channel</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:06 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>GitHub private vulnerability reporting is enabled (<code>C10.vdp.private-reporting</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. private vulnerability reporting is not enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting</code> at 2026-07-17 06:30:06 UTC (HTTP 200, digest <code>5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146</code>)</li></ul>
+
+
+</div>
+
+
+
+<h3>Cluster 3: Provenance for internal and third-party code &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h3>
+<blockquote>The software producer maintains provenance for internal code and third-party components incorporated into the software to the greatest extent feasible.</blockquote>
+
+
+<h4>PO.1.3 &mdash; <em>no data</em></h4>
+<p>Communicate requirements to all third parties who will provide commercial software components to the organization for reuse by the organization&#39;s own software.</p>
+
+
+
+<h4>PO.3.2 &mdash; <em>no data</em></h4>
+<p>Follow recommended security practices to deploy, operate, and maintain tools and toolchains.</p>
+
+
+
+<h4>PO.5.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Separate and protect each environment involved in software development.</p>
+
+
+<div class="check">
+<h5>Org requires two-factor authentication (<code>C01.org.2fa-required</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>org does not require two-factor authentication for members</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>two_factor_requirement_enabled: false</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Count of members without two-factor authentication (<code>C01.org.members-without-2fa</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>all org members have two-factor authentication enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD/members</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>members_without_2fa_count: 0</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments restrict which branches/tags can deploy (<code>C03.env.branch-policy</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment restricts which branches/tags can deploy</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_allowing_any_branch: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A production-like environment exists (<code>C03.env.exists</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. 1 production-like environment(s) found among 1 total</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>production_like_heuristic: name matches prod*/production, case-insensitive</li></ul>
+<ul class="facts-list"><li>all_environment_names: production</li><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments have at least one protection rule (<code>C03.env.protection-rules</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment has at least one protection rule</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_without_protection: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Production-like environments require reviewer approval before deployment (<code>C03.env.required-reviewers</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every production-like environment requires reviewer approval</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/environments</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80</code>)</li></ul>
+
+
+<ul class="facts-list"><li>environments_without_required_reviewers: </li></ul>
+<ul class="facts-list"><li>production_like_environments: production</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Org enables secret/dependency security features by default for new repos (<code>C04.org.security-defaults</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>not every security feature is enabled by default for new repositories</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>advanced_security_enabled_for_new_repositories: false</li><li>dependabot_alerts_enabled_for_new_repositories: true</li><li>secret_scanning_enabled_for_new_repositories: true</li><li>secret_scanning_push_protection_enabled_for_new_repositories: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>GitHub Advanced Security is enabled where applicable (<code>C04.secrets.advanced-security</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. not applicable to public repositories (GHAS licensing only gates private-repo features)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Secret scanning push protection is active (<code>C04.secrets.push-protection</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. secret scanning push protection is enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+<ul class="facts-list"><li>private: false</li><li>push_protection_status: enabled</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Secret scanning is active (<code>C04.secrets.scanning-enabled</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. secret scanning is enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li></ul>
+
+
+<ul class="facts-list"><li>private: false</li><li>secret_scanning_status: enabled</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Cloud deployments use OIDC rather than long-lived static credentials (<code>C08.actions.oidc-vs-secrets</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>pull_request_target is not combined with checking out the PR head (<code>C08.actions.pull-request-target</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. no workflow triggers on pull_request_target</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+<ul class="facts-list"><li>bare_usage: </li><li>dangerous: </li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Self-hosted runners are not exposed to public-repo pull requests (<code>C08.actions.self-hosted</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. no self-hosted runner usage detected</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+<ul class="facts-list"><li>repo_private: false</li><li>self_hosted_jobs: </li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Workflows declare explicit, least-privilege GITHUB_TOKEN permissions (<code>C08.actions.token-permissions</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>demo-good</code>. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB_TOKEN permissions</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924</code>)</li></ul>
+
+
+<ul class="facts-list"><li>repo_default_workflow_permissions: read</li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+<p><strong>findings</strong></p>
+<table><tr><th>file</th><th>job</th><th>line</th><th>verdict</th></tr>
+<tr><td>.github/workflows/ci.yaml</td><td>build</td><td>4</td><td>missing</td></tr>
+<tr><td>.github/workflows/release.yaml</td><td>release</td><td>9</td><td>explicit</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>Audit-log export/streaming is configured (<code>C09.audit.log-streaming</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it&#39;s configured</p>
+
+
+
+
+</div>
+
+<div class="check">
+<h5>Organization audit log is reachable via the API (<code>C09.audit.org-log-available</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include GitHub Enterprise Cloud&#39;s audit-log API, or the token lacks the read:audit_log scope (GitHub returns the same status for both, so this can&#39;t be told apart from the response alone)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD/audit-log</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8</code>)</li><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>org_plan: free</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Audit-log retention window (informational) (<code>C09.audit.retention-awareness</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>informational only — GitHub&#39;s documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org</p>
+
+
+
+
+<ul class="facts-list"><li>documented_retention_days: 180</li><li>note: GitHub&#39;s docs state the audit log lists events from the last 180 days. Exporting/streaming (Enterprise-only, see C09.audit.log-streaming) is GitHub&#39;s documented mechanism for retention beyond that window.</li><li>source_url: https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>A webhook exports push/release/deployment events (<code>C09.repo.webhooks</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no active webhook subscribes to push, release, or deployment events</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/hooks</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>webhooks: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>If GitHub&#39;s own audit-log API or streaming isn&#39;t available (e.g. a non-Enterprise plan, or streaming being an Enterprise-account-only feature this tool can&#39;t query — see C09.audit.log-streaming), does the producer export or retain audit/access logs through another mechanism, and for how long? (<code>SA.audit-log-export-fallback</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>no self-attestation provided for this question</p>
+
+
+
+
+</div>
+
+
+<h4>PO.5.2 &mdash; <em>no data</em></h4>
+<p>Secure and harden development endpoints (i.e., endpoints for software designers, developers, testers, builders, etc.) to perform development-related tasks using a risk-based approach.</p>
+
+
+
+<h4>PS.3.1 &mdash; <em>no data</em></h4>
+<p>Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.</p>
+
+
+
+<h4>PS.3.2 &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h4>
+<p>Collect, safeguard, maintain, and share provenance data for all components of each software release (e.g., in a software bill of materials [SBOM]).</p>
+
+
+<div class="check">
+<h5>Release artifacts are traceable to a workflow run on the release commit (<code>C07.provenance.commit-linkage</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every release in the lookback window is traceable to a workflow run on its commit</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/runs</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>93d09c57cafa78e969cf6e6ceb2fe0e3758c6653237b545ef6ea2d005d7252e2</code>)</li></ul>
+
+
+
+
+<p><strong>per_release</strong></p>
+<table><tr><th>passed</th><th>reason</th><th>run_count</th><th>tag</th></tr>
+<tr><td>true</td><td>3 workflow run(s) found on this release&#39;s commit</td><td>3</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>A provenance-generating tool is configured (<code>C07.provenance.workflow</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. a provenance-generating tool is configured</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+<ul class="facts-list"><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: Sigstore cosign</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Releases ship signature or attestation assets (<code>C07.release.signatures</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. every release in the lookback window ships a signature/attestation asset or has a GitHub Artifact Attestation</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li></ul>
+
+
+
+
+<p><strong>per_release</strong></p>
+<table><tr><th>attestation_lookup_capped</th><th>attested_digest</th><th>matched_assets</th><th>passed</th><th>reason</th><th>tag</th></tr>
+<tr><td>false</td><td></td><td>[&#34;checksums.txt.bundle&#34;]</td><td>true</td><td>signature asset(s) found: [checksums.txt.bundle]</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PW.4.1 &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h4>
+<p>Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization&#39;s software.</p>
+
+
+<div class="check">
+<h5>Third-party actions and reusable workflows are pinned to a full commit SHA (<code>C08.actions.pinned</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>demo-good</code>. every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>skipped_workflows: (none)</li><li>third_party_unpinned: (none)</li><li>unresolved_external_workflows: (none)</li></ul>
+<p><strong>first_party_unpinned</strong></p>
+<table><tr><th>class</th><th>file</th><th>line</th><th>ref</th><th>slug</th><th>uses</th></tr>
+<tr><td>first-party</td><td>.github/workflows/release.yaml</td><td>12</td><td>v5</td><td>actions/checkout</td><td>actions/checkout@v5</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PW.4.4 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.</p>
+
+
+<div class="check">
+<h5>Dependabot vulnerability alerts are enabled (<code>C04.deps.dependabot-alerts</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. Dependabot vulnerability alerts are enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/vulnerability-alerts</code> at 2026-07-17 06:30:02 UTC (HTTP 204, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_alerts_enabled: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Open Dependabot alerts are triaged within the default window (<code>C06.sca.alerts-triaged</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. 0 open alert(s), no critical alert open beyond the 30-day triage window</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/dependabot/alerts</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>oldest_open_age_days: 0</li><li>open_critical_count: 0</li><li>open_high_count: 0</li><li>open_low_count: 0</li><li>open_medium_count: 0</li><li>open_total_count: 0</li><li>triage_threshold_days: 30</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Dependabot config covers the repo&#39;s detected dependency ecosystems (<code>C06.sca.dependabot-config</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no Dependabot config found; 1 detected ecosystem(s) are uncovered</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>66bc93fa29b4f2f542ad5636d5315d3ea5724ec3149d7f872638948aef1a0135</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>detected_ecosystems: github-actions</li><li>uncovered_ecosystems: github-actions</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Dependency review is enforced as a required check on pull requests (<code>C06.sca.dependency-review</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no dependency-review-action (or equivalent) workflow detected</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool ran for each release in the lookback window (<code>C06.sca.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SCA run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool is configured (<code>C06.sca.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SCA tool detected in any workflow, and no Dependabot config found</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_configured: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+
+<h4>RV.1.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.</p>
+
+
+<div class="check">
+<h5>SECURITY.md advertises an actionable intake channel (<code>C10.vdp.intake-channel</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SECURITY.md exists to advertise an intake channel</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:06 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>GitHub private vulnerability reporting is enabled (<code>C10.vdp.private-reporting</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. private vulnerability reporting is not enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting</code> at 2026-07-17 06:30:06 UTC (HTTP 200, digest <code>5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146</code>)</li></ul>
+
+
+</div>
+
+
+<h4>RV.1.2 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Review, analyze, and/or test the software&#39;s code to identify or confirm the presence of previously undetected vulnerabilities.</p>
+
+
+<div class="check">
+<h5>SAST run cadence over the lookback window (<code>C05.sast.cadence</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. no SAST tool is configured; cadence cannot be computed</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>CodeQL default setup is configured (<code>C05.sast.default-setup</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. CodeQL default setup is &#34;not-configured&#34;</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad</code>)</li></ul>
+
+
+<ul class="facts-list"><li>state: not-configured</li></ul>
+<ul class="facts-list"><li>languages: actions</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A SAST tool ran for each release in the lookback window (<code>C05.sast.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SAST run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>A SAST tool is configured (<code>C05.sast.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SAST tool detected in any workflow, and CodeQL default setup is not configured</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>codeql_default_setup: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool ran for each release in the lookback window (<code>C06.sca.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SCA run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool is configured (<code>C06.sca.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SCA tool detected in any workflow, and no Dependabot config found</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_configured: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+
+
+<h3>Cluster 4: Automated vulnerability checking, pre-release, and disclosure program &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h3>
+<blockquote>The software producer employs automated tools or comparable processes that check for security vulnerabilities. In addition: a) The software producer operates these processes on an ongoing basis and prior to product, version, or update releases; b) The software producer has a policy or process to address discovered security vulnerabilities prior to product release; and c) The software producer operates a vulnerability disclosure program and accepts, reviews, and addresses disclosed software vulnerabilities in a timely fashion and according to any timelines specified in the vulnerability disclosure program or applicable policies.</blockquote>
+
+
+<h4>PO.4.1 &mdash; <em>no data</em></h4>
+<p>Define criteria for software security checks and track throughout the SDLC.</p>
+
+
+
+<h4>PO.4.2 &mdash; <em>no data</em></h4>
+<p>Implement processes, mechanisms, etc. to gather and safeguard the necessary information in support of the criteria.</p>
+
+
+
+<h4>PS.1.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Store all forms of code – including source code, executable code, and configuration-as-code – based on the principle of least privilege so that only authorized personnel, tools, services, etc. have access.</p>
+
+
+<div class="check">
+<h5>Default repository permission for members (<code>C01.org.default-repo-permission</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>default repository permission is &#34;read&#34;</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>default_repository_permission: read</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Whether members can create public repositories (<code>C01.org.members-can-create-public</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>members can create public repositories (potential leak vector)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /orgs/Qloud-LTD</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>528ad13d28bb6cb16eaf114dd09b526b6f7d673a736972d8b392a005c3942648</code>)</li></ul>
+
+
+<ul class="facts-list"><li>members_can_create_public_repositories: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Default branch protections apply to admins (no unconditional bypass actor) (<code>C02.branch.admin-enforced</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch protections apply to admins with no bypass actors</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>bypass_actors: </li></ul>
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch blocks branch deletion (<code>C02.branch.deletion-blocked</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch blocks deletion</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch blocks force pushes (<code>C02.branch.force-push-blocked</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch blocks force pushes</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch has protection (legacy branch protection or a ruleset) (<code>C02.branch.protection-exists</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch is protected via: [legacy]</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>protected_via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch requires at least one approving review before merge (<code>C02.branch.required-reviews</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch requires 1 approving review(s)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dismiss_stale_reviews: false</li><li>required_approving_review_count: 1</li></ul>
+<ul class="facts-list"><li>via: legacy</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Default branch requires status checks before merge (<code>C02.branch.required-status-checks</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. default branch requires 1 status check(s)</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>required_status_check_names: build</li><li>via: legacy</li></ul>
+
+
+</div>
+
+
+<h4>PW.2.1 &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h4>
+<p>Have 1) a qualified person (or people) who were not involved with the design and/or 2) automated processes instantiated in the toolchain review the software design to confirm and enforce that it meets all of the security requirements and satisfactorily addresses the identified risk information.</p>
+
+
+<div class="check">
+<h5>Is the software&#39;s design reviewed — by a qualified person not involved in that design, and/or an automated process — to confirm it meets security requirements and addresses identified risk before implementation? (<code>SA.threat-modeling</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>no self-attestation provided for this question</p>
+
+
+
+
+</div>
+
+
+<h4>PW.4.4 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.</p>
+
+
+<div class="check">
+<h5>Dependabot vulnerability alerts are enabled (<code>C04.deps.dependabot-alerts</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. Dependabot vulnerability alerts are enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/vulnerability-alerts</code> at 2026-07-17 06:30:02 UTC (HTTP 204, digest <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_alerts_enabled: true</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Open Dependabot alerts are triaged within the default window (<code>C06.sca.alerts-triaged</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. 0 open alert(s), no critical alert open beyond the 30-day triage window</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/dependabot/alerts</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>oldest_open_age_days: 0</li><li>open_critical_count: 0</li><li>open_high_count: 0</li><li>open_low_count: 0</li><li>open_medium_count: 0</li><li>open_total_count: 0</li><li>triage_threshold_days: 30</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>Dependabot config covers the repo&#39;s detected dependency ecosystems (<code>C06.sca.dependabot-config</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no Dependabot config found; 1 detected ecosystem(s) are uncovered</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>66bc93fa29b4f2f542ad5636d5315d3ea5724ec3149d7f872638948aef1a0135</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+
+<ul class="facts-list"><li>detected_ecosystems: github-actions</li><li>uncovered_ecosystems: github-actions</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>Dependency review is enforced as a required check on pull requests (<code>C06.sca.dependency-review</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no dependency-review-action (or equivalent) workflow detected</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/branches/main/protection</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/rules/branches/main</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool ran for each release in the lookback window (<code>C06.sca.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SCA run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool is configured (<code>C06.sca.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SCA tool detected in any workflow, and no Dependabot config found</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_configured: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+
+<h4>PW.5.1 &mdash; <em>no data</em></h4>
+<p>Follow all secure coding practices that are appropriate to the development languages and environment to meet the organization&#39;s requirements.</p>
+
+
+
+<h4>PW.6.1 &mdash; <em>no data</em></h4>
+<p>Use compiler, interpreter, and build tools that offer features to improve executable security.</p>
+
+
+
+<h4>PW.6.2 &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h4>
+<p>Determine which compiler, interpreter, and build tool features should be used and how each should be configured, then implement and use the approved configurations.</p>
+
+
+<div class="check">
+<h5>Workflows declare explicit, least-privilege GITHUB_TOKEN permissions (<code>C08.actions.token-permissions</code>) &mdash; <span class="badge badge-partial">[PARTIAL]</span> Partial</h5>
+<p>Repo: <code>demo-good</code>. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB_TOKEN permissions</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924</code>)</li></ul>
+
+
+<ul class="facts-list"><li>repo_default_workflow_permissions: read</li></ul>
+<ul class="facts-list"><li>skipped_workflows: (none)</li></ul>
+<p><strong>findings</strong></p>
+<table><tr><th>file</th><th>job</th><th>line</th><th>verdict</th></tr>
+<tr><td>.github/workflows/ci.yaml</td><td>build</td><td>4</td><td>missing</td></tr>
+<tr><td>.github/workflows/release.yaml</td><td>release</td><td>9</td><td>explicit</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PW.7.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Determine whether code review (a person looks directly at the code to find issues) and/or code analysis (tools are used to find issues in code, either in a fully automated way or in conjunction with a person) should be used, as defined by the organization.</p>
+
+
+<div class="check">
+<h5>CodeQL default setup is configured (<code>C05.sast.default-setup</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. CodeQL default setup is &#34;not-configured&#34;</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad</code>)</li></ul>
+
+
+<ul class="facts-list"><li>state: not-configured</li></ul>
+<ul class="facts-list"><li>languages: actions</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A SAST tool is configured (<code>C05.sast.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SAST tool detected in any workflow, and CodeQL default setup is not configured</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>codeql_default_setup: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+
+<h4>PW.7.2 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Perform the code review and/or code analysis based on the organization&#39;s secure coding standards, and record and triage all discovered issues and recommended remediations in the development team&#39;s workflow or issue tracking system.</p>
+
+
+<div class="check">
+<h5>SAST run cadence over the lookback window (<code>C05.sast.cadence</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. no SAST tool is configured; cadence cannot be computed</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A SAST tool ran for each release in the lookback window (<code>C05.sast.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SAST run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+
+<h4>PW.8.2 &mdash; <em>no data</em></h4>
+<p>Scope the testing, design the tests, perform the testing, and document the results, including recording and triaging all discovered issues and recommended remediations in the development team&#39;s workflow or issue tracking system.</p>
+
+
+
+<h4>PW.9.1 &mdash; <em>no data</em></h4>
+<p>Define a secure baseline by determining how to configure each setting that has an effect on security or a security-related setting so that the default settings are secure and do not weaken the security functions provided by the platform, network infrastructure, or services.</p>
+
+
+
+<h4>PW.9.2 &mdash; <em>no data</em></h4>
+<p>Implement the default settings (or groups of default settings, if applicable), and document each setting for software administrators.</p>
+
+
+
+<h4>RV.1.1 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Gather information from software acquirers, users, and public sources on potential vulnerabilities in the software and third-party components that the software uses, and investigate all credible reports.</p>
+
+
+<div class="check">
+<h5>SECURITY.md advertises an actionable intake channel (<code>C10.vdp.intake-channel</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SECURITY.md exists to advertise an intake channel</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:06 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>GitHub private vulnerability reporting is enabled (<code>C10.vdp.private-reporting</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. private vulnerability reporting is not enabled</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting</code> at 2026-07-17 06:30:06 UTC (HTTP 200, digest <code>5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146</code>)</li></ul>
+
+
+</div>
+
+
+<h4>RV.1.2 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Review, analyze, and/or test the software&#39;s code to identify or confirm the presence of previously undetected vulnerabilities.</p>
+
+
+<div class="check">
+<h5>SAST run cadence over the lookback window (<code>C05.sast.cadence</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Repo: <code>demo-good</code>. no SAST tool is configured; cadence cannot be computed</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>CodeQL default setup is configured (<code>C05.sast.default-setup</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. CodeQL default setup is &#34;not-configured&#34;</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad</code>)</li></ul>
+
+
+<ul class="facts-list"><li>state: not-configured</li></ul>
+<ul class="facts-list"><li>languages: actions</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A SAST tool ran for each release in the lookback window (<code>C05.sast.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SAST run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>A SAST tool is configured (<code>C05.sast.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SAST tool detected in any workflow, and CodeQL default setup is not configured</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>codeql_default_setup: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool ran for each release in the lookback window (<code>C06.sca.ran-per-release</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. at least one release in the lookback window has no matched SCA run at all</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/releases</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7</code> at 2026-07-17 06:30:04 UTC (HTTP 200, digest <code>ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dropped_tags: 0</li></ul>
+
+<p><strong>per_release</strong></p>
+<table><tr><th>status</th><th>tag</th></tr>
+<tr><td>missing</td><td>v1.0.0</td></tr>
+</table>
+
+
+</div>
+
+<div class="check">
+<h5>An SCA tool is configured (<code>C06.sca.tool-configured</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SCA tool detected in any workflow, and no Dependabot config found</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good</code> at 2026-07-17 06:30:02 UTC (HTTP 200, digest <code>1e18fb721a475be31eecdd8fecc2e522f0b7e69889b94b1a3eca2922d3ee16ba</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/actions/workflows</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml</code> at 2026-07-17 06:30:03 UTC (HTTP 200, digest <code>2f34d8e2d25dd69cc47705a4493c928588099630e3a863b8728185482b019d7d</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+<ul class="facts-list"><li>dependabot_configured: false</li><li>low_confidence_match_only: false</li></ul>
+<ul class="facts-list"><li>tool_names: (none)</li></ul>
+
+
+</div>
+
+
+<h4>RV.1.3 &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h4>
+<p>Have a policy that addresses vulnerability disclosure and remediation, and implement the roles, responsibilities, and processes needed to support that policy.</p>
+
+
+<div class="check">
+<h5>SECURITY.md advertises an actionable intake channel (<code>C10.vdp.intake-channel</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SECURITY.md exists to advertise an intake channel</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:06 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>A SECURITY.md resolves for this repo (<code>C10.vdp.security-md</code>) &mdash; <span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</h5>
+<p>Repo: <code>demo-good</code>. no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org&#39;s .github repo</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/SECURITY.md</code> at 2026-07-17 06:30:05 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li><li><code>GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md</code> at 2026-07-17 06:30:06 UTC (HTTP 404, digest <code>e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2</code>)</li></ul>
+
+
+</div>
+
+<div class="check">
+<h5>The org has an org-wide default security policy (<code>C10.vdp.security-policy-org</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/.github</code> at 2026-07-17 06:30:04 UTC (HTTP 404, digest <code>4f50e254a719a6b1b06b529bdaa08980e4acf0878aad0090cba7771f6ebdf0b9</code>)</li></ul>
+
+
+</div>
+
+
+<h4>RV.2.1 &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h4>
+<p>Analyze each vulnerability to gather sufficient information about risk to plan its remediation or other risk response.</p>
+
+
+<div class="check">
+<h5>Open Dependabot alerts are triaged within the default window (<code>C06.sca.alerts-triaged</code>) &mdash; <span class="badge badge-verified-pass">[PASS]</span> Verified Pass</h5>
+<p>Repo: <code>demo-good</code>. 0 open alert(s), no critical alert open beyond the 30-day triage window</p>
+
+<p><strong>Evidence:</strong></p>
+<ul class="evidence-list"><li><code>GET /repos/Qloud-LTD/demo-good/dependabot/alerts</code> at 2026-07-17 06:30:05 UTC (HTTP 200, digest <code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code>)</li></ul>
+
+
+<ul class="facts-list"><li>oldest_open_age_days: 0</li><li>open_critical_count: 0</li><li>open_high_count: 0</li><li>open_low_count: 0</li><li>open_medium_count: 0</li><li>open_total_count: 0</li><li>triage_threshold_days: 30</li></ul>
+
+
+
+</div>
+
+<div class="check">
+<h5>What is the producer&#39;s target time to triage (assess the risk of) a newly reported vulnerability? (<code>SA.vuln-triage-sla</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>no self-attestation provided for this question</p>
+
+
+
+
+</div>
+
+
+<h4>RV.2.2 &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h4>
+<p>Plan and implement risk responses for vulnerabilities.</p>
+
+
+<div class="check">
+<h5>What is the producer&#39;s target time to remediate a confirmed vulnerability, by severity? (<code>SA.vuln-remediation-sla</code>) &mdash; <span class="badge badge-not-checkable">[NOT CHECKABLE]</span> Not Checkable</h5>
+<p>no self-attestation provided for this question</p>
+
+
+
+
+</div>
+
+
+<h4>RV.3.3 &mdash; <em>no data</em></h4>
+<p>Review the software for similar vulnerabilities to eradicate a class of vulnerabilities, and proactively fix them rather than waiting for external reports.</p>
+
+
+
+
+
+<h2 id="gaps">Gaps</h2>
+<p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
+<table>
+  <tr><th>POA&amp;M ID</th><th>Check</th><th>Repo</th><th>Status</th><th>Reason</th></tr>
+  <tr><td>POAM-001</td><td><code>C01.org.2fa-required</code></td><td>(org)</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>org does not require two-factor authentication for members</td></tr>
+  <tr><td>POAM-005</td><td><code>C01.org.members-can-create-public</code></td><td>(org)</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>members can create public repositories (potential leak vector)</td></tr>
+  <tr><td>POAM-002</td><td><code>C04.org.security-defaults</code></td><td>(org)</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>not every security feature is enabled by default for new repositories</td></tr>
+  <tr><td>POAM-006</td><td><code>C05.sast.default-setup</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>CodeQL default setup is &#34;not-configured&#34;</td></tr>
+  <tr><td>POAM-015</td><td><code>C05.sast.ran-per-release</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>at least one release in the lookback window has no matched SAST run at all</td></tr>
+  <tr><td>POAM-007</td><td><code>C05.sast.tool-configured</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no SAST tool detected in any workflow, and CodeQL default setup is not configured</td></tr>
+  <tr><td>POAM-008</td><td><code>C06.sca.dependabot-config</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no Dependabot config found; 1 detected ecosystem(s) are uncovered</td></tr>
+  <tr><td>POAM-009</td><td><code>C06.sca.dependency-review</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no dependency-review-action (or equivalent) workflow detected</td></tr>
+  <tr><td>POAM-010</td><td><code>C06.sca.ran-per-release</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>at least one release in the lookback window has no matched SCA run at all</td></tr>
+  <tr><td>POAM-011</td><td><code>C06.sca.tool-configured</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no SCA tool detected in any workflow, and no Dependabot config found</td></tr>
+  <tr><td>POAM-012</td><td><code>C08.actions.pinned</code></td><td>demo-good</td><td><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</td></tr>
+  <tr><td>POAM-003</td><td><code>C08.actions.token-permissions</code></td><td>demo-good</td><td><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB_TOKEN permissions</td></tr>
+  <tr><td>POAM-004</td><td><code>C09.repo.webhooks</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no active webhook subscribes to push, release, or deployment events</td></tr>
+  <tr><td>POAM-013</td><td><code>C10.vdp.intake-channel</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no SECURITY.md exists to advertise an intake channel</td></tr>
+  <tr><td>POAM-014</td><td><code>C10.vdp.private-reporting</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>private vulnerability reporting is not enabled</td></tr>
+  <tr><td>POAM-016</td><td><code>C10.vdp.security-md</code></td><td>demo-good</td><td><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org&#39;s .github repo</td></tr>
+  
+</table>
+
+<h2 id="self-attested-appendix">Self-Attested &amp; Not-Checkable Appendix</h2>
+<p>Controls in this section were <strong>not independently verified</strong> by this tool &mdash; either the
+producer's own claim (self-attested) or a control this tool structurally cannot verify
+via API (not-checkable, e.g. plan-gated or no answer on file). Neither status ever
+upgrades a CISA form cluster to fully verified.</p>
+
+<h3>Self-Attested</h3>
+<p>None.</p>
+
+<h3>Not Checkable</h3>
+<table>
+  <tr><th>Check</th><th>Repo</th><th>Reason</th></tr>
+  <tr><td><code>C04.secrets.advanced-security</code></td><td>demo-good</td><td>not applicable to public repositories (GHAS licensing only gates private-repo features)</td></tr>
+  <tr><td><code>C05.sast.cadence</code></td><td>demo-good</td><td>no SAST tool is configured; cadence cannot be computed</td></tr>
+  <tr><td><code>C08.actions.oidc-vs-secrets</code></td><td>demo-good</td><td>no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch</td></tr>
+  <tr><td><code>C09.audit.log-streaming</code></td><td>(org)</td><td>audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it&#39;s configured</td></tr>
+  <tr><td><code>C09.audit.org-log-available</code></td><td>(org)</td><td>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include GitHub Enterprise Cloud&#39;s audit-log API, or the token lacks the read:audit_log scope (GitHub returns the same status for both, so this can&#39;t be told apart from the response alone)</td></tr>
+  <tr><td><code>C09.audit.retention-awareness</code></td><td>(org)</td><td>informational only — GitHub&#39;s documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org</td></tr>
+  <tr><td><code>C10.vdp.security-policy-org</code></td><td>(org)</td><td>Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists</td></tr>
+  <tr><td><code>SA.agency-notification-process</code></td><td>(org)</td><td>no self-attestation provided for this question</td></tr>
+  <tr><td><code>SA.audit-log-export-fallback</code></td><td>(org)</td><td>no self-attestation provided for this question</td></tr>
+  <tr><td><code>SA.dev-security-training</code></td><td>(org)</td><td>no self-attestation provided for this question</td></tr>
+  <tr><td><code>SA.threat-modeling</code></td><td>(org)</td><td>no self-attestation provided for this question</td></tr>
+  <tr><td><code>SA.vuln-remediation-sla</code></td><td>(org)</td><td>no self-attestation provided for this question</td></tr>
+  <tr><td><code>SA.vuln-triage-sla</code></td><td>(org)</td><td>no self-attestation provided for this question</td></tr>
+  
+</table>
+
+<h2 id="methodology">Methodology</h2>
+<p><strong>Status definitions:</strong></p>
+<ul>
+  <li><span class="badge badge-verified-pass">[PASS]</span> <strong>Verified Pass</strong> &mdash; the tool queried the platform API and the returned state satisfies the check's pass condition. Never inferred, only observed.</li>
+  <li><span class="badge badge-verified-fail">[FAIL]</span> <strong>Verified Fail</strong> &mdash; the tool queried the platform API and the returned state does not satisfy the check's pass condition. Just as definitive as verified-pass.</li>
+  <li><span class="badge badge-partial">[PARTIAL]</span> <strong>Partial</strong> &mdash; the tool queried the platform API and got a mixed or incomplete signal: some but not all of a check's sub-conditions hold, or the evidence is suggestive but not conclusive either way.</li>
+  <li><span class="badge badge-self-attested">[SELF-ATTESTED]</span> <strong>Self-Attested</strong> &mdash; no API call can verify this control; the answer comes from the producer's own self-attestation questionnaire, not platform evidence.</li>
+  <li><span class="badge badge-not-checkable">[NOT CHECKABLE]</span> <strong>Not Checkable</strong> &mdash; the tool could not determine an answer at all (plan-gated, insufficient token permission, or an unanswered self-attestation question). An honest &ldquo;unknown&rdquo;, never inferred as a pass or a fail.</li>
+</ul>
+
+<p><strong>Lookback window:</strong> 5 releases / 12 months, release tag pattern <code>v*</code>.</p>
+
+<p><strong>What this tool does NOT verify:</strong> developer security training, threat-modeling practice
+in depth, documented triage/remediation SLAs beyond what a self-attestation records,
+agency-notification process, and any control neither an API call nor the self-attestation
+questionnaire can reach. This tool is read-only: it never writes to the scanned platform,
+and every claim above traces to either a specific API response (verified-*, partial,
+not-checkable) or an explicit producer statement (self-attested) &mdash; never to inference,
+and never faked.</p>
+
+<footer>Generated by attestor dev. This report is derived entirely from evidence.json; it makes no claims beyond what that file records.</footer>
+
+</body>
+</html>
