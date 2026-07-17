@@ -36,10 +36,8 @@ jobs:
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
       - run: golangci-lint run
 
-  # macOS-only for now (see the self-hosted comment above): a real, if
-  # low-risk, loss of Linux-specific test coverage for a tool whose primary
-  # deployment target is Linux CI — tracked in #83, restore a non-required
-  # ubuntu-latest leg here once GitHub Actions billing is unblocked.
+  # The required check — macOS, self-hosted (see the self-hosted comment
+  # above).
   test:
     runs-on: [self-hosted, macOS]
     steps:
@@ -52,6 +50,28 @@ jobs:
         with:
           name: coverage
           path: coverage.out
+
+  # Issue #83: restores the Linux-specific test coverage `test` above can't
+  # provide on its own — case-sensitive filesystem, path/rename semantics,
+  # the race-detector runtime — for a tool whose primary deployment target
+  # is Linux CI. Runs on spyros-ionos-ssdf (self-hosted, amd64), the same
+  # machine the `build` matrix's linux/amd64 leg already uses, rather than
+  # falling back to a GitHub-hosted ubuntu-latest runner (issue #83's other
+  # proposed option) — this repo already had a self-hosted Linux amd64
+  # machine, it just wasn't running the test suite on it yet. Deliberately
+  # NOT added to this repo's required-checks list (a new job is
+  # non-required by default unless explicitly added there): if this
+  # specific runner ever goes offline, that must never be able to block a
+  # merge the way a required check would, matching the same reasoning that
+  # keeps `build`'s own legs non-required.
+  test-linux:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go test ./... -race -coverprofile=coverage.out
 
   # Issue #30's drift guard: docs/checks-reference.md is generated from
   # mappings/*.yaml + the collector registry (never hand-edited — see the
