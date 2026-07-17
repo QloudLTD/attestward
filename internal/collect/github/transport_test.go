@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -82,6 +83,70 @@ func TestProvenanceTransportRecordsEveryRetryAsItsOwnEntry(t *testing.T) {
 
 	if got := len(prov.Provenance()); got != 2 {
 		t.Fatalf("len(Provenance()) = %d, want 2 (one entry per call, including retries)", got)
+	}
+}
+
+// TestProvenanceTransportRejectsWriteMethods pins issue #31's read-only
+// enforcement: any method other than GET/HEAD must be rejected before it
+// ever reaches the underlying transport (a real network call, or in this
+// test, the base RoundTripper at all) — proving the rejection happens at
+// the guard itself, not just that the fixture never got asked to respond
+// to a write it wasn't configured for.
+func TestProvenanceTransportRejectsWriteMethods(t *testing.T) {
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			baseHit := false
+			base := roundTripFunc(func(*http.Request) (*http.Response, error) {
+				baseHit = true
+				t.Fatalf("base transport was reached for a %s request — the guard must reject before any network call", method)
+				return nil, nil
+			})
+
+			prov := newProvenanceTransport("tok", base)
+			client := &http.Client{Transport: prov}
+
+			req, err := http.NewRequestWithContext(context.Background(), method, "https://api.github.com/repos/attestor-demo/good-repo", nil)
+			if err != nil {
+				t.Fatalf("build request: %v", err)
+			}
+			_, err = client.Do(req)
+			if err == nil {
+				t.Fatalf("%s request: got nil error, want a rejection", method)
+			}
+			if !errors.Is(err, ErrWriteMethodRejected) {
+				t.Errorf("%s request error = %v, want it to wrap ErrWriteMethodRejected", method, err)
+			}
+			if baseHit {
+				t.Error("base transport was reached — see the Fatalf above")
+			}
+			if len(prov.Provenance()) != 0 {
+				t.Error("a rejected write request was still recorded in Provenance — it never happened, so it must not appear as evidence of anything")
+			}
+		})
+	}
+}
+
+// TestProvenanceTransportAllowsHead confirms the guard's allow-list is
+// exactly {GET, HEAD}, not GET alone — HEAD is a legitimate read method
+// (used, for example, to check resource existence without a body) and
+// must not be caught by a guard meant only to block writes.
+func TestProvenanceTransportAllowsHead(t *testing.T) {
+	fx := ghfixture.New().Set("HEAD", "/repos/attestor-demo/good-repo", ghfixture.Response{Status: 200})
+	prov := newProvenanceTransport("tok", fx)
+	client := &http.Client{Transport: prov}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodHead, "https://api.github.com/repos/attestor-demo/good-repo", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("HEAD request: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	if len(prov.Provenance()) != 1 {
+		t.Errorf("len(Provenance()) = %d, want 1 (HEAD is a read method and must be allowed through)", len(prov.Provenance()))
 	}
 }
 

@@ -281,8 +281,10 @@ build of `attestor` doesn't understand fails with a friendly error rather than a
 ## Safety posture
 
 - **Read-only, forever.** No code path in this tool makes a write call against any
-  platform API — see [ADR-0004](docs/adr/0004-read-only-local-first.md). If a future
-  feature seemed to need one, it would be flagged and stopped, not added.
+  platform API — see [ADR-0004](docs/adr/0004-read-only-local-first.md). Enforced
+  structurally, not just by review: every API call shares one transport that rejects any
+  request that isn't `GET`/`HEAD` before it ever reaches the network. If a future feature
+  seemed to need a write, it would be flagged and stopped, not added.
 - **Local-first, no telemetry.** No network egress besides the platform API you point it
   at. No update checks, no crash reporting, no phone-home of any kind.
 - **Tokens are never persisted.** `GITHUB_TOKEN` is read from the environment for the life
