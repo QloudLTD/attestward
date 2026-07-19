@@ -62,7 +62,7 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./attestor scan --org sioakim --repo ssdf --out evidence/
+        run: ./attestor scan --org sioakim --repo ssdf --out evidence/ --self-attestation-file self-attestation.yaml
 
       - name: Render report.html
         if: always()
@@ -92,16 +92,21 @@ jobs:
       #   - C06.sca.dependency-review: GHAS-gated on a private repo (same
       #     as DECISIONS.md D7's CodeQL entry) — resolves when this repo
       #     goes public or GHAS is purchased, not before.
-      #   - C02.branch.required-reviews, C02.branch.admin-enforced: real,
-      #     accepted gaps pending the repo owner's own branch-protection
-      #     decision — see issue #105.
+      #   - C02.branch.admin-enforced: real, accepted gap — an Admin-role
+      #     "always" bypass actor is deliberately kept on the main ruleset
+      #     so this solo-maintainer repo can still merge without a second
+      #     reviewer who doesn't exist; C02.branch.required-reviews itself
+      #     was fixed (required_approving_review_count raised to 1) and no
+      #     longer needs this exception. See DECISIONS.md D10, issue #105.
       #   - C09.repo.webhooks: needs a real receiving endpoint that
-      #     doesn't exist yet — see issue #106.
+      #     doesn't exist yet — accepted and documented via a self-attested
+      #     "no" for SA.audit-log-export-fallback instead (see
+      #     self-attestation.yaml, DECISIONS.md D11, issue #106).
       - name: Evaluate gaps against the documented exception list
         if: always()
         run: |
           set -euo pipefail
-          allowed='["C06.sca.dependency-review","C02.branch.required-reviews","C02.branch.admin-enforced","C09.repo.webhooks"]'
+          allowed='["C06.sca.dependency-review","C02.branch.admin-enforced","C09.repo.webhooks"]'
           unexpected=$(jq --argjson allowed "$allowed" '
             [.results[] | select(.status == "verified-fail" or .status == "partial") | select(.check_id as $id | $allowed | index($id) | not)]
           ' evidence/evidence.json)

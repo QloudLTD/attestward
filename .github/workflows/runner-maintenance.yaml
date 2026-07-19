@@ -1,0 +1,54 @@
+# Periodic cleanup of stale state on the self-hosted macOS runner
+# (spyros-mac-mini-ssdf). Addresses one of docs/threat-model.md's residual
+# risks: actions/checkout's default clean only resets the checked-out
+# source tree — it doesn't touch the runner's broader _work directory, the
+# Go build cache, or the Go module cache, all of which persist across every
+# job/workflow sharing this one physical machine. Go's own content-addressed
+# caches (go.sum-verified, hash-keyed) already bound the risk meaningfully,
+# but this bounds how long any stray state — from an old checkout, a
+# compromised build step, or simple accumulation — can sit unnoticed.
+#
+# Deliberately a scheduled, standalone job rather than a step folded into
+# every CI run: wiping the Go caches on every lint/test/build would erase
+# the whole point of caching for no real security gain (issue #33's own
+# discussion favored this over moving the release job to an ephemeral
+# hosted runner, since a private org's release job realistically keeps
+# running self-hosted regardless).
+on:
+  schedule:
+    - cron: "38 4 * * 3" # weekly, Wednesday 04:38 UTC — off-the-hour, distinct day from the other weekly crons (self-scan/integration-scan: Monday, aorus-keepalive: Thursday)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  clean:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Remove stale per-repo workspaces under the runner's _work directory
+        run: |
+          set -euo pipefail
+          # RUNNER_WORKSPACE is <_work_root>/<repo>/<repo> for the repo
+          # running this job; its grandparent is the runner's _work root.
+          # Anything else under that root is left over from a different
+          # repo (this runner may serve more than one) or a stale checkout.
+          current_repo_dir="$(dirname "$RUNNER_WORKSPACE")"
+          work_root="$(dirname "$current_repo_dir")"
+          echo "runner _work root: $work_root"
+          echo "current repo's own workspace (kept): $current_repo_dir"
+          for d in "$work_root"/*/; do
+            d="${d%/}"
+            if [ "$d" != "$current_repo_dir" ]; then
+              echo "removing stale workspace: $d"
+              rm -rf "$d"
+            fi
+          done
+
+      - name: Clear Go build and module caches
+        run: |
+          set -euo pipefail
+          echo "removing $HOME/Library/Caches/go-build"
+          rm -rf "$HOME/Library/Caches/go-build"
+          echo "removing $HOME/go/pkg/mod"
+          rm -rf "$HOME/go/pkg/mod"
