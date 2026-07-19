@@ -6,79 +6,16 @@ an issue.
 
 ## What this is
 
-`attestward` (the CLI binary name; the product's public name is **Attestward** — see
-[DECISIONS.md](DECISIONS.md) D1, resolved 2026-07-19) is a read-only CLI that verifies
-the technical controls behind the CISA SSDA form against a GitHub org/repo and emits a
-signed evidence pack. Full mission and rationale: [README.md](README.md). The GitHub
-repo itself was renamed from `ssdf` to `attestward` (still private, per D7), and the Go
-module path (`go.mod`'s `module github.com/sioakim/attestward`, and every internal
-import) was updated to match in the same 2026-07-19 pass — verified via a full
-`go build`/`go vet`/`go test`/`make lint` run, not assumed clean from the mechanical
-find-replace alone.
+`attestward` (CLI binary; product name **Attestward**, see [DECISIONS.md](DECISIONS.md)
+D1) is a read-only CLI that verifies the technical controls behind the CISA SSDA form
+against a GitHub org/repo and emits a signed evidence pack. Full mission and rationale:
+[README.md](README.md).
 
-Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model,
-SSDF/CISA mappings, `checks list`), Phase 2 (C01–C04 collectors, demo org +
-integration harness), and Phase 3 (#16 scanner-signature registry, #17 C05
-sast-history, #18 C06 sca-history, #19 C07 provenance) are merged to `main`.
-Phase 4 (#20 C08 actions-security, #21 C09 audit-logging, #22 C10 vdp, #23
-self-attestation intake) is merged to `main` — the full v0.1 check matrix
-(C01–C10 plus self-attestation) is now in place. Phase 5 is in progress:
-#24 (evidence.json writer — determinism, atomic writes, pre-write schema
-validation) is merged; the `internal/report` renderers for #25 (report.md/html)
-are code-complete and merged, but #25 itself stays open pending the issue's
-own non-engineer sign-off requirement (see the PR/issue for details); #26
-(poam.md — `collect.CheckMeta.Remediation` backfilled across all 46 C01–C10
-checks, renderer merged, cross-linked with report.md's Gaps table via shared
-POA&M finding IDs) is merged; #27 (pack integrity) is merged — SHA-256
-hashing, the `.sha256` sidecar, `attestward verify` (hash + cosign
-signature), and `attestward scan --sign` are all in place (ADR-0006 records
-why cosign is shelled out to rather than vendored). #28 (`attestward
-report`) is merged — regenerates report.md/report.html/poam.md from an
-existing evidence.json with no scan and no network access, gates on
-schema_version, checks the .sha256 sidecar when present (refusing to
-render a hash mismatch unless `--force`, which then renders with a visible
-banner), and sets Integrity.SHA256 so report.md/html always show the hash
-of the exact bytes rendered. Phase 5 is otherwise complete; #25 stays open
-pending its own non-engineer sign-off requirement (renderers themselves
-are merged). Phase 6 is in progress: #30 (generated `docs/checks-reference.md`)
-is merged — the `internal/checksref` renderer plus `attestward checks docs`
-(`--check` for the CI drift guard, wired into `.github/workflows/ci.yaml`)
-generate the reference from `mappings/*.yaml` and the C01–C10 registry, with
-the file itself committed and cross-linked from the README. #32 (self-scan
-workflow) is also merged and closed — `.github/workflows/self-scan.yaml`
-runs `attestward scan` against `sioakim/attestward` itself on release/weekly/manual
-dispatch, verified live (not just reasoned about) under the real restricted
-`GITHUB_TOKEN`: a first clean run, a deliberate-red test (disabled
-Dependabot alerts, confirmed the job failed, reverted, confirmed green
-again), badge + a "Self-scan" README section linking real (not demo-org)
-sample runs. Building it surfaced and fixed #102 (`attestward scan` couldn't
-target a personal-GitHub-account-owned repo — this repo itself — at all)
-and 3 of 8 real gaps in this repo's own posture (PR #104); 2 more gaps are
-tracked as their own issues (#105, #106) rather than fixed unilaterally,
-and one (GHAS-gated dependency review) is a documented, accepted gap
-(DECISIONS.md D7) alongside CodeQL. #29 (README rewrite) had PR #110
-merged — the narrative arc, PAT table cross-checked against the live
-registry, a real `/examples` sample pack + asciinema recording, and a
-legal-claims accuracy pass that caught a real staleness issue (OMB
-M-26-05 rescinded the CISA Common Form mandate in January 2026) — but
-#29 itself stays open, same shape as #25, pending gates only a human or
-a public repo can satisfy: the cold-visitor timed quickstart test,
-PAT-minimality testing, and a professional legal sign-off. #31 (threat
-model finalization) is merged and closed — `docs/threat-model.md` was
-rewritten with every normative claim traced to specific code/tests
-(re-verified against v0.1, not the pre-implementation draft it started
-as), and `provenanceTransport.RoundTrip`
-(`internal/collect/github/transport.go`) now structurally rejects any
-non-GET/HEAD request before auth injection or the network call — the
-"read-only, forever" claim (ADR-0004) is enforced at runtime, not just
-by review, covering both the REST and GraphQL clients since they share
-one transport. Unlike #25/#29, #31's external-reader review requirement
-was genuinely satisfiable in this session: an independent review agent
-adversarially verified every claim against the code, found two real
-gaps across two passes (three missing orchestrator-level call sites,
-then an overstated call-frequency claim), both fixed and re-verified,
-before posting its own sign-off comment directly on the issue. Build is
-issue-driven and in progress (see Progress tracker below).
+Status: pre-alpha. All ten collectors (C01–C10) plus self-attestation intake are
+merged; the full v0.1 output/integrity pipeline (evidence.json, report.md/html,
+poam.md, pack signing/verification, `attestward report`) is in place. Remaining work is
+issue-driven Phase 6 polish — see **Progress tracker** below for exactly what's open
+and why.
 
 ## The one rule that overrides convenience
 

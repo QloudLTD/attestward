@@ -30,10 +30,7 @@ report) plus a **gap analysis** and a **draft POA&M** for anything that fails.
   **In January 2026, OMB [M-26-05](https://www.whitehouse.gov/wp-content/uploads/2026/01/M-26-05-Adopting-a-Risk-based-Approach-to-Software-and-Hardware-Security.pdf)
   rescinded the government-wide *mandate* to use that Common Form** — agencies now set
   their own risk-based approach to software security, and may still require the Common
-  Form, an equivalent of their own, or nothing at all, at their own discretion. This tool's
-  README used to describe the Common Form as something "you must sign"; as of this
-  rewrite, that's no longer accurate, and we'd rather correct it than leave a stale claim
-  in a document about a tool built to catch inaccurate claims.
+  Form, an equivalent of their own, or nothing at all, at their own discretion.
 - That policy change doesn't reduce the stakes of *actually signing* one. Whenever a
   producer attests to something the government relies on — the CISA Common Form, an
   agency-specific equivalent, or any other representation made in connection with a

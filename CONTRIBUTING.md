@@ -146,6 +146,13 @@ an action slug or regex).
 - Significant design choices get an ADR (`docs/adr/`).
 - `CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com); add your entry
   under `Unreleased`.
+- **State current status, not history.** `CLAUDE.md`, `DECISIONS.md`, `README.md`, and
+  other docs describe *what is true now*, not the sequence of PRs/issues that got there
+  — readers don't care how a decision was reached, only what it is; git history and
+  issue threads are where the "how we got here" story already lives, and duplicating it
+  in prose just goes stale. Exception: a genuinely major change worth calling out
+  explicitly (e.g. a regulatory shift the tool's own claims depend on) — use judgment,
+  but default to terse and current.
 
 ## License
 
