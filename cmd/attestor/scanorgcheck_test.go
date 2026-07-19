@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	"github.com/sioakim/attestward/internal/collect"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 )
 
 // TestOrgPreflightPopulatesScopeTrackingForWriteScopeWarning proves the

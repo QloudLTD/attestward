@@ -3,7 +3,7 @@ package collect
 import (
 	"context"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // AccountType is what kind of GitHub account Scope.Org names — an

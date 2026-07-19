@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 )
 
 // candidatePaths is GitHub's documented community-health-file search

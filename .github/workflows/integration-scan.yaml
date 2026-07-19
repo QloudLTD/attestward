@@ -136,5 +136,5 @@ jobs:
           fi
 
           ./attestor verify ./evidence \
-            --verify-args="--certificate-identity-regexp=^https://github.com/sioakim/ssdf/\.github/workflows/integration-scan\.yaml@refs/heads/main$" \
+            --verify-args="--certificate-identity-regexp=^https://github.com/sioakim/attestward/\.github/workflows/integration-scan\.yaml@refs/heads/main$" \
             --verify-args="--certificate-oidc-issuer=https://token.actions.githubusercontent.com"

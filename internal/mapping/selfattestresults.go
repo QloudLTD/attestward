@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // BuildSelfAttestedResults turns questions plus (possibly nil, when no

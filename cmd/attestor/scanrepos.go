@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-github/v75/github"
 
-	"github.com/sioakim/ssdf/internal/collect"
+	"github.com/sioakim/attestward/internal/collect"
 )
 
 // repoInfo is the minimal repo metadata scope resolution needs.

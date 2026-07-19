@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
-	"github.com/sioakim/ssdf/internal/collect/github/orgsecurity"
-	"github.com/sioakim/ssdf/internal/integrity"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/collect"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
+	"github.com/sioakim/attestward/internal/collect/github/orgsecurity"
+	"github.com/sioakim/attestward/internal/integrity"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 func TestComputeExitCode(t *testing.T) {

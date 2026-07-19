@@ -3,8 +3,8 @@ package sasthistory
 import (
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/collect/github/runhistory"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/collect/github/runhistory"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail exercises a

@@ -1,4 +1,4 @@
-module github.com/sioakim/ssdf
+module github.com/sioakim/attestward
 
 go 1.25.0
 

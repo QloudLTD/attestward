@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sioakim/ssdf/internal/checksref"
-	"github.com/sioakim/ssdf/internal/collect"
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/mappings"
+	"github.com/sioakim/attestward/internal/checksref"
+	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/mappings"
 )
 
 var (

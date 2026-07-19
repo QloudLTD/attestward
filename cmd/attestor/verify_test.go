@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/integrity"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/integrity"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // fakeSigner is a mockable integrity.Signer for tests that need to

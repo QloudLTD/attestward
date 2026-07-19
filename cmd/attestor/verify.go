@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sioakim/ssdf/internal/integrity"
+	"github.com/sioakim/attestward/internal/integrity"
 )
 
 var verifyArgsFlag []string

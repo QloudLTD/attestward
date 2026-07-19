@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
-	"github.com/sioakim/ssdf/mappings"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
+	"github.com/sioakim/attestward/mappings"
 )
 
 var updateGolden = flag.Bool("update", false, "write golden files instead of comparing against them")

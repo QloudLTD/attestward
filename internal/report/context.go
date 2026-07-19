@@ -3,8 +3,8 @@ package report
 import (
 	"sort"
 
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // renderContext is everything the templates need, precomputed once by

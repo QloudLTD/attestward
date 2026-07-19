@@ -8,7 +8,7 @@ import (
 	ghgithub "github.com/google/go-github/v75/github"
 	"gopkg.in/yaml.v3"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 )
 
 // dependabotConfigPaths are the two file extensions GitHub accepts for

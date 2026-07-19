@@ -119,7 +119,7 @@ log "pushing initial content to $GOOD_REPO"
 put_file "$GOOD_REPO" "README.md" \
 "# demo-good
 
-Fixture repo for [attestor](https://github.com/sioakim/ssdf)'s integration test
+Fixture repo for [attestor](https://github.com/sioakim/attestward)'s integration test
 harness (issue #15): every C01-C04 control this repo can express is configured
 correctly. See \`../fixtures.yaml\` in the attestor repo for the exact expected
 status of every check against this repo.
@@ -183,7 +183,7 @@ log "pushing initial content to $BAD_REPO"
 put_file "$BAD_REPO" "README.md" \
 "# demo-bad
 
-Fixture repo for [attestor](https://github.com/sioakim/ssdf)'s integration test
+Fixture repo for [attestor](https://github.com/sioakim/attestward)'s integration test
 harness (issue #15): every C01-C04 control this repo can express is
 deliberately off or misconfigured. See \`../fixtures.yaml\` in the attestor
 repo for the exact expected status of every check against this repo.

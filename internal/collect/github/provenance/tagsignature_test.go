@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 )
 
 func newTestClient(t *testing.T, mux *http.ServeMux) *ghcollect.Client {

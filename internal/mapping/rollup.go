@@ -1,6 +1,6 @@
 package mapping
 
-import "github.com/sioakim/ssdf/internal/model"
+import "github.com/sioakim/attestward/internal/model"
 
 // rollupPrecedence ranks statuses from most to least dominant for Rollup, in
 // order — the truth table is documented in full in mappings/cisa-ssda-form.yaml's

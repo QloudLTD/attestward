@@ -3,7 +3,7 @@
 
 Local dev convenience only — not part of the shipped attestor product, not hosted.
 Run with no arguments: `python3 tools/progress/generate.py` (or `make progress`).
-Requires `gh` authenticated against sioakim/ssdf.
+Requires `gh` authenticated against sioakim/attestward.
 """
 import html
 import json
@@ -12,7 +12,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = "sioakim/ssdf"
+REPO = "sioakim/attestward"
 
 # Mirrors the phase breakdown in the v0.1 epic (issue #1) and CLAUDE.md's progress
 # tracker. Update both places when issue scope changes.

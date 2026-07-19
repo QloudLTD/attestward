@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sioakim/ssdf/internal/collect/github/ghfixture"
+	"github.com/sioakim/attestward/internal/collect/github/ghfixture"
 )
 
 // noSleep replaces rateLimitTransport.sleep in tests so retry-count/backoff

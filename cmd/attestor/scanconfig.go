@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sioakim/ssdf/internal/collect/github"
+	"github.com/sioakim/attestward/internal/collect/github"
 )
 
 // Default values applied to any field left unset by both the config file

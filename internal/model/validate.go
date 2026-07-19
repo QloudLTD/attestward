@@ -7,7 +7,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 
-	"github.com/sioakim/ssdf/docs/schema"
+	"github.com/sioakim/attestward/docs/schema"
 )
 
 const evidencePackSchemaName = "evidence-pack.v1.schema.json"

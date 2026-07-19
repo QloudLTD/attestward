@@ -20,8 +20,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
-	"github.com/sioakim/ssdf/internal/model"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 type fixturesFile struct {

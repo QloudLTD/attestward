@@ -5,7 +5,7 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // GitHub's environments API represents each protection rule as one entry in

@@ -3,7 +3,7 @@ package collect
 import (
 	"sort"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // CheckMeta is the static metadata a collector registers for one check:

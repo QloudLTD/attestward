@@ -8,9 +8,9 @@ import (
 	"github.com/google/go-github/v75/github"
 	"github.com/shurcooL/githubv4"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	"github.com/sioakim/ssdf/internal/collect/github/ghfixture"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/collect/github/ghfixture"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // demoCollector is a minimal collect.Collector implementation used only by

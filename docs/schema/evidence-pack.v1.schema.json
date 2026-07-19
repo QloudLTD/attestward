@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/sioakim/ssdf/blob/main/docs/schema/evidence-pack.v1.schema.json",
+  "$id": "https://github.com/sioakim/attestward/blob/main/docs/schema/evidence-pack.v1.schema.json",
   "title": "attestor evidence pack (schema version 1)",
   "description": "evidence.json output shape. Bump policy: docs/architecture.md#versioning. Kept in lockstep with internal/model by internal/model's schema_test.go.",
   "type": "object",

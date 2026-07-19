@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 )
 
 func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {

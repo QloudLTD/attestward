@@ -3,7 +3,7 @@ package mapping
 import (
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 func TestBuildSelfAttestedResults(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"github.com/google/go-github/v75/github"
 	"github.com/shurcooL/githubv4"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // Client wraps the go-github REST client and the githubv4 GraphQL client

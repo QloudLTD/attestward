@@ -3,7 +3,7 @@ package mapping
 import (
 	"sort"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // BuildRollup assembles the check -> SSDF task -> CISA form cluster rollup

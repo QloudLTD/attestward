@@ -3,7 +3,7 @@ package report
 import (
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 func TestAssignFindings_OrdersByClusterThenCheckIDThenRepo(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	texttemplate "text/template"
 
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // poamContext is everything poam.md's template needs, precomputed once by

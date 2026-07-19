@@ -7,9 +7,9 @@ import (
 	"sort"
 	texttemplate "text/template"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 //go:embed templates/*.tmpl

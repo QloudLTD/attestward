@@ -78,7 +78,7 @@ make tidy          # go mod tidy
   human-authorized action by design), so this can't be automated — a repo admin
   must create it at github.com/settings/tokens and set it manually:
   ```
-  gh secret set DEMO_ORG_PAT --repo sioakim/ssdf
+  gh secret set DEMO_ORG_PAT --repo sioakim/attestward
   ```
   GitHub also auto-disables a repo's scheduled (`cron`) workflows after 60 days
   of repository inactivity — if `integration-scan.yaml` ever appears to have

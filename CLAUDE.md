@@ -10,11 +10,11 @@ an issue.
 [DECISIONS.md](DECISIONS.md) D1, resolved 2026-07-19) is a read-only CLI that verifies
 the technical controls behind the CISA SSDA form against a GitHub org/repo and emits a
 signed evidence pack. Full mission and rationale: [README.md](README.md). The GitHub
-repo itself was renamed `sioakim/ssdf` → `sioakim/attestward` (still private, per D7) —
-the Go module path and internal `github.com/sioakim/ssdf/...` imports have NOT been
-updated to match yet (D1's own note explains why and tracks it as follow-up work), so
-`go build`, `cmd/attestor`, and every internal import still correctly say `ssdf`; don't
-"fix" that unprompted.
+repo itself was renamed from `ssdf` to `attestward` (still private, per D7), and the Go
+module path (`go.mod`'s `module github.com/sioakim/attestward`, and every internal
+import) was updated to match in the same 2026-07-19 pass — verified via a full
+`go build`/`go vet`/`go test`/`make lint` run, not assumed clean from the mechanical
+find-replace alone.
 
 Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model,
 SSDF/CISA mappings, `checks list`), Phase 2 (C01–C04 collectors, demo org +
@@ -46,7 +46,7 @@ is merged — the `internal/checksref` renderer plus `attestor checks docs`
 generate the reference from `mappings/*.yaml` and the C01–C10 registry, with
 the file itself committed and cross-linked from the README. #32 (self-scan
 workflow) is also merged and closed — `.github/workflows/self-scan.yaml`
-runs `attestor scan` against `sioakim/ssdf` itself on release/weekly/manual
+runs `attestor scan` against `sioakim/attestward` itself on release/weekly/manual
 dispatch, verified live (not just reasoned about) under the real restricted
 `GITHUB_TOKEN`: a first clean run, a deliberate-red test (disabled
 Dependabot alerts, confirmed the job failed, reverted, confirmed green

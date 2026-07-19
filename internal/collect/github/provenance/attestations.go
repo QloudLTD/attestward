@@ -3,7 +3,7 @@ package provenance
 import (
 	"context"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 )
 
 // maxAttestationLookupsPerRelease bounds how many of a release's assets

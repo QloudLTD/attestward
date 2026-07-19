@@ -8,9 +8,9 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
-	"github.com/sioakim/ssdf/internal/collect/github/runhistory"
-	"github.com/sioakim/ssdf/internal/mapping"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
+	"github.com/sioakim/attestward/internal/collect/github/runhistory"
+	"github.com/sioakim/attestward/internal/mapping"
 )
 
 // skippedWorkflow is a listed or referenced workflow this collector

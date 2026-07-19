@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	"github.com/sioakim/ssdf/internal/integrity"
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
-	"github.com/sioakim/ssdf/internal/report"
-	"github.com/sioakim/ssdf/mappings"
+	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/integrity"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
+	"github.com/sioakim/attestward/internal/report"
+	"github.com/sioakim/attestward/mappings"
 )
 
 // reportFixturePack has one verified-fail (so poam.md has content to
@@ -336,7 +336,7 @@ func TestReportGo_NoNetworkImports(t *testing.T) {
 	forbidden := map[string]bool{
 		"net":      true,
 		"net/http": true,
-		"github.com/sioakim/ssdf/internal/collect/github": true,
+		"github.com/sioakim/attestward/internal/collect/github": true,
 	}
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)

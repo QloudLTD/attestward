@@ -9,9 +9,9 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/mappings"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/mappings"
 )
 
 func newTestClient(t *testing.T, mux *http.ServeMux) *ghcollect.Client {

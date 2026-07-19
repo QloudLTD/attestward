@@ -10,9 +10,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/mappings"
+	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/mappings"
 )
 
 var updateGolden = flag.Bool("update", false, "write golden files instead of comparing against them")

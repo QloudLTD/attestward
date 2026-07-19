@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/sioakim/ssdf/blob/main/docs/schema/mapping-cisa-ssda-form.schema.json",
+  "$id": "https://github.com/sioakim/attestward/blob/main/docs/schema/mapping-cisa-ssda-form.schema.json",
   "title": "attestor mappings/cisa-ssda-form.yaml",
   "description": "Structure of the CISA SSDA form's four attestation clusters. Cross-file referential integrity (every ssdf_tasks entry must resolve in ssdf-800-218.yaml) is enforced by internal/mapping.LoadCISA, not expressible in this schema alone.",
   "type": "object",

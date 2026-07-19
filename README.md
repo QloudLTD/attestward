@@ -2,12 +2,12 @@
 
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
-**Working name:** `attestor` (final name TBD — see [DECISIONS.md](DECISIONS.md))
+**CLI binary:** `attestor`. **Product name:** Attestward (see [DECISIONS.md](DECISIONS.md) D1).
 **Status:** pre-alpha — v0.1 under active, issue-driven development.
 **License:** [Apache-2.0](LICENSE)
 
-[![CI](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/ci.yaml)
-[![Self-scan](https://github.com/sioakim/ssdf/actions/workflows/self-scan.yaml/badge.svg)](https://github.com/sioakim/ssdf/actions/workflows/self-scan.yaml)
+[![CI](https://github.com/sioakim/attestward/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/attestward/actions/workflows/ci.yaml)
+[![Self-scan](https://github.com/sioakim/attestward/actions/workflows/self-scan.yaml/badge.svg)](https://github.com/sioakim/attestward/actions/workflows/self-scan.yaml)
 
 ---
 
@@ -106,13 +106,12 @@ mean and what API evidence backs them.
 
 ### 1. Install
 
-**Download a release** (once one is tagged — this repo is pre-alpha, see
-[DECISIONS.md](DECISIONS.md) D1 for the naming question blocking a v1.0.0):
+**Download a release** (once one is tagged — this repo is pre-alpha, no `v1.0.0` yet):
 
 ```bash
 # Substitute the real version/os/arch from the releases page.
-curl -LO https://github.com/sioakim/ssdf/releases/latest/download/attestor_<version>_<os>_<arch>.tar.gz
-curl -LO https://github.com/sioakim/ssdf/releases/latest/download/checksums.txt
+curl -LO https://github.com/sioakim/attestward/releases/latest/download/attestor_<version>_<os>_<arch>.tar.gz
+curl -LO https://github.com/sioakim/attestward/releases/latest/download/checksums.txt
 shasum -a 256 -c checksums.txt --ignore-missing   # macOS; use sha256sum -c on Linux
 tar -xzf attestor_<version>_<os>_<arch>.tar.gz
 ```
@@ -120,7 +119,7 @@ tar -xzf attestor_<version>_<os>_<arch>.tar.gz
 **Or with Go installed** (works today, pre-release):
 
 ```bash
-go install github.com/sioakim/ssdf/cmd/attestor@latest
+go install github.com/sioakim/attestward/cmd/attestor@latest
 ```
 
 ### 2. Create a fine-grained PAT
@@ -298,7 +297,7 @@ Full detail, trust boundaries, and residual risks: [docs/threat-model.md](docs/t
 ## Self-scan
 
 The repo is its own first case study: [`self-scan.yaml`](.github/workflows/self-scan.yaml)
-runs `attestor scan` against `sioakim/ssdf` on every release, weekly, and on manual
+runs `attestor scan` against `sioakim/attestward` on every release, weekly, and on manual
 dispatch, then publishes the evidence pack and rendered `report.html` as a downloadable
 workflow artifact — see the [latest self-scan runs](../../actions/workflows/self-scan.yaml)
 for a real (not demo-org) sample pack. The workflow fails the build on any gap outside a

@@ -10,9 +10,9 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/collect"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // collectorID follows the "C01.<name>" convention filterCollectors (see

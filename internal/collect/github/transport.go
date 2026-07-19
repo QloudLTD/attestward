@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // ErrWriteMethodRejected is returned (wrapped) by provenanceTransport.RoundTrip

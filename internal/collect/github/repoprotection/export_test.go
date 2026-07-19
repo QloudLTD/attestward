@@ -9,7 +9,7 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
-	ghcollect "github.com/sioakim/ssdf/internal/collect/github"
+	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 )
 
 func newTestClientForExport(t *testing.T, mux *http.ServeMux) *ghcollect.Client {

@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/mappings"
+	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/mappings"
 )
 
 // checkStatus is a matrix row's implementation status: whether a check

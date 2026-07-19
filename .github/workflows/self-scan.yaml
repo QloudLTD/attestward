@@ -1,7 +1,7 @@
 name: Self-scan
 
 # Issue #32: the repo is the first case study. Runs attestor against
-# sioakim/ssdf itself and publishes the evidence pack as an artifact.
+# sioakim/attestward itself and publishes the evidence pack as an artifact.
 #
 # Token strategy: the ambient GITHUB_TOKEN, scoped read-only by the
 # `permissions:` block below — not a fine-grained PAT. This is one of the
@@ -57,12 +57,12 @@ jobs:
       # evaluate steps (all `if: always()`) get to run. The evaluate step
       # re-derives the pass/fail verdict from evidence.json itself rather
       # than reading this step's own exit code or outcome.
-      - name: Scan sioakim/ssdf
+      - name: Scan sioakim/attestward
         id: scan
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./attestor scan --org sioakim --repo ssdf --out evidence/ --self-attestation-file self-attestation.yaml
+        run: ./attestor scan --org sioakim --repo attestward --out evidence/ --self-attestation-file self-attestation.yaml
 
       - name: Render report.html
         if: always()

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 type fakeCollector struct{ id string }

@@ -11,12 +11,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sioakim/ssdf/internal/collect"
-	"github.com/sioakim/ssdf/internal/integrity"
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
-	"github.com/sioakim/ssdf/internal/report"
-	"github.com/sioakim/ssdf/mappings"
+	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/integrity"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
+	"github.com/sioakim/attestward/internal/report"
+	"github.com/sioakim/attestward/mappings"
 )
 
 var (

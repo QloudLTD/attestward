@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/mappings"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/mappings"
 )
 
 func loadRealSelfAttestationQuestions(t *testing.T) *mapping.SelfAttestationQuestions {

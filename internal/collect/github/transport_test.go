@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/collect/github/ghfixture"
+	"github.com/sioakim/attestward/internal/collect/github/ghfixture"
 )
 
 func TestProvenanceTransportInjectsAuthAndRecordsProvenance(t *testing.T) {

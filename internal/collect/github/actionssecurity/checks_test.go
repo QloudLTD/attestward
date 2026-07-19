@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // loadFixture parses testdata/workflows/<name>.yaml into a workflowUnit,

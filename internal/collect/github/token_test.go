@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/collect/github/ghfixture"
+	"github.com/sioakim/attestward/internal/collect/github/ghfixture"
 )
 
 // TestTokenNeverLeaksIntoErrors exercises go-github's own error-wrapping Do

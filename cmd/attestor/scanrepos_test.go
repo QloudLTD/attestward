@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/collect"
+	"github.com/sioakim/attestward/internal/collect"
 )
 
 type fakeRepoLister struct {

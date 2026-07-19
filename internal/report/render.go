@@ -8,8 +8,8 @@ import (
 	texttemplate "text/template"
 	"time"
 
-	"github.com/sioakim/ssdf/internal/mapping"
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 //go:embed templates/*.tmpl

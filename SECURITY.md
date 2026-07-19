@@ -34,7 +34,7 @@ uses. Install cosign v3+.) Download both files from the release, then:
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.bundle \
-  --certificate-identity-regexp "^https://github.com/sioakim/ssdf/\.github/workflows/release\.yaml@refs/tags/v.*$" \
+  --certificate-identity-regexp "^https://github.com/sioakim/attestward/\.github/workflows/release\.yaml@refs/tags/v.*$" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   checksums.txt
 

@@ -6,7 +6,7 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // effectiveProtection is the merged result of legacy branch protection and

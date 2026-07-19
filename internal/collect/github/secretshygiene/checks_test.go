@@ -3,7 +3,7 @@ package secretshygiene
 import (
 	"testing"
 
-	"github.com/sioakim/ssdf/internal/model"
+	"github.com/sioakim/attestward/internal/model"
 )
 
 func strPtr(s string) *string { return &s }
