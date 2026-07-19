@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/sioakim/attestward/blob/main/docs/schema/mapping-scanner-signatures.schema.json",
-  "title": "attestor mappings/scanner-signatures.yaml",
-  "description": "Structure of the SAST/SCA/container/secrets/SBOM/provenance scanner detection registry attestor's C05/C06/C07 collectors match against. Enforced by internal/mapping's strict loader (unknown fields, duplicate signature ids, unrecognized categories, and malformed regexes are errors) in addition to this schema.",
+  "title": "attestward mappings/scanner-signatures.yaml",
+  "description": "Structure of the SAST/SCA/container/secrets/SBOM/provenance scanner detection registry attestward's C05/C06/C07 collectors match against. Enforced by internal/mapping's strict loader (unknown fields, duplicate signature ids, unrecognized categories, and malformed regexes are errors) in addition to this schema.",
   "type": "object",
   "required": ["version", "signatures"],
   "additionalProperties": false,

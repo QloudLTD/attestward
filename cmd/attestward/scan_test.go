@@ -97,7 +97,7 @@ func TestRunCollectors_ErrorBecomesNotCheckableAndOthersStillRun(t *testing.T) {
 		fakeScanCollector{id: "C02.broken", err: errors.New("API unreachable")},
 	}
 
-	results, outcomes := runCollectors(context.Background(), collectors, collect.Scope{Org: "attestor-demo"}, 2)
+	results, outcomes := runCollectors(context.Background(), collectors, collect.Scope{Org: "attestward-demo"}, 2)
 	if len(results) != 2 {
 		t.Fatalf("len(results) = %d, want 2", len(results))
 	}
@@ -142,7 +142,7 @@ func TestRunCollectors_ResultsSortedByCheckID(t *testing.T) {
 		fakeScanCollector{id: "C09.z", results: []model.CheckResult{{CheckID: "C09.z", Status: model.StatusVerifiedPass}}},
 		fakeScanCollector{id: "C01.a", results: []model.CheckResult{{CheckID: "C01.a", Status: model.StatusVerifiedPass}}},
 	}
-	results, _ := runCollectors(context.Background(), collectors, collect.Scope{Org: "attestor-demo"}, 2)
+	results, _ := runCollectors(context.Background(), collectors, collect.Scope{Org: "attestward-demo"}, 2)
 	if len(results) != 2 || results[0].CheckID != "C01.a" || results[1].CheckID != "C09.z" {
 		t.Errorf("results = %v, want sorted by CheckID", results)
 	}
@@ -155,7 +155,7 @@ func TestRunCollectors_CanceledContextSurfacesAsError(t *testing.T) {
 		fakeScanCollector{id: "C01.never-runs", results: []model.CheckResult{{CheckID: "C01.never-runs", Status: model.StatusVerifiedPass}}},
 	}
 
-	_, outcomes := runCollectors(ctx, collectors, collect.Scope{Org: "attestor-demo"}, 1)
+	_, outcomes := runCollectors(ctx, collectors, collect.Scope{Org: "attestward-demo"}, 1)
 	if len(outcomes) != 1 || outcomes[0].err == nil {
 		t.Fatalf("outcomes = %v, want the collector's outcome to carry ctx.Err()", outcomes)
 	}
@@ -164,7 +164,7 @@ func TestRunCollectors_CanceledContextSurfacesAsError(t *testing.T) {
 func TestRunScan_EndToEndWithFakeCollectorsAndRealMappings(t *testing.T) {
 	collectors := []collect.Collector{
 		fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
-			{CheckID: "DEMO.pass", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"}},
+			{CheckID: "DEMO.pass", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo", Repo: "good-repo"}},
 		}},
 	}
 	deps := scanDeps{
@@ -172,7 +172,7 @@ func TestRunScan_EndToEndWithFakeCollectorsAndRealMappings(t *testing.T) {
 		collectors: collectors,
 		stdout:     &bytes.Buffer{},
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo"}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo"}, scanConfig{}, nil)
 
 	result, err := runScan(context.Background(), cfg, nil, deps)
 	if err != nil {
@@ -201,8 +201,8 @@ func TestRunScan_EndToEndWithFakeCollectorsAndRealMappings(t *testing.T) {
 	if result.pack.MappingVersions.SelfAttestation == "" {
 		t.Error("pack.MappingVersions.SelfAttestation is empty, want it set")
 	}
-	if result.pack.Scope.Org != "attestor-demo" || len(result.pack.Scope.Repos) != 1 {
-		t.Errorf("pack.Scope = %+v, want org=attestor-demo repos=[good-repo]", result.pack.Scope)
+	if result.pack.Scope.Org != "attestward-demo" || len(result.pack.Scope.Repos) != 1 {
+		t.Errorf("pack.Scope = %+v, want org=attestward-demo repos=[good-repo]", result.pack.Scope)
 	}
 	if result.pack.Rollup == nil {
 		t.Fatal("pack.Rollup is nil, want it populated (even if empty) by BuildRollup")
@@ -218,7 +218,7 @@ func TestRunScan_EndToEndWithFakeCollectorsAndRealMappings(t *testing.T) {
 func TestRunScan_GapExitsWithCode2(t *testing.T) {
 	collectors := []collect.Collector{
 		fakeScanCollector{id: "DEMO.fail", results: []model.CheckResult{
-			{CheckID: "DEMO.fail", Status: model.StatusVerifiedFail, Scope: model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"}},
+			{CheckID: "DEMO.fail", Status: model.StatusVerifiedFail, Scope: model.ScopeRef{Org: "attestward-demo", Repo: "good-repo"}},
 		}},
 	}
 	deps := scanDeps{
@@ -226,7 +226,7 @@ func TestRunScan_GapExitsWithCode2(t *testing.T) {
 		collectors: collectors,
 		stdout:     &bytes.Buffer{},
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo"}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo"}, scanConfig{}, nil)
 
 	result, err := runScan(context.Background(), cfg, nil, deps)
 	if err != nil {
@@ -254,7 +254,7 @@ func TestRunScan_CheckFilterSkipsNonMatchingCollectors(t *testing.T) {
 		collectors: collectors,
 		stdout:     &bytes.Buffer{},
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo"}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo"}, scanConfig{}, nil)
 
 	result, err := runScan(context.Background(), cfg, []string{"C01"}, deps)
 	if err != nil {
@@ -306,7 +306,7 @@ func TestRunScan_SelfAttestationFileProvided_AnsweredQuestionsAreSelfAttested(t 
 		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
 		stdout:     &bytes.Buffer{},
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", SelfAttestationFile: answersPath}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", SelfAttestationFile: answersPath}, scanConfig{}, nil)
 
 	result, err := runScan(context.Background(), cfg, nil, deps)
 	if err != nil {
@@ -355,7 +355,7 @@ func TestRunScan_SelfAttestationFile_UnknownQuestionIDErrorsLoudly(t *testing.T)
 		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
 		stdout:     &bytes.Buffer{},
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", SelfAttestationFile: answersPath}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", SelfAttestationFile: answersPath}, scanConfig{}, nil)
 
 	_, err := runScan(context.Background(), cfg, nil, deps)
 	if err == nil {
@@ -372,7 +372,7 @@ func TestRunScan_TypoedCheckFilterErrorsLoudly(t *testing.T) {
 		collectors: collectors,
 		stdout:     &bytes.Buffer{},
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo"}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo"}, scanConfig{}, nil)
 
 	_, err := runScan(context.Background(), cfg, []string{"C99-typo"}, deps)
 	if err == nil {
@@ -449,7 +449,7 @@ func TestWriteEvidencePack_WritesValidJSON(t *testing.T) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		Results:       []model.CheckResult{},
 	}
 
@@ -465,8 +465,8 @@ func TestWriteEvidencePack_WritesValidJSON(t *testing.T) {
 	if err := json.Unmarshal(data, &roundTripped); err != nil {
 		t.Fatalf("evidence.json is not valid JSON: %v", err)
 	}
-	if roundTripped.Scope.Org != "attestor-demo" {
-		t.Errorf("roundTripped.Scope.Org = %q, want attestor-demo", roundTripped.Scope.Org)
+	if roundTripped.Scope.Org != "attestward-demo" {
+		t.Errorf("roundTripped.Scope.Org = %q, want attestward-demo", roundTripped.Scope.Org)
 	}
 }
 
@@ -482,7 +482,7 @@ func TestWriteEvidencePack_ReturnedHashMatchesWrittenBytes(t *testing.T) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		Results:       []model.CheckResult{},
 	}
 
@@ -529,11 +529,11 @@ func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		ScanStartedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 		ScanEndedAt:   time.Date(2026, 7, 13, 12, 0, 5, 0, time.UTC),
 		Results: []model.CheckResult{
-			{CheckID: "X", Status: model.StatusVerifiedPass, Reason: "leaked " + secret, Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{}},
+			{CheckID: "X", Status: model.StatusVerifiedPass, Reason: "leaked " + secret, Scope: model.ScopeRef{Org: "attestward-demo"}, Provenance: []model.Provenance{}},
 		},
 	}
 
@@ -568,9 +568,9 @@ func TestWriteEvidencePack_RejectsSchemaInvalidPack(t *testing.T) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		Results: []model.CheckResult{
-			{CheckID: "X", Status: model.Status("not-a-real-status"), Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{}},
+			{CheckID: "X", Status: model.Status("not-a-real-status"), Scope: model.ScopeRef{Org: "attestward-demo"}, Provenance: []model.Provenance{}},
 		},
 	}
 
@@ -606,11 +606,11 @@ func TestWriteEvidencePack_OversizedFactsStillWrites(t *testing.T) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		Results: []model.CheckResult{
 			{
 				CheckID: "X", Status: model.StatusVerifiedPass,
-				Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{},
+				Scope: model.ScopeRef{Org: "attestward-demo"}, Provenance: []model.Provenance{},
 				Facts: map[string]any{"large_but_legitimate": oversized},
 			},
 		},
@@ -639,14 +639,14 @@ func TestRunScan_OversizedFactWarnsButStillSucceeds(t *testing.T) {
 			fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
 				{
 					CheckID: "DEMO.pass", Status: model.StatusVerifiedPass,
-					Scope: model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+					Scope: model.ScopeRef{Org: "attestward-demo", Repo: "good-repo"},
 					Facts: map[string]any{"large_but_legitimate": oversized},
 				},
 			}},
 		},
 		stdout: &stdout,
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", Repos: []string{"good-repo"}}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Repos: []string{"good-repo"}}, scanConfig{}, nil)
 
 	result, err := runScan(context.Background(), cfg, nil, deps)
 	if err != nil {
@@ -669,9 +669,9 @@ func TestWriteEvidencePack_AtomicWriteLeavesNoTempFileOnSuccess(t *testing.T) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		Results: []model.CheckResult{
-			{CheckID: "X", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestor-demo"}, Provenance: []model.Provenance{}},
+			{CheckID: "X", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo"}, Provenance: []model.Provenance{}},
 		},
 	}
 
@@ -705,9 +705,9 @@ func TestRunScan_DeterministicAcrossRunsWithFixedClock(t *testing.T) {
 				fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
 					{
 						CheckID: "DEMO.pass", Status: model.StatusVerifiedPass,
-						Scope: model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+						Scope: model.ScopeRef{Org: "attestward-demo", Repo: "good-repo"},
 						Provenance: []model.Provenance{
-							{Endpoint: "/repos/attestor-demo/good-repo", Method: "GET", Timestamp: fixedTime, HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
+							{Endpoint: "/repos/attestward-demo/good-repo", Method: "GET", Timestamp: fixedTime, HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
 						},
 						Facts: map[string]any{"some_fact": 1},
 					},
@@ -717,7 +717,7 @@ func TestRunScan_DeterministicAcrossRunsWithFixedClock(t *testing.T) {
 			now:    func() time.Time { return fixedTime },
 		}
 	}
-	cfg := mergeScanConfig(scanConfig{Org: "attestor-demo", Repos: []string{"good-repo"}}, scanConfig{}, nil)
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Repos: []string{"good-repo"}}, scanConfig{}, nil)
 
 	result1, err := runScan(context.Background(), cfg, nil, newDeps())
 	if err != nil {

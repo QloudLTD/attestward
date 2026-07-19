@@ -15,7 +15,7 @@ import (
 // actual bug the Fable 5 review caught: before this fix, the write-scope
 // warning checked Client.HasWriteScope() before any authenticated call had
 // happened whenever repos were given explicitly (the documented usage in
-// examples/attestor.yaml), so it could never fire even for a full-write
+// examples/attestward.yaml), so it could never fire even for a full-write
 // token. This builds a REAL ghcollect.Client (not a fake) pointed at a
 // local test server that reports a write-capable scope, and confirms the
 // account preflight call alone — via restOrgChecker, exactly as runScan
@@ -25,7 +25,7 @@ func TestOrgPreflightPopulatesScopeTrackingForWriteScopeWarning(t *testing.T) {
 		w.Header().Set("X-OAuth-Scopes", "repo, read:org")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"login":"attestor-demo","type":"Organization"}`))
+		_, _ = w.Write([]byte(`{"login":"attestward-demo","type":"Organization"}`))
 	}))
 	defer server.Close()
 
@@ -41,7 +41,7 @@ func TestOrgPreflightPopulatesScopeTrackingForWriteScopeWarning(t *testing.T) {
 	}
 
 	checker := &restOrgChecker{client: client.REST}
-	accountType, err := checker.CheckAccount(context.Background(), "attestor-demo")
+	accountType, err := checker.CheckAccount(context.Background(), "attestward-demo")
 	if err != nil {
 		t.Fatalf("CheckAccount: %v", err)
 	}
@@ -113,11 +113,11 @@ func TestRestRepoLister_ListReposHitsOrgEndpointForOrganization(t *testing.T) {
 	client.REST.BaseURL = baseURL
 
 	lister := &restRepoLister{client: client.REST}
-	if _, err := lister.ListRepos(context.Background(), "attestor-demo", collect.AccountTypeOrganization); err != nil {
+	if _, err := lister.ListRepos(context.Background(), "attestward-demo", collect.AccountTypeOrganization); err != nil {
 		t.Fatalf("ListRepos: %v", err)
 	}
-	if gotPath != "/orgs/attestor-demo/repos" {
-		t.Errorf("request path = %q, want /orgs/attestor-demo/repos", gotPath)
+	if gotPath != "/orgs/attestward-demo/repos" {
+		t.Errorf("request path = %q, want /orgs/attestward-demo/repos", gotPath)
 	}
 }
 

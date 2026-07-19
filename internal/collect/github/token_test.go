@@ -17,13 +17,13 @@ import (
 // including error formatting we don't directly control.
 func TestTokenNeverLeaksIntoErrors(t *testing.T) {
 	const token = "ghp_should-never-appear-in-any-error-string-anywhere"
-	fx := ghfixture.New().Set("GET", "/repos/attestor-demo/missing-repo", ghfixture.Response{
+	fx := ghfixture.New().Set("GET", "/repos/attestward-demo/missing-repo", ghfixture.Response{
 		Status: http.StatusNotFound,
 		Body:   map[string]any{"message": "Not Found", "documentation_url": "https://docs.github.com/rest"},
 	})
 	client := newTestClient(t, token, fx)
 
-	req, err := client.REST.NewRequest(http.MethodGet, "repos/attestor-demo/missing-repo", nil)
+	req, err := client.REST.NewRequest(http.MethodGet, "repos/attestward-demo/missing-repo", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}

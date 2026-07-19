@@ -20,7 +20,7 @@ const (
 	defaultOut               = "./evidence/"
 )
 
-// scanConfig is the parsed, merged configuration for `attestor scan`. Flags
+// scanConfig is the parsed, merged configuration for `attestward scan`. Flags
 // override file values field by field (mergeScanConfig); any field left
 // unset by both gets its documented default.
 type scanConfig struct {
@@ -59,7 +59,7 @@ func loadScanConfigFile(path string) (scanConfig, error) {
 	if err := dec.Decode(&cfg); err != nil {
 		if errors.Is(err, io.EOF) {
 			// An empty document (a zero-byte file, or one that's entirely
-			// comments — plausible, since examples/attestor.yaml encourages
+			// comments — plausible, since examples/attestward.yaml encourages
 			// commenting fields out) isn't a parse failure; it's a config
 			// with everything left to defaults. Downstream validate() gives
 			// a much clearer error ("org is required") than a bare EOF would.

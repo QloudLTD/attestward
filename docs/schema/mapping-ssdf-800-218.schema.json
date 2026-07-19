@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/sioakim/attestward/blob/main/docs/schema/mapping-ssdf-800-218.schema.json",
-  "title": "attestor mappings/ssdf-800-218.yaml",
-  "description": "Structure of the NIST SP 800-218 (SSDF) task slice attestor reasons over. Enforced by internal/mapping's strict loader (unknown fields and duplicate task ids are errors) in addition to this schema.",
+  "title": "attestward mappings/ssdf-800-218.yaml",
+  "description": "Structure of the NIST SP 800-218 (SSDF) task slice attestward reasons over. Enforced by internal/mapping's strict loader (unknown fields and duplicate task ids are errors) in addition to this schema.",
   "type": "object",
   "required": ["version", "source", "retrieved", "practices", "tasks"],
   "additionalProperties": false,

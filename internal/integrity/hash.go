@@ -33,7 +33,7 @@ func SidecarPath(path string) string {
 // spaces — one literal, one the text-mode indicator GNU coreutils and BSD
 // shasum both expect) — so `sha256sum -c evidence.json.sha256` and
 // `shasum -a 256 -c evidence.json.sha256`, run from the same directory,
-// both verify it without attestor's own involvement. Matches this
+// both verify it without attestward's own involvement. Matches this
 // project's already-established checksums.txt convention (see
 // .goreleaser.yaml / SECURITY.md) rather than inventing a new format.
 func WriteSidecar(path, hash string) error {

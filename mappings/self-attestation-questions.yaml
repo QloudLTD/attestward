@@ -7,7 +7,7 @@
 # orgs where C09's GitHub-API-based checks are plan-gated. Answers land in
 # the evidence pack with status `self-attested` (never `verified-pass` —
 # see internal/mapping/rollup.go's precedence table), sourced from a
-# user-authored answers file (`attestor attest init` generates a template;
+# user-authored answers file (`attestward attest init` generates a template;
 # see internal/mapping/selfattestanswers.go for that file's own shape).
 #
 # Accuracy standard for this file (distinct from ssdf-800-218.yaml's own

@@ -1,6 +1,6 @@
 name: Self-scan
 
-# Issue #32: the repo is the first case study. Runs attestor against
+# Issue #32: the repo is the first case study. Runs attestward against
 # sioakim/attestward itself and publishes the evidence pack as an artifact.
 #
 # Token strategy: the ambient GITHUB_TOKEN, scoped read-only by the
@@ -48,10 +48,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build attestor
-        run: go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }}" -o attestor ./cmd/attestor
+      - name: Build attestward
+        run: go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }}" -o attestward ./cmd/attestward
 
-      # attestor scan exits 2 on gaps (any verified-fail/partial) — that's
+      # attestward scan exits 2 on gaps (any verified-fail/partial) — that's
       # a real, informative outcome we want to inspect below, not a step
       # failure to short-circuit on before the render/artifact-upload/
       # evaluate steps (all `if: always()`) get to run. The evaluate step
@@ -62,11 +62,11 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./attestor scan --org sioakim --repo attestward --out evidence/ --self-attestation-file self-attestation.yaml
+        run: ./attestward scan --org sioakim --repo attestward --out evidence/ --self-attestation-file self-attestation.yaml
 
       - name: Render report.html
         if: always()
-        run: ./attestor report evidence/evidence.json --format html
+        run: ./attestward report evidence/evidence.json --format html
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -82,7 +82,7 @@ jobs:
       # list" issue #32 asks for, rather than letting exit 2 fail every
       # run indefinitely for known, currently-unfixable gaps. It's
       # deliberately narrow (individual check IDs, not whole collectors)
-      # since attestor scan's own --check flag only scopes at collector
+      # since attestward scan's own --check flag only scopes at collector
       # granularity and several of these collectors have other checks that
       # DO pass — excluding a whole collector would hide real, currently
       # -passing coverage, not just the known gap.

@@ -14,7 +14,7 @@ import (
 const cosignInstallURL = "https://docs.sigstore.dev/system_config/installation/"
 
 // ErrCosignNotFound wraps every "cosign missing from PATH" error this
-// package returns, so a caller (attestor verify, specifically) can tell
+// package returns, so a caller (attestward verify, specifically) can tell
 // "the environment isn't set up to check a signature" apart from "the
 // signature check ran and failed" via errors.Is — the two are different
 // classes of problem (an execution error vs. a genuine tamper finding)
@@ -23,7 +23,7 @@ var ErrCosignNotFound = errors.New("cosign not found on PATH")
 
 // Signer signs and verifies a file via the cosign CLI, shelled out to
 // rather than vendored as a Go dependency — see ADR-0006 for why.
-// Interfaced so cmd/attestor's tests can inject a fake rather than
+// Interfaced so cmd/attestward's tests can inject a fake rather than
 // requiring a real cosign binary and network/OIDC access to exercise
 // --sign/verify's own wiring; the real binary is exercised by a CI-only
 // integration test instead (see .github/workflows for the keyless-signing
@@ -40,7 +40,7 @@ type Signer interface {
 	// `cosign verify-blob`. verifyArgs is passed through verbatim — for
 	// keyless verification this must include, at minimum,
 	// --certificate-identity(-regexp) and --certificate-oidc-issuer
-	// (cosign itself requires these; attestor doesn't default or infer
+	// (cosign itself requires these; attestward doesn't default or infer
 	// them, since the correct identity is caller/producer-specific).
 	VerifyBlob(ctx context.Context, path string, verifyArgs []string) error
 }
@@ -84,8 +84,8 @@ func (CosignSigner) SignBlob(ctx context.Context, path string, signArgs []string
 
 	cmd := exec.CommandContext(ctx, cosign, args...)
 	// cosign's own progress/prompt output goes to stderr, same as
-	// attestor's own warning/progress lines elsewhere — never mixed into
-	// stdout, which stays reserved for attestor's own structured status
+	// attestward's own warning/progress lines elsewhere — never mixed into
+	// stdout, which stays reserved for attestward's own structured status
 	// lines (see runScanCmd/runVerify).
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr

@@ -1,4 +1,4 @@
-// Package schema embeds the JSON Schema files describing attestor's
+// Package schema embeds the JSON Schema files describing attestward's
 // versioned file formats (evidence.json, the mappings/*.yaml files) into
 // the binary — ADR-0002 (single static binary) means schema data can't
 // depend on files existing next to the executable at runtime, the same

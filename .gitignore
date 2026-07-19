@@ -1,5 +1,5 @@
 # Binaries / build
-/attestor
+/attestward
 /dist/
 *.exe
 
@@ -20,10 +20,10 @@ report.md.local
 !/examples/demo-org-pack/report.html
 
 # Local config with org-specific scope (anchored to repo root so this
-# doesn't also catch examples/attestor.yaml, which is intentionally
+# doesn't also catch examples/attestward.yaml, which is intentionally
 # committed)
-/attestor.yaml
-/attestor.local.yaml
+/attestward.yaml
+/attestward.local.yaml
 
 # Editors / OS
 .DS_Store

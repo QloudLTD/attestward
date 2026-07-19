@@ -98,7 +98,7 @@ func TestRenderPOAM_MissingMappingDataDegradesGracefully(t *testing.T) {
 		t.Fatal("RenderPOAM with nil mappings produced empty output")
 	}
 	text := string(got)
-	if !strings.Contains(text, "attestor-demo") {
+	if !strings.Contains(text, "attestward-demo") {
 		t.Error("RenderPOAM with nil mappings lost the org name, which doesn't depend on mapping data")
 	}
 	if !strings.Contains(text, "Unmapped") {

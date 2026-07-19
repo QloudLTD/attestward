@@ -33,12 +33,12 @@ func newTestClientForExport(t *testing.T, mux *http.ServeMux) *ghcollect.Client 
 // that extra call.
 func TestRequiredStatusCheckNames_MergesLegacyAndRuleset(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/mixed-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/mixed-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"required_status_checks": map[string]any{"contexts": []string{"legacy-check"}},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/mixed-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/mixed-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []wireBranchRule{
 			{Type: "required_status_checks", RulesetSourceType: "Repository", RulesetID: 1,
 				Parameters: ghgithub.RequiredStatusChecksRuleParameters{RequiredStatusChecks: []*ghgithub.RuleStatusCheck{{Context: "ruleset-check"}}}},
@@ -46,7 +46,7 @@ func TestRequiredStatusCheckNames_MergesLegacyAndRuleset(t *testing.T) {
 	})
 
 	client := newTestClientForExport(t, mux)
-	names, via, resp, err := RequiredStatusCheckNames(context.Background(), client, "attestor-demo", "mixed-repo", "main")
+	names, via, resp, err := RequiredStatusCheckNames(context.Background(), client, "attestward-demo", "mixed-repo", "main")
 	if err != nil {
 		t.Fatalf("RequiredStatusCheckNames: %v", err)
 	}
@@ -76,15 +76,15 @@ func TestRequiredStatusCheckNames_MergesLegacyAndRuleset(t *testing.T) {
 // distinction collectRepo's own legacyErr handling makes.
 func TestRequiredStatusCheckNames_NoLegacyProtectionIsNotAnError(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/ruleset-only-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/ruleset-only-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/ruleset-only-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/ruleset-only-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []wireBranchRule{})
 	})
 
 	client := newTestClientForExport(t, mux)
-	names, _, resp, err := RequiredStatusCheckNames(context.Background(), client, "attestor-demo", "ruleset-only-repo", "main")
+	names, _, resp, err := RequiredStatusCheckNames(context.Background(), client, "attestward-demo", "ruleset-only-repo", "main")
 	if err != nil {
 		t.Fatalf("RequiredStatusCheckNames: %v", err)
 	}
@@ -103,12 +103,12 @@ func TestRequiredStatusCheckNames_NoLegacyProtectionIsNotAnError(t *testing.T) {
 // package's own notCheckableReason does.
 func TestRequiredStatusCheckNames_PermissionDenied403PropagatesError(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/secret-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/secret-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	client := newTestClientForExport(t, mux)
-	_, _, resp, err := RequiredStatusCheckNames(context.Background(), client, "attestor-demo", "secret-repo", "main")
+	_, _, resp, err := RequiredStatusCheckNames(context.Background(), client, "attestward-demo", "secret-repo", "main")
 	if err == nil {
 		t.Fatal("RequiredStatusCheckNames = nil error, want an error for a 403")
 	}

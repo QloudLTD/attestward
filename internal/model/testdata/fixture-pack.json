@@ -6,7 +6,7 @@
     "cisa_form": "1.0.0"
   },
   "scope": {
-    "org": "attestor-demo",
+    "org": "attestward-demo",
     "repos": ["good-repo"],
     "release_tag_pattern": "v*",
     "lookback_releases": 5
@@ -19,10 +19,10 @@
       "title": "Branch protection requires reviews",
       "status": "verified-pass",
       "reason": "main requires 1 approving review and passing status checks",
-      "scope": { "org": "attestor-demo", "repo": "good-repo" },
+      "scope": { "org": "attestward-demo", "repo": "good-repo" },
       "provenance": [
         {
-          "endpoint": "/repos/attestor-demo/good-repo/rulesets",
+          "endpoint": "/repos/attestward-demo/good-repo/rulesets",
           "method": "GET",
           "timestamp": "2026-07-13T12:00:01Z",
           "http_status": 200,
@@ -38,10 +38,10 @@
       "title": "Org audit-log API availability",
       "status": "not-checkable",
       "reason": "org is on the Team plan; the audit-log API requires Enterprise",
-      "scope": { "org": "attestor-demo" },
+      "scope": { "org": "attestward-demo" },
       "provenance": [
         {
-          "endpoint": "/orgs/attestor-demo/audit-log",
+          "endpoint": "/orgs/attestward-demo/audit-log",
           "method": "GET",
           "timestamp": "2026-07-13T12:00:02Z",
           "http_status": 403,

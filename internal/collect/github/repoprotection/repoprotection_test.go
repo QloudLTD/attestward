@@ -20,7 +20,7 @@ import (
 // newTestCollector points a real ghcollect.Client at a local httptest
 // server via client.REST.BaseURL — the same pattern
 // internal/collect/github/orgsecurity/orgsecurity_test.go and
-// cmd/attestor/scanorgcheck_test.go use. This package's Collect() builds its
+// cmd/attestward/scanorgcheck_test.go use. This package's Collect() builds its
 // own client per repo internally (see repoprotection.go's New doc comment),
 // so tests exercise the full Collector, not collectRepo directly, wherever
 // that per-repo client construction matters.
@@ -88,18 +88,18 @@ func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 
 func TestCollect_UnprotectedRepoAllChecksFail(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/bad-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bad-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/bad-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bad-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/bad-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bad-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []wireBranchRule{})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"bad-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"bad-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -118,21 +118,21 @@ func TestCollect_UnprotectedRepoAllChecksFail(t *testing.T) {
 // proven by fixture."
 func TestCollect_RulesetOnlyRepoAllChecksPass(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/good-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/good-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, fullProtectionRules(7))
 	})
-	mux.HandleFunc("/repos/attestor-demo/good-repo/rulesets/7", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/rulesets/7", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"id": 7, "name": "main-protection"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"good-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -151,10 +151,10 @@ func TestCollect_RulesetOnlyRepoAllChecksPass(t *testing.T) {
 
 func TestCollect_LegacyOnlyRepoAllChecksPass(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/good-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"required_pull_request_reviews": map[string]any{"required_approving_review_count": 1},
 			"required_status_checks":        map[string]any{"contexts": []string{"ci/test"}},
@@ -163,12 +163,12 @@ func TestCollect_LegacyOnlyRepoAllChecksPass(t *testing.T) {
 			"allow_deletions":               map[string]any{"enabled": false},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/good-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []wireBranchRule{})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"good-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -181,16 +181,16 @@ func TestCollect_LegacyOnlyRepoAllChecksPass(t *testing.T) {
 
 func TestCollect_AlwaysBypassActorProducesPartialAdminEnforced(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/bypass-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bypass-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/bypass-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bypass-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/bypass-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bypass-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, fullProtectionRules(9))
 	})
-	mux.HandleFunc("/repos/attestor-demo/bypass-repo/rulesets/9", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bypass-repo/rulesets/9", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"id":   9,
 			"name": "main-protection",
@@ -201,7 +201,7 @@ func TestCollect_AlwaysBypassActorProducesPartialAdminEnforced(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"bypass-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"bypass-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -233,10 +233,10 @@ func TestCollect_AlwaysBypassActorProducesPartialAdminEnforced(t *testing.T) {
 // the branch-protection response every repo in this suite already fetches.
 func TestCollect_LegacyBypassAllowanceProducesPartialRequiredReviews(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/review-bypass-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/review-bypass-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/review-bypass-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/review-bypass-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"required_pull_request_reviews": map[string]any{
 				"required_approving_review_count": 1,
@@ -250,12 +250,12 @@ func TestCollect_LegacyBypassAllowanceProducesPartialRequiredReviews(t *testing.
 			"allow_deletions":        map[string]any{"enabled": false},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/review-bypass-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/review-bypass-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []wireBranchRule{})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"review-bypass-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"review-bypass-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -282,21 +282,21 @@ func TestCollect_LegacyBypassAllowanceProducesPartialRequiredReviews(t *testing.
 // data GetRulesForBranch already returned.
 func TestCollect_RulesetLookupFailureOnlyAffectsAdminEnforced(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/flaky-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/flaky-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/flaky-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, fullProtectionRules(11))
 	})
-	mux.HandleFunc("/repos/attestor-demo/flaky-repo/rulesets/11", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/rulesets/11", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"flaky-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"flaky-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -319,12 +319,12 @@ func TestCollect_RulesetLookupFailureOnlyAffectsAdminEnforced(t *testing.T) {
 
 func TestCollect_PermissionGated403AllNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"secret-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"secret-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -346,12 +346,12 @@ func TestCollect_PermissionGated403AllNotCheckable(t *testing.T) {
 
 func TestCollect_RepoNotFound404AllNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/ghost-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/ghost-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"ghost-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"ghost-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -369,19 +369,19 @@ func TestCollect_MultiRepoScanProducesSixResultsEach(t *testing.T) {
 	mux := http.NewServeMux()
 	for _, repo := range []string{"repo-a", "repo-b"} {
 		repo := repo
-		mux.HandleFunc("/repos/attestor-demo/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/"+repo, func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
 		})
-		mux.HandleFunc("/repos/attestor-demo/"+repo+"/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/"+repo+"/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
 		})
-		mux.HandleFunc("/repos/attestor-demo/"+repo+"/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/"+repo+"/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusOK, []wireBranchRule{})
 		})
 	}
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a", "repo-b"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a", "repo-b"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -417,7 +417,7 @@ func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	results, err := c.Collect(ctx, collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a"}})
+	results, err := c.Collect(ctx, collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

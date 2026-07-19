@@ -164,16 +164,16 @@ func registerCodeQLDefaultSetupWorkflow(t *testing.T, mux *http.ServeMux, org, r
 
 func TestCollect_CodeQLWorkflowWithSuccessfulReleaseRun_AllChecksResolve(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "good-repo", "main")
-	registerCodeQLWorkflow(t, mux, "attestor-demo", "good-repo")
-	registerOneRelease(t, mux, "attestor-demo", "good-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
-	registerWorkflowRuns(t, mux, "attestor-demo", "good-repo", 1, []map[string]any{
+	registerRepo(t, mux, "attestward-demo", "good-repo", "main")
+	registerCodeQLWorkflow(t, mux, "attestward-demo", "good-repo")
+	registerOneRelease(t, mux, "attestward-demo", "good-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerWorkflowRuns(t, mux, "attestward-demo", "good-repo", 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	registerDefaultSetup(t, mux, "attestor-demo", "good-repo", "not-configured")
+	registerDefaultSetup(t, mux, "attestward-demo", "good-repo", "not-configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"good-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -204,13 +204,13 @@ func TestCollect_CodeQLWorkflowWithSuccessfulReleaseRun_AllChecksResolve(t *test
 
 func TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "bad-repo", "main")
-	registerNoWorkflows(t, mux, "attestor-demo", "bad-repo")
-	registerOneRelease(t, mux, "attestor-demo", "bad-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
-	registerDefaultSetup(t, mux, "attestor-demo", "bad-repo", "not-configured")
+	registerRepo(t, mux, "attestward-demo", "bad-repo", "main")
+	registerNoWorkflows(t, mux, "attestward-demo", "bad-repo")
+	registerOneRelease(t, mux, "attestward-demo", "bad-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerDefaultSetup(t, mux, "attestward-demo", "bad-repo", "not-configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"bad-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"bad-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -230,8 +230,8 @@ func TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable(t *testi
 
 func TestCollect_LowConfidenceOnlyMatch_CapsAtPartial(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "iffy-repo", "main")
-	mux.HandleFunc("/repos/attestor-demo/iffy-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+	registerRepo(t, mux, "attestward-demo", "iffy-repo", "main")
+	mux.HandleFunc("/repos/attestward-demo/iffy-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 1,
 			"workflows": []map[string]any{
@@ -242,15 +242,15 @@ func TestCollect_LowConfidenceOnlyMatch_CapsAtPartial(t *testing.T) {
 	// The workflow is literally named "CodeQL" (matches the low-confidence
 	// workflow_name_pattern) but its content has neither the action nor
 	// any run-pattern-matching step — only a name-based heuristic fires.
-	mux.HandleFunc("/repos/attestor-demo/iffy-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/iffy-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"content": "name: CodeQL\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n"})
 	})
-	registerNoReleases(t, mux, "attestor-demo", "iffy-repo")
-	registerWorkflowRuns(t, mux, "attestor-demo", "iffy-repo", 1, []map[string]any{})
-	registerDefaultSetup(t, mux, "attestor-demo", "iffy-repo", "not-configured")
+	registerNoReleases(t, mux, "attestward-demo", "iffy-repo")
+	registerWorkflowRuns(t, mux, "attestward-demo", "iffy-repo", 1, []map[string]any{})
+	registerDefaultSetup(t, mux, "attestward-demo", "iffy-repo", "not-configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"iffy-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"iffy-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -272,8 +272,8 @@ func TestCollect_LowConfidenceOnlyMatch_CapsAtPartial(t *testing.T) {
 // actually a SAST tool at all.
 func TestCollect_LowConfidenceOnlyMatchWithRuns_CadenceCapsAtPartial(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "iffy-runs-repo", "main")
-	mux.HandleFunc("/repos/attestor-demo/iffy-runs-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+	registerRepo(t, mux, "attestward-demo", "iffy-runs-repo", "main")
+	mux.HandleFunc("/repos/attestward-demo/iffy-runs-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 1,
 			"workflows": []map[string]any{
@@ -282,17 +282,17 @@ func TestCollect_LowConfidenceOnlyMatchWithRuns_CadenceCapsAtPartial(t *testing.
 		})
 	})
 	// Same low-confidence-only content as TestCollect_LowConfidenceOnlyMatch_CapsAtPartial.
-	mux.HandleFunc("/repos/attestor-demo/iffy-runs-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/iffy-runs-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"content": "name: CodeQL\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n"})
 	})
-	registerNoReleases(t, mux, "attestor-demo", "iffy-runs-repo")
-	registerWorkflowRuns(t, mux, "attestor-demo", "iffy-runs-repo", 1, []map[string]any{
+	registerNoReleases(t, mux, "attestward-demo", "iffy-runs-repo")
+	registerWorkflowRuns(t, mux, "attestward-demo", "iffy-runs-repo", 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	registerDefaultSetup(t, mux, "attestor-demo", "iffy-runs-repo", "not-configured")
+	registerDefaultSetup(t, mux, "attestward-demo", "iffy-runs-repo", "not-configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"iffy-runs-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"iffy-runs-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -309,16 +309,16 @@ func TestCollect_LowConfidenceOnlyMatchWithRuns_CadenceCapsAtPartial(t *testing.
 
 func TestCollect_ConfiguredButRunFails_RanPerReleaseIsPartial(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "failing-repo", "main")
-	registerCodeQLWorkflow(t, mux, "attestor-demo", "failing-repo")
-	registerOneRelease(t, mux, "attestor-demo", "failing-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
-	registerWorkflowRuns(t, mux, "attestor-demo", "failing-repo", 1, []map[string]any{
+	registerRepo(t, mux, "attestward-demo", "failing-repo", "main")
+	registerCodeQLWorkflow(t, mux, "attestward-demo", "failing-repo")
+	registerOneRelease(t, mux, "attestward-demo", "failing-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerWorkflowRuns(t, mux, "attestward-demo", "failing-repo", 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "failure", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	registerDefaultSetup(t, mux, "attestor-demo", "failing-repo", "not-configured")
+	registerDefaultSetup(t, mux, "attestward-demo", "failing-repo", "not-configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"failing-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"failing-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -345,16 +345,16 @@ func TestCollect_ConfiguredButRunFails_RanPerReleaseIsPartial(t *testing.T) {
 // results instead of a false-fail from a silently-skipped "workflow."
 func TestCollect_CodeQLDefaultSetupDynamicWorkflow_RunHistoryObserved(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "default-setup-repo", "main")
-	registerCodeQLDefaultSetupWorkflow(t, mux, "attestor-demo", "default-setup-repo", 42)
-	registerOneRelease(t, mux, "attestor-demo", "default-setup-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
-	registerWorkflowRuns(t, mux, "attestor-demo", "default-setup-repo", 42, []map[string]any{
+	registerRepo(t, mux, "attestward-demo", "default-setup-repo", "main")
+	registerCodeQLDefaultSetupWorkflow(t, mux, "attestward-demo", "default-setup-repo", 42)
+	registerOneRelease(t, mux, "attestward-demo", "default-setup-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerWorkflowRuns(t, mux, "attestward-demo", "default-setup-repo", 42, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	registerDefaultSetup(t, mux, "attestor-demo", "default-setup-repo", "configured")
+	registerDefaultSetup(t, mux, "attestward-demo", "default-setup-repo", "configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"default-setup-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"default-setup-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -384,13 +384,13 @@ func TestCollect_CodeQLDefaultSetupDynamicWorkflow_RunHistoryObserved(t *testing
 // there is no run history to inspect, so cadence has nothing to report.
 func TestCollect_DefaultSetupConfiguredButDynamicWorkflowNotSurfaced_CadenceHasNothingToReport(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "default-setup-repo", "main")
-	registerNoWorkflows(t, mux, "attestor-demo", "default-setup-repo")
-	registerNoReleases(t, mux, "attestor-demo", "default-setup-repo")
-	registerDefaultSetup(t, mux, "attestor-demo", "default-setup-repo", "configured")
+	registerRepo(t, mux, "attestward-demo", "default-setup-repo", "main")
+	registerNoWorkflows(t, mux, "attestward-demo", "default-setup-repo")
+	registerNoReleases(t, mux, "attestward-demo", "default-setup-repo")
+	registerDefaultSetup(t, mux, "attestward-demo", "default-setup-repo", "configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"default-setup-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"default-setup-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -417,30 +417,30 @@ func TestCollect_DefaultSetupConfiguredButDynamicWorkflowNotSurfaced_CadenceHasN
 // cap at partial and surface the drop count in Facts instead.
 func TestCollect_UnresolvableReleaseTag_CapsRanPerReleaseAtPartial(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "broken-tag-repo", "main")
-	registerCodeQLWorkflow(t, mux, "attestor-demo", "broken-tag-repo")
-	mux.HandleFunc("/repos/attestor-demo/broken-tag-repo/releases", func(w http.ResponseWriter, _ *http.Request) {
+	registerRepo(t, mux, "attestward-demo", "broken-tag-repo", "main")
+	registerCodeQLWorkflow(t, mux, "attestward-demo", "broken-tag-repo")
+	mux.HandleFunc("/repos/attestward-demo/broken-tag-repo/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []map[string]any{
 			{"tag_name": "v1.0.0", "target_commitish": "main", "published_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 			{"tag_name": "v0.9.0", "target_commitish": "main", "published_at": time.Now().UTC().AddDate(0, 0, -30).Format(time.RFC3339)},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/broken-tag-repo/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/broken-tag-repo/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"ref":    "refs/tags/v1.0.0",
 			"object": map[string]any{"type": "commit", "sha": "sha1"},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/broken-tag-repo/git/ref/tags/v0.9.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/broken-tag-repo/git/ref/tags/v0.9.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
-	registerWorkflowRuns(t, mux, "attestor-demo", "broken-tag-repo", 1, []map[string]any{
+	registerWorkflowRuns(t, mux, "attestward-demo", "broken-tag-repo", 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	registerDefaultSetup(t, mux, "attestor-demo", "broken-tag-repo", "not-configured")
+	registerDefaultSetup(t, mux, "attestward-demo", "broken-tag-repo", "not-configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"broken-tag-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"broken-tag-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -464,16 +464,16 @@ func TestCollect_UnresolvableReleaseTag_CapsRanPerReleaseAtPartial(t *testing.T)
 // doc comment claims.
 func TestCollect_ProvenanceSplitsSharedFromDefaultSetup(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "prov-repo", "main")
-	registerCodeQLWorkflow(t, mux, "attestor-demo", "prov-repo")
-	registerOneRelease(t, mux, "attestor-demo", "prov-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
-	registerWorkflowRuns(t, mux, "attestor-demo", "prov-repo", 1, []map[string]any{
+	registerRepo(t, mux, "attestward-demo", "prov-repo", "main")
+	registerCodeQLWorkflow(t, mux, "attestward-demo", "prov-repo")
+	registerOneRelease(t, mux, "attestward-demo", "prov-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerWorkflowRuns(t, mux, "attestward-demo", "prov-repo", 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	registerDefaultSetup(t, mux, "attestor-demo", "prov-repo", "configured")
+	registerDefaultSetup(t, mux, "attestward-demo", "prov-repo", "configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"prov-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"prov-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -516,13 +516,13 @@ func TestCollect_ProvenanceSplitsSharedFromDefaultSetup(t *testing.T) {
 // error string.
 func TestCollect_WorkflowsListing403_ReasonMentionsPermission(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "workflows-403-repo", "main")
-	mux.HandleFunc("/repos/attestor-demo/workflows-403-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+	registerRepo(t, mux, "attestward-demo", "workflows-403-repo", "main")
+	mux.HandleFunc("/repos/attestward-demo/workflows-403-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"workflows-403-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"workflows-403-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -551,31 +551,31 @@ func TestCollect_WorkflowsListing403_ReasonMentionsPermission(t *testing.T) {
 // actually in scope should count.
 func TestCollect_UnresolvableTagOutsideLookbackWindow_DoesNotCountAsDrop(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "old-broken-tag-repo", "main")
-	registerCodeQLWorkflow(t, mux, "attestor-demo", "old-broken-tag-repo")
-	mux.HandleFunc("/repos/attestor-demo/old-broken-tag-repo/releases", func(w http.ResponseWriter, _ *http.Request) {
+	registerRepo(t, mux, "attestward-demo", "old-broken-tag-repo", "main")
+	registerCodeQLWorkflow(t, mux, "attestward-demo", "old-broken-tag-repo")
+	mux.HandleFunc("/repos/attestward-demo/old-broken-tag-repo/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []map[string]any{
 			{"tag_name": "v1.0.0", "target_commitish": "main", "published_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 			// Well outside the 12-month lookback window configured below.
 			{"tag_name": "v0.1.0", "target_commitish": "main", "published_at": time.Now().UTC().AddDate(-3, 0, 0).Format(time.RFC3339)},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/old-broken-tag-repo/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/old-broken-tag-repo/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"ref":    "refs/tags/v1.0.0",
 			"object": map[string]any{"type": "commit", "sha": "sha1"},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/old-broken-tag-repo/git/ref/tags/v0.1.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/old-broken-tag-repo/git/ref/tags/v0.1.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
-	registerWorkflowRuns(t, mux, "attestor-demo", "old-broken-tag-repo", 1, []map[string]any{
+	registerWorkflowRuns(t, mux, "attestward-demo", "old-broken-tag-repo", 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	registerDefaultSetup(t, mux, "attestor-demo", "old-broken-tag-repo", "not-configured")
+	registerDefaultSetup(t, mux, "attestward-demo", "old-broken-tag-repo", "not-configured")
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"old-broken-tag-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"old-broken-tag-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -592,12 +592,12 @@ func TestCollect_UnresolvableTagOutsideLookbackWindow_DoesNotCountAsDrop(t *test
 
 func TestCollect_RepoFetchFailure403_AllChecksNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"secret-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"secret-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -612,18 +612,18 @@ func TestCollect_RepoFetchFailure403_AllChecksNotCheckable(t *testing.T) {
 
 func TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "flaky-repo", "main")
-	registerCodeQLWorkflow(t, mux, "attestor-demo", "flaky-repo")
-	registerOneRelease(t, mux, "attestor-demo", "flaky-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
-	registerWorkflowRuns(t, mux, "attestor-demo", "flaky-repo", 1, []map[string]any{
+	registerRepo(t, mux, "attestward-demo", "flaky-repo", "main")
+	registerCodeQLWorkflow(t, mux, "attestward-demo", "flaky-repo")
+	registerOneRelease(t, mux, "attestward-demo", "flaky-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerWorkflowRuns(t, mux, "attestward-demo", "flaky-repo", 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
-	mux.HandleFunc("/repos/attestor-demo/flaky-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"flaky-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"flaky-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -654,15 +654,15 @@ func TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable(t *testing.T) {
 // the query failed."
 func TestCollect_DefaultSetupCallFailsWithNoOtherEvidence_ToolConfiguredNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "no-evidence-repo", "main")
-	registerNoWorkflows(t, mux, "attestor-demo", "no-evidence-repo")
-	registerNoReleases(t, mux, "attestor-demo", "no-evidence-repo")
-	mux.HandleFunc("/repos/attestor-demo/no-evidence-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+	registerRepo(t, mux, "attestward-demo", "no-evidence-repo", "main")
+	registerNoWorkflows(t, mux, "attestward-demo", "no-evidence-repo")
+	registerNoReleases(t, mux, "attestward-demo", "no-evidence-repo")
+	mux.HandleFunc("/repos/attestward-demo/no-evidence-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"no-evidence-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"no-evidence-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -682,15 +682,15 @@ func TestCollect_DefaultSetupCallFailsWithNoOtherEvidence_ToolConfiguredNotCheck
 // fire here too.
 func TestCollect_DefaultSetupPlanGatedWithNoOtherEvidence_ToolConfiguredStaysFail(t *testing.T) {
 	mux := http.NewServeMux()
-	registerRepo(t, mux, "attestor-demo", "plan-gated-repo", "main")
-	registerNoWorkflows(t, mux, "attestor-demo", "plan-gated-repo")
-	registerNoReleases(t, mux, "attestor-demo", "plan-gated-repo")
-	mux.HandleFunc("/repos/attestor-demo/plan-gated-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+	registerRepo(t, mux, "attestward-demo", "plan-gated-repo", "main")
+	registerNoWorkflows(t, mux, "attestward-demo", "plan-gated-repo")
+	registerNoReleases(t, mux, "attestward-demo", "plan-gated-repo")
+	mux.HandleFunc("/repos/attestward-demo/plan-gated-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"plan-gated-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"plan-gated-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -709,7 +709,7 @@ func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	results, err := c.Collect(ctx, collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12})
+	results, err := c.Collect(ctx, collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

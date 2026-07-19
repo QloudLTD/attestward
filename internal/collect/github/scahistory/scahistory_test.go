@@ -238,7 +238,7 @@ func registerRequiredStatusCheck(t *testing.T, mux *http.ServeMux, org, repo, de
 }
 
 func TestCollect_WorkflowBasedSCATool_AllChecksResolveCleanly(t *testing.T) {
-	org, repo, branch := "attestor-demo", "good-repo", "main"
+	org, repo, branch := "attestward-demo", "good-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerRootFiles(t, mux, org, repo, "go.mod")
@@ -299,7 +299,7 @@ func TestCollect_WorkflowBasedSCATool_AllChecksResolveCleanly(t *testing.T) {
 }
 
 func TestCollect_DependabotOnly_ToolConfiguredPassesRanPerReleaseNotCheckable(t *testing.T) {
-	org, repo, branch := "attestor-demo", "dependabot-only-repo", "main"
+	org, repo, branch := "attestward-demo", "dependabot-only-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -325,7 +325,7 @@ func TestCollect_DependabotOnly_ToolConfiguredPassesRanPerReleaseNotCheckable(t 
 }
 
 func TestCollect_NoSCAToolAtAll_ToolConfiguredFails(t *testing.T) {
-	org, repo, branch := "attestor-demo", "bare-repo", "main"
+	org, repo, branch := "attestward-demo", "bare-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -350,7 +350,7 @@ func TestCollect_NoSCAToolAtAll_ToolConfiguredFails(t *testing.T) {
 }
 
 func TestCollect_DependabotConfigMissingWithManifests_VerifiedFail(t *testing.T) {
-	org, repo, branch := "attestor-demo", "uncovered-repo", "main"
+	org, repo, branch := "attestward-demo", "uncovered-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -377,7 +377,7 @@ func TestCollect_DependabotConfigMissingWithManifests_VerifiedFail(t *testing.T)
 }
 
 func TestCollect_DependabotConfigPartialCoverage_Partial(t *testing.T) {
-	org, repo, branch := "attestor-demo", "partial-repo", "main"
+	org, repo, branch := "attestward-demo", "partial-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -411,7 +411,7 @@ func TestCollect_DependabotConfigPartialCoverage_Partial(t *testing.T) {
 // "nothing to cover", if it doesn't) — it must surface as not-checkable,
 // since ecosystem coverage genuinely couldn't be determined.
 func TestCollect_RootListingFailure_DependabotConfigNotCheckable(t *testing.T) {
-	org, repo, branch := "attestor-demo", "root-403-repo", "main"
+	org, repo, branch := "attestward-demo", "root-403-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -446,7 +446,7 @@ func TestCollect_RootListingFailure_DependabotConfigNotCheckable(t *testing.T) {
 // pattern" (a misleading claim — releases may well exist and match, the
 // call just failed) once a real workflow-based SCA tool is in play.
 func TestCollect_ReleaseListingFailure_RanPerReleaseSurfacesRealReason(t *testing.T) {
-	org, repo, branch := "attestor-demo", "releases-403-repo", "main"
+	org, repo, branch := "attestward-demo", "releases-403-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerWorkflows(t, mux, org, repo, workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML})
@@ -485,7 +485,7 @@ func TestCollect_ReleaseListingFailure_RanPerReleaseSurfacesRealReason(t *testin
 // workflow evidence either), when the truth for both is "unknown, the
 // query failed."
 func TestCollect_DependabotConfigFetchFailure_ToolConfiguredAndConfigNotCheckable(t *testing.T) {
-	org, repo, branch := "attestor-demo", "dependabot-403-repo", "main"
+	org, repo, branch := "attestward-demo", "dependabot-403-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -520,7 +520,7 @@ func TestCollect_DependabotConfigFetchFailure_ToolConfiguredAndConfigNotCheckabl
 // SCA tool or genuinely absent — either way, evaluating release coverage
 // against zero workflow runs and confidently failing would be wrong.
 func TestCollect_DependabotConfigFetchFailureWithRelease_RanPerReleaseNotCheckable(t *testing.T) {
-	org, repo, branch := "attestor-demo", "dependabot-403-release-repo", "main"
+	org, repo, branch := "attestward-demo", "dependabot-403-release-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -545,7 +545,7 @@ func TestCollect_DependabotConfigFetchFailureWithRelease_RanPerReleaseNotCheckab
 }
 
 func TestCollect_DependencyReview_NoWorkflow_VerifiedFail(t *testing.T) {
-	org, repo, branch := "attestor-demo", "no-dep-review-repo", "main"
+	org, repo, branch := "attestward-demo", "no-dep-review-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -567,7 +567,7 @@ func TestCollect_DependencyReview_NoWorkflow_VerifiedFail(t *testing.T) {
 }
 
 func TestCollect_DependencyReview_NotTriggeredOnPullRequest_Partial(t *testing.T) {
-	org, repo, branch := "attestor-demo", "wrong-trigger-repo", "main"
+	org, repo, branch := "attestward-demo", "wrong-trigger-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerWorkflows(t, mux, org, repo, workflowFixture{ID: 1, Path: ".github/workflows/dependency-review.yml", Name: "Dependency Review", Content: dependencyReviewNoTriggerYAML})
@@ -589,7 +589,7 @@ func TestCollect_DependencyReview_NotTriggeredOnPullRequest_Partial(t *testing.T
 }
 
 func TestCollect_DependencyReview_NotRequiredStatusCheck_Partial(t *testing.T) {
-	org, repo, branch := "attestor-demo", "not-required-repo", "main"
+	org, repo, branch := "attestward-demo", "not-required-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerWorkflows(t, mux, org, repo, workflowFixture{ID: 1, Path: ".github/workflows/dependency-review.yml", Name: "Dependency Review", Content: dependencyReviewWorkflowYAML})
@@ -621,7 +621,7 @@ func TestCollect_DependencyReview_NotRequiredStatusCheck_Partial(t *testing.T) {
 // match alone (mapping.WorkflowFile carries no per-job display names to
 // disambiguate this precisely).
 func TestCollect_DependencyReview_LooseNameMatchOnUnrelatedJob_StaysPartial(t *testing.T) {
-	org, repo, branch := "attestor-demo", "loose-match-repo", "main"
+	org, repo, branch := "attestward-demo", "loose-match-repo", "main"
 	prChecksYAML := `name: PR Checks
 on:
   pull_request:
@@ -652,7 +652,7 @@ jobs:
 }
 
 func TestCollect_AlertsTriaged_CriticalBeyondThreshold_Partial(t *testing.T) {
-	org, repo, branch := "attestor-demo", "stale-critical-repo", "main"
+	org, repo, branch := "attestward-demo", "stale-critical-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -684,7 +684,7 @@ func TestCollect_AlertsTriaged_CriticalBeyondThreshold_Partial(t *testing.T) {
 }
 
 func TestCollect_AlertsTriaged_RecentCritical_VerifiedPass(t *testing.T) {
-	org, repo, branch := "attestor-demo", "fresh-critical-repo", "main"
+	org, repo, branch := "attestward-demo", "fresh-critical-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -718,7 +718,7 @@ func TestCollect_AlertsTriaged_RecentCritical_VerifiedPass(t *testing.T) {
 // "you are not authorized" 403 (see TestCollect_AlertsForbidden403_NotCheckable
 // for that distinct case).
 func TestCollect_AlertsDisabled403_VerifiedFail(t *testing.T) {
-	org, repo, branch := "attestor-demo", "alerts-disabled-repo", "main"
+	org, repo, branch := "attestward-demo", "alerts-disabled-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -744,7 +744,7 @@ func TestCollect_AlertsDisabled403_VerifiedFail(t *testing.T) {
 // confirming what it means) degrades honestly to not-checkable rather than
 // being assumed to mean "disabled."
 func TestCollect_AlertsNotFound404_NotCheckable(t *testing.T) {
-	org, repo, branch := "attestor-demo", "alerts-404-repo", "main"
+	org, repo, branch := "attestward-demo", "alerts-404-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -766,7 +766,7 @@ func TestCollect_AlertsNotFound404_NotCheckable(t *testing.T) {
 }
 
 func TestCollect_AlertsForbidden403_NotCheckable(t *testing.T) {
-	org, repo, branch := "attestor-demo", "alerts-forbidden-repo", "main"
+	org, repo, branch := "attestward-demo", "alerts-forbidden-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -789,12 +789,12 @@ func TestCollect_AlertsForbidden403_NotCheckable(t *testing.T) {
 
 func TestCollect_RepoFetchFailure403_AllChecksNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"secret-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"secret-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -814,7 +814,7 @@ func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	results, err := c.Collect(ctx, collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12})
+	results, err := c.Collect(ctx, collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

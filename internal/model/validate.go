@@ -103,7 +103,7 @@ func (c *CheckResult) OversizedFacts() []string {
 // oversized fact can be entirely legitimate at real-world scale (a large
 // org's genuine finding count), and destroying an entire scan's worth of
 // evidence over one honestly-oversized fact would be strictly worse than
-// writing the pack anyway — see cmd/attestor/scan.go's runScan, which
+// writing the pack anyway — see cmd/attestward/scan.go's runScan, which
 // logs this as a warning rather than aborting.
 func (p EvidencePack) ValidateFactsSizes() error {
 	for _, r := range p.Results {

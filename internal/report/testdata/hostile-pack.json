@@ -3,7 +3,7 @@
   "tool_version": "0.0.0-test",
   "mapping_versions": { "ssdf": "TEST-1.0.0", "cisa_form": "TEST-1.0.0" },
   "scope": {
-    "org": "attestor-demo",
+    "org": "attestward-demo",
     "repos": ["<script>alert('repo')</script>"]
   },
   "scan_started_at": "2026-07-13T12:00:00Z",
@@ -14,10 +14,10 @@
       "title": "<script>alert('title')</script>",
       "status": "verified-fail",
       "reason": "found [click here](javascript:alert('reason')) and <img src=x onerror=alert('reason2')> in a file",
-      "scope": { "org": "attestor-demo", "repo": "<script>alert('scope-repo')</script>" },
+      "scope": { "org": "attestward-demo", "repo": "<script>alert('scope-repo')</script>" },
       "provenance": [
         {
-          "endpoint": "/repos/attestor-demo/<script>alert('endpoint')</script>",
+          "endpoint": "/repos/attestward-demo/<script>alert('endpoint')</script>",
           "method": "GET",
           "timestamp": "2026-07-13T12:00:01Z",
           "http_status": 200,
@@ -37,7 +37,7 @@
       "title": "hostile self-attested question?",
       "status": "self-attested",
       "reason": "self-attested (not independently verified): <script>alert('sa-reason')</script>",
-      "scope": { "org": "attestor-demo" },
+      "scope": { "org": "attestward-demo" },
       "provenance": [],
       "facts": {
         "answer": "<script>alert('sa-answer')</script>",

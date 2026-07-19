@@ -208,7 +208,7 @@ func TestBuildContext_MissingMappingDataDegradesGracefully(t *testing.T) {
 	if len(md) == 0 {
 		t.Error("RenderMarkdown with nil mappings produced empty output")
 	}
-	if !strings.Contains(string(md), "attestor-demo") {
+	if !strings.Contains(string(md), "attestward-demo") {
 		t.Error("RenderMarkdown with nil mappings lost the org name, which doesn't depend on mapping data")
 	}
 

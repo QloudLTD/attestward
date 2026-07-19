@@ -32,7 +32,7 @@ type SSDFPractice struct {
 	Text  string `yaml:"text"`
 }
 
-// SSDFTask is one SSDF task entry: verbatim source text plus the attestor
+// SSDFTask is one SSDF task entry: verbatim source text plus the attestward
 // check IDs (if any yet) that provide evidence for it.
 type SSDFTask struct {
 	ID       string   `yaml:"id"`

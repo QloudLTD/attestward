@@ -5,7 +5,7 @@
 # demo-good's signed release fixture was built.
 #
 # Every value below was captured from a REAL scan of the actual org
-# (`attestor scan --org Qloud-LTD --repo demo-good --repo demo-bad`), not
+# (`attestward scan --org Qloud-LTD --repo demo-good --repo demo-bad`), not
 # hand-derived — a couple of entries reflect real GitHub platform/plan
 # quirks discovered only by running the setup script and observing the
 # result; see each one's `note`.

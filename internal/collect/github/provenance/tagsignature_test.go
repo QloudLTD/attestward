@@ -39,7 +39,7 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {
 
 func TestResolveTagSignature_LightweightTag(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"ref":    "refs/tags/v1.0.0",
 			"object": map[string]any{"type": "commit", "sha": "commit-sha-1"},
@@ -47,7 +47,7 @@ func TestResolveTagSignature_LightweightTag(t *testing.T) {
 	})
 
 	client := newTestClient(t, mux)
-	sig, err := resolveTagSignature(context.Background(), client, "attestor-demo", "repo-a", "v1.0.0")
+	sig, err := resolveTagSignature(context.Background(), client, "attestward-demo", "repo-a", "v1.0.0")
 	if err != nil {
 		t.Fatalf("resolveTagSignature: %v", err)
 	}
@@ -64,13 +64,13 @@ func TestResolveTagSignature_LightweightTag(t *testing.T) {
 
 func TestResolveTagSignature_AnnotatedSignedVerified(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"ref":    "refs/tags/v1.0.0",
 			"object": map[string]any{"type": "tag", "sha": "tag-obj-sha"},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/repo-a/git/tags/tag-obj-sha", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/repo-a/git/tags/tag-obj-sha", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"object": map[string]any{"type": "commit", "sha": "commit-sha-1"},
 			"verification": map[string]any{
@@ -82,7 +82,7 @@ func TestResolveTagSignature_AnnotatedSignedVerified(t *testing.T) {
 	})
 
 	client := newTestClient(t, mux)
-	sig, err := resolveTagSignature(context.Background(), client, "attestor-demo", "repo-a", "v1.0.0")
+	sig, err := resolveTagSignature(context.Background(), client, "attestward-demo", "repo-a", "v1.0.0")
 	if err != nil {
 		t.Fatalf("resolveTagSignature: %v", err)
 	}
@@ -102,13 +102,13 @@ func TestResolveTagSignature_AnnotatedSignedVerified(t *testing.T) {
 
 func TestResolveTagSignature_AnnotatedUnsigned(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"ref":    "refs/tags/v1.0.0",
 			"object": map[string]any{"type": "tag", "sha": "tag-obj-sha"},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/repo-a/git/tags/tag-obj-sha", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/repo-a/git/tags/tag-obj-sha", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"object": map[string]any{"type": "commit", "sha": "commit-sha-1"},
 			"verification": map[string]any{
@@ -120,7 +120,7 @@ func TestResolveTagSignature_AnnotatedUnsigned(t *testing.T) {
 	})
 
 	client := newTestClient(t, mux)
-	sig, err := resolveTagSignature(context.Background(), client, "attestor-demo", "repo-a", "v1.0.0")
+	sig, err := resolveTagSignature(context.Background(), client, "attestward-demo", "repo-a", "v1.0.0")
 	if err != nil {
 		t.Fatalf("resolveTagSignature: %v", err)
 	}
@@ -134,12 +134,12 @@ func TestResolveTagSignature_AnnotatedUnsigned(t *testing.T) {
 
 func TestResolveTagSignature_RefLookupFailurePropagatesError(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/repo-a/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
 
 	client := newTestClient(t, mux)
-	_, err := resolveTagSignature(context.Background(), client, "attestor-demo", "repo-a", "v1.0.0")
+	_, err := resolveTagSignature(context.Background(), client, "attestward-demo", "repo-a", "v1.0.0")
 	if err == nil {
 		t.Fatal("resolveTagSignature = nil error, want an error for a 404 ref lookup")
 	}

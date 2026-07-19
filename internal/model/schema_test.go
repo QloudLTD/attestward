@@ -86,7 +86,7 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 			CISAForm: "1.0.0",
 		},
 		Scope: ScanScope{
-			Org:               "attestor-demo",
+			Org:               "attestward-demo",
 			Repos:             []string{"good-repo"},
 			ReleaseTagPattern: "v*",
 			LookbackReleases:  5,
@@ -99,10 +99,10 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 				Title:   "Branch protection requires reviews",
 				Status:  StatusVerifiedPass,
 				Reason:  "main requires 1 approving review and passing status checks",
-				Scope:   ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+				Scope:   ScopeRef{Org: "attestward-demo", Repo: "good-repo"},
 				Provenance: []Provenance{
 					{
-						Endpoint:       "/repos/attestor-demo/good-repo/rulesets",
+						Endpoint:       "/repos/attestward-demo/good-repo/rulesets",
 						Method:         "GET",
 						Timestamp:      time.Date(2026, 7, 13, 12, 0, 1, 0, time.UTC),
 						HTTPStatus:     200,
@@ -157,7 +157,7 @@ func TestNilSlicesFailSchemaValidation(t *testing.T) {
 	pack := EvidencePack{
 		SchemaVersion: SchemaVersion,
 		ToolVersion:   "0.0.0-test",
-		Scope:         ScanScope{Org: "attestor-demo"}, // Repos left nil
+		Scope:         ScanScope{Org: "attestward-demo"}, // Repos left nil
 		ScanStartedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 		ScanEndedAt:   time.Date(2026, 7, 13, 12, 0, 5, 0, time.UTC),
 		Results:       nil, // left nil

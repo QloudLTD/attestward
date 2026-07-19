@@ -20,7 +20,7 @@ body:
     attributes:
       label: Environment
       value: |
-        - attestor version (`attestor version`):
+        - attestward version (`attestward version`):
         - OS/arch:
         - GitHub plan (Free/Team/Enterprise Cloud):
         - Token type (classic PAT / fine-grained PAT / GITHUB_TOKEN in Actions):

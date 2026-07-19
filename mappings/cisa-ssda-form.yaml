@@ -5,7 +5,7 @@
 # (SSDF) task IDs that substantiate it. `ssdf_tasks` values are taken
 # VERBATIM from the form's own Appendix ("Minimum Attestation References"
 # table, pp. 9-10 of the source PDF) — this is CISA's own cross-reference,
-# not attestor's interpretation, EXCEPT cluster "1" (see its `notes` field:
+# not attestward's interpretation, EXCEPT cluster "1" (see its `notes` field:
 # CISA's row for clause 1 reads "[See rows below]" rather than listing tasks
 # directly, so that cluster's top-level ssdf_tasks is a derived union of its
 # sub_elements rows, not a direct verbatim read — same transparency standard

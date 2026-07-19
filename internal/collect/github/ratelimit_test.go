@@ -21,7 +21,7 @@ func noSleep(log *[]time.Duration) func(time.Duration) {
 
 func TestRateLimitTransport_PrimaryLimitRetriesUntilSuccess(t *testing.T) {
 	resetAt := strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10)
-	fx := ghfixture.New().SetSequence("GET", "/orgs/attestor-demo",
+	fx := ghfixture.New().SetSequence("GET", "/orgs/attestward-demo",
 		ghfixture.Response{
 			Status: http.StatusForbidden,
 			Headers: map[string]string{
@@ -36,14 +36,14 @@ func TestRateLimitTransport_PrimaryLimitRetriesUntilSuccess(t *testing.T) {
 				"X-RateLimit-Reset":     resetAt,
 			},
 		},
-		ghfixture.Response{Status: http.StatusOK, Body: map[string]any{"login": "attestor-demo"}},
+		ghfixture.Response{Status: http.StatusOK, Body: map[string]any{"login": "attestward-demo"}},
 	)
 
 	var slept []time.Duration
 	rl := newRateLimitTransport(fx)
 	rl.sleep = noSleep(&slept)
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestor-demo", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestward-demo", nil)
 	resp, err := rl.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
@@ -73,13 +73,13 @@ func TestRateLimitTransport_PrimaryLimitGivesUpAfterMaxRetries(t *testing.T) {
 			},
 		}
 	}
-	fx := ghfixture.New().SetSequence("GET", "/orgs/attestor-demo", responses...)
+	fx := ghfixture.New().SetSequence("GET", "/orgs/attestward-demo", responses...)
 
 	var slept []time.Duration
 	rl := newRateLimitTransport(fx)
 	rl.sleep = noSleep(&slept)
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestor-demo", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestward-demo", nil)
 	resp, err := rl.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
@@ -95,7 +95,7 @@ func TestRateLimitTransport_PrimaryLimitGivesUpAfterMaxRetries(t *testing.T) {
 }
 
 func TestRateLimitTransport_SecondaryLimitStopsImmediatelyNoRetry(t *testing.T) {
-	fx := ghfixture.New().SetSequence("GET", "/orgs/attestor-demo",
+	fx := ghfixture.New().SetSequence("GET", "/orgs/attestward-demo",
 		ghfixture.Response{
 			Status: http.StatusForbidden,
 			Headers: map[string]string{
@@ -115,7 +115,7 @@ func TestRateLimitTransport_SecondaryLimitStopsImmediatelyNoRetry(t *testing.T) 
 	rl := newRateLimitTransport(fx)
 	rl.sleep = noSleep(&slept)
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestor-demo", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestward-demo", nil)
 	resp, err := rl.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
@@ -134,13 +134,13 @@ func TestRateLimitTransport_SecondaryLimitStopsImmediatelyNoRetry(t *testing.T) 
 }
 
 func TestRateLimitTransport_PlanGatedResponsesPassThroughUnmodified(t *testing.T) {
-	fx := ghfixture.New().Set("GET", "/orgs/attestor-demo/audit-log", ghfixture.Response{
+	fx := ghfixture.New().Set("GET", "/orgs/attestward-demo/audit-log", ghfixture.Response{
 		Status: http.StatusNotFound,
 		Body:   map[string]any{"message": "Not Found"},
 	})
 	rl := newRateLimitTransport(fx)
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestor-demo/audit-log", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestward-demo/audit-log", nil)
 	resp, err := rl.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)

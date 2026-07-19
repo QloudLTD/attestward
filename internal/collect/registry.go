@@ -9,8 +9,8 @@ import (
 // CheckMeta is the static metadata a collector registers for one check:
 // title, which collector implements it, and the token permission it needs.
 // Collector packages register these from an init() (or explicit wiring in
-// cmd/attestor) as each collector lands in issues #11-22 — nothing is
-// registered yet as of this issue, which is deliberate: `attestor checks
+// cmd/attestward) as each collector lands in issues #11-22 — nothing is
+// registered yet as of this issue, which is deliberate: `attestward checks
 // list` must work correctly against an empty registry (see #8).
 type CheckMeta struct {
 	ID         string
@@ -99,8 +99,8 @@ func Lookup(id string) (CheckMeta, bool) {
 }
 
 // collectors holds every Collector the orchestrator (issue #10) runs during
-// `attestor scan`. Separate from the CheckMeta registry above: CheckMeta is
-// display metadata for `attestor checks list`, while this is the actual
+// `attestward scan`. Separate from the CheckMeta registry above: CheckMeta is
+// display metadata for `attestward checks list`, while this is the actual
 // executable implementation — a collector package registers both, typically
 // from its own init(). Nothing is registered yet; real collectors start
 // with issue #11.
@@ -108,7 +108,7 @@ var collectors []Collector
 
 var collectorIDs = map[string]bool{}
 
-// RegisterCollector adds c to the set `attestor scan` runs. Panics on a
+// RegisterCollector adds c to the set `attestward scan` runs. Panics on a
 // duplicate ID, same as Register — a double-registered collector would
 // otherwise silently run twice and duplicate every result it produces.
 func RegisterCollector(c Collector) {

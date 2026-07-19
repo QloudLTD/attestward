@@ -38,7 +38,7 @@ default to the PR workflow above even as the sole maintainer.
 
 ```bash
 go version         # see the `go` directive in go.mod for the current floor (dependency-driven, not arbitrary)
-make build         # or: go build ./cmd/attestor
+make build         # or: go build ./cmd/attestward
 make test          # go test ./...
 make lint          # golangci-lint run
 make tidy          # go mod tidy
@@ -62,7 +62,7 @@ make tidy          # go mod tidy
   behind `//go:build integration` so `go test ./...` stays offline-safe. Run
   locally with a `GITHUB_TOKEN` in the environment:
   ```
-  GITHUB_TOKEN=<token> go test -tags integration ./cmd/attestor/... -run TestIntegration_DemoOrgMatchesFixtures -v
+  GITHUB_TOKEN=<token> go test -tags integration ./cmd/attestward/... -run TestIntegration_DemoOrgMatchesFixtures -v
   ```
   Without `-tags integration`, this test file isn't even compiled in; with the tag
   but no `GITHUB_TOKEN`, it skips cleanly rather than failing.

@@ -49,12 +49,12 @@ func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 
 func TestCollect_NoEnvironmentsAllNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/lib-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/lib-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 0, "environments": []any{}})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"lib-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"lib-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestCollect_NoEnvironmentsAllNotCheckable(t *testing.T) {
 
 func TestCollect_EnvsExistNoneProdLikeAllPartial(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/staging-only/environments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/staging-only/environments", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 2,
 			"environments": []map[string]any{
@@ -84,7 +84,7 @@ func TestCollect_EnvsExistNoneProdLikeAllPartial(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"staging-only"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"staging-only"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestCollect_EnvsExistNoneProdLikeAllPartial(t *testing.T) {
 
 func TestCollect_ProdEnvFullyProtectedAllPass(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/good-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 1,
 			"environments": []map[string]any{
@@ -121,7 +121,7 @@ func TestCollect_ProdEnvFullyProtectedAllPass(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"good-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestCollect_ProdEnvFullyProtectedAllPass(t *testing.T) {
 
 func TestCollect_ProdEnvNoProtectionRelevantChecksFail(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/bad-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bad-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 1,
 			"environments": []map[string]any{
@@ -150,7 +150,7 @@ func TestCollect_ProdEnvNoProtectionRelevantChecksFail(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"bad-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"bad-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestCollect_ProdEnvNoProtectionRelevantChecksFail(t *testing.T) {
 // well-protected first one.
 func TestCollect_MultipleProdEnvsEveryOneMustPass(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/multi-prod/environments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/multi-prod/environments", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 2,
 			"environments": []map[string]any{
@@ -191,7 +191,7 @@ func TestCollect_MultipleProdEnvsEveryOneMustPass(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"multi-prod"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"multi-prod"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestCollect_MultipleProdEnvsEveryOneMustPass(t *testing.T) {
 // both.
 func TestCollect_PaginatesAcrossMultiplePages(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/paginated-repo/environments", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/paginated-repo/environments", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") == "2" {
 			writeJSON(t, w, http.StatusOK, map[string]any{
 				"total_count": 2,
@@ -249,7 +249,7 @@ func TestCollect_PaginatesAcrossMultiplePages(t *testing.T) {
 			})
 			return
 		}
-		w.Header().Set("Link", `<https://api.github.com/repos/attestor-demo/paginated-repo/environments?page=2>; rel="next"`)
+		w.Header().Set("Link", `<https://api.github.com/repos/attestward-demo/paginated-repo/environments?page=2>; rel="next"`)
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 2,
 			"environments": []map[string]any{
@@ -265,7 +265,7 @@ func TestCollect_PaginatesAcrossMultiplePages(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"paginated-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"paginated-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -284,12 +284,12 @@ func TestCollect_PaginatesAcrossMultiplePages(t *testing.T) {
 
 func TestCollect_PermissionGated403AllNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/secret-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/secret-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"secret-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"secret-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -308,12 +308,12 @@ func TestCollect_PermissionGated403AllNotCheckable(t *testing.T) {
 
 func TestCollect_PlanGated404AllNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/free-plan-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/free-plan-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"free-plan-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"free-plan-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -330,13 +330,13 @@ func TestCollect_PlanGated404AllNotCheckable(t *testing.T) {
 func TestCollect_MultiRepoScanProducesFourResultsEach(t *testing.T) {
 	mux := http.NewServeMux()
 	for _, repo := range []string{"repo-a", "repo-b"} {
-		mux.HandleFunc("/repos/attestor-demo/"+repo+"/environments", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/"+repo+"/environments", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 0, "environments": []any{}})
 		})
 	}
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a", "repo-b"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a", "repo-b"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	results, err := c.Collect(ctx, collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a"}})
+	results, err := c.Collect(ctx, collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

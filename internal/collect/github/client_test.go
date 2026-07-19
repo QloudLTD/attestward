@@ -73,13 +73,13 @@ func (d *demoCollector) Collect(ctx context.Context, scope collect.Scope) ([]mod
 
 func TestDemoCollector_EndToEndThroughPoolAndFixtures(t *testing.T) {
 	fx := ghfixture.New().
-		Set("GET", "/repos/attestor-demo/good-repo", ghfixture.Response{Status: 200, Body: map[string]any{"name": "good-repo"}}).
-		Set("GET", "/repos/attestor-demo/other-repo", ghfixture.Response{Status: 200, Body: map[string]any{"name": "other-repo"}})
+		Set("GET", "/repos/attestward-demo/good-repo", ghfixture.Response{Status: 200, Body: map[string]any{"name": "good-repo"}}).
+		Set("GET", "/repos/attestward-demo/other-repo", ghfixture.Response{Status: 200, Body: map[string]any{"name": "other-repo"}})
 
 	client := newTestClient(t, "ghp_demo-token", fx)
 	d := &demoCollector{client: client}
 
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"good-repo", "other-repo"}}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo", "other-repo"}}
 	results, err := d.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -115,14 +115,14 @@ func TestDemoCollector_EndToEndThroughPoolAndFixtures(t *testing.T) {
 }
 
 func TestDemoCollector_PlanGatedResponseProducesNotCheckableNeverFail(t *testing.T) {
-	fx := ghfixture.New().Set("GET", "/repos/attestor-demo/free-plan-repo", ghfixture.Response{
+	fx := ghfixture.New().Set("GET", "/repos/attestward-demo/free-plan-repo", ghfixture.Response{
 		Status: http.StatusNotFound,
 		Body:   map[string]any{"message": "Not Found"},
 	})
 	client := newTestClient(t, "ghp_demo-token", fx)
 	d := &demoCollector{client: client}
 
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"free-plan-repo"}}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"free-plan-repo"}}
 	results, err := d.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -145,7 +145,7 @@ func TestDemoCollector_CollectorFailureDoesNotPanicCaller(t *testing.T) {
 	client := newTestClient(t, "ghp_demo-token", fx)
 	d := &demoCollector{client: client}
 
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"unregistered-repo"}}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"unregistered-repo"}}
 	_, err := d.Collect(context.Background(), scope)
 	if err == nil {
 		t.Fatal("Collect() = nil error, want an error for a repo with no matching fixture")

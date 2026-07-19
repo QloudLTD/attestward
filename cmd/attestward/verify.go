@@ -17,16 +17,16 @@ var verifyArgsFlag []string
 var verifyCmd = &cobra.Command{
 	Use:   "verify <dir>",
 	Short: "Verify an evidence pack's SHA-256 hash (and signature, if signed)",
-	Long: `attestor verify recomputes <dir>/evidence.json's SHA-256 and compares it
+	Long: `attestward verify recomputes <dir>/evidence.json's SHA-256 and compares it
 against <dir>/evidence.json.sha256 — exactly what a plain
-"sha256sum -c evidence.json.sha256" (run from inside <dir>) checks; attestor's
+"sha256sum -c evidence.json.sha256" (run from inside <dir>) checks; attestward's
 own involvement is not required to trust the hash half of the result.
 
-If <dir>/evidence.json.bundle exists (attestor scan --sign produced one),
+If <dir>/evidence.json.bundle exists (attestward scan --sign produced one),
 also runs "cosign verify-blob" against it — pass whatever cosign needs to
 identify the signer via --verify-args (e.g. for keyless verification,
 --verify-args=--certificate-identity-regexp=... and
---verify-args=--certificate-oidc-issuer=...; attestor doesn't default or
+--verify-args=--certificate-oidc-issuer=...; attestward doesn't default or
 infer these, since the correct identity is producer-specific). No bundle
 present means nothing to verify there — an unsigned pack isn't itself a
 tamper finding.
@@ -64,9 +64,9 @@ type verifyResult struct {
 // verifyEvidencePack checks path (an evidence.json file, wherever it
 // lives — not assumed to be named "evidence.json" or to live in any
 // particular directory) against its sidecar and, if present, its bundle.
-// Takes a path rather than a directory so issue #28's `attestor report`
+// Takes a path rather than a directory so issue #28's `attestward report`
 // can reuse this unchanged for an arbitrary evidence.json path, not just
-// `attestor verify`'s own directory-based convention.
+// `attestward verify`'s own directory-based convention.
 func verifyEvidencePack(ctx context.Context, path string, signer integrity.Signer, verifyArgs []string) (verifyResult, error) {
 	ok, got, want, err := integrity.VerifyFile(path)
 	if err != nil {

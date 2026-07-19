@@ -59,7 +59,7 @@ var (
 var scanCmd = &cobra.Command{
 	Use:   "scan",
 	Short: "Scan a GitHub org/repo and emit an evidence pack",
-	Long: `attestor scan resolves scope, runs every registered collector, rolls
+	Long: `attestward scan resolves scope, runs every registered collector, rolls
 results up through the SSDF/CISA mappings, and writes evidence.json into
 --out.
 
@@ -72,7 +72,7 @@ error.`,
 func init() {
 	scanCmd.Flags().StringVar(&scanFlags.Org, "org", "", "GitHub account to scan — an org or a personal user account (required, unless set in --config)")
 	scanCmd.Flags().StringArrayVar(&scanFlags.Repos, "repo", nil, "repo to scan (repeatable); empty scans all non-archived, non-fork repos")
-	scanCmd.Flags().StringVar(&scanConfigPath, "config", "", "path to a YAML config file (see examples/attestor.yaml); flags override its values")
+	scanCmd.Flags().StringVar(&scanConfigPath, "config", "", "path to a YAML config file (see examples/attestward.yaml); flags override its values")
 	scanCmd.Flags().StringVar(&scanFlags.ReleaseTagPattern, "release-tag-pattern", "", "glob (filepath.Match syntax, not regex) for release tags in scope (default \"v*\")")
 	scanCmd.Flags().IntVar(&scanFlags.LookbackReleases, "lookback-releases", 0, "releases to look back over (default 5)")
 	scanCmd.Flags().IntVar(&scanFlags.LookbackMonths, "lookback-months", 0, "months to look back over (default 12)")
@@ -215,7 +215,7 @@ type scanResult struct {
 	exitCode int
 }
 
-// runScan is the testable core of `attestor scan`: preflight, resolve
+// runScan is the testable core of `attestward scan`: preflight, resolve
 // scope, run collectors, roll up, assemble the pack. It does not write any
 // file — that's writeEvidencePack, called separately so tests can assert on
 // the assembled pack without touching the filesystem.

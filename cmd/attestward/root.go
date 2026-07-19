@@ -17,9 +17,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "attestor",
+	Use:   "attestward",
 	Short: "Verify the technical controls behind the CISA SSDA form against a GitHub org/repo",
-	Long: `attestor is a read-only CLI that connects to a software producer's source-control
+	Long: `attestward is a read-only CLI that connects to a software producer's source-control
 and CI/CD platform (GitHub first) and verifies — rather than asks about — the
 technical controls behind the CISA Secure Software Development Attestation
 (SSDA) form. It maps findings to NIST SSDF (SP 800-218) practices and emits a

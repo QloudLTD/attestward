@@ -58,7 +58,7 @@ func TestListWorkflowsAndMatchWorkflows_CategoryFiltering(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/mixed-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/mixed-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"total_count": 2,
 			"workflows": []map[string]any{
@@ -67,16 +67,16 @@ func TestListWorkflowsAndMatchWorkflows_CategoryFiltering(t *testing.T) {
 			},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/mixed-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/mixed-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"content": codeqlWorkflowYAML, "sha": "sha-codeql"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/mixed-repo/contents/.github/workflows/trivy.yml", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/mixed-repo/contents/.github/workflows/trivy.yml", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"content": trivyWorkflowYAML, "sha": "sha-trivy"})
 	})
 
 	client := newTestClient(t, mux)
 
-	workflows, resp, err := ListWorkflows(context.Background(), client, "attestor-demo", "mixed-repo")
+	workflows, resp, err := ListWorkflows(context.Background(), client, "attestward-demo", "mixed-repo")
 	if err != nil {
 		t.Fatalf("ListWorkflows: %v", err)
 	}
@@ -87,12 +87,12 @@ func TestListWorkflowsAndMatchWorkflows_CategoryFiltering(t *testing.T) {
 		t.Fatalf("len(workflows) = %d, want 2", len(workflows))
 	}
 
-	sastMatches := MatchWorkflows(context.Background(), client, registry, "attestor-demo", "mixed-repo", "main", workflows, mapping.CategorySAST)
+	sastMatches := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "mixed-repo", "main", workflows, mapping.CategorySAST)
 	if len(sastMatches) != 1 || sastMatches[0].Path != ".github/workflows/codeql.yml" {
 		t.Errorf("SAST matches = %+v, want exactly the CodeQL workflow", sastMatches)
 	}
 
-	scaMatches := MatchWorkflows(context.Background(), client, registry, "attestor-demo", "mixed-repo", "main", workflows, mapping.CategorySCA)
+	scaMatches := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "mixed-repo", "main", workflows, mapping.CategorySCA)
 	if len(scaMatches) != 1 || scaMatches[0].Path != ".github/workflows/trivy.yml" {
 		t.Errorf("SCA matches = %+v, want exactly the Trivy workflow", scaMatches)
 	}
@@ -108,10 +108,10 @@ func TestMatchWorkflows_UnreadableWorkflowIsSkippedNotFatal(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/flaky-repo/contents/.github/workflows/gone.yml", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/contents/.github/workflows/gone.yml", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
-	mux.HandleFunc("/repos/attestor-demo/flaky-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"content": codeqlWorkflowYAML, "sha": "sha-codeql"})
 	})
 
@@ -121,7 +121,7 @@ func TestMatchWorkflows_UnreadableWorkflowIsSkippedNotFatal(t *testing.T) {
 		{ID: ghgithub.Ptr(int64(2)), Path: ghgithub.Ptr(".github/workflows/codeql.yml")},
 	}
 
-	matches := MatchWorkflows(context.Background(), client, registry, "attestor-demo", "flaky-repo", "main", workflows, mapping.CategorySAST)
+	matches := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "flaky-repo", "main", workflows, mapping.CategorySAST)
 	if len(matches) != 1 || matches[0].Path != ".github/workflows/codeql.yml" {
 		t.Errorf("matches = %+v, want exactly the readable CodeQL workflow (the 404'd one skipped, not fatal)", matches)
 	}

@@ -186,7 +186,7 @@ func TestCollect_KnownUserAccountSkipsOrgLogAPICallEntirely(t *testing.T) {
 	// model.CheckResult.Provenance is `json:"provenance"` with no
 	// omitempty, and the evidence-pack schema requires it as an array —
 	// a nil slice marshals to JSON null and fails pre-write schema
-	// validation, aborting attestor scan entirely for any user-account
+	// validation, aborting attestward scan entirely for any user-account
 	// target (found in Fable review of PR #103).
 	if got.Provenance == nil {
 		t.Errorf("Provenance is nil, want a non-nil (possibly empty) slice — a nil Provenance marshals to JSON null and fails the evidence-pack schema's required array type")

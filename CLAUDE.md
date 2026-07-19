@@ -6,7 +6,7 @@ an issue.
 
 ## What this is
 
-`attestor` (the CLI binary name; the product's public name is **Attestward** — see
+`attestward` (the CLI binary name; the product's public name is **Attestward** — see
 [DECISIONS.md](DECISIONS.md) D1, resolved 2026-07-19) is a read-only CLI that verifies
 the technical controls behind the CISA SSDA form against a GitHub org/repo and emits a
 signed evidence pack. Full mission and rationale: [README.md](README.md). The GitHub
@@ -30,9 +30,9 @@ own non-engineer sign-off requirement (see the PR/issue for details); #26
 (poam.md — `collect.CheckMeta.Remediation` backfilled across all 46 C01–C10
 checks, renderer merged, cross-linked with report.md's Gaps table via shared
 POA&M finding IDs) is merged; #27 (pack integrity) is merged — SHA-256
-hashing, the `.sha256` sidecar, `attestor verify` (hash + cosign
-signature), and `attestor scan --sign` are all in place (ADR-0006 records
-why cosign is shelled out to rather than vendored). #28 (`attestor
+hashing, the `.sha256` sidecar, `attestward verify` (hash + cosign
+signature), and `attestward scan --sign` are all in place (ADR-0006 records
+why cosign is shelled out to rather than vendored). #28 (`attestward
 report`) is merged — regenerates report.md/report.html/poam.md from an
 existing evidence.json with no scan and no network access, gates on
 schema_version, checks the .sha256 sidecar when present (refusing to
@@ -41,17 +41,17 @@ banner), and sets Integrity.SHA256 so report.md/html always show the hash
 of the exact bytes rendered. Phase 5 is otherwise complete; #25 stays open
 pending its own non-engineer sign-off requirement (renderers themselves
 are merged). Phase 6 is in progress: #30 (generated `docs/checks-reference.md`)
-is merged — the `internal/checksref` renderer plus `attestor checks docs`
+is merged — the `internal/checksref` renderer plus `attestward checks docs`
 (`--check` for the CI drift guard, wired into `.github/workflows/ci.yaml`)
 generate the reference from `mappings/*.yaml` and the C01–C10 registry, with
 the file itself committed and cross-linked from the README. #32 (self-scan
 workflow) is also merged and closed — `.github/workflows/self-scan.yaml`
-runs `attestor scan` against `sioakim/attestward` itself on release/weekly/manual
+runs `attestward scan` against `sioakim/attestward` itself on release/weekly/manual
 dispatch, verified live (not just reasoned about) under the real restricted
 `GITHUB_TOKEN`: a first clean run, a deliberate-red test (disabled
 Dependabot alerts, confirmed the job failed, reverted, confirmed green
 again), badge + a "Self-scan" README section linking real (not demo-org)
-sample runs. Building it surfaced and fixed #102 (`attestor scan` couldn't
+sample runs. Building it surfaced and fixed #102 (`attestward scan` couldn't
 target a personal-GitHub-account-owned repo — this repo itself — at all)
 and 3 of 8 real gaps in this repo's own posture (PR #104); 2 more gaps are
 tracked as their own issues (#105, #106) rather than fixed unilaterally,
@@ -129,7 +129,7 @@ issue or needs one opened before starting.
 
 ```bash
 go version   # 1.26+ installed (1.22+ required)
-make build   # or: go build ./cmd/attestor
+make build   # or: go build ./cmd/attestward
 make test
 make lint    # golangci-lint run (v2 config — see .golangci.yml)
 make tidy    # go mod tidy
@@ -153,11 +153,11 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #5 Evidence/check data model + JSON Schema
 - [x] #6 `mappings/ssdf-800-218.yaml`
 - [x] #7 `mappings/cisa-ssda-form.yaml`
-- [x] #8 `attestor checks list`
+- [x] #8 `attestward checks list`
 
 **Phase 2 — Foundation + collectors C01–C04**
 - [x] #9 Collector interface + GitHub client foundation
-- [x] #10 `attestor scan` orchestrator
+- [x] #10 `attestward scan` orchestrator
 - [x] #11 C01 org-security
 - [x] #12 C02 repo-protection
 - [x] #13 C03 env-separation
@@ -181,7 +181,7 @@ itself, so re-run it any time rather than hand-editing it.
 - [ ] #25 report.md/html (renderers merged; issue open pending non-engineer sign-off)
 - [x] #26 poam.md
 - [x] #27 pack integrity
-- [x] #28 `attestor report`
+- [x] #28 `attestward report`
 
 **Phase 6 — Polish & launch**
 - [x] #30 Generated checks-reference (`docs/checks-reference.md`, CI drift guard)
@@ -190,9 +190,10 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #31 threat model finalization (runtime read-only guard + claim-by-claim audit + external-reader sign-off)
 - [ ] #33 launch checklist
 
-**Post-v0.1 (seams only, do not build)**
+**Post-v0.1 backlog (seams only, do not build)**
 - #34 Azure DevOps · #35 GitLab/SLSA/VEX · #36 Continuous mode GitHub Action
-- Hosted tier (DECISIONS.md D4, resolved 2026-07-19 — commercial, separate from the OSS
-  CLI): #121 portfolio dashboard · #122 evidence retention/drift · #123 team
+
+**v1.0 milestone — hosted tier** (commercial, separate from the OSS CLI; DECISIONS.md D4)
+- #121 portfolio dashboard · #122 evidence retention/drift · #123 team
   collaboration/POA&M · #124 RSAA-ready packaging (undefined, research-first) · #125 org
   SSO · #126 managed continuous mode (builds on #36)

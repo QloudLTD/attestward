@@ -19,9 +19,9 @@ import (
 // package's Rollup already ranks self-attested below verified-pass
 // (rollup.go) and below not-checkable/partial/verified-fail, so an
 // answer's own polarity never needs to be baked into Status itself to get
-// correct rollup behavior; the actual answer/evidence/attestor is carried
-// in Facts for a report or POA&M generator (issues #25/#26) to render or
-// flag as it sees fit. Provenance is always empty — nothing was queried
+// correct rollup behavior; the actual answer/evidence_ref/attested_by is
+// carried in Facts for a report or POA&M generator (issues #25/#26) to
+// render or flag as it sees fit. Provenance is always empty — nothing was queried
 // from a platform API for a self-attested result, by definition.
 func BuildSelfAttestedResults(questions *SelfAttestationQuestions, answers *SelfAttestationAnswers, org string) []model.CheckResult {
 	answerByID := map[string]SelfAttestationAnswer{}

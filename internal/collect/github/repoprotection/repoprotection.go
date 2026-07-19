@@ -195,7 +195,7 @@ type Collector struct {
 	// production code never sets it (New leaves it nil and Collect falls
 	// back to ghcollect.NewClient); tests use it to point every per-repo
 	// client at an httptest.Server, the same role scanDeps' injected fields
-	// play in cmd/attestor/scan.go.
+	// play in cmd/attestward/scan.go.
 	newClientForTest func(token string) *ghcollect.Client
 }
 

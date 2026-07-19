@@ -32,7 +32,7 @@ func writeFixturePack(t *testing.T, dir string) (path, hash string) {
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		Results:       []model.CheckResult{},
 	}
 	hash, err := writeEvidencePack(pack, dir)
@@ -63,8 +63,8 @@ func TestVerifyEvidencePack_MatchingHashIsOK(t *testing.T) {
 }
 
 // TestVerifyEvidencePack_TamperedByteFails is issue #27's own named
-// acceptance case, exercised through the exact real path attestor scan
-// and attestor verify use — writeEvidencePack's real atomic writer,
+// acceptance case, exercised through the exact real path attestward scan
+// and attestward verify use — writeEvidencePack's real atomic writer,
 // integrity's real sidecar format, no shortcuts.
 func TestVerifyEvidencePack_TamperedByteFails(t *testing.T) {
 	dir := t.TempDir()
@@ -104,7 +104,7 @@ func TestVerifyEvidencePack_MissingSidecarIsError(t *testing.T) {
 	dir := t.TempDir()
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion, ToolVersion: "test",
-		Scope: model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}}, Results: []model.CheckResult{},
+		Scope: model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}}, Results: []model.CheckResult{},
 	}
 	if _, err := writeEvidencePack(pack, dir); err != nil {
 		t.Fatalf("writeEvidencePack: %v", err)

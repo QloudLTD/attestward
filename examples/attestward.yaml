@@ -1,26 +1,26 @@
-# Example attestor scan configuration.
+# Example attestward scan configuration.
 #
-# Usage: attestor scan --config attestor.yaml
+# Usage: attestward scan --config attestward.yaml
 # Any of these values can be overridden on the command line — e.g.
-# `attestor scan --config attestor.yaml --out /tmp/evidence` writes
+# `attestward scan --config attestward.yaml --out /tmp/evidence` writes
 # somewhere else for one run without editing this file. Flags always win
 # over the file, field by field; a flag you don't pass leaves the file's
-# value (or attestor's built-in default) untouched.
+# value (or attestward's built-in default) untouched.
 #
 # Unknown keys are a hard error (a typo'd "respos:" silently scanning
 # everything instead of the repos you meant would be a truthfulness bug in
-# a tool whose whole point is truthful evidence) — so if attestor rejects
+# a tool whose whole point is truthful evidence) — so if attestward rejects
 # this file after you've edited it, check for a misspelled key first.
 
 # Required. The GitHub account to scan — an Organization or a personal User
-# account both work (attestor detects which automatically). Org-scoped
+# account both work (attestward detects which automatically). Org-scoped
 # checks (e.g. C01 org-security, C09 audit-logging) report not-checkable
 # with a specific reason for a personal-account target, since GitHub's
 # org-level API has no equivalent for one.
 org: my-org
 
 # The "product line" being attested for. Leave empty (or omit entirely) to
-# scan every non-archived, non-fork repo in the account — attestor prints a
+# scan every non-archived, non-fork repo in the account — attestward prints a
 # warning when it falls back to this, since scanning "everything" instead
 # of an intentional subset is worth knowing about (and, for a personal
 # account target, only public repos are listed this way — pass explicit
@@ -41,13 +41,13 @@ lookback_releases: 5
 lookback_months: 12
 
 # Path to a self-attestation answers file (see issue #23; generate a
-# template with `attestor attest init`). Optional; controls that can't be
+# template with `attestward attest init`). Optional; controls that can't be
 # verified via API are reported as not-checkable until this is supplied.
 # self_attestation_file: ./self-attestation.yaml
 
 # Where evidence.json (plus its .sha256 sidecar, and .bundle if --sign is
 # set) gets written. Default: ./evidence/. report.md/html and poam.md are a
-# separate step: `attestor report ./evidence/evidence.json`.
+# separate step: `attestward report ./evidence/evidence.json`.
 out: ./evidence/
 
 # How many collectors run concurrently. Default: 4
@@ -57,7 +57,7 @@ concurrency: 4
 # requires cosign on PATH — see ADR-0006). sign_args is passed through to
 # cosign verbatim: leave it empty for keyless signing (Sigstore/Fulcio
 # OIDC — the same flow this project's own release pipeline uses), or set
-# it to something like ["--key=cosign.key"] for a key file. attestor never
+# it to something like ["--key=cosign.key"] for a key file. attestward never
 # manages key material itself.
 # sign: true
 # sign_args: []

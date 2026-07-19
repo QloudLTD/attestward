@@ -95,7 +95,7 @@ func (l *restRepoLister) listByUser(ctx context.Context, user string) ([]repoInf
 // observed (internal/collect/github/scopes.go), so this must run before
 // that warning is checked, not after resolveRepos alone (which makes zero
 // API calls whenever repos are given explicitly — the documented usage in
-// examples/attestor.yaml).
+// examples/attestward.yaml).
 type orgChecker interface {
 	CheckAccount(ctx context.Context, account string) (collect.AccountType, error)
 }

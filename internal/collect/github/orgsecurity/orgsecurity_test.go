@@ -17,7 +17,7 @@ import (
 
 // newTestCollector points a real ghcollect.Client at a local httptest
 // server via client.REST.BaseURL, the same pattern
-// cmd/attestor/scanorgcheck_test.go uses — ghfixture's Transport can't be
+// cmd/attestward/scanorgcheck_test.go uses — ghfixture's Transport can't be
 // wired in from outside package github (its underlying construction needs
 // the unexported provenance/rate-limit transports), so a real loopback
 // server exercises the full auth+provenance+rate-limit chain unmodified.
@@ -51,19 +51,19 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {
 
 func TestCollect_GoodOrgAllChecksPass(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"two_factor_requirement_enabled":         true,
 			"default_repository_permission":          "read",
 			"members_can_create_public_repositories": false,
 		})
 	})
-	mux.HandleFunc("/orgs/attestor-demo/members", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo/members", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []map[string]any{})
 	})
 
 	c := newTestCollector(t, mux)
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -79,21 +79,21 @@ func TestCollect_GoodOrgAllChecksPass(t *testing.T) {
 
 func TestCollect_BadOrgAllChecksFail(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"two_factor_requirement_enabled":         false,
 			"default_repository_permission":          "write",
 			"members_can_create_public_repositories": true,
 		})
 	})
-	mux.HandleFunc("/orgs/attestor-demo/members", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo/members", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []map[string]any{
 			{"login": "alice"}, {"login": "bob"},
 		})
 	})
 
 	c := newTestCollector(t, mux)
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -118,21 +118,21 @@ func TestCollect_BadOrgAllChecksFail(t *testing.T) {
 // anywhere in the result contains a member login/name.
 func TestCollect_MembersWithout2FA_NeverLeaksNames(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"two_factor_requirement_enabled":         true,
 			"default_repository_permission":          "read",
 			"members_can_create_public_repositories": false,
 		})
 	})
-	mux.HandleFunc("/orgs/attestor-demo/members", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo/members", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []map[string]any{
 			{"login": "alice-should-never-appear"}, {"login": "bob-should-never-appear"},
 		})
 	})
 
 	c := newTestCollector(t, mux)
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -156,24 +156,24 @@ func TestCollect_MembersWithout2FA_Paginates(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"two_factor_requirement_enabled":         true,
 			"default_repository_permission":          "read",
 			"members_can_create_public_repositories": false,
 		})
 	})
-	mux.HandleFunc("/orgs/attestor-demo/members", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo/members", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") == "2" {
 			writeJSON(t, w, http.StatusOK, []map[string]any{{"login": "user"}})
 			return
 		}
-		w.Header().Set("Link", `<https://api.github.com/orgs/attestor-demo/members?page=2>; rel="next"`)
+		w.Header().Set("Link", `<https://api.github.com/orgs/attestward-demo/members?page=2>; rel="next"`)
 		writeJSON(t, w, http.StatusOK, page1)
 	})
 
 	c := newTestCollector(t, mux)
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -192,12 +192,12 @@ func TestCollect_MembersWithout2FA_Paginates(t *testing.T) {
 
 func TestCollect_PermissionGated403AllNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newTestCollector(t, mux)
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestCollect_KnownUserAccountSkipsAPICallEntirely(t *testing.T) {
 		// model.CheckResult.Provenance is `json:"provenance"` with no
 		// omitempty, and the evidence-pack schema requires it as an array
 		// — a nil slice marshals to JSON null, which fails pre-write
-		// schema validation and would abort attestor scan entirely for
+		// schema validation and would abort attestward scan entirely for
 		// any user-account target (found in Fable review of PR #103).
 		if r.Provenance == nil {
 			t.Errorf("%s Provenance is nil, want a non-nil (possibly empty) slice — a nil Provenance marshals to JSON null and fails the evidence-pack schema's required array type", r.CheckID)
@@ -308,18 +308,18 @@ func TestCollect_MissingFieldIsNotCheckableNotFalse(t *testing.T) {
 	// (2FA not required), which would be a fabricated verified-fail instead
 	// of an honest not-checkable.
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"default_repository_permission":          "read",
 			"members_can_create_public_repositories": false,
 		})
 	})
-	mux.HandleFunc("/orgs/attestor-demo/members", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo/members", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []map[string]any{})
 	})
 
 	c := newTestCollector(t, mux)
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -332,19 +332,19 @@ func TestCollect_MissingFieldIsNotCheckableNotFalse(t *testing.T) {
 
 func TestCollect_ProvenanceRecordedForEveryResult(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"two_factor_requirement_enabled":         true,
 			"default_repository_permission":          "read",
 			"members_can_create_public_repositories": false,
 		})
 	})
-	mux.HandleFunc("/orgs/attestor-demo/members", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo/members", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, []map[string]any{})
 	})
 
 	c := newTestCollector(t, mux)
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestCollect_ProvenanceRecordedForEveryResult(t *testing.T) {
 
 // TestCollect_RegistersAllFourChecks proves the init()-registered CheckMeta
 // entries match the same four check IDs Collect() actually produces — so
-// `attestor checks list` never shows C01 as UNMAPPED.
+// `attestward checks list` never shows C01 as UNMAPPED.
 func TestCollect_RegistersAllFourChecks(t *testing.T) {
 	for id := range checkTitles {
 		if _, ok := collect.Lookup(id); !ok {

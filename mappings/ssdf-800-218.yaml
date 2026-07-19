@@ -1,6 +1,6 @@
 # mappings/ssdf-800-218.yaml
 #
-# Canonical machine-readable slice of NIST SP 800-218 (SSDF v1.1) that attestor
+# Canonical machine-readable slice of NIST SP 800-218 (SSDF v1.1) that attestward
 # reasons over. Every task below is one that CISA's own SSDA form Appendix
 # ("Minimum Attestation References" table) cites as substantiating one of the
 # form's four attestation clusters — see mappings/cisa-ssda-form.yaml, which
@@ -31,7 +31,7 @@ source:
 retrieved: "2026-07-13"
 
 # Practice-level context (title + description, verbatim) for every practice
-# that has at least one task referenced below. Rendered by `attestor checks
+# that has at least one task referenced below. Rendered by `attestward checks
 # list` (#8) alongside its tasks so a reader never needs the source PDF open.
 practices:
   PO.1:

@@ -32,7 +32,7 @@ func TestForEachRepo_RunsEveryRepoAndPreservesOrder(t *testing.T) {
 
 // TestForEachRepo_PreCanceledContextNeverDispatchesAny is a regression
 // test for a latent bug found while fixing a near-identical issue in
-// cmd/attestor's runCollectors (issue #10's Fable 5 review): when ctx is
+// cmd/attestward's runCollectors (issue #10's Fable 5 review): when ctx is
 // already canceled *before* ForEachRepo is even called, and the semaphore
 // has room (true for the first repo), the original select raced ctx.Done()
 // against an immediately-ready sem<- — both cases ready at once, so Go's

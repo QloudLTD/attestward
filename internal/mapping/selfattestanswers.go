@@ -25,7 +25,7 @@ type SelfAttestationAnswer struct {
 
 // SelfAttestationAnswers is the parsed, validated content of a
 // user-authored self-attestation answers file (generated as a template by
-// `attestor attest init`, then filled in by hand).
+// `attestward attest init`, then filled in by hand).
 type SelfAttestationAnswers struct {
 	QuestionsVersion string                  `yaml:"questions_version,omitempty"`
 	Answers          []SelfAttestationAnswer `yaml:"answers"`

@@ -1,6 +1,6 @@
 name: Integration scan (demo org)
 
-# The API-drift tripwire (issue #15): runs `attestor scan` against the real
+# The API-drift tripwire (issue #15): runs `attestward scan` against the real
 # public demo org and asserts every result against fixtures.yaml. Catches
 # GitHub API changes that would silently invalidate a collector's
 # assumptions before a user hits them.
@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      issues: write # only for the on-failure pinned-issue step below; never writes to the scanned demo org itself (ADR-0004: attestor never mutates a scanned target)
+      issues: write # only for the on-failure pinned-issue step below; never writes to the scanned demo org itself (ADR-0004: attestward never mutates a scanned target)
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -52,7 +52,7 @@ jobs:
             echo "::error::DEMO_ORG_PAT secret is not set — see CONTRIBUTING.md's PAT provisioning section" >&2
             exit 1
           fi
-          go test -tags integration ./cmd/attestor/... -run TestIntegration_DemoOrgMatchesFixtures -v
+          go test -tags integration ./cmd/attestward/... -run TestIntegration_DemoOrgMatchesFixtures -v
 
       - name: Open or update the drift-tripwire issue on failure
         if: failure()
@@ -124,17 +124,17 @@ jobs:
           # e.g. signing broke). This job cares about "did scan+sign+verify
           # actually work", not "is Qloud-LTD clean", so exit 2 from scan
           # must not fail the step the way exit 1 should.
-          go build -o ./attestor ./cmd/attestor
+          go build -o ./attestward ./cmd/attestward
 
           set +e
-          ./attestor scan --org Qloud-LTD --repo demo-good --sign --out ./evidence
+          ./attestward scan --org Qloud-LTD --repo demo-good --sign --out ./evidence
           scan_rc=$?
           set -e
           if [ "$scan_rc" -ne 0 ] && [ "$scan_rc" -ne 2 ]; then
-            echo "::error::attestor scan exited $scan_rc (expected 0 or 2 — gaps found is fine, anything else is a real failure)" >&2
+            echo "::error::attestward scan exited $scan_rc (expected 0 or 2 — gaps found is fine, anything else is a real failure)" >&2
             exit "$scan_rc"
           fi
 
-          ./attestor verify ./evidence \
+          ./attestward verify ./evidence \
             --verify-args="--certificate-identity-regexp=^https://github.com/sioakim/attestward/\.github/workflows/integration-scan\.yaml@refs/heads/main$" \
             --verify-args="--certificate-oidc-issuer=https://token.actions.githubusercontent.com"

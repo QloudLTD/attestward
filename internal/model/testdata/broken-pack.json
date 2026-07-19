@@ -3,7 +3,7 @@
   "tool_version": "0.0.0-dev",
   "mapping_versions": {},
   "scope": {
-    "org": "attestor-demo",
+    "org": "attestward-demo",
     "repos": ["good-repo"]
   },
   "scan_started_at": "2026-07-13T12:00:00Z",
@@ -14,7 +14,7 @@
       "title": "Branch protection requires reviews",
       "status": "totally-fine",
       "reason": "not a real status value — this fixture exists to prove schema_test.go rejects it",
-      "scope": { "org": "attestor-demo", "repo": "good-repo" },
+      "scope": { "org": "attestward-demo", "repo": "good-repo" },
       "provenance": []
     }
   ]

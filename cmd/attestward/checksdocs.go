@@ -23,7 +23,7 @@ var (
 var checksDocsCmd = &cobra.Command{
 	Use:   "docs",
 	Short: "Regenerate docs/checks-reference.md from mappings and registered check metadata",
-	Long: `attestor checks docs renders docs/checks-reference.md: the generated,
+	Long: `attestward checks docs renders docs/checks-reference.md: the generated,
 authoritative reference of every registered check — rubric, API endpoints, token
 permission, SSDF task text, CISA form cluster, remediation, and fixture proof.
 
@@ -44,7 +44,7 @@ func runChecksDocs(cmd *cobra.Command, _ []string) error {
 	return runChecksDocsGen(cmd.OutOrStdout(), checksDocsOutFlag, checksDocsCheckFlag)
 }
 
-// runChecksDocsGen is the testable core of `attestor checks docs`: load
+// runChecksDocsGen is the testable core of `attestward checks docs`: load
 // mappings, render, then either write --out or (--check) diff against it
 // without writing.
 func runChecksDocsGen(stdout io.Writer, outPath string, check bool) error {
@@ -70,12 +70,12 @@ func runChecksDocsGen(stdout io.Writer, outPath string, check bool) error {
 		existing, err := os.ReadFile(outPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				return fmt.Errorf("%s does not exist — run `attestor checks docs` to generate it", outPath)
+				return fmt.Errorf("%s does not exist — run `attestward checks docs` to generate it", outPath)
 			}
 			return fmt.Errorf("read %s: %w", outPath, err)
 		}
 		if !bytes.Equal(existing, rendered) {
-			return fmt.Errorf("%s is stale relative to the current mappings/registry — run `attestor checks docs` and commit the result", outPath)
+			return fmt.Errorf("%s is stale relative to the current mappings/registry — run `attestward checks docs` and commit the result", outPath)
 		}
 		logf(stdout, "%s is up to date\n", outPath)
 		return nil

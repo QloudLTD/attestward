@@ -7,13 +7,13 @@ import (
 )
 
 // TestLoadScanConfigFile_ExampleFileParses is a regression test on the
-// actual shipped examples/attestor.yaml: if a future edit breaks its YAML
+// actual shipped examples/attestward.yaml: if a future edit breaks its YAML
 // or introduces an unrecognized key, this catches it in CI rather than
 // leaving users of the README quickstart to discover it themselves.
 func TestLoadScanConfigFile_ExampleFileParses(t *testing.T) {
-	cfg, err := loadScanConfigFile("../../examples/attestor.yaml")
+	cfg, err := loadScanConfigFile("../../examples/attestward.yaml")
 	if err != nil {
-		t.Fatalf("loadScanConfigFile(examples/attestor.yaml): %v", err)
+		t.Fatalf("loadScanConfigFile(examples/attestward.yaml): %v", err)
 	}
 	if cfg.Org == "" {
 		t.Error("example config's org is empty")
@@ -26,7 +26,7 @@ func TestLoadScanConfigFile_ExampleFileParses(t *testing.T) {
 // TestLoadScanConfigFile_EmptyOrAllCommentsIsNotAnError guards against the
 // bare "parse foo.yaml: EOF" the Fable 5 review found: yaml.v3's Decode
 // returns io.EOF for an empty document stream, which includes a file that's
-// entirely comments — plausible, since examples/attestor.yaml explicitly
+// entirely comments — plausible, since examples/attestward.yaml explicitly
 // encourages commenting fields out. This must be treated as "everything
 // left to defaults," with validate() giving a clear "org is required"
 // message downstream, not a confusing bare EOF.
@@ -54,8 +54,8 @@ func TestLoadScanConfigFile_EmptyOrAllCommentsIsNotAnError(t *testing.T) {
 
 func TestLoadScanConfigFile_ValidFile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "attestor.yaml")
-	content := "org: attestor-demo\nrepos: [good-repo, other-repo]\nout: ./evidence/\n"
+	path := filepath.Join(dir, "attestward.yaml")
+	content := "org: attestward-demo\nrepos: [good-repo, other-repo]\nout: ./evidence/\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
@@ -64,8 +64,8 @@ func TestLoadScanConfigFile_ValidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadScanConfigFile: %v", err)
 	}
-	if cfg.Org != "attestor-demo" {
-		t.Errorf("Org = %q, want attestor-demo", cfg.Org)
+	if cfg.Org != "attestward-demo" {
+		t.Errorf("Org = %q, want attestward-demo", cfg.Org)
 	}
 	if len(cfg.Repos) != 2 {
 		t.Errorf("len(Repos) = %d, want 2", len(cfg.Repos))
@@ -74,10 +74,10 @@ func TestLoadScanConfigFile_ValidFile(t *testing.T) {
 
 func TestLoadScanConfigFile_RejectsUnknownKey(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "attestor.yaml")
+	path := filepath.Join(dir, "attestward.yaml")
 	// "respos" is a realistic typo for "repos" — the whole point of strict
 	// parsing is that this must error, not silently scan everything.
-	content := "org: attestor-demo\nrespos: [good-repo]\n"
+	content := "org: attestward-demo\nrespos: [good-repo]\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestScanConfigValidate_RequiresOrg(t *testing.T) {
 	if err := (scanConfig{}).validate(); err == nil {
 		t.Error("validate() on an empty config = nil error, want an error requiring org")
 	}
-	if err := (scanConfig{Org: "attestor-demo"}).validate(); err != nil {
+	if err := (scanConfig{Org: "attestward-demo"}).validate(); err != nil {
 		t.Errorf("validate() with org set = %v, want nil", err)
 	}
 }

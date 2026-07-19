@@ -4,8 +4,8 @@
 
 ## Context
 
-Issue #27 needs `attestor scan --sign` to produce a Sigstore signature over `evidence.json`,
-and `attestor verify` to check one. Two ways to get there:
+Issue #27 needs `attestward scan --sign` to produce a Sigstore signature over `evidence.json`,
+and `attestward verify` to check one. Two ways to get there:
 
 1. Vendor `github.com/sigstore/sigstore-go` (or the lower-level `sigstore/cosign` packages)
    and call Sigstore's signing/verification APIs directly from Go.
@@ -28,7 +28,7 @@ there.
   `go.sum` and out of every user's binary who never signs anything.
 - **This project already has zero involvement in key management**, by design (see the
   issue: "never manage keys ourselves"). `cosign` is the actual key-management surface
-  (key files, keyless OIDC, KMS backends, Fulcio/Rekor endpoints) — since attestor never
+  (key files, keyless OIDC, KMS backends, Fulcio/Rekor endpoints) — since attestward never
   touches key material directly either way, there's no correctness reason to reimplement
   cosign's own signing protocol in-process instead of just invoking the binary that already
   implements it correctly and is what every consumer already trusts to verify a `.bundle`.
@@ -39,7 +39,7 @@ there.
 - **Real-world precedent already exists in this repo.** `.goreleaser.yaml`'s `signs:` block
   already shells out to `cosign sign-blob --bundle=... --yes` for release checksums, and
   SECURITY.md documents the matching `cosign verify-blob --bundle ...` command for
-  consumers. `attestor scan --sign`/`attestor verify` reuse that exact same invocation
+  consumers. `attestward scan --sign`/`attestward verify` reuse that exact same invocation
   shape and `--bundle` output format (cosign v3 removed the legacy separate
   `--output-signature`/`--output-certificate` flags — confirmed against the installed
   v3.1.1 binary), rather than inventing a second, inconsistent signing convention within
@@ -47,12 +47,12 @@ there.
 
 ## Consequences
 
-- `attestor scan --sign` and `attestor verify` (for a signed pack) both require `cosign` on
-  `PATH` at runtime — `attestor` itself never signs or verifies anything without it, and
+- `attestward scan --sign` and `attestward verify` (for a signed pack) both require `cosign` on
+  `PATH` at runtime — `attestward` itself never signs or verifies anything without it, and
   fails loudly with an install pointer rather than silently skipping signing (issue #27's
   own explicit requirement).
 - Signing/verification args are passed through to `cosign` nearly verbatim
-  (`--sign-args`/`--verify-args`) rather than exposed as attestor-specific flags — attestor
+  (`--sign-args`/`--verify-args`) rather than exposed as attestward-specific flags — attestward
   doesn't attempt to model cosign's own (large, evolving) flag surface, matching "never
   manage keys ourselves."
 - If a future need arises for signing to work with zero external binary dependencies (e.g.

@@ -16,7 +16,7 @@ func minimalValidPack() EvidencePack {
 			SSDF:     "1.0.0",
 			CISAForm: "1.0.0",
 		},
-		Scope:         ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		ScanStartedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 		ScanEndedAt:   time.Date(2026, 7, 13, 12, 0, 5, 0, time.UTC),
 		Results: []CheckResult{
@@ -25,7 +25,7 @@ func minimalValidPack() EvidencePack {
 				Title:      "Branch protection requires reviews",
 				Status:     StatusVerifiedPass,
 				Reason:     "main requires 1 approving review",
-				Scope:      ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+				Scope:      ScopeRef{Org: "attestward-demo", Repo: "good-repo"},
 				Provenance: []Provenance{},
 			},
 		},
@@ -121,7 +121,7 @@ func TestValidateFactsSizes_PassesForNormalFacts(t *testing.T) {
 }
 
 // TestFixturePackPassesFullValidation runs the same two checks
-// writeEvidencePack (cmd/attestor) will run before every real write
+// writeEvidencePack (cmd/attestward) will run before every real write
 // against the actual committed testdata/fixture-pack.json — both must
 // pass cleanly, or the fixture itself doesn't represent a shippable pack.
 func TestFixturePackPassesFullValidation(t *testing.T) {

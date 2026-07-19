@@ -175,7 +175,7 @@ func registerWorkflowRunsForCommit(t *testing.T, mux *http.ServeMux, org, repo s
 }
 
 func TestCollect_SignedTagChecksumsSignaturesWorkflowLinkage_AllChecksPass(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "good-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "good-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerCosignWorkflow(t, mux, org, repo)
@@ -216,7 +216,7 @@ func TestCollect_SignedTagChecksumsSignaturesWorkflowLinkage_AllChecksPass(t *te
 }
 
 func TestCollect_LightweightTag_TagsSignedFails(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "lightweight-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "lightweight-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -249,7 +249,7 @@ func TestCollect_LightweightTag_TagsSignedFails(t *testing.T) {
 // never verified-fail (the resolvable release genuinely passed; an
 // unknown isn't the same as a confirmed gap).
 func TestCollect_UnresolvableTagAmongOthers_CapsAtPartialNotDropped(t *testing.T) {
-	org, repo, branch := "attestor-demo", "mixed-resolution-repo", "main"
+	org, repo, branch := "attestward-demo", "mixed-resolution-repo", "main"
 	goodTag, badTag := "v1.0.0", "v0.9.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
@@ -296,7 +296,7 @@ func TestCollect_UnresolvableTagAmongOthers_CapsAtPartialNotDropped(t *testing.T
 }
 
 func TestCollect_UnverifiedAnnotatedTag_TagsSignedFails(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "unverified-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "unverified-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -322,7 +322,7 @@ func TestCollect_UnverifiedAnnotatedTag_TagsSignedFails(t *testing.T) {
 }
 
 func TestCollect_NoChecksumAsset_ChecksumsFails(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "no-checksum-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "no-checksum-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -346,7 +346,7 @@ func TestCollect_NoChecksumAsset_ChecksumsFails(t *testing.T) {
 }
 
 func TestCollect_NoSignatureAssetButAttestationFound_SignaturesPasses(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "attested-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "attested-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -374,7 +374,7 @@ func TestCollect_NoSignatureAssetButAttestationFound_SignaturesPasses(t *testing
 }
 
 func TestCollect_NoSignatureAssetAndNoAttestation_SignaturesFails(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "unattested-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "unattested-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -409,7 +409,7 @@ func TestCollect_NoSignatureAssetAndNoAttestation_SignaturesFails(t *testing.T) 
 // attestation). checkTagsSigned/checkCommitLinkage already distinguish
 // this via releaseUnresolved; checkSignatures didn't.
 func TestCollect_AttestationLookupFails_SignaturesCapsAtPartialNotFail(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "attestation-403-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "attestation-403-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -436,7 +436,7 @@ func TestCollect_AttestationLookupFails_SignaturesCapsAtPartialNotFail(t *testin
 }
 
 func TestCollect_NoProvenanceWorkflow_Fails(t *testing.T) {
-	org, repo, branch := "attestor-demo", "no-provenance-repo", "main"
+	org, repo, branch := "attestward-demo", "no-provenance-repo", "main"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -461,7 +461,7 @@ func TestCollect_NoProvenanceWorkflow_Fails(t *testing.T) {
 }
 
 func TestCollect_NoWorkflowRunOnCommit_CommitLinkageFails(t *testing.T) {
-	org, repo, branch, tag := "attestor-demo", "no-run-repo", "main", "v1.0.0"
+	org, repo, branch, tag := "attestward-demo", "no-run-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()
 	registerRepo(t, mux, org, repo, branch)
 	registerNoWorkflows(t, mux, org, repo)
@@ -484,12 +484,12 @@ func TestCollect_NoWorkflowRunOnCommit_CommitLinkageFails(t *testing.T) {
 
 func TestCollect_RepoFetchFailure403_AllChecksNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestor-demo", Repos: []string{"secret-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"secret-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -509,7 +509,7 @@ func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	results, err := c.Collect(ctx, collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12})
+	results, err := c.Collect(ctx, collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

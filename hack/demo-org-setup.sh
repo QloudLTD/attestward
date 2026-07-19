@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # hack/demo-org-setup.sh — creates/configures the public demo fixture repos
-# attestor's integration test scans (issue #15). Idempotent: safe to re-run.
+# attestward's integration test scans (issue #15). Idempotent: safe to re-run.
 #
 # Scope: this pass only configures what C01–C04 need. CodeQL run history,
 # release signing, SLSA provenance, and deliberately-insecure workflow
@@ -93,8 +93,8 @@ if [ "$(gh api "orgs/$ORG" --jq '.two_factor_requirement_enabled')" != "true" ];
 	echo "    warning: two_factor_requirement_enabled is still false after attempting to enable it — enable 2FA on the org owner's account (if not already), then re-run this script, or set it manually in org settings" >&2
 fi
 
-ensure_repo "$GOOD_REPO" "attestor demo fixture: SSDF/CISA controls configured correctly (C01-C04)"
-ensure_repo "$BAD_REPO" "attestor demo fixture: controls deliberately off/misconfigured (C01-C04)"
+ensure_repo "$GOOD_REPO" "attestward demo fixture: SSDF/CISA controls configured correctly (C01-C04)"
+ensure_repo "$BAD_REPO" "attestward demo fixture: controls deliberately off/misconfigured (C01-C04)"
 
 # The environment reviewer must be an actual org member's user ID — the
 # authenticated user running this script (an org admin) is always a valid
@@ -119,9 +119,9 @@ log "pushing initial content to $GOOD_REPO"
 put_file "$GOOD_REPO" "README.md" \
 "# demo-good
 
-Fixture repo for [attestor](https://github.com/sioakim/attestward)'s integration test
+Fixture repo for [attestward](https://github.com/sioakim/attestward)'s integration test
 harness (issue #15): every C01-C04 control this repo can express is configured
-correctly. See \`../fixtures.yaml\` in the attestor repo for the exact expected
+correctly. See \`../fixtures.yaml\` in the attestward repo for the exact expected
 status of every check against this repo.
 " "docs: add README"
 
@@ -176,16 +176,16 @@ jobs:
         run: |
           gh release create \"\${GITHUB_REF_NAME}\" dist/* \\
             --title \"\${GITHUB_REF_NAME}\" \\
-            --notes \"Demo release fixture for attestor's C07 provenance collector (issue #19).\"
+            --notes \"Demo release fixture for attestward's C07 provenance collector (issue #19).\"
 " "ci: add cosign-signed release workflow (C07 provenance fixture, issue #19)"
 
 log "pushing initial content to $BAD_REPO"
 put_file "$BAD_REPO" "README.md" \
 "# demo-bad
 
-Fixture repo for [attestor](https://github.com/sioakim/attestward)'s integration test
+Fixture repo for [attestward](https://github.com/sioakim/attestward)'s integration test
 harness (issue #15): every C01-C04 control this repo can express is
-deliberately off or misconfigured. See \`../fixtures.yaml\` in the attestor
+deliberately off or misconfigured. See \`../fixtures.yaml\` in the attestward
 repo for the exact expected status of every check against this repo.
 " "docs: add README"
 
@@ -296,4 +296,4 @@ log "ensuring $BAD_REPO Dependabot alerts are off"
 # script report "done" while demo-bad still had alerts enabled.
 gh api "repos/$ORG/$BAD_REPO/vulnerability-alerts" -X DELETE >/dev/null
 
-log "done — verify with: attestor scan --org $ORG --repo $GOOD_REPO --repo $BAD_REPO --out /tmp/demo-scan"
+log "done — verify with: attestward scan --org $ORG --repo $GOOD_REPO --repo $BAD_REPO --out /tmp/demo-scan"

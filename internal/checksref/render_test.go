@@ -20,7 +20,7 @@ var updateGolden = flag.Bool("update", false, "write golden files instead of com
 // three-status rubric, a two-status rubric, and a legitimately-empty
 // Endpoints (the C09-style "fixed fact" case) — deliberately not the real
 // embedded mappings/registry, which keeps evolving independently of this
-// renderer's own contract (see cmd/attestor/checks_test.go's identical
+// renderer's own contract (see cmd/attestward/checks_test.go's identical
 // choice for buildMatrix's tests).
 func fixtureInputs() ([]collect.CheckMeta, *mapping.SSDFMapping, *mapping.CISAMapping, *mapping.SelfAttestationQuestions) {
 	ssdf := &mapping.SSDFMapping{

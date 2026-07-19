@@ -5,7 +5,7 @@ architecture; it is updated in the same PR as any change that affects it.
 
 ## Overview
 
-`attestor` is a single static Go binary that:
+`attestward` is a single static Go binary that:
 
 1. **Collects** — queries the GitHub REST + GraphQL APIs (read-only) for the org/repos in
    scope and produces normalized `CheckResult` records with evidence provenance.
@@ -36,7 +36,7 @@ architecture; it is updated in the same PR as any change that affects it.
 ## Directory layout
 
 ```
-/cmd/attestor/            # main
+/cmd/attestward/          # main
 /internal/collect/        # collector interface + github/ implementation
 /internal/model/          # evidence, check, finding types (versioned schema)
 /internal/mapping/        # YAML loader, rollup logic

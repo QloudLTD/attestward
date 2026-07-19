@@ -26,7 +26,7 @@ func TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail(t *testing.T) {
 		{Release: filteredReleases[2], Status: runhistory.CoverageRan},
 	}
 
-	got := checkRanPerRelease("attestor-demo", "mixed-repo", filteredReleases, coverage, 0, nil)
+	got := checkRanPerRelease("attestward-demo", "mixed-repo", filteredReleases, coverage, 0, nil)
 
 	if got.Status != model.StatusVerifiedFail {
 		t.Errorf("Status = %q, want %q; reason=%q", got.Status, model.StatusVerifiedFail, got.Reason)

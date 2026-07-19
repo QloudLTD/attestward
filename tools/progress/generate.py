@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate tools/progress/index.html from live GitHub issue state.
 
-Local dev convenience only — not part of the shipped attestor product, not hosted.
+Local dev convenience only — not part of the shipped attestward product, not hosted.
 Run with no arguments: `python3 tools/progress/generate.py` (or `make progress`).
 Requires `gh` authenticated against sioakim/attestward.
 """
@@ -86,7 +86,7 @@ def render(issues):
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>attestor build progress</title>
+<title>attestward build progress</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {{ color-scheme: light dark; }}
@@ -112,7 +112,7 @@ def render(issues):
 </style>
 </head>
 <body>
-  <h1>attestor build progress</h1>
+  <h1>attestward build progress</h1>
   <div class="meta">Generated {generated_at} from live GitHub issue state (<code>tools/progress/generate.py</code>) — local view only, not hosted.</div>
   <div class="progress-bar"><div class="progress-fill" style="width:{pct}%">{done}/{total} ({pct}%)</div></div>
   {phases_html}

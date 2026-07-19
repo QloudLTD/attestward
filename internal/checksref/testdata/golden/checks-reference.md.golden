@@ -1,9 +1,9 @@
 # Checks Reference
 
-> **GENERATED — do not hand-edit.** Regenerate with `attestor checks docs` from
+> **GENERATED — do not hand-edit.** Regenerate with `attestward checks docs` from
 > `mappings/*.yaml` and each collector's registered check metadata. A pull request that
 > changes mapping or registry data without regenerating this file fails CI's drift check
-> (`attestor checks docs --check`, which renders in memory and compares against this file
+> (`attestward checks docs --check`, which renders in memory and compares against this file
 > without writing).
 
 Source data:

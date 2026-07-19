@@ -28,18 +28,18 @@ var (
 var reportCmd = &cobra.Command{
 	Use:   "report <path-to-evidence.json>",
 	Short: "Regenerate report.md/report.html/poam.md from an existing evidence pack",
-	Long: `attestor report re-renders report.md, report.html, and poam.md from an
+	Long: `attestward report re-renders report.md, report.html, and poam.md from an
 already-written evidence.json — no scan, no network access, safe to run
 offline or air-gapped. Useful for re-rendering after a renderer upgrade,
 rendering a pack received from someone else, or CI artifact
 post-processing.
 
-If evidence.json's schema_version isn't the one this build of attestor
-understands, attestor report fails with a friendly error rather than
+If evidence.json's schema_version isn't the one this build of attestward
+understands, attestward report fails with a friendly error rather than
 guessing at how to render an unfamiliar shape.
 
 If a .sha256 sidecar sits next to the input file (written automatically by
-attestor scan — see "Verifying an evidence pack" in the README), attestor
+attestward scan — see "Verifying an evidence pack" in the README), attestward
 report checks it before rendering. A hash mismatch is refused unless
 --force is given, in which case every rendered file carries a visible
 hash-verification-failed banner — rendering possibly-tampered evidence
@@ -65,7 +65,7 @@ func runReportCmd(cmd *cobra.Command, args []string) error {
 
 var validReportFormats = map[string]bool{"md": true, "html": true, "poam": true}
 
-// runReport is the testable core of `attestor report`: read, validate
+// runReport is the testable core of `attestward report`: read, validate
 // schema version, integrity-check, render, write. It takes no cobra
 // dependency so tests call it directly against a real temp directory
 // (context.Context is accepted only because it's threaded through
@@ -90,7 +90,7 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 		return fmt.Errorf("parse %s: %w", inputPath, err)
 	}
 	if pack.SchemaVersion != model.SchemaVersion {
-		return fmt.Errorf("%s has schema_version %d, this build of attestor understands schema_version %d — use a matching attestor version to render it", inputPath, pack.SchemaVersion, model.SchemaVersion)
+		return fmt.Errorf("%s has schema_version %d, this build of attestward understands schema_version %d — use a matching attestward version to render it", inputPath, pack.SchemaVersion, model.SchemaVersion)
 	}
 	// The hash of the exact bytes being rendered from, not whatever (if
 	// anything) was already embedded in the JSON — so report.md/html's
@@ -160,9 +160,9 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 
 // checkPackIntegrity reports whether path fails hash verification against
 // its .sha256 sidecar. A missing sidecar isn't itself a problem: hashing
-// is something only attestor scan produces, and a pack handed over
+// is something only attestward scan produces, and a pack handed over
 // without one has nothing to verify against — so this is deliberately
-// scoped narrower than attestor verify's hard "sidecar must exist"
+// scoped narrower than attestward verify's hard "sidecar must exist"
 // requirement (see verify.go's own doc comment for why that command needs
 // the stricter rule and this one doesn't). Bundle/signature verification
 // is out of scope here: issue #28 only asks for hash awareness, matching

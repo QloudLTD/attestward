@@ -16,7 +16,7 @@ import (
 )
 
 // collectorID follows the "C01.<name>" convention filterCollectors (see
-// cmd/attestor/scan.go) matches --check prefixes against — a bare
+// cmd/attestward/scan.go) matches --check prefixes against — a bare
 // "org-security" would make --check C01 (the flag's own documented example)
 // match nothing.
 const collectorID = "C01.org-security"

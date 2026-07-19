@@ -70,8 +70,8 @@ func byID(results []model.CheckResult) map[string]model.CheckResult {
 
 func TestCollect_PublicRepoFullyEnabled(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
-	mux.HandleFunc("/repos/attestor-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
+	orgHandler(t, mux, "attestward-demo")
+	mux.HandleFunc("/repos/attestward-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"private": false,
 			"security_and_analysis": map[string]any{
@@ -80,12 +80,12 @@ func TestCollect_PublicRepoFullyEnabled(t *testing.T) {
 			},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/good-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNoContent, nil)
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"good-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -109,8 +109,8 @@ func TestCollect_PublicRepoFullyEnabled(t *testing.T) {
 // in this file pass.
 func TestCollect_ProvenanceSplitByAPICall(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
-	mux.HandleFunc("/repos/attestor-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
+	orgHandler(t, mux, "attestward-demo")
+	mux.HandleFunc("/repos/attestward-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"private": false,
 			"security_and_analysis": map[string]any{
@@ -119,12 +119,12 @@ func TestCollect_ProvenanceSplitByAPICall(t *testing.T) {
 			},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/good-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/good-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNoContent, nil)
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"good-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestCollect_ProvenanceSplitByAPICall(t *testing.T) {
 		if len(prov) != 1 {
 			t.Fatalf("%s Provenance = %v, want exactly 1 entry (the repo fetch)", id, prov)
 		}
-		if !strings.HasSuffix(prov[0].Endpoint, "/repos/attestor-demo/good-repo") {
+		if !strings.HasSuffix(prov[0].Endpoint, "/repos/attestward-demo/good-repo") {
 			t.Errorf("%s Provenance[0].Endpoint = %q, want the repo-fetch endpoint", id, prov[0].Endpoint)
 		}
 	}
@@ -151,8 +151,8 @@ func TestCollect_ProvenanceSplitByAPICall(t *testing.T) {
 
 func TestCollect_PublicRepoSecretScanningOffIsRealFail(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
-	mux.HandleFunc("/repos/attestor-demo/bad-repo", func(w http.ResponseWriter, _ *http.Request) {
+	orgHandler(t, mux, "attestward-demo")
+	mux.HandleFunc("/repos/attestward-demo/bad-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"private": false,
 			"security_and_analysis": map[string]any{
@@ -161,12 +161,12 @@ func TestCollect_PublicRepoSecretScanningOffIsRealFail(t *testing.T) {
 			},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/bad-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/bad-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"bad-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"bad-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -181,8 +181,8 @@ func TestCollect_PublicRepoSecretScanningOffIsRealFail(t *testing.T) {
 
 func TestCollect_PrivateRepoNoGHASNotCheckableNotFail(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
-	mux.HandleFunc("/repos/attestor-demo/private-no-ghas", func(w http.ResponseWriter, _ *http.Request) {
+	orgHandler(t, mux, "attestward-demo")
+	mux.HandleFunc("/repos/attestward-demo/private-no-ghas", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"private": true,
 			"security_and_analysis": map[string]any{
@@ -192,12 +192,12 @@ func TestCollect_PrivateRepoNoGHASNotCheckableNotFail(t *testing.T) {
 			},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/private-no-ghas/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/private-no-ghas/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNoContent, nil)
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"private-no-ghas"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"private-no-ghas"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -220,8 +220,8 @@ func TestCollect_PrivateRepoNoGHASNotCheckableNotFail(t *testing.T) {
 
 func TestCollect_PrivateRepoWithGHASRealFailWhenFeatureOff(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
-	mux.HandleFunc("/repos/attestor-demo/private-ghas-partial", func(w http.ResponseWriter, _ *http.Request) {
+	orgHandler(t, mux, "attestward-demo")
+	mux.HandleFunc("/repos/attestward-demo/private-ghas-partial", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
 			"private": true,
 			"security_and_analysis": map[string]any{
@@ -231,12 +231,12 @@ func TestCollect_PrivateRepoWithGHASRealFailWhenFeatureOff(t *testing.T) {
 			},
 		})
 	})
-	mux.HandleFunc("/repos/attestor-demo/private-ghas-partial/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/private-ghas-partial/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNoContent, nil)
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"private-ghas-partial"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"private-ghas-partial"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -254,16 +254,16 @@ func TestCollect_PrivateRepoWithGHASRealFailWhenFeatureOff(t *testing.T) {
 
 func TestCollect_SecurityAndAnalysisAbsentNotCheckableNeverAssumedOff(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
-	mux.HandleFunc("/repos/attestor-demo/old-repo", func(w http.ResponseWriter, _ *http.Request) {
+	orgHandler(t, mux, "attestward-demo")
+	mux.HandleFunc("/repos/attestward-demo/old-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{"private": true})
 	})
-	mux.HandleFunc("/repos/attestor-demo/old-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/old-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusNoContent, nil)
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"old-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"old-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -288,15 +288,15 @@ func TestCollect_SecurityAndAnalysisAbsentNotCheckableNeverAssumedOff(t *testing
 func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T) {
 	t.Run("404_disabled_is_verified_fail", func(t *testing.T) {
 		mux := http.NewServeMux()
-		orgHandler(t, mux, "attestor-demo")
-		mux.HandleFunc("/repos/attestor-demo/repo", func(w http.ResponseWriter, _ *http.Request) {
+		orgHandler(t, mux, "attestward-demo")
+		mux.HandleFunc("/repos/attestward-demo/repo", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusOK, map[string]any{"private": false})
 		})
-		mux.HandleFunc("/repos/attestor-demo/repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 		})
 		c := newCollectorForServer(t, newTestServer(t, mux))
-		results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"repo"}})
+		results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"repo"}})
 		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
@@ -307,15 +307,15 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 
 	t.Run("403_permission_denied_is_not_checkable", func(t *testing.T) {
 		mux := http.NewServeMux()
-		orgHandler(t, mux, "attestor-demo")
-		mux.HandleFunc("/repos/attestor-demo/repo", func(w http.ResponseWriter, _ *http.Request) {
+		orgHandler(t, mux, "attestward-demo")
+		mux.HandleFunc("/repos/attestward-demo/repo", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusOK, map[string]any{"private": false})
 		})
-		mux.HandleFunc("/repos/attestor-demo/repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 		})
 		c := newCollectorForServer(t, newTestServer(t, mux))
-		results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"repo"}})
+		results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"repo"}})
 		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
@@ -336,13 +336,13 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 
 func TestCollect_RepoFetchFailure403AllRepoChecksNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
-	mux.HandleFunc("/repos/attestor-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
+	orgHandler(t, mux, "attestward-demo")
+	mux.HandleFunc("/repos/attestward-demo/secret-repo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"secret-repo"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"secret-repo"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -356,9 +356,9 @@ func TestCollect_RepoFetchFailure403AllRepoChecksNotCheckable(t *testing.T) {
 
 func TestCollect_OrgSecurityDefaultsAllEnabledPass(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
-			"login": "attestor-demo",
+			"login": "attestward-demo",
 			"secret_scanning_enabled_for_new_repositories":                 true,
 			"secret_scanning_push_protection_enabled_for_new_repositories": true,
 			"dependabot_alerts_enabled_for_new_repositories":               true,
@@ -367,7 +367,7 @@ func TestCollect_OrgSecurityDefaultsAllEnabledPass(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: nil})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: nil})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -386,9 +386,9 @@ func TestCollect_OrgSecurityDefaultsAllEnabledPass(t *testing.T) {
 
 func TestCollect_OrgSecurityDefaultsSomeDisabledFail(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusOK, map[string]any{
-			"login": "attestor-demo",
+			"login": "attestward-demo",
 			"secret_scanning_enabled_for_new_repositories":                 true,
 			"secret_scanning_push_protection_enabled_for_new_repositories": false,
 			"dependabot_alerts_enabled_for_new_repositories":               true,
@@ -397,7 +397,7 @@ func TestCollect_OrgSecurityDefaultsSomeDisabledFail(t *testing.T) {
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: nil})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: nil})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -409,12 +409,12 @@ func TestCollect_OrgSecurityDefaultsSomeDisabledFail(t *testing.T) {
 
 func TestCollect_OrgSecurityDefaultsAllNilNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, http.StatusOK, map[string]any{"login": "attestor-demo"})
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"login": "attestward-demo"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: nil})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: nil})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -426,12 +426,12 @@ func TestCollect_OrgSecurityDefaultsAllNilNotCheckable(t *testing.T) {
 
 func TestCollect_OrgFetchFailure403NotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
 	})
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: nil})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: nil})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -489,7 +489,7 @@ func TestCollect_KnownUserAccountSkipsOrgAPICallEntirely(t *testing.T) {
 	// model.CheckResult.Provenance is `json:"provenance"` with no
 	// omitempty, and the evidence-pack schema requires it as an array —
 	// a nil slice marshals to JSON null and fails pre-write schema
-	// validation, aborting attestor scan entirely for any user-account
+	// validation, aborting attestward scan entirely for any user-account
 	// target (found in Fable review of PR #103).
 	if r.Provenance == nil {
 		t.Errorf("Provenance is nil, want a non-nil (possibly empty) slice — a nil Provenance marshals to JSON null and fails the evidence-pack schema's required array type")
@@ -498,18 +498,18 @@ func TestCollect_KnownUserAccountSkipsOrgAPICallEntirely(t *testing.T) {
 
 func TestCollect_MultiRepoScanIncludesOneOrgResultAndFourPerRepo(t *testing.T) {
 	mux := http.NewServeMux()
-	orgHandler(t, mux, "attestor-demo")
+	orgHandler(t, mux, "attestward-demo")
 	for _, repo := range []string{"repo-a", "repo-b"} {
-		mux.HandleFunc("/repos/attestor-demo/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/"+repo, func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusOK, map[string]any{"private": false})
 		})
-		mux.HandleFunc("/repos/attestor-demo/"+repo+"/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/repos/attestward-demo/"+repo+"/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
 		})
 	}
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a", "repo-b"}})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a", "repo-b"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -535,15 +535,15 @@ func TestCollect_MultiRepoScanIncludesOneOrgResultAndFourPerRepo(t *testing.T) {
 
 func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/orgs/attestor-demo", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, http.StatusOK, map[string]any{"login": "attestor-demo"})
+	mux.HandleFunc("/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"login": "attestward-demo"})
 	})
 	c := newCollectorForServer(t, newTestServer(t, mux))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	results, err := c.Collect(ctx, collect.Scope{Org: "attestor-demo", Repos: []string{"repo-a"}})
+	results, err := c.Collect(ctx, collect.Scope{Org: "attestward-demo", Repos: []string{"repo-a"}})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

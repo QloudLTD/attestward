@@ -11,9 +11,9 @@ import (
 )
 
 func TestProvenanceTransportInjectsAuthAndRecordsProvenance(t *testing.T) {
-	fx := ghfixture.New().Set("GET", "/orgs/attestor-demo", ghfixture.Response{
+	fx := ghfixture.New().Set("GET", "/orgs/attestward-demo", ghfixture.Response{
 		Status: 200,
-		Body:   map[string]any{"login": "attestor-demo"},
+		Body:   map[string]any{"login": "attestward-demo"},
 	})
 
 	// Sits between provenanceTransport and the fixture, capturing the
@@ -28,7 +28,7 @@ func TestProvenanceTransportInjectsAuthAndRecordsProvenance(t *testing.T) {
 	prov := newProvenanceTransport(token, capture)
 	client := &http.Client{Transport: prov}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestor-demo?ignored=1", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/orgs/attestward-demo?ignored=1", nil)
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
@@ -47,8 +47,8 @@ func TestProvenanceTransportInjectsAuthAndRecordsProvenance(t *testing.T) {
 		t.Fatalf("len(Provenance()) = %d, want 1", len(entries))
 	}
 	entry := entries[0]
-	if entry.Endpoint != "/orgs/attestor-demo" {
-		t.Errorf("Endpoint = %q, want %q (query string must not leak in)", entry.Endpoint, "/orgs/attestor-demo")
+	if entry.Endpoint != "/orgs/attestward-demo" {
+		t.Errorf("Endpoint = %q, want %q (query string must not leak in)", entry.Endpoint, "/orgs/attestward-demo")
 	}
 	if entry.Method != "GET" {
 		t.Errorf("Method = %q, want GET", entry.Method)
@@ -65,7 +65,7 @@ func TestProvenanceTransportInjectsAuthAndRecordsProvenance(t *testing.T) {
 }
 
 func TestProvenanceTransportRecordsEveryRetryAsItsOwnEntry(t *testing.T) {
-	fx := ghfixture.New().SetSequence("GET", "/repos/attestor-demo/good-repo",
+	fx := ghfixture.New().SetSequence("GET", "/repos/attestward-demo/good-repo",
 		ghfixture.Response{Status: 200, Body: map[string]any{"attempt": 1}},
 		ghfixture.Response{Status: 200, Body: map[string]any{"attempt": 2}},
 	)
@@ -73,7 +73,7 @@ func TestProvenanceTransportRecordsEveryRetryAsItsOwnEntry(t *testing.T) {
 	client := &http.Client{Transport: prov}
 
 	for i := 0; i < 2; i++ {
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/repos/attestor-demo/good-repo", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/repos/attestward-demo/good-repo", nil)
 		resp, err := client.Do(req)
 		if err != nil {
 			t.Fatalf("do #%d: %v", i, err)
@@ -105,7 +105,7 @@ func TestProvenanceTransportRejectsWriteMethods(t *testing.T) {
 			prov := newProvenanceTransport("tok", base)
 			client := &http.Client{Transport: prov}
 
-			req, err := http.NewRequestWithContext(context.Background(), method, "https://api.github.com/repos/attestor-demo/good-repo", nil)
+			req, err := http.NewRequestWithContext(context.Background(), method, "https://api.github.com/repos/attestward-demo/good-repo", nil)
 			if err != nil {
 				t.Fatalf("build request: %v", err)
 			}
@@ -131,11 +131,11 @@ func TestProvenanceTransportRejectsWriteMethods(t *testing.T) {
 // (used, for example, to check resource existence without a body) and
 // must not be caught by a guard meant only to block writes.
 func TestProvenanceTransportAllowsHead(t *testing.T) {
-	fx := ghfixture.New().Set("HEAD", "/repos/attestor-demo/good-repo", ghfixture.Response{Status: 200})
+	fx := ghfixture.New().Set("HEAD", "/repos/attestward-demo/good-repo", ghfixture.Response{Status: 200})
 	prov := newProvenanceTransport("tok", fx)
 	client := &http.Client{Transport: prov}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodHead, "https://api.github.com/repos/attestor-demo/good-repo", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodHead, "https://api.github.com/repos/attestward-demo/good-repo", nil)
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}

@@ -28,7 +28,7 @@ func loadRealSelfAttestationQuestions(t *testing.T) *mapping.SelfAttestationQues
 // generator + golden test" requirement. If mappings/self-attestation-
 // questions.yaml's question set or wording ever changes, this test fails
 // with a byte diff until testdata/attest-init.golden.yaml is regenerated
-// (`go run ./cmd/attestor attest init --out cmd/attestor/testdata/attest-init.golden.yaml`),
+// (`go run ./cmd/attestward attest init --out cmd/attestward/testdata/attest-init.golden.yaml`),
 // a deliberate speed bump so a question-set change is never silently
 // unreflected in what users actually see.
 func TestRenderAttestTemplate_MatchesGoldenFile(t *testing.T) {

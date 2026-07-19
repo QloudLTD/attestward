@@ -27,7 +27,7 @@ func TestResolveRepos_ExplicitReposSkipsListing(t *testing.T) {
 	lister := &fakeRepoLister{err: errors.New("should not be called")}
 	warned := false
 
-	repos, err := resolveRepos(context.Background(), lister, "attestor-demo", collect.AccountTypeOrganization, []string{"a", "b"}, func(string) { warned = true })
+	repos, err := resolveRepos(context.Background(), lister, "attestward-demo", collect.AccountTypeOrganization, []string{"a", "b"}, func(string) { warned = true })
 	if err != nil {
 		t.Fatalf("resolveRepos: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestResolveRepos_EmptyFiltersArchivedAndForksWithWarning(t *testing.T) {
 	}}
 	var warnMsg string
 
-	repos, err := resolveRepos(context.Background(), lister, "attestor-demo", collect.AccountTypeOrganization, nil, func(msg string) { warnMsg = msg })
+	repos, err := resolveRepos(context.Background(), lister, "attestward-demo", collect.AccountTypeOrganization, nil, func(msg string) { warnMsg = msg })
 	if err != nil {
 		t.Fatalf("resolveRepos: %v", err)
 	}

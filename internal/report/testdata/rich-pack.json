@@ -7,7 +7,7 @@
     "self_attestation": "TEST-SA-1.0.0"
   },
   "scope": {
-    "org": "attestor-demo",
+    "org": "attestward-demo",
     "repos": ["good-repo", "bad-repo"],
     "release_tag_pattern": "v*",
     "lookback_releases": 5,
@@ -21,10 +21,10 @@
       "title": "Branch protection requires reviews",
       "status": "verified-pass",
       "reason": "main requires 1 approving review and passing status checks",
-      "scope": { "org": "attestor-demo", "repo": "good-repo" },
+      "scope": { "org": "attestward-demo", "repo": "good-repo" },
       "provenance": [
         {
-          "endpoint": "/repos/attestor-demo/good-repo/rulesets",
+          "endpoint": "/repos/attestward-demo/good-repo/rulesets",
           "method": "GET",
           "timestamp": "2026-07-13T12:00:01Z",
           "http_status": 200,
@@ -38,10 +38,10 @@
       "title": "Branch protection exists",
       "status": "verified-fail",
       "reason": "no branch protection configured on main",
-      "scope": { "org": "attestor-demo", "repo": "bad-repo" },
+      "scope": { "org": "attestward-demo", "repo": "bad-repo" },
       "provenance": [
         {
-          "endpoint": "/repos/attestor-demo/bad-repo/branches/main/protection",
+          "endpoint": "/repos/attestward-demo/bad-repo/branches/main/protection",
           "method": "GET",
           "timestamp": "2026-07-13T12:00:02Z",
           "http_status": 404,
@@ -54,10 +54,10 @@
       "title": "Third-party actions and reusable workflows are pinned to a full commit SHA",
       "status": "partial",
       "reason": "every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA",
-      "scope": { "org": "attestor-demo", "repo": "good-repo" },
+      "scope": { "org": "attestward-demo", "repo": "good-repo" },
       "provenance": [
         {
-          "endpoint": "/repos/attestor-demo/good-repo/contents/.github/workflows/release.yaml",
+          "endpoint": "/repos/attestward-demo/good-repo/contents/.github/workflows/release.yaml",
           "method": "GET",
           "timestamp": "2026-07-13T12:00:03Z",
           "http_status": 200,
@@ -76,10 +76,10 @@
       "title": "Organization audit log is reachable via the API",
       "status": "not-checkable",
       "reason": "GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope",
-      "scope": { "org": "attestor-demo" },
+      "scope": { "org": "attestward-demo" },
       "provenance": [
         {
-          "endpoint": "/orgs/attestor-demo/audit-log",
+          "endpoint": "/orgs/attestward-demo/audit-log",
           "method": "GET",
           "timestamp": "2026-07-13T12:00:04Z",
           "http_status": 404,
@@ -93,7 +93,7 @@
       "title": "If GitHub's own audit-log API or streaming isn't available, does the producer export or retain audit/access logs through another mechanism, and for how long?",
       "status": "self-attested",
       "reason": "self-attested (not independently verified): yes",
-      "scope": { "org": "attestor-demo" },
+      "scope": { "org": "attestward-demo" },
       "provenance": [],
       "facts": {
         "answer": "yes",

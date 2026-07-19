@@ -28,7 +28,7 @@ const (
 	statusUnmapped      checkStatus = "unmapped"      // registered but not referenced by any mapping task
 )
 
-// MatrixRow is one row of `attestor checks list`'s output — the contract
+// MatrixRow is one row of `attestward checks list`'s output — the contract
 // issue #30's generated checks-reference docs build on, so field names are
 // meant to stay stable.
 type MatrixRow struct {

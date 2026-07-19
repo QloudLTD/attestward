@@ -136,7 +136,7 @@ func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *
 // collect.Lookup internally: this package must never import
 // internal/collect (ADR-0005's seam), and a package-level lookup would
 // also only ever be populated in a binary that already imported every
-// collector package (as cmd/attestor does) — a caller builds this map from
+// collector package (as cmd/attestward does) — a caller builds this map from
 // collect.Registered() and passes it in, keeping this renderer a pure
 // function of its own inputs, testable without a live collector registry.
 // A missing entry renders as "(none on file for this check)" rather than

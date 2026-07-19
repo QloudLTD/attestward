@@ -2,7 +2,7 @@
 
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
-**CLI binary:** `attestor`. **Product name:** Attestward (see [DECISIONS.md](DECISIONS.md) D1).
+**CLI binary:** `attestward`. **Product name:** Attestward (see [DECISIONS.md](DECISIONS.md) D1).
 **Status:** pre-alpha — v0.1 under active, issue-driven development.
 **License:** [Apache-2.0](LICENSE)
 
@@ -110,16 +110,16 @@ mean and what API evidence backs them.
 
 ```bash
 # Substitute the real version/os/arch from the releases page.
-curl -LO https://github.com/sioakim/attestward/releases/latest/download/attestor_<version>_<os>_<arch>.tar.gz
+curl -LO https://github.com/sioakim/attestward/releases/latest/download/attestward_<version>_<os>_<arch>.tar.gz
 curl -LO https://github.com/sioakim/attestward/releases/latest/download/checksums.txt
 shasum -a 256 -c checksums.txt --ignore-missing   # macOS; use sha256sum -c on Linux
-tar -xzf attestor_<version>_<os>_<arch>.tar.gz
+tar -xzf attestward_<version>_<os>_<arch>.tar.gz
 ```
 
 **Or with Go installed** (works today, pre-release):
 
 ```bash
-go install github.com/sioakim/attestward/cmd/attestor@latest
+go install github.com/sioakim/attestward/cmd/attestward@latest
 ```
 
 ### 2. Create a fine-grained PAT
@@ -134,7 +134,7 @@ read-only`, and `Administration: read-only` cover most of C02-C08.
 
 ```bash
 export GITHUB_TOKEN=github_pat_...
-attestor scan --org my-org --repo my-repo --out ./evidence/
+attestward scan --org my-org --repo my-repo --out ./evidence/
 ```
 
 No `--repo` scans every non-archived, non-fork repo in the account (with a warning) —
@@ -147,7 +147,7 @@ to include a private one you own.
 - **Exit code `0`**: no `verified-fail` or `partial` results — some checks may still be
   `not-checkable` or `self-attested`, which don't count as gaps on their own.
 - **Exit code `2`**: at least one `verified-fail` or `partial` — see `evidence/report.md`,
-  or run `attestor report ./evidence/evidence.json --format html` for a browser-friendly
+  or run `attestward report ./evidence/evidence.json --format html` for a browser-friendly
   version, and `evidence/poam.md` for a draft remediation plan grouped by SSDF/CISA
   cluster.
 - **Exit code `1`**: something actually went wrong (bad token, network failure) — not a
@@ -159,27 +159,27 @@ to include a private one you own.
   recording of this exact flow against the public demo repo.
 
 That's the whole loop — no config file required for a single scan. `--config` exists for
-repeatable, CI-friendly use (see [examples/attestor.yaml](examples/attestor.yaml)):
+repeatable, CI-friendly use (see [examples/attestward.yaml](examples/attestward.yaml)):
 
 ```
-attestor scan --org my-org [--repo my-repo ...] --out ./evidence/
-attestor scan --config attestor.yaml
-attestor scan --self-attestation-file self-attestation.yaml  # include self-attested answers
-attestor scan --org my-org --sign             # also sign evidence.json (see "Verifying an evidence pack")
-attestor attest init --out self-attestation.yaml  # generate a commented answers template
-attestor verify ./evidence/                   # check evidence.json's hash (and signature, if signed)
-attestor report ./evidence/evidence.json      # regenerate reports
-attestor checks list                          # show all checks + mappings
-attestor checks docs                          # regenerate docs/checks-reference.md
-attestor version
+attestward scan --org my-org [--repo my-repo ...] --out ./evidence/
+attestward scan --config attestward.yaml
+attestward scan --self-attestation-file self-attestation.yaml  # include self-attested answers
+attestward scan --org my-org --sign             # also sign evidence.json (see "Verifying an evidence pack")
+attestward attest init --out self-attestation.yaml  # generate a commented answers template
+attestward verify ./evidence/                   # check evidence.json's hash (and signature, if signed)
+attestward report ./evidence/evidence.json      # regenerate reports
+attestward checks list                          # show all checks + mappings
+attestward checks docs                          # regenerate docs/checks-reference.md
+attestward version
 ```
 
 ### Required token permissions
 
-`attestor scan` reads `GITHUB_TOKEN` from the environment (never a CLI flag, never
+`attestward scan` reads `GITHUB_TOKEN` from the environment (never a CLI flag, never
 persisted — see [docs/threat-model.md](docs/threat-model.md)). Use the narrowest scope
 that covers the collectors you're running; each collector below lists the minimum. A
-token with more than read-only scope still works, but `attestor scan` prints a
+token with more than read-only scope still works, but `attestward scan` prints a
 least-privilege warning if it detects write access.
 
 | Collector | Minimum scope |
@@ -195,12 +195,12 @@ least-privilege warning if it detects write access.
 | `audit-logging` (C09) | `read:audit_log` (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API, both surface identically. The per-repo webhooks check needs its own, separate scope: `repo` (classic) or `Webhooks: read-only` (fine-grained) — exact fine-grained category not independently verified against GitHub's docs |
 | `vdp` (C10) | `public_repo`/`repo` (classic) or `Contents: read-only` (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint, exact fine-grained category unverified |
 
-This table is generated from (and must stay in sync with) `attestor checks list`'s live
+This table is generated from (and must stay in sync with) `attestward checks list`'s live
 `TOKEN SCOPE` column, the authoritative source as more collectors land. Every "not
 independently verified against GitHub's docs" hedge above is deliberate: it means this
 project confirmed the behavior empirically (against a real token/repo) but couldn't find
 GitHub's own documentation stating it outright — see each collector's own `CheckMeta`
-doc comments (`attestor checks docs` / [docs/checks-reference.md](docs/checks-reference.md))
+doc comments (`attestward checks docs` / [docs/checks-reference.md](docs/checks-reference.md))
 for exactly what was and wasn't confirmed. Scanning with a broader token than a check
 needs still works — the check just doesn't need the extra access it was given.
 
@@ -209,12 +209,12 @@ needs still works — the check just doesn't need the extra access it was given.
 Every scan hashes and hash-verifies itself, always, whether or not you sign anything:
 
 ```bash
-attestor scan --org my-org --out ./evidence/   # prints the sha256 and writes evidence.json.sha256
-attestor verify ./evidence/                    # recomputes the hash and compares it
+attestward scan --org my-org --out ./evidence/   # prints the sha256 and writes evidence.json.sha256
+attestward verify ./evidence/                    # recomputes the hash and compares it
 ```
 
-`attestor verify`'s hash check needs nothing but the two files it's checking — you can
-verify without `attestor` at all, from inside the output directory:
+`attestward verify`'s hash check needs nothing but the two files it's checking — you can
+verify without `attestward` at all, from inside the output directory:
 
 ```bash
 sha256sum -c evidence.json.sha256   # Linux
@@ -224,7 +224,7 @@ shasum -a 256 -c evidence.json.sha256   # macOS
 ### Signing (optional)
 
 Pass `--sign` to also sign `evidence.json` with [cosign](https://docs.sigstore.dev/)
-(`cosign sign-blob`, shelled out to — attestor never links a Sigstore client or manages
+(`cosign sign-blob`, shelled out to — attestward never links a Sigstore client or manages
 key material itself; see [ADR-0006](docs/adr/0006-exec-cosign-not-sigstore-go.md)).
 Requires `cosign` on `PATH`; `--sign` without it is a hard error naming the install doc,
 never a silent skip.
@@ -233,26 +233,26 @@ never a silent skip.
 # Keyless (Sigstore/Fulcio OIDC) — the same flow this repo's own release pipeline uses.
 # Only works where an OIDC identity is available (e.g. GitHub Actions with
 # `id-token: write`); on a bare local machine cosign opens a browser instead.
-attestor scan --org my-org --sign
+attestward scan --org my-org --sign
 
-# Or with your own key file — attestor passes --sign-args straight through to cosign.
-attestor scan --org my-org --sign --sign-args="--key=cosign.key"
+# Or with your own key file — attestward passes --sign-args straight through to cosign.
+attestward scan --org my-org --sign --sign-args="--key=cosign.key"
 ```
 
 This writes `evidence.json.bundle` (a single Sigstore bundle — signature, certificate,
 and transparency-log proof together; cosign v3 dropped the legacy separate
-`--output-signature`/`--output-certificate` files). `attestor verify` checks it
+`--output-signature`/`--output-certificate` files). `attestward verify` checks it
 automatically when present — pass whatever `cosign verify-blob` needs to identify the
-signer via `--verify-args` (attestor never defaults or infers an identity):
+signer via `--verify-args` (attestward never defaults or infers an identity):
 
 ```bash
 # Keyless verification needs the identity that signed it:
-attestor verify ./evidence/ \
+attestward verify ./evidence/ \
   --verify-args="--certificate-identity-regexp=^https://github.com/my-org/my-repo/" \
   --verify-args="--certificate-oidc-issuer=https://token.actions.githubusercontent.com"
 
 # Key-file verification:
-attestor verify ./evidence/ --verify-args="--key=cosign.pub"
+attestward verify ./evidence/ --verify-args="--key=cosign.pub"
 ```
 
 A pack with no `.bundle` file isn't itself a problem — signing is opt-in, and an unsigned
@@ -260,22 +260,22 @@ pack's hash still verifies normally.
 
 ## Regenerating reports
 
-`attestor report` re-renders `report.md`, `report.html`, and `poam.md` from an existing
+`attestward report` re-renders `report.md`, `report.html`, and `poam.md` from an existing
 `evidence.json` — no scan, no network access. Useful after a renderer upgrade, for a pack
 someone else sent you, or for CI artifact post-processing:
 
 ```bash
-attestor report ./evidence/evidence.json                    # writes all three alongside the input
-attestor report ./evidence/evidence.json --out ./reports/    # or somewhere else
-attestor report ./evidence/evidence.json --format md,poam    # only some of them
+attestward report ./evidence/evidence.json                    # writes all three alongside the input
+attestward report ./evidence/evidence.json --out ./reports/    # or somewhere else
+attestward report ./evidence/evidence.json --format md,poam    # only some of them
 ```
 
-If a `.sha256` sidecar sits next to the input, `attestor report` checks it first. A hash
+If a `.sha256` sidecar sits next to the input, `attestward report` checks it first. A hash
 mismatch is refused unless `--force` is given, in which case every rendered file carries a
 visible tamper-warning banner — rendering possibly-tampered evidence has to be a conscious,
 visible act, never silent. A pack with no sidecar at all isn't itself a problem; there's
 nothing to verify, so it renders normally. An `evidence.json` from a schema version this
-build of `attestor` doesn't understand fails with a friendly error rather than a guess.
+build of `attestward` doesn't understand fails with a friendly error rather than a guess.
 
 ## Safety posture
 
@@ -297,7 +297,7 @@ Full detail, trust boundaries, and residual risks: [docs/threat-model.md](docs/t
 ## Self-scan
 
 The repo is its own first case study: [`self-scan.yaml`](.github/workflows/self-scan.yaml)
-runs `attestor scan` against `sioakim/attestward` on every release, weekly, and on manual
+runs `attestward scan` against `sioakim/attestward` on every release, weekly, and on manual
 dispatch, then publishes the evidence pack and rendered `report.html` as a downloadable
 workflow artifact — see the [latest self-scan runs](../../actions/workflows/self-scan.yaml)
 for a real (not demo-org) sample pack. The workflow fails the build on any gap outside a

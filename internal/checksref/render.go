@@ -46,7 +46,7 @@ type context struct {
 // built from, and when that mapping's own source was retrieved (both
 // already recorded in the YAML itself). A wall-clock "generated at" value
 // was considered and rejected — see DECISIONS.md's entry for issue #30 —
-// because it would make two consecutive `attestor checks docs` runs over
+// because it would make two consecutive `attestward checks docs` runs over
 // identical input produce different bytes, defeating the CI drift check's
 // whole purpose.
 type MappingCitation struct {
@@ -242,7 +242,7 @@ func rubricRows(checkID string, rubric map[model.Status]string) ([]rubricRow, er
 }
 
 // taskAndClusterIndexes builds the same check->tasks and task->clusters
-// indexes cmd/attestor's buildMatrix does, kept as a local, unexported
+// indexes cmd/attestward's buildMatrix does, kept as a local, unexported
 // helper here rather than shared: buildMatrix lives in package main, which
 // nothing under internal/ can import.
 func taskAndClusterIndexes(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping) (tasksByCheck map[string][]string, clustersByTask map[string][]string) {

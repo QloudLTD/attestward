@@ -47,7 +47,7 @@ func TestWriteReadSidecar_RoundTrips(t *testing.T) {
 // TestWriteSidecar_UsesBaseNameOnly locks in that the sidecar names just
 // the file's basename ("evidence.json"), not its full path — a sidecar
 // checked with `sha256sum -c` from within outDir must reference the file
-// as it actually appears in that directory, not wherever attestor itself
+// as it actually appears in that directory, not wherever attestward itself
 // happened to run from.
 func TestWriteSidecar_UsesBaseNameOnly(t *testing.T) {
 	dir := t.TempDir()
@@ -71,7 +71,7 @@ func TestWriteSidecar_UsesBaseNameOnly(t *testing.T) {
 
 // TestSidecarFormat_MatchesGNUCoreutilsConvention locks in the exact
 // on-disk format ("<hash>  <filename>\n", two spaces) so a plain
-// `sha256sum -c evidence.json.sha256` (no attestor involved at all) can
+// `sha256sum -c evidence.json.sha256` (no attestward involved at all) can
 // verify a pack — issue #27's own acceptance criterion.
 func TestSidecarFormat_MatchesGNUCoreutilsConvention(t *testing.T) {
 	dir := t.TempDir()

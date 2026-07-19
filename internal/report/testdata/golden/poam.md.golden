@@ -10,7 +10,7 @@ narrative context.
 
 ## Summary
 
-- **Org:** attestor-demo
+- **Org:** attestward-demo
 - **Scan window:** 2026-07-13 12:00:00 UTC – 2026-07-13 12:00:05 UTC
 - **Total findings:** 2 (1 fail, 1 partial)
 
@@ -35,7 +35,7 @@ narrative context.
 - **Affected SSDF task(s):** PS.1.1
 - **CISA form cluster(s):** 2, 4
 - **Description:** no branch protection configured on main
-- **Evidence:** GET /repos/attestor-demo/bad-repo/branches/main/protection (digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+- **Evidence:** GET /repos/attestward-demo/bad-repo/branches/main/protection (digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 - **Suggested remediation:** Repo Settings -> Rules -> Rulesets -> add a rule targeting the default branch.
 - **Owner:** ____
 - **Target date:** ____
@@ -49,7 +49,7 @@ narrative context.
 - **Affected SSDF task(s):** PW.4.1
 - **CISA form cluster(s):** 2, 3
 - **Description:** every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
-- **Evidence:** GET /repos/attestor-demo/good-repo/contents/.github/workflows/release.yaml (digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+- **Evidence:** GET /repos/attestward-demo/good-repo/contents/.github/workflows/release.yaml (digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 - **Suggested remediation:** Pin every third-party action reference to a full 40-char commit SHA.
 - **Owner:** ____
 - **Target date:** ____

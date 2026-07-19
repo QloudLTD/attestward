@@ -11,7 +11,7 @@ token access.
 A local, read-only CLI that queries source-control APIs with a user-supplied token and
 writes evidence files to a user-chosen local directory. No server component, no database,
 no telemetry, no network destinations other than the platform API (`api.github.com` in
-v0.1) and, only when `--sign`/`attestor verify` invoke it, the separately-trusted `cosign`
+v0.1) and, only when `--sign`/`attestward verify` invoke it, the separately-trusted `cosign`
 subprocess (see "Signing egress is a distinct, opt-in exception" below).
 
 ## Assets
@@ -31,7 +31,7 @@ subprocess (see "Signing egress is a distinct, opt-in exception" below).
    size-limited, never executed or templated into shell commands.
 3. **Tool ↔ filesystem**: writes only under the user-specified `--out` directory.
 4. **Tool ↔ `cosign` subprocess** (opt-in, `--sign`/pack verification only): a separate
-   trusted binary the user must install themselves; attestor shells out to it and never
+   trusted binary the user must install themselves; attestward shells out to it and never
    parses or trusts its stdout beyond an exit code (see "Signing egress" below).
 
 ## What the tool never does — and how that's enforced
@@ -97,8 +97,8 @@ named — not inferred from the method name):
 | `Repositories.ListReleases` | `GET /repos/{owner}/{repo}/releases` |
 
 Three more calls happen outside any collector, in the scan orchestrator itself
-(`cmd/attestor/scanrepos.go`, using the bare `*github.Client` that `runScan` gets from
-`NewClient(...).REST` in `cmd/attestor/scan.go`) — a `.REST.`-style `git grep` scoped to
+(`cmd/attestward/scanrepos.go`, using the bare `*github.Client` that `runScan` gets from
+`NewClient(...).REST` in `cmd/attestward/scan.go`) — a `.REST.`-style `git grep` scoped to
 `internal/collect/github` misses them entirely, so they're listed separately.
 `Users.Get` runs on every scan (the unconditional account-type preflight); the two
 repo-listing calls run only when no explicit repo list is configured (`resolveRepos`
@@ -106,9 +106,9 @@ makes zero API calls otherwise):
 
 | go-github call | Endpoint (verb confirmed against source) | Call site |
 |---|---|---|
-| `Users.Get` | `GET /users/{account}` | `cmd/attestor/scanrepos.go:122` |
-| `Repositories.ListByOrg` | `GET /orgs/{org}/repos` | `cmd/attestor/scanrepos.go:46` |
-| `Repositories.ListByUser` | `GET /users/{user}/repos` | `cmd/attestor/scanrepos.go:75` |
+| `Users.Get` | `GET /users/{account}` | `cmd/attestward/scanrepos.go:122` |
+| `Repositories.ListByOrg` | `GET /orgs/{org}/repos` | `cmd/attestward/scanrepos.go:46` |
+| `Repositories.ListByUser` | `GET /users/{user}/repos` | `cmd/attestward/scanrepos.go:75` |
 
 All three route through the same `client.REST` / `provenanceTransport` as every
 collector call above, so the read-only guard covers them identically — this was a gap in
@@ -118,7 +118,7 @@ This table is a point-in-time enumeration (re-derive with the `git grep` above f
 collectors, plus a manual check for bare-`*github.Client` call sites like the
 orchestrator's — a grep scoped to `internal/collect/github` won't catch those); the
 transport guard above is what actually holds the invariant going forward, not this table
-by itself. `docs/checks-reference.md` (generated, `attestor checks docs`) is the live,
+by itself. `docs/checks-reference.md` (generated, `attestward checks docs`) is the live,
 per-check breakdown of which endpoint backs which check — this table is the flip side:
 every endpoint the code calls, grouped by API surface instead of by check.
 
@@ -133,13 +133,13 @@ internal/collect/github/` returns nothing — no other package in this codebase
 constructs an HTTP client or makes a direct HTTP call.
 
 **Signing egress is a distinct, opt-in exception, not a violation of this claim:**
-`attestor scan --sign` and `attestor verify` (when a `.bundle` is present) shell out to
+`attestward scan --sign` and `attestward verify` (when a `.bundle` is present) shell out to
 the `cosign` binary (`internal/integrity/sign.go`, `exec.CommandContext` — ADR-0006
 records why cosign is invoked as a subprocess rather than vendored as a Go dependency).
 Keyless cosign signing/verification itself talks to Sigstore's Fulcio (certificate
 issuance) and Rekor (transparency log) over the network — real egress, but it is
-`cosign`'s own, separately-trusted process making it, not attestor's Go code, and it
-only happens when the user explicitly opts in via `--sign` or hands attestor a pack that
+`cosign`'s own, separately-trusted process making it, not attestward's Go code, and it
+only happens when the user explicitly opts in via `--sign` or hands attestward a pack that
 already carries a `.bundle` to verify. No scan without `--sign` ever triggers it.
 
 ### Tokens never persisted, logged, or included in evidence output
@@ -153,7 +153,7 @@ already carries a `.bundle` to verify. No scan without `--sign` ever triggers it
 - `Endpoint` deliberately records the request path only (`req.URL.Path`, not the full
   URL) — a token or other secret accidentally placed in a query parameter can never
   reach an evidence pack through this field, by construction, not by later scrubbing.
-- `cmd/attestor/scan.go` reads `GITHUB_TOKEN` from the environment only (never a CLI
+- `cmd/attestward/scan.go` reads `GITHUB_TOKEN` from the environment only (never a CLI
   flag, which would appear in shell history/process listings) and never writes it
   anywhere.
 - Defense in depth beyond the above: `internal/model/scrub.go`'s `secretPatterns`
@@ -161,7 +161,7 @@ already carries a `.bundle` to verify. No scan without `--sign` ever triggers it
   keys, PEM private-key blocks) redact any secret-shaped string found anywhere in a
   `Facts`/`Reason` value before the pack is serialized — `pack.Scrub()` in
   `runScan` and `model.ScrubBytes` again in `writeEvidencePack` (both in
-  `cmd/attestor/scan.go`) as a last line of defense. Tested in
+  `cmd/attestward/scan.go`) as a last line of defense. Tested in
   `internal/model/scrub_test.go`.
 
 ### Digests, not payloads
@@ -182,9 +182,9 @@ evidence) before every write.
 | Risk | Mitigation | Where |
 |---|---|---|
 | Tool performs a write against the scanned platform | Transport-level GET/HEAD-only guard | `internal/collect/github/transport.go`, `transport_test.go` |
-| Token leaks into logs, evidence, or a URL fragment | Token confined to auth header; `Endpoint` records path only; no CLI-flag token intake | `internal/collect/github/transport.go`, `cmd/attestor/scan.go` |
+| Token leaks into logs, evidence, or a URL fragment | Token confined to auth header; `Endpoint` records path only; no CLI-flag token intake | `internal/collect/github/transport.go`, `cmd/attestward/scan.go` |
 | A secret-shaped string reaches evidence some other way | Regex-based scrubber over every `Facts`/`Reason` value, applied twice (build time + write time) | `internal/model/scrub.go`, `scrub_test.go` |
-| Evidence pack tampered after generation | SHA-256 pack hash always computed + `.sha256` sidecar; optional cosign signature | `internal/integrity/`, `cmd/attestor/scan.go` |
+| Evidence pack tampered after generation | SHA-256 pack hash always computed + `.sha256` sidecar; optional cosign signature | `internal/integrity/`, `cmd/attestward/scan.go` |
 | A raw API response (possibly containing sensitive detail) ends up in evidence | `Provenance` structurally has no payload field, digest only | `internal/model/check_result.go` |
 | An oversized Fact silently bloats/leaks via evidence | Size cap + validation warning | `internal/model/validate.go` |
 | Injection via API-derived content into rendered reports | `html/template` auto-escaping (report.html); hand-written `escapeMD` neutralizing markdown/link-injection syntax (report.md/poam.md) | `internal/report/escape.go`, `render.go` |
@@ -196,7 +196,7 @@ evidence) before every write.
 
 ```
  ┌──────────────┐  GITHUB_TOKEN   ┌───────────────────────────────┐
- │ user/CI env  │ ───(env var)──▶ │ cmd/attestor (scan)           │
+ │ user/CI env  │ ───(env var)──▶ │ cmd/attestward (scan)         │
  └──────────────┘                 │  reads token; never persists  │
                                    └───────────────┬───────────────┘
                                                     │ Bearer auth header
@@ -205,7 +205,7 @@ evidence) before every write.
                                                     ▼
                                    ┌───────────────────────────────┐
                                    │ https://api.github.com        │
-                                   │ (the only host attestor's own │
+                                   │ (the only host attestward's   │
                                    │  Go code ever talks to)       │
                                    └───────────────┬───────────────┘
                                                     │ JSON response body
@@ -241,7 +241,7 @@ evidence) before every write.
                                                                         ▼
                                                           user decides distribution
                                                           (never sent anywhere by
-                                                           attestor itself)
+                                                           attestward itself)
 ```
 
 ## Residual risks (documented, not hidden)
@@ -262,10 +262,10 @@ evidence) before every write.
   the legitimate one could substitute its own signing/verification behavior; mitigated
   only by the user installing cosign from the same trustworthy source they'd trust for
   any other security tool (see [SECURITY.md](../SECURITY.md)'s verification instructions
-  for attestor's own releases, which face the identical bootstrapping problem — verify
+  for attestward's own releases, which face the identical bootstrapping problem — verify
   the tool that verifies things).
 - **GitHub API truthfulness assumption.** Every `verified-pass`/`verified-fail` is only
-  as honest as GitHub's own API response — attestor has no independent way to confirm
+  as honest as GitHub's own API response — attestward has no independent way to confirm
   GitHub isn't itself compromised, misconfigured, or serving stale/cached data. This is
   an accepted, unavoidable trust dependency of "verify via the platform API" as a
   strategy; the alternative (asking the producer, self-attestation) is *less* reliable,

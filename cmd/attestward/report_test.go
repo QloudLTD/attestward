@@ -30,16 +30,16 @@ func reportFixturePack() model.EvidencePack {
 	return model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
-		Scope:         model.ScanScope{Org: "attestor-demo", Repos: []string{"good-repo"}},
+		Scope:         model.ScanScope{Org: "attestward-demo", Repos: []string{"good-repo"}},
 		Results: []model.CheckResult{
 			{
 				CheckID: "C01.org.2fa-required",
 				Title:   "Org requires two-factor authentication",
 				Status:  model.StatusVerifiedFail,
 				Reason:  "org does not enforce 2FA for members",
-				Scope:   model.ScopeRef{Org: "attestor-demo"},
+				Scope:   model.ScopeRef{Org: "attestward-demo"},
 				Provenance: []model.Provenance{
-					{Endpoint: "/orgs/attestor-demo", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
+					{Endpoint: "/orgs/attestward-demo", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
 				},
 			},
 			{
@@ -47,9 +47,9 @@ func reportFixturePack() model.EvidencePack {
 				Title:   "Branch protection requires reviews",
 				Status:  model.StatusVerifiedPass,
 				Reason:  "main requires 1 approving review",
-				Scope:   model.ScopeRef{Org: "attestor-demo", Repo: "good-repo"},
+				Scope:   model.ScopeRef{Org: "attestward-demo", Repo: "good-repo"},
 				Provenance: []model.Provenance{
-					{Endpoint: "/repos/attestor-demo/good-repo/rulesets", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("b", 64)},
+					{Endpoint: "/repos/attestward-demo/good-repo/rulesets", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("b", 64)},
 				},
 			},
 		},
@@ -92,7 +92,7 @@ func loadReportMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMappin
 }
 
 // TestRunReport_ByteIdenticalToDirectRenderersCall is issue #28's own named
-// proof: attestor report's file-reading/mapping-loading/writing pipeline
+// proof: attestward report's file-reading/mapping-loading/writing pipeline
 // must not introduce any drift versus calling internal/report's renderers
 // directly on the same in-memory pack — the whole point of #25/#26 having
 // kept those renderers pure functions of evidence.json.
@@ -136,7 +136,7 @@ func TestRunReport_ByteIdenticalToDirectRenderersCall(t *testing.T) {
 			t.Fatalf("read %s: %v", name, err)
 		}
 		if !bytes.Equal(got, want) {
-			t.Errorf("%s: attestor report output differs from a direct renderer call\n--- got ---\n%s\n--- want ---\n%s", name, got, want)
+			t.Errorf("%s: attestward report output differs from a direct renderer call\n--- got ---\n%s\n--- want ---\n%s", name, got, want)
 		}
 	}
 }
@@ -200,7 +200,7 @@ func TestRunReport_UnsupportedSchemaVersionIsFriendlyError(t *testing.T) {
 	// can't come from writeEvidencePack — its own pre-write schema
 	// validation correctly rejects an out-of-range schema_version (the
 	// schema declares it `const: 1`). Written directly instead, to
-	// simulate a pack handed over from some future attestor version this
+	// simulate a pack handed over from some future attestward version this
 	// build doesn't understand yet.
 	pack.SchemaVersion = model.SchemaVersion + 1
 	data, err := json.MarshalIndent(pack, "", "  ")
@@ -226,7 +226,7 @@ func TestRunReport_UnsupportedSchemaVersionIsFriendlyError(t *testing.T) {
 // overrides a hash *mismatch* (verification ran and found tampering). A
 // malformed sidecar means verification couldn't run at all, which is a
 // different, unconditional error — there's no "render anyway" for a
-// question attestor couldn't actually answer.
+// question attestward couldn't actually answer.
 func TestRunReport_MalformedSidecarIsHardErrorEvenWithForce(t *testing.T) {
 	dir := t.TempDir()
 	path, _ := writeReportFixture(t, dir, false)
@@ -241,7 +241,7 @@ func TestRunReport_MalformedSidecarIsHardErrorEvenWithForce(t *testing.T) {
 
 // tamperEvidenceFile rewrites path's tool_version field in place, changing
 // the file's content (and thus its hash) while keeping it valid JSON —
-// runReport unmarshals the file to render it, unlike attestor verify's
+// runReport unmarshals the file to render it, unlike attestward verify's
 // hash-only check, so a tamper that breaks JSON syntax entirely would mask
 // what these tests are actually proving (that a hash mismatch specifically
 // is caught) behind an unrelated parse error instead.
@@ -341,7 +341,7 @@ func TestReportGo_NoNetworkImports(t *testing.T) {
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
 		if forbidden[path] {
-			t.Errorf("report.go imports %q — attestor report must never touch the network", path)
+			t.Errorf("report.go imports %q — attestward report must never touch the network", path)
 		}
 	}
 }

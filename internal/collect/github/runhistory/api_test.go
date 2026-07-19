@@ -31,7 +31,7 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {
 func TestFetchWorkflowRuns_SendsServerSideCreatedFilter(t *testing.T) {
 	var gotCreated string
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/attestor-demo/repo-a/actions/workflows/1/runs", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/attestward-demo/repo-a/actions/workflows/1/runs", func(w http.ResponseWriter, r *http.Request) {
 		gotCreated = r.URL.Query().Get("created")
 		writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 0, "workflow_runs": []any{}})
 	})
@@ -46,7 +46,7 @@ func TestFetchWorkflowRuns_SendsServerSideCreatedFilter(t *testing.T) {
 	client.REST.BaseURL = baseURL
 
 	since := time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)
-	if _, err := FetchWorkflowRuns(context.Background(), client, "attestor-demo", "repo-a", 1, since); err != nil {
+	if _, err := FetchWorkflowRuns(context.Background(), client, "attestward-demo", "repo-a", 1, since); err != nil {
 		t.Fatalf("FetchWorkflowRuns: %v", err)
 	}
 
