@@ -192,3 +192,7 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Post-v0.1 (seams only, do not build)**
 - #34 Azure DevOps · #35 GitLab/SLSA/VEX · #36 Continuous mode GitHub Action
+- Hosted tier (DECISIONS.md D4, resolved 2026-07-19 — commercial, separate from the OSS
+  CLI): #121 portfolio dashboard · #122 evidence retention/drift · #123 team
+  collaboration/POA&M · #124 RSAA-ready packaging (undefined, research-first) · #125 org
+  SSO · #126 managed continuous mode (builds on #36)
