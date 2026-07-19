@@ -30,3 +30,6 @@ report.md.local
 .idea/
 .vscode/
 *.swp
+
+# Personal/local-only Claude Code context — never committed
+CLAUDE.local.md

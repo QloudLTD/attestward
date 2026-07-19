@@ -6,9 +6,15 @@ an issue.
 
 ## What this is
 
-`attestor` (working name — see [DECISIONS.md](DECISIONS.md) D1) is a read-only CLI that
-verifies the technical controls behind the CISA SSDA form against a GitHub org/repo and
-emits a signed evidence pack. Full mission and rationale: [README.md](README.md).
+`attestor` (the CLI binary name; the product's public name is **Attestward** — see
+[DECISIONS.md](DECISIONS.md) D1, resolved 2026-07-19) is a read-only CLI that verifies
+the technical controls behind the CISA SSDA form against a GitHub org/repo and emits a
+signed evidence pack. Full mission and rationale: [README.md](README.md). The GitHub
+repo itself was renamed `sioakim/ssdf` → `sioakim/attestward` (still private, per D7) —
+the Go module path and internal `github.com/sioakim/ssdf/...` imports have NOT been
+updated to match yet (D1's own note explains why and tracks it as follow-up work), so
+`go build`, `cmd/attestor`, and every internal import still correctly say `ssdf`; don't
+"fix" that unprompted.
 
 Status: pre-alpha. Phase 0 (skeleton, CI, release pipeline), Phase 1 (data model,
 SSDF/CISA mappings, `checks list`), Phase 2 (C01–C04 collectors, demo org +
