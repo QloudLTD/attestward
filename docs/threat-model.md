@@ -292,14 +292,16 @@ evidence) before every write.
     `actions/checkout`'s default clean only resets the checked-out source tree — it
     doesn't touch `~/go/pkg/mod`, `~/Library/Caches/go-build`, or a runner's Go
     toolcache, all of which persist across every job/workflow sharing one physical
-    machine. As of this finalization, that's `spyros-mac-mini-ssdf` (every macOS-labeled
-    job in this repo: `lint`, `test`, `checks-docs-drift`, `wake-aorus`, `sleep-aorus`,
-    `goreleaser-dry-run`, both darwin `build`-matrix legs, the `release.yaml` `goreleaser`
-    job, `integration-scan`, `sign-verify`, `self-scan`, and the aorus `keepalive` job),
-    `spyros-ionos-ssdf` (linux/amd64 `build`, `test-linux`), `spyros-parallels-ssdf`
-    (linux/arm64 `build`), and `spyros-aorus-ssdf` (windows/amd64, the `build-windows`
-    job) — four machines, not one, each accumulating shared state across everything
-    routed to it.
+    machine. That's `spyros-mac-mini-ssdf` (every macOS-labeled job in this repo:
+    `lint`, `test`, `checks-docs-drift`, `build` (cross-compiles every target platform —
+    see `ci.yaml`'s own comment for why this replaced four separate per-arch runners),
+    `goreleaser-dry-run`, the `release.yaml` `goreleaser` job, `integration-scan`,
+    `sign-verify`, `self-scan`, and the aorus `keepalive` job), `spyros-ionos-ssdf`
+    (`test-linux`), `spyros-parallels-ssdf`, and `spyros-aorus-ssdf` — four machines, not
+    one, each accumulating shared state across everything routed to it. The latter two
+    (and `wake-aorus`/`build-windows`/`sleep-aorus` on `spyros-mac-mini-ssdf` and
+    `spyros-aorus-ssdf` respectively) are idle unless `multi-arch-build-sample.yaml` (a
+    non-required, `workflow_dispatch`-only reference pipeline) is manually run.
     Low-severity today (private repo, single collaborator with full access already has
     every capability this risk would grant), but a distinct mechanism from "an
     untrusted fork PR executes arbitrary code" (already covered on #33): even *trusted*

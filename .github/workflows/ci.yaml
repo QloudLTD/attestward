@@ -14,10 +14,10 @@ concurrency:
 permissions:
   contents: read
 
-# lint/test/goreleaser-dry-run all run on the self-hosted Mac mini
-# (spyros-mac-mini-ssdf) rather than a GitHub-hosted runner: none of them
-# need a specific OS to execute a native binary (see `build`'s matrix below
-# for the jobs that genuinely do), so there's no technical reason to spend
+# lint/test/build/goreleaser-dry-run all run on the self-hosted Mac mini
+# (spyros-mac-mini-ssdf) rather than a GitHub-hosted runner — cross-compilation
+# (see `build`'s own comment below) means none of them need a specific OS to
+# produce or check a binary, so there's no technical reason to spend
 # GitHub-hosted Actions minutes running plain Go tooling. One runner queues
 # these serially rather than in parallel, which is an acceptable tradeoff.
 jobs:
@@ -54,16 +54,17 @@ jobs:
   # Issue #83: restores the Linux-specific test coverage `test` above can't
   # provide on its own — case-sensitive filesystem, path/rename semantics,
   # the race-detector runtime — for a tool whose primary deployment target
-  # is Linux CI. Runs on spyros-ionos-ssdf (self-hosted, amd64), the same
-  # machine the `build` matrix's linux/amd64 leg already uses, rather than
+  # is Linux CI. Runs on spyros-ionos-ssdf (self-hosted, amd64) rather than
   # falling back to a GitHub-hosted ubuntu-latest runner (issue #83's other
   # proposed option) — this repo already had a self-hosted Linux amd64
-  # machine, it just wasn't running the test suite on it yet. Deliberately
-  # NOT added to this repo's required-checks list (a new job is
-  # non-required by default unless explicitly added there): if this
-  # specific runner ever goes offline, that must never be able to block a
-  # merge the way a required check would, matching the same reasoning that
-  # keeps `build`'s own legs non-required.
+  # machine, it just wasn't running the test suite on it yet. `build` no
+  # longer has a linux/amd64 leg of its own to share this machine with (it
+  # cross-compiles everything from spyros-mac-mini-ssdf now), so this is the
+  # only job that still touches spyros-ionos-ssdf. Deliberately NOT added to
+  # this repo's required-checks list (a new job is non-required by default
+  # unless explicitly added there): if this specific runner ever goes
+  # offline, that must never be able to block a merge the way a required
+  # check would, matching the same reasoning that keeps `build` non-required.
   test-linux:
     runs-on: [self-hosted, Linux, X64]
     steps:
@@ -86,153 +87,57 @@ jobs:
           go-version-file: go.mod
       - run: make checks-docs-check
 
-  # One matrix entry per Phase 0 target platform/arch, each on a runner that
-  # can execute the binary natively (no cross-arch execution gaps) so this
-  # job proves `attestward version` actually runs on linux, macOS, and windows —
-  # not just that it compiles.
+  # Cross-compiles every target platform from spyros-mac-mini-ssdf in one job,
+  # instead of round-tripping through 4 different self-hosted runners
+  # (previously: ionos for linux/amd64, parallels for linux/arm64, mac-mini
+  # for both darwin arches, plus a wake/sleep cycle on the physical AORUS box
+  # for windows/amd64 — several minutes of pure machine-management overhead
+  # on top of the actual build, every single run). Go's own GOOS/GOARCH
+  # cross-compilation makes native per-arch runners unnecessary for a
+  # CGO_ENABLED=0 pure-Go binary — this is exactly what goreleaser-dry-run
+  # below already does, and a local `goreleaser release --snapshot`
+  # cross-compiled all 5 targets from one machine in 12 seconds during
+  # PR #128's own verification. Only the output matching this runner's own
+  # OS/arch (darwin/arm64) gets an execution check; the other 4 are
+  # compile-checked, not run — cross-compiling doesn't buy execution
+  # verification on the target OS, only compilation.
+  #
+  # This is now the required build path. The previous 4-runner, per-arch
+  # native-build pattern (including the AORUS wake/sleep dance) is kept as a
+  # reference in multi-arch-build-sample.yaml — non-required,
+  # workflow_dispatch-only, for anyone who genuinely needs execution-verified
+  # native builds again (e.g. a future CGO dependency that can't
+  # cross-compile).
   build:
     needs: [lint, test]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # linux/amd64 runs on the self-hosted Ubuntu VM (spyros-ionos-ssdf,
-          # x86_64, an IONOS-hosted Proxmox guest — always-on, unlike the
-          # power-cycled local machines) rather than ubuntu-latest — same hard
-          # rule as everything else in this repo's CI. linux/arm64 runs on
-          # spyros-parallels-ssdf, a Parallels-hosted Ubuntu 24.04 arm64 VM
-          # (10.0.0.159) — this used to be GitHub-hosted (ubuntu-24.04-arm)
-          # since no self-hosted arm64 Linux machine existed yet; that
-          # runner was also hitting this account's GitHub-hosted billing
-          # block, independent of the self-hosted-preference rule.
-          - goos: linux
-            goarch: amd64
-            os: [self-hosted, Linux, X64]
-          - goos: linux
-            goarch: arm64
-            os: [self-hosted, Linux, ARM64]
-          # Both darwin builds run on the self-hosted Apple Silicon runner
-          # (spyros-mac-mini-ssdf): amd64 executes fine there too since it
-          # has Rosetta 2 installed, and self-hosted avoids GitHub-hosted
-          # macOS runners' 10x included-minutes multiplier. Not a required
-          # status check (see `lint`/`test` above), so this job is a no-op
-          # rather than a blocker if the runner is ever offline.
-          - goos: darwin
-            goarch: amd64
-            os: [self-hosted, macOS]
-          - goos: darwin
-            goarch: arm64
-            os: [self-hosted, macOS]
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - name: Build
-        shell: bash
+      - name: Cross-compile every target platform
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          ext=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
-          out="attestward-${{ matrix.goos }}-${{ matrix.goarch }}${ext}"
-          go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "$out" ./cmd/attestward
-          echo "BIN=$out" >> "$GITHUB_ENV"
-      - name: Verify it runs
-        shell: bash
-        run: ./"$BIN" version
+          set -euo pipefail
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            ext=""
+            if [ "$goos" = "windows" ]; then ext=".exe"; fi
+            out="attestward-${goos}-${goarch}${ext}"
+            echo "building $out"
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+              -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              -o "$out" ./cmd/attestward
+          done
+      - name: Verify the darwin/arm64 build runs (matches this runner's own arch)
+        run: ./attestward-darwin-arm64 version
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: attestward-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: attestward-${{ matrix.goos }}-${{ matrix.goarch }}*
-
-  # windows/amd64's native-execution leg runs on a physical self-hosted runner
-  # (spyros-aorus-ssdf) that's kept powered off between uses (~300W draw) —
-  # three sequenced jobs instead of one matrix entry: wake it, build+verify on
-  # it, power it back off. Not a required status check (see `lint`/`test`
-  # above), same as build's other legs.
-  wake-aorus:
-    needs: [lint, test]
-    runs-on: [self-hosted, macOS]
-    concurrency:
-      group: aorus-windows-runner
-      cancel-in-progress: false
-    outputs:
-      cold_woke: ${{ steps.wake.outputs.cold_woke }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Wake AORUS
-        id: wake
-        run: |
-          output=$(tools/aorus.sh on)
-          echo "$output"
-          cold_woke=$(echo "$output" | grep -o 'COLD_WOKE=.*' | cut -d= -f2)
-          echo "cold_woke=$cold_woke" >> "$GITHUB_OUTPUT"
-
-  build-windows:
-    needs: [wake-aorus]
-    runs-on: [self-hosted, Windows, X64]
-    concurrency:
-      group: aorus-windows-runner
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      # This runner also has WSL's bash.exe launcher stub on PATH (no
-      # installed distribution), and GitHub's `shell: bash` resolution
-      # picked that one over Git for Windows' real bash — confirmed
-      # directly in a real CI run ("Windows Subsystem for Linux has no
-      # installed distributions"). Pointing `shell:` at Git's bash.exe by
-      # full path doesn't work either — the runner's own internal
-      # path-combining logic throws ("Second path fragment must not be a
-      # drive or UNC name") when the shell command starts with a drive
-      # letter, also confirmed directly. Prepending Git's bin directory to
-      # PATH via GITHUB_PATH instead — the documented, supported way to
-      # influence which binary a later `shell: bash` step resolves to.
-      - name: Prefer Git's bash over the WSL launcher stub
-        run: echo "C:\Program Files\Git\bin" >> $env:GITHUB_PATH
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - name: Build
-        shell: bash
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: 0
-        run: |
-          go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o attestward-windows-amd64.exe ./cmd/attestward
-      - name: Verify it runs
-        shell: bash
-        run: ./attestward-windows-amd64.exe version
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: attestward-windows-amd64
-          path: attestward-windows-amd64.exe
-
-  # Runs regardless of build-windows's outcome (if: always()) — a failed
-  # Windows build must not leave the box powered on indefinitely. Only
-  # actually shuts down if wake-aorus cold-woke it: if AORUS was already up
-  # when this run started, something else is using it, and powering it off
-  # out from under that isn't this pipeline's call to make (see
-  # tools/aorus.sh's own doc comment).
-  sleep-aorus:
-    needs: [wake-aorus, build-windows]
-    if: always()
-    runs-on: [self-hosted, macOS]
-    concurrency:
-      group: aorus-windows-runner
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Power off AORUS
-        if: needs.wake-aorus.outputs.cold_woke == 'true'
-        run: tools/aorus.sh off
-      - name: Leave AORUS running (was already up before this run)
-        if: needs.wake-aorus.outputs.cold_woke != 'true'
-        run: echo "AORUS was already up when wake-aorus ran — leaving it as-is"
+          name: attestward-builds
+          path: attestward-*
 
   # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
   # push or cosign's OIDC signing context. Informational only (not a required
