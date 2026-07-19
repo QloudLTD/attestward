@@ -26,25 +26,20 @@ jobs:
   clean:
     runs-on: [self-hosted, macOS]
     steps:
-      - name: Remove stale per-repo workspaces under the runner's _work directory
-        run: |
-          set -euo pipefail
-          # RUNNER_WORKSPACE is <_work_root>/<repo>/<repo> for the repo
-          # running this job; its grandparent is the runner's _work root.
-          # Anything else under that root is left over from a different
-          # repo (this runner may serve more than one) or a stale checkout.
-          current_repo_dir="$(dirname "$RUNNER_WORKSPACE")"
-          work_root="$(dirname "$current_repo_dir")"
-          echo "runner _work root: $work_root"
-          echo "current repo's own workspace (kept): $current_repo_dir"
-          for d in "$work_root"/*/; do
-            d="${d%/}"
-            if [ "$d" != "$current_repo_dir" ]; then
-              echo "removing stale workspace: $d"
-              rm -rf "$d"
-            fi
-          done
-
+      # A prior version of this workflow had a step here that computed the
+      # runner's _work root from $RUNNER_WORKSPACE and deleted every sibling
+      # directory under it. The path math was wrong by one level — on the
+      # actual runner, $RUNNER_WORKSPACE resolved such that the computed
+      # "work_root" was the runner's own install directory, not _work — so
+      # the step deleted the runner's own bin/externals/_diag contents
+      # (everything except the one directory that happened to match the
+      # miscomputed "current repo" path) and broke the runner process
+      # mid-job (a .NET assembly-load failure completing the job). Caught
+      # live on the very first real dispatch (2026-07-19); removed here
+      # rather than patched blind. A corrected version needs the actual
+      # $RUNNER_WORKSPACE/$GITHUB_WORKSPACE values confirmed via a
+      # read-only diagnostic run on this specific runner before any rm -rf
+      # touches anything path-computed again.
       - name: Clear Go build and module caches
         run: |
           set -euo pipefail
