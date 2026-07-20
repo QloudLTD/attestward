@@ -13,9 +13,9 @@ against a GitHub org/repo and emits a signed evidence pack. Full mission and rat
 
 Status: pre-alpha. All ten collectors (C01–C10) plus self-attestation intake are
 merged; the full v0.1 output/integrity pipeline (evidence.json, report.md/html,
-poam.md, pack signing/verification, `attestward report`) is in place. Remaining work is
-sign-off gates on a couple of Phase 5 items plus issue-driven Phase 6 polish — see
-**Progress tracker** below for exactly what's open and why.
+poam.md, pack signing/verification, `attestward report`) is in place and signed off —
+Phases 0–5 are fully closed. Remaining work is issue-driven Phase 6 polish and launch —
+see **Progress tracker** below for exactly what's open and why.
 
 ## The one rule that overrides convenience
 
@@ -115,7 +115,7 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Phase 5 — Outputs + integrity**
 - [x] #24 evidence.json writer
-- [ ] #25 report.md/html (renderers merged; issue open pending non-engineer sign-off)
+- [x] #25 report.md/html (renderers + non-engineer sign-off complete)
 - [x] #26 poam.md
 - [x] #27 pack integrity
 - [x] #28 `attestward report`
