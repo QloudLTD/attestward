@@ -208,6 +208,25 @@ doc comments (`attestward checks docs` / [docs/checks-reference.md](docs/checks-
 for exactly what was and wasn't confirmed. Scanning with a broader token than a check
 needs still works — the check just doesn't need the extra access it was given.
 
+The table's classic and fine-grained scope sets were each validated end-to-end as a
+whole against the public demo org (issue #29, 2026-07-20). A classic PAT with exactly
+`repo` + `read:org` + `read:audit_log`, and a fine-grained PAT (resource owner: the
+org; repository permissions, all read-only: Actions, Administration, Attestations,
+Code scanning alerts, Contents, Dependabot alerts, Webhooks; organization permissions,
+read-only: Administration, Members) each produced a full scan in which every check
+matched the demo org's expected results (`fixtures.yaml`). Three limits of that
+validation, stated rather than glossed: each token carried its full set at once, so
+per-row minimums were not individually exercised (a row needing more than it claims
+would be masked by the union); the demo org's Free plan makes the org audit-log check
+not-checkable regardless of token, so `read:audit_log`'s sufficiency was not actually
+exercised; and because the demo org is public, content-level reads succeed without an
+explicit grant there — both sets are validated as *sufficient*, not each entry as
+individually *necessary*. A token with fewer permissions than a check needs does not
+hard-fail the scan: affected checks degrade to `not-checkable` with a reason naming
+what the token couldn't read (diffing the degraded pack against the full one showed no
+silently wrong verified result), and only a token that can't see the target account at
+all fails preflight outright.
+
 ## Verifying an evidence pack
 
 Every scan hashes and hash-verifies itself, always, whether or not you sign anything:

@@ -123,7 +123,8 @@ itself, so re-run it any time rather than hand-editing it.
 **Phase 6 — Polish & launch**
 - [x] #30 Generated checks-reference (`docs/checks-reference.md`, CI drift guard)
 - [x] #32 Self-scan workflow + badge (verified live: clean run + deliberate-red/revert test)
-- [ ] #29 README rewrite (PR #110 merged; issue open pending cold-visitor timed test + PAT-minimality test + legal sign-off)
+- [ ] #29 README rewrite (PR #110 merged; PAT-minimality test done, evidenced on the
+  issue; open pending cold-visitor timed test + legal sign-off)
 - [x] #31 threat model finalization (runtime read-only guard + claim-by-claim audit + external-reader sign-off)
 - [ ] #33 launch checklist
 
