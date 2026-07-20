@@ -1,4 +1,8 @@
-# SSDF Evidence Engine
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="Attestward" width="96" height="96" />
+</p>
+
+# Attestward
 
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
