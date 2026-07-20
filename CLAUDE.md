@@ -14,8 +14,8 @@ against a GitHub org/repo and emits a signed evidence pack. Full mission and rat
 Status: pre-alpha. All ten collectors (C01–C10) plus self-attestation intake are
 merged; the full v0.1 output/integrity pipeline (evidence.json, report.md/html,
 poam.md, pack signing/verification, `attestward report`) is in place. Remaining work is
-issue-driven Phase 6 polish — see **Progress tracker** below for exactly what's open
-and why.
+sign-off gates on a couple of Phase 5 items plus issue-driven Phase 6 polish — see
+**Progress tracker** below for exactly what's open and why.
 
 ## The one rule that overrides convenience
 

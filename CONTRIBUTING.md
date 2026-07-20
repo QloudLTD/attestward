@@ -150,9 +150,12 @@ an action slug or regex).
   other docs describe *what is true now*, not the sequence of PRs/issues that got there
   — readers don't care how a decision was reached, only what it is; git history and
   issue threads are where the "how we got here" story already lives, and duplicating it
-  in prose just goes stale. Exception: a genuinely major change worth calling out
-  explicitly (e.g. a regulatory shift the tool's own claims depend on) — use judgment,
-  but default to terse and current.
+  in prose just goes stale. This means cutting the *event sequence* ("we first tried X,
+  then switched to Y"), not the *rationale* — keep whatever constraint or tradeoff makes
+  a decision (especially in `DECISIONS.md`) what it is, since that's the part a reader
+  actually needs to judge or revisit it later. Exception: a genuinely major change worth
+  calling out explicitly (e.g. a regulatory shift the tool's own claims depend on) — use
+  judgment, but default to terse and current.
 
 ## License
 
