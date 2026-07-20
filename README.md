@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="Attestward" width="96" height="96" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg" />
+    <img src="docs/assets/logo.svg" alt="Attestward" height="96" />
+  </picture>
 </p>
 
 # Attestward
