@@ -64,6 +64,30 @@ changelog:
 
 release:
   prerelease: auto
+  # Every release's notes end with verification instructions so a consumer
+  # never has to hunt for SECURITY.md before deciding whether to trust a
+  # download. Command kept identical to SECURITY.md's — update both together.
+  footer: |
+    ---
+
+    ## Verify before you run
+
+    `checksums.txt` is keyless-signed with cosign v3+ (Sigstore). Download it and
+    `checksums.txt.bundle`, then:
+
+    ```bash
+    cosign verify-blob \
+      --bundle checksums.txt.bundle \
+      --certificate-identity-regexp "^https://github.com/sioakim/attestward/\.github/workflows/release\.yaml@refs/tags/v.*$" \
+      --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+      checksums.txt
+
+    # then confirm your downloaded archive's hash is listed:
+    #   Linux: sha256sum --ignore-missing -c checksums.txt
+    #   macOS: shasum -a 256 --ignore-missing -c checksums.txt
+    ```
+
+    If verification fails, do not run the binary. Full guide: [SECURITY.md](https://github.com/sioakim/attestward/blob/main/SECURITY.md).
 
 # Keyless signing (Sigstore/Fulcio OIDC) over the checksums file — no key
 # material for us to manage. Resolves DECISIONS.md D6. Requires id-token:
