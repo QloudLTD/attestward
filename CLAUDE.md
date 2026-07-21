@@ -11,13 +11,12 @@ D1) is a read-only CLI that verifies the technical controls behind the CISA SSDA
 against a GitHub org/repo and emits a signed evidence pack. Full mission and rationale:
 [README.md](README.md).
 
-Status: pre-alpha. All ten collectors (C01–C10) plus self-attestation intake are
-merged; the full v0.1 output/integrity pipeline (evidence.json, report.md/html,
-poam.md, pack signing/verification, `attestward report`) is in place and signed off —
-Phases 0–5 are fully closed. Remaining work is issue-driven Phase 6 polish and the
-v0.1.0 release itself; the public flip and everything gated on it are deferred to v1.0
-(DECISIONS.md D7, issue #138) — see **Progress tracker** below for exactly what's open
-and why.
+Status: **v0.1.0 released** (2026-07-21, tag at `fa3c4cf` — archives for five
+platforms with a cosign keyless-signed `checksums.txt`, verified from a machine other
+than the build host; evidence on #33). The repo stays private for
+now: the public flip and everything gated on it land with v1.0 (DECISIONS.md D7,
+issue #138). All v0.1 phases (0–6) are closed; open work is the v1.0 milestone and the
+post-v0.1 backlog — see **Progress tracker** below.
 
 ## The one rule that overrides convenience
 
@@ -128,9 +127,11 @@ itself, so re-run it any time rather than hand-editing it.
 - [x] #29 README rewrite (closed for v0.1 — everything doable pre-flip is done; the
   cold-visitor timed test + legal sign-off moved to the v1.0 public-flip issue #138)
 - [x] #31 threat model finalization (runtime read-only guard + claim-by-claim audit + external-reader sign-off)
-- [ ] #33 launch checklist (rescoped per D7: public flip + its gated items moved to
-  #138; what remains here is the private v0.1.0 release — changelog, rc tag to validate
-  the release path, `v0.1.0`, logo in report header (D2), milestone closes)
+- [x] #33 launch checklist (rescoped per D7 — public flip + its gated items moved to
+  #138; the private v0.1.0 release itself is done: changelog + release-notes verify
+  footer (#140), logo in report header (#141, resolving D2), release path validated
+  via a disposable `v0.1.0-rc.1` then deleted, `v0.1.0` tagged and cosign-verified
+  from an independent machine)
 
 **Post-v0.1 backlog (seams only, do not build)**
 - #34 Azure DevOps · #35 GitLab/SLSA/VEX · #36 Continuous mode GitHub Action

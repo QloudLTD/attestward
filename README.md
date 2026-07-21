@@ -10,7 +10,8 @@
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
 **CLI binary:** `attestward`. **Product name:** Attestward (see [DECISIONS.md](DECISIONS.md) D1).
-**Status:** pre-alpha — v0.1 under active, issue-driven development.
+**Status:** v0.1.0 released (see [CHANGELOG.md](CHANGELOG.md)); pre-1.0, so CLI flags
+and output formats may still change between 0.x versions.
 **License:** [Apache-2.0](LICENSE)
 
 [![CI](https://github.com/sioakim/attestward/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/attestward/actions/workflows/ci.yaml)
@@ -110,7 +111,7 @@ mean and what API evidence backs them.
 
 ### 1. Install
 
-**Download a release** (once one is tagged — this repo is pre-alpha, no `v1.0.0` yet):
+**Download a release** (v0.1.0 is the current release):
 
 ```bash
 # Substitute the real version/os/arch from the releases page.
