@@ -7,9 +7,8 @@ Undecided questions requiring the owner's call. Once resolved: record the outcom
 
 | # | Question | Notes | Blocking |
 |---|---|---|---|
-| D2 | **Logo / visual identity** | Needed for README/report header at launch, not before. | Phase 6 |
-| D3 | **Launch channels** | HN/Show HN, r/netsec, compliance communities, direct outreach to small federal vendors? | Phase 6 |
-| D7 | **Repo visibility timing** | Repo starts private; not yet decided when to flip public. CodeQL (`.github/workflows/codeql.yaml`) and `dependency-review-action` are both removed — GHAS-gated, unavailable on a private repo without it; re-add either once public or GHAS is purchased. `C06.sca.dependency-review` stays an accepted `verified-fail` gap on this repo's own self-scan until then. | Phase 1–2, #32 |
+| D2 | **Logo / visual identity** | README logo landed (#132, #134 dark-mode variant); still needed for the report header template. | Phase 6 |
+| D3 | **Launch channels** | HN/Show HN, r/netsec, compliance communities, direct outreach to small federal vendors? Announcement itself now lands with the v1.0 public flip (D7, #138). | #138 (v1.0) |
 
 ## Resolved
 
@@ -26,3 +25,4 @@ Undecided questions requiring the owner's call. Once resolved: record the outcom
 | D11 | This repo's own audit-log export fallback | No real export destination exists — solo-maintainer repo, no SIEM/webhook target to send it to; `SA.audit-log-export-fallback` answered "no" in `self-attestation.yaml`, an accepted, deliberate gap rather than an oversight. | Issue #106, `self-attestation.yaml` |
 | D1 | Final product name | **Attestward.** Repo, Go module path, and CLI binary all renamed to match (`sioakim/attestward`, private per D7); domain `attestward.com` registered. A web-search availability screen surfaced no company or product using the name (trademark registers not searched); formal USPTO/WIPO clearance is deliberately deferred until shortly before public launch. | Issue #33, `sioakim/ssdf-website`'s `CLAUDE.md` |
 | D4 | Hosted-tier boundary | Anything a single local scan produces stays free/OSS forever; anything requiring a server, persistent storage, or multi-tenancy is the separate commercial hosted product (ADR-0004 rules those out of the free CLI). Free forever: all ten collectors, the full evidence pack, pack integrity, self-attestation, every mapping. Hosted (v1.0 milestone): #121–#126. | Issue #33, #121–#126 |
+| D7 | Repo visibility timing | **v0.1.0 ships with the repo private; the public flip lands with v1.0** (owner decision 2026-07-21). The attestward.com website may link the repo before then — those links 404ing for outsiders is accepted. Everything gated on "before public" (runner-trust mitigations from #33/#31, CodeQL + `dependency-review-action` re-add, #29's cold-visitor and legal-sign-off gates, D1's trademark clearance) is collected in #138. Until the flip, `C06.sca.dependency-review` stays an accepted `verified-fail` gap on this repo's own self-scan. | Issue #33, #138 |

@@ -106,7 +106,7 @@ mean and what API evidence backs them.
 > an authenticated request. Nothing here is usable by a true "cold visitor" yet; this
 > section documents the intended post-launch experience and is being written and tested
 > ahead of that, not claimed as already validated end-to-end by someone with no prior
-> context (see issue #29 for that gate).
+> context (see issue #138 for that gate).
 
 ### 1. Install
 

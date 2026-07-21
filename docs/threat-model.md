@@ -287,7 +287,7 @@ evidence) before every write.
     gave every release a fresh, GitHub-managed build environment; that property doesn't
     hold for this specific job today. Mitigation (not yet done): move the release job
     specifically to a hosted or dedicated hardened runner before public launch — tracked
-    on #33.
+    on #138 (the v1.0 public-flip issue; DECISIONS.md D7).
   - **Shared, persistent runner state is not wiped between jobs or workflows.**
     `actions/checkout`'s default clean only resets the checked-out source tree — it
     doesn't touch `~/go/pkg/mod`, `~/Library/Caches/go-build`, or a runner's Go
@@ -304,15 +304,15 @@ evidence) before every write.
     non-required, `workflow_dispatch`-only reference pipeline) is manually run.
     Low-severity today (private repo, single collaborator with full access already has
     every capability this risk would grant), but a distinct mechanism from "an
-    untrusted fork PR executes arbitrary code" (already covered on #33): even *trusted*
+    untrusted fork PR executes arbitrary code" (already covered on #138): even *trusted*
     code — a compromised upstream Go dependency, for instance — building once on a
     shared runner could in principle leave state a later job (one doing keyless
     signing, or one with `DEMO_ORG_PAT` in integration-scan.yaml) then trusts. Go's own
     module/build-cache content-addressing (go.sum-verified, hash-keyed) meaningfully
     bounds this relative to ecosystems with less integrity-checked caches, but it isn't
     zero. Mitigation options (isolate via ephemeral/containerized self-hosted runners,
-    or periodic cache resets) belong in the same pre-public-launch bucket as #33's other
-    self-hosted-runner items — not solved by anything in this document.
+    or periodic cache resets) belong in the same pre-public-launch bucket as #138's
+    other self-hosted-runner items — not solved by anything in this document.
 
 ## See also
 
