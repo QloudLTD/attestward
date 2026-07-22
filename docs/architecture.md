@@ -15,6 +15,11 @@ architecture; it is updated in the same PR as any change that affects it.
    (human-readable), and `poam.md` (draft Plan of Action & Milestones for gaps).
 4. **Seals** — hashes the evidence pack (SHA-256) and optionally signs it
    (`cosign sign-blob`).
+5. **Compares** — `attestward diff` reports the semantic difference between two packs
+   from the same org (`internal/packdiff`): status transitions classified as
+   regressions / improvements / coverage changes, volatile fields ignored, checker
+   changes surfaced as context. Exit 2 on regressions, so CI drift detection (issue
+   #36) is a plain exit-code check.
 
 ```
                 ┌─────────────┐
@@ -41,6 +46,7 @@ architecture; it is updated in the same PR as any change that affects it.
 /internal/model/          # evidence, check, finding types (versioned schema)
 /internal/mapping/        # YAML loader, rollup logic
 /internal/report/         # md/html/poam renderers (go templates)
+/internal/packdiff/       # semantic pack comparison (attestward diff)
 /internal/integrity/      # hashing, optional cosign signing
 /mappings/                # ssdf-800-218.yaml, cisa-ssda-form.yaml, scanner-signatures.yaml,
                            # self-attestation-questions.yaml

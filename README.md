@@ -174,6 +174,7 @@ attestward scan --org my-org --sign             # also sign evidence.json (see "
 attestward attest init --out self-attestation.yaml  # generate a commented answers template
 attestward verify ./evidence/                   # check evidence.json's hash (and signature, if signed)
 attestward report ./evidence/evidence.json      # regenerate reports
+attestward diff baseline.json current.json      # semantic pack comparison; exit 2 on posture regressions
 attestward checks list                          # show all checks + mappings
 attestward checks docs                          # regenerate docs/checks-reference.md
 attestward version

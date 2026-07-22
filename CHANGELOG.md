@@ -6,6 +6,15 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`attestward diff`** — semantic comparison of two evidence packs from the same
+  org: status transitions classified as regressions (exit 2), improvements, coverage
+  changes (verified ↔ not-checkable, reported separately from posture drift), and
+  informational changes; volatile fields ignored; tool/mapping/scope changes surfaced
+  as context. `--format text|md|json`. The foundation for continuous-mode drift
+  detection (#36).
+
 ## [0.1.0] - 2026-07-21
 
 First release: the complete v0.1 evidence engine for GitHub (epic #1, Phases 0–6).
