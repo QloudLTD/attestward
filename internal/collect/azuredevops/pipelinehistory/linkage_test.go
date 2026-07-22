@@ -165,3 +165,18 @@ func TestLinkRunsToReleases(t *testing.T) {
 		})
 	}
 }
+
+// TestLinkRunsToReleases_ResultCaseInsensitive proves a live "Succeeded" or
+// "SUCCEEDED" — Azure DevOps enum casing this project has no confirmed
+// guarantee always matches the reference docs' exact lowercase form — still
+// counts as a clean run, not a false CoverageFailed.
+func TestLinkRunsToReleases_ResultCaseInsensitive(t *testing.T) {
+	releases := []ReleaseInfo{{TagName: "v1.0.0", CommitSHA: "abc", PublishedAt: day(5)}}
+	for _, result := range []string{"succeeded", "Succeeded", "SUCCEEDED"} {
+		runs := []RunInfo{{SourceVersion: "abc", Result: result, QueueTime: day(5)}}
+		got := LinkRunsToReleases(releases, runs, "refs/heads/main")
+		if len(got) != 1 || got[0].Status != CoverageRan {
+			t.Errorf("Result=%q: coverage = %+v, want CoverageRan", result, got)
+		}
+	}
+}

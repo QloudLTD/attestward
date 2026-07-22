@@ -245,12 +245,21 @@ func TestMatchPipelines_EndToEnd(t *testing.T) {
 	if len(matched) != 1 || matched[0].DefinitionID != 1 || matched[0].Name != "matching" || len(matched[0].Matches) != 1 || matched[0].Matches[0].SignatureID != "snyk-like" {
 		t.Errorf("matched = %+v, want exactly pipeline 1 (name %q) matching snyk-like", matched, "matching")
 	}
+	// RepositoryID lets a per-repo caller (C05/C06) filter this
+	// project-wide match list down to one repo — populated straight from
+	// the same FetchBuildDefinition response that resolved everything
+	// else here, no extra call.
+	if matched[0].RepositoryID != "repo-1" {
+		t.Errorf("matched[0].RepositoryID = %q, want %q (from the build definition's own repository.id)", matched[0].RepositoryID, "repo-1")
+	}
 
 	skippedIDs := map[int]bool{}
 	skippedNames := map[int]string{}
+	skippedRepoIDs := map[int]string{}
 	for _, s := range skipped {
 		skippedIDs[s.DefinitionID] = true
 		skippedNames[s.DefinitionID] = s.Name
+		skippedRepoIDs[s.DefinitionID] = s.RepositoryID
 	}
 	if skippedIDs[2] {
 		t.Error("pipeline 2 (classic/designer) appeared in skipped — it should be silently out of scope, not a gap")
@@ -269,6 +278,17 @@ func TestMatchPipelines_EndToEnd(t *testing.T) {
 	}
 	if skippedNames[4] != "broken" {
 		t.Errorf("skipped pipeline 4's Name = %q, want %q (PipelineRef's own name, since the build-definition fetch that would have known its own Name is exactly what failed)", skippedNames[4], "broken")
+	}
+	// Pipeline 3's build definition fetch succeeded before its later
+	// steps failed, so its RepositoryID is known; pipeline 4's own
+	// build-definition fetch is exactly what failed, so there is no
+	// response to have read a repository field from — RepositoryID stays
+	// empty, honestly, rather than guessing.
+	if skippedRepoIDs[3] != "repo-3" {
+		t.Errorf("skipped pipeline 3's RepositoryID = %q, want %q", skippedRepoIDs[3], "repo-3")
+	}
+	if skippedRepoIDs[4] != "" {
+		t.Errorf("skipped pipeline 4's RepositoryID = %q, want empty (its own build-definition fetch failed, so no repository field was ever read)", skippedRepoIDs[4])
 	}
 }
 

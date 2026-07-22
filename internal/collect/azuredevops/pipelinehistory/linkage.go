@@ -2,6 +2,7 @@ package pipelinehistory
 
 import (
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -12,6 +13,7 @@ type ReleaseCoverageStatus string
 
 const (
 	// CoverageRan means at least one build whose Result is "succeeded"
+	// (case-insensitive — see LinkRunsToReleases' own doc comment for why)
 	// covers this release — "succeeded" is the one BuildResult enum value
 	// (verified against Azure DevOps's Builds - List reference: none,
 	// succeeded, partiallySucceeded, failed, canceled) this package treats
@@ -77,6 +79,14 @@ type ReleaseCoverage struct {
 // matching is exactly what this function performs, since Builds List
 // itself has no server-side sourceVersion filter (verified against the
 // full documented parameter list).
+//
+// Result is compared against "succeeded" case-insensitively: this
+// project's own experience with another ADO enum field documented as a
+// fixed set of string values (the audit Streams API's status field, issue
+// #154/S8) that didn't reliably match its own documented casing in
+// practice is why every ADO enum comparison in this project now defaults
+// to case-insensitive rather than assuming a real service always echoes
+// the reference docs' exact casing back.
 func LinkRunsToReleases(releases []ReleaseInfo, runs []RunInfo, defaultBranch string) []ReleaseCoverage {
 	sorted := make([]ReleaseInfo, len(releases))
 	copy(sorted, releases)
@@ -103,7 +113,7 @@ func LinkRunsToReleases(releases []ReleaseInfo, runs []RunInfo, defaultBranch st
 				continue
 			}
 			anyRun = true
-			if run.Result == "succeeded" {
+			if strings.EqualFold(run.Result, "succeeded") {
 				anySuccess = true
 			}
 		}

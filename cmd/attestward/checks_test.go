@@ -188,7 +188,8 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// sasthistory, scahistory, provenance, actionssecurity, auditlogging,
 	// and vdp, plus azuredevops' own orgsecurity, repoprotection (both
 	// issue #150, S4's two PRs), envseparation (issue #151, S5's first
-	// PR), auditlogging, and vdp (both issue #154, S8's two PRs),
+	// PR), auditlogging, vdp (both issue #154, S8's two PRs), and
+	// sasthistory (issue #152, S6's first collector PR),
 	// transitively imported via scan.go) — not the disk-based loaders or
 	// synthetic fixtures the other tests in this file use, which would
 	// miss a broken //go:embed pattern, a renamed file, or a check
@@ -196,8 +197,9 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	//
 	// wantIDs lists each shared check ID once per platform that registers
 	// it — the four C01.org.* IDs, the six C02.branch.* IDs (both issue
-	// #150), the four C03.env.* IDs (issue #151), the four C09.* IDs, and
-	// the four C10.vdp.* IDs (both issue #154) are each registered under
+	// #150), the four C03.env.* IDs (issue #151), the four C09.* IDs and
+	// four C10.vdp.* IDs (both issue #154), and the four C05.sast.* IDs
+	// (issue #152) are each registered under
 	// both azuredevops and github (same ID, per-platform metadata; see
 	// issue #34's check-identity model), so buildMatrix's own
 	// one-row-per-(platform,ID) contract (TestBuildMatrix_SameID...) means
@@ -252,8 +254,12 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C04.secrets.push-protection",
 		"C04.secrets.scanning-enabled",
 		"C05.sast.cadence",
+		"C05.sast.cadence",
+		"C05.sast.default-setup",
 		"C05.sast.default-setup",
 		"C05.sast.ran-per-release",
+		"C05.sast.ran-per-release",
+		"C05.sast.tool-configured",
 		"C05.sast.tool-configured",
 		"C06.sca.alerts-triaged",
 		"C06.sca.dependabot-config",
@@ -323,13 +329,15 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 // unlike the narrower per-group predecessors of this test. The
 // found-count assertion guards against this silently covering zero
 // checks if the registry were ever emptied by an import change. The count
-// grew from 46 to 68 across issues #150 (S4, two PRs: C01 then C02), #151
-// (S5's first PR: C03), and #154 (S8, two PRs: C09 then C10): azuredevops'
-// own C01 org-security (4 checks), C02 repo-protection (6 checks), C03
-// env-separation (4 checks), C09 audit-logging (4 checks), and C10 vdp (4
-// checks) each register the same check IDs their GitHub twins already do
-// (issue #34's check-identity model — same ID, per-platform metadata),
-// each a distinct (Platform, ID) registry entry — 46 + 4 + 6 + 4 + 4 + 4 = 68.
+// grew from 46 to 72 across issues #150 (S4, two PRs: C01 then C02), #151
+// (S5's first PR: C03), #154 (S8, two PRs: C09 then C10), and #152 (S6,
+// its first collector PR, C05): azuredevops' own C01 org-security (4
+// checks), C02 repo-protection (6 checks), C03 env-separation (4 checks),
+// C09 audit-logging (4 checks), C10 vdp (4 checks), and C05 sast-history
+// (4 checks) each register the same check IDs their GitHub twins already
+// do (issue #34's check-identity model — same ID, per-platform metadata),
+// each a distinct (Platform, ID) registry entry
+// — 46 + 4 + 6 + 4 + 4 + 4 + 4 = 72.
 func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 	registered := collect.Registered()
 	for _, meta := range registered {
@@ -337,7 +345,7 @@ func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if len(registered) != 68 {
-		t.Fatalf("len(collect.Registered()) = %d, want 68 — did the registered check count change?", len(registered))
+	if len(registered) != 72 {
+		t.Fatalf("len(collect.Registered()) = %d, want 72 — did the registered check count change?", len(registered))
 	}
 }

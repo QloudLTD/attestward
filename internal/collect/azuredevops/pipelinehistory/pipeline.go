@@ -242,11 +242,19 @@ func FetchYAMLContent(ctx context.Context, client *azuredevops.Client, project, 
 // PipelineRef, the same source used for SkippedPipeline) makes Facts/report
 // output readable — a bare DefinitionID is opaque there, unlike
 // skipped_workflows' own precedent of identifying content by a
-// human-readable path.
+// human-readable path. RepositoryID (from the same FetchBuildDefinition
+// call that already resolved everything else here — no extra API call)
+// is what lets a per-repo caller (C05/C06, issue #152) filter this
+// project-wide list down to the pipelines that actually target the one
+// repo it's currently scoring: pipeline discovery itself is project-scoped
+// (ListPipelines has no per-repo filter), so without this field a caller
+// would have no way to tell a match for repo A apart from one for repo B
+// in the same project.
 type MatchedPipeline struct {
 	DefinitionID int
 	Name         string
 	Path         string
+	RepositoryID string
 	Matches      []mapping.ScannerMatch
 }
 
@@ -258,9 +266,21 @@ type MatchedPipeline struct {
 // A YAMLPathNotYAML pipeline (classic/designer, genuinely out of scope) is
 // NOT recorded here — see MatchPipelines' doc comment. Name carries the
 // same readability benefit as MatchedPipeline.Name.
+//
+// RepositoryID carries the same per-repo attribution MatchedPipeline.RepositoryID
+// does, wherever it's actually known: every skip reason except the very
+// first (the build-definition fetch itself failing) happens strictly
+// after FetchBuildDefinition already succeeded, so RepositoryID is
+// populated for those; the one case where FetchBuildDefinition itself is
+// what failed leaves RepositoryID empty — genuinely unknown, not a bug —
+// since there is no repository field to read from a response that was
+// never received. A caller attributing skips to a specific repo's Facts
+// should treat an empty RepositoryID as "could not be attributed to any
+// one repo," not "belongs to every repo."
 type SkippedPipeline struct {
 	DefinitionID int
 	Name         string
+	RepositoryID string
 	Reason       string
 }
 
@@ -296,25 +316,25 @@ func MatchPipelines(ctx context.Context, client *azuredevops.Client, registry *m
 		case YAMLPathNotYAML:
 			continue // out of scope, not a gap — see doc comment
 		case YAMLPathUnknown:
-			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, Reason: info.YAMLPath.Reason})
+			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, RepositoryID: info.RepositoryID, Reason: info.YAMLPath.Reason})
 			continue
 		}
 
 		content, err := FetchYAMLContent(ctx, client, project, info.RepositoryID, info.YAMLPath.Path, info.DefaultBranch)
 		if err != nil {
-			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, Reason: fmt.Sprintf("fetch YAML content failed: %v", err)})
+			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, RepositoryID: info.RepositoryID, Reason: fmt.Sprintf("fetch YAML content failed: %v", err)})
 			continue
 		}
 
 		parsed, err := mapping.ParsePipelineFile([]byte(content))
 		if err != nil {
-			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, Reason: fmt.Sprintf("parse YAML failed: %v", err)})
+			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, RepositoryID: info.RepositoryID, Reason: fmt.Sprintf("parse YAML failed: %v", err)})
 			continue
 		}
 
 		matches, unresolved := registry.MatchPipeline(parsed)
 		for _, ref := range unresolved {
-			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, Reason: fmt.Sprintf("template reference not resolved: %s", ref.Ref)})
+			skipped = append(skipped, SkippedPipeline{DefinitionID: p.ID, Name: p.Name, RepositoryID: info.RepositoryID, Reason: fmt.Sprintf("template reference not resolved: %s", ref.Ref)})
 		}
 
 		var categoryMatches []mapping.ScannerMatch
@@ -324,7 +344,7 @@ func MatchPipelines(ctx context.Context, client *azuredevops.Client, registry *m
 			}
 		}
 		if len(categoryMatches) > 0 {
-			matched = append(matched, MatchedPipeline{DefinitionID: p.ID, Name: p.Name, Path: info.YAMLPath.Path, Matches: categoryMatches})
+			matched = append(matched, MatchedPipeline{DefinitionID: p.ID, Name: p.Name, Path: info.YAMLPath.Path, RepositoryID: info.RepositoryID, Matches: categoryMatches})
 		}
 	}
 	return matched, skipped

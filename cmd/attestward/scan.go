@@ -21,6 +21,7 @@ import (
 	adoenvseparation "github.com/sioakim/attestward/internal/collect/azuredevops/envseparation"
 	adoorgsecurity "github.com/sioakim/attestward/internal/collect/azuredevops/orgsecurity"
 	adorepoprotection "github.com/sioakim/attestward/internal/collect/azuredevops/repoprotection"
+	adosasthistory "github.com/sioakim/attestward/internal/collect/azuredevops/sasthistory"
 	advdp "github.com/sioakim/attestward/internal/collect/azuredevops/vdp"
 	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 	"github.com/sioakim/attestward/internal/collect/github/actionssecurity"
@@ -124,32 +125,36 @@ func defaultGitHubCollectors(token string) []collect.Collector {
 // defaultAzureDevOpsCollectors mirrors defaultGitHubCollectors' role for a
 // --platform azuredevops scan. C01 org-security, C02 repo-protection (both
 // issue #150, S4's two PRs), C03 env-separation (issue #151, S5's first
-// PR), C09 audit-logging, and C10 vdp (both issue #154, S8's two PRs) are
-// the five ADO collectors landed so far. org-security and auditlogging are
-// both org-scoped only (auditlogging reads project from
-// collect.Scope.Project at Collect time rather than a constructor
-// argument), so both take a pre-built Client sharing one org+pat pair.
-// repoprotection and envseparation are also project-scoped rather than
-// truly per-repo — envseparation's own two backing calls (environments,
-// per-environment check configurations) each happen once per Collect, not
-// once per repo, and its results carry Scope.Project with Scope.Repo left
-// empty (see its own package doc comment) — so both take a pre-built
-// Client the same way. vdp is different: it's genuinely per-repo (Azure
-// DevOps has no per-repo webhook concept the way GitHub does, but
-// SECURITY.md is genuinely per-repo content), so — mirroring its own
-// GitHub twin's per-repo collectors — its constructor takes (org, pat)
-// directly and builds a fresh Client per repo internally, rather than
-// sharing one Client the way the four project/org-scoped collectors above
-// do.
+// PR), C09 audit-logging, C10 vdp (both issue #154, S8's two PRs), and C05
+// sast-history (issue #152, S6's first of three PRs — pipelinehistory
+// landed first, sca-history follows) are the six ADO collectors landed so
+// far. org-security and auditlogging are both org-scoped only
+// (auditlogging reads project from collect.Scope.Project at Collect time
+// rather than a constructor argument), so both take a pre-built Client
+// sharing one org+pat pair. repoprotection, envseparation, and sasthistory
+// are also project-scoped rather than truly per-repo — envseparation's own
+// two backing calls (environments, per-environment check configurations)
+// each happen once per Collect, not once per repo, and its results carry
+// Scope.Project with Scope.Repo left empty (see its own package doc
+// comment); sasthistory's own pipeline discovery (ListPipelines,
+// MatchPipelines) and repository listing likewise happen exactly once per
+// Collect, the same as repoprotection's two backing calls, filtered
+// client-side per repo — so all three take a pre-built Client the same
+// way. vdp is different: it's genuinely per-repo (Azure DevOps has no
+// per-repo webhook concept the way GitHub does, but SECURITY.md is
+// genuinely per-repo content), so — mirroring its own GitHub twin's
+// per-repo collectors — its constructor takes (org, pat) directly and
+// builds a fresh Client per repo internally, rather than sharing one
+// Client the way the other five collectors above do.
 //
 // repoprotection was the first ADO collector to actually consult
-// scope.Repos, and vdp does too: buildScanDeps below still has no ADO
-// repoLister, so a real `attestward scan --platform azuredevops`
+// scope.Repos; vdp and sasthistory do too: buildScanDeps below still has
+// no ADO repoLister, so a real `attestward scan --platform azuredevops`
 // invocation needs an explicit --repo (resolveRepos' own nil-lister guard
 // is what enforces that) until a later story adds one. envseparation never
 // consults scope.Repos at all (environments are project-scoped, not
 // repo-scoped), so it doesn't change that requirement either way.
-// Collectors for the remaining stories (S5's second PR, S6-S7) append here
+// Collectors for the remaining stories (the rest of S6, S7) append here
 // the same way as they land.
 func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 	return append(collect.Collectors(),
@@ -158,6 +163,7 @@ func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 		adoenvseparation.New(azuredevops.NewClient(org, pat)),
 		adoauditlogging.New(azuredevops.NewClient(org, pat)),
 		advdp.New(org, pat),
+		adosasthistory.New(azuredevops.NewClient(org, pat)),
 	)
 }
 

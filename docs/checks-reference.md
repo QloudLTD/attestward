@@ -731,11 +731,31 @@ This check is registered under more than one platform — details for each below
 
 ## C05.sast-history
 
-### `C05.sast.cadence` — SAST run cadence over the lookback window
+### `C05.sast.cadence`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.7.2` (practice `PW.7`: Review and/or Analyze Human-Readable Code to Identify Vulnerabilities and Verify Compliance with Security Requirements), `RV.1.2` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 3, 4
+
+#### azuredevops — SAST run cadence over the lookback window
+
+- **Token permission:** vso.build, vso.code, vso.advsec
+- **Fixture:** `internal/collect/azuredevops/sasthistory/sasthistory_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/pipelines`, `GET dev.azure.com/{org}/{project}/_apis/build/definitions/{definitionId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`, `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement`, `GET dev.azure.com/{org}/{project}/_apis/build/builds`
+
+**Status rubric:**
+
+- **verified-fail:** a SAST tool is configured via a matched pipeline, but zero SAST builds were observed in the lookback window
+- **partial:** one or more builds were observed, but only a low-confidence (pipeline/step-name-only) match identified the tool — not enough signal to confirm this cadence reflects genuine SAST activity
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), the named repository wasn't found in the project, or resolving this repo's release tags failed (403/other API error) — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or no SAST tool is configured at all (no matched pipeline of any confidence, and GHAzDO CodeQL default setup does not read enabled) — nothing to compute cadence for; or a SAST tool is configured ONLY via GHAzDO CodeQL default setup, and this collector has no verified way to observe scan history for that mechanism via the Pipelines/Builds APIs it uses [fixture-verify, issue #34/#155's S9 pass] — see the package doc comment for why this collector doesn't assert a run count it can't verify; or the project's build history itself could not be fetched
+- **verified-pass:** one or more SAST builds were observed in the lookback window, backed by at least a medium-confidence pipeline match or GHAzDO CodeQL default setup (not a low-confidence-only match)
+
+**Remediation:** If zero SAST builds were observed in the lookback window, same fix as C05.sast.ran-per-release: confirm the pipeline runs on a schedule or on every push/PR to the default branch, not only on rare manual triggers. If builds WERE observed but this still reads partial, the match itself is low-confidence (pipeline/step-name-only) — same fix as C05.sast.tool-configured: use a recognized task/CLI, not just a pipeline name that sounds like SAST.
+
+#### github — SAST run cadence over the lookback window
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/sasthistory/sasthistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`, `GET /repos/{owner}/{repo}/code-scanning/default-setup`, `GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs`
 
@@ -755,11 +775,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C05.sast.default-setup` — CodeQL default setup is configured
+### `C05.sast.default-setup`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.7.1` (practice `PW.7`: Review and/or Analyze Human-Readable Code to Identify Vulnerabilities and Verify Compliance with Security Requirements), `RV.1.2` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — GHAzDO CodeQL default setup
+
+- **Token permission:** vso.advsec
+- **Fixture:** `internal/collect/azuredevops/sasthistory/sasthistory_test.go`
+- **API endpoint(s):** `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement`
+
+**Status rubric:**
+
+- **verified-fail:** the GHAzDO repo-enablement query succeeded, but codeSecurityFeatures.codeQLEnabled reads false
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), the named repository wasn't found in the project, or resolving this repo's release tags failed (403/other API error) — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or the GHAzDO repo-enablement query itself failed — a 404 (org/project not licensed for GHAzDO [fixture-verify]), a 403 (ambiguous between a missing vso.advsec scope and an unlicensed org/project [fixture-verify], see azuredevops.IsAdvSecGated's own doc comment), or another API error
+- **verified-pass:** the GHAzDO repo-enablement query succeeded and codeSecurityFeatures.codeQLEnabled reads true
+
+**Remediation:** Repo -> Advanced Security -> Code scanning -> CodeQL -> Enable default setup.
+
+#### github — CodeQL default setup is configured
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/sasthistory/sasthistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/code-scanning/default-setup`
 
@@ -778,11 +817,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C05.sast.ran-per-release` — A SAST tool ran for each release in the lookback window
+### `C05.sast.ran-per-release`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.7.2` (practice `PW.7`: Review and/or Analyze Human-Readable Code to Identify Vulnerabilities and Verify Compliance with Security Requirements), `RV.1.2` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 3, 4
+
+#### azuredevops — A SAST tool ran for each release in the lookback window
+
+- **Token permission:** vso.build, vso.code
+- **Fixture:** `internal/collect/azuredevops/sasthistory/sasthistory_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/pipelines`, `GET dev.azure.com/{org}/{project}/_apis/build/definitions/{definitionId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/refs`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/annotatedtags/{objectId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/commits/{commitId}`, `GET dev.azure.com/{org}/{project}/_apis/build/builds`
+
+**Status rubric:**
+
+- **verified-fail:** at least one release in the lookback window has zero matched SAST builds at all (not even a failed one)
+- **partial:** one or more release tags matching the configured pattern could not be dated (their commit is always already known straight from the refs listing itself — it's only the date lookup that failed; this collector's own deliberate choice applies that unconditionally, not only to tags provably inside the lookback window — see the package doc comment); if that leaves nothing evaluable, the reason names the drop count directly, otherwise every evaluated release still succeeded but the exclusion caps the result at partial; or a matched SAST pipeline ran for every evaluated release, but not every build succeeded
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), the named repository wasn't found in the project, or resolving this repo's release tags failed (403/other API error) — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or no release tag matches the configured pattern within the lookback window, and none of the tags that did match were dropped as unresolvable either — genuinely nothing to evaluate; or the project's build history itself could not be fetched
+- **verified-pass:** a SAST pipeline ran successfully (at least one matched build whose result is "succeeded", case-insensitive) for every release in the lookback window, and every matching release tag was successfully dated
+
+**Remediation:** Make sure the SAST pipeline's trigger actually fires on (or before) the commit each release tag points at — e.g. trigger on push to the release branch — and that any build that did fire completed with result=="succeeded" rather than failing or being canceled.
+
+#### github — A SAST tool ran for each release in the lookback window
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/sasthistory/sasthistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`, `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/git/ref/{ref}`, `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`, `GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs`
 
@@ -802,11 +861,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C05.sast.tool-configured` — A SAST tool is configured
+### `C05.sast.tool-configured`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.7.1` (practice `PW.7`: Review and/or Analyze Human-Readable Code to Identify Vulnerabilities and Verify Compliance with Security Requirements), `RV.1.2` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — A SAST tool is configured
+
+- **Token permission:** vso.build, vso.code (pipeline discovery and YAML fetch), vso.advsec (GHAzDO repo enablement)
+- **Fixture:** `internal/collect/azuredevops/sasthistory/sasthistory_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/pipelines`, `GET dev.azure.com/{org}/{project}/_apis/build/definitions/{definitionId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`, `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement`
+
+**Status rubric:**
+
+- **verified-fail:** no pipeline match of any confidence was found, and the GHAzDO repo-enablement query confirms codeQLEnabled reads false — including a 404 response (GHAzDO isn't licensed for this org/project, a real "not available" fact [fixture-verify]) but deliberately NOT a 403 (ambiguous between a missing vso.advsec scope and an unlicensed org/project — that response alone routes to not-checkable instead, see the next clause; found in review: an earlier version of this check treated any gated response, 403 included, as a confirmed fail, which could false-negative a licensed org whose token merely lacked the scope)
+- **partial:** only a low-confidence (pipeline/step-name-only) match was found in any pipeline, and CodeQL default setup is not confirmed enabled — not enough signal alone to confirm a SAST tool is genuinely configured
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), the named repository wasn't found in the project, or resolving this repo's release tags failed (403/other API error) — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or there is no pipeline-based evidence at all and the GHAzDO repo-enablement query itself failed with anything other than a 404 — including a 403, ambiguous between a missing vso.advsec scope and an unlicensed org/project [fixture-verify] — an unresolved unknown, not a confirmed absence
+- **verified-pass:** at least one matched pipeline reaches medium-or-high confidence (an ado_task or run-pattern match, not just a suggestive pipeline/step name), or GHAzDO's CodeQL default setup (codeSecurityFeatures.codeQLEnabled) reads true
+
+**Remediation:** Enable GHAzDO CodeQL default setup (repo -> Advanced Security -> Code scanning -> CodeQL -> Enable default setup), or add a pipeline task using a recognized SAST task/CLI (see mappings/scanner-signatures.yaml for what this tool recognizes) — a pipeline whose name merely suggests SAST isn't enough on its own; it needs a matched task/CLI invocation to count as more than a low-confidence signal.
+
+#### github — A SAST tool is configured
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/sasthistory/sasthistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`, `GET /repos/{owner}/{repo}/code-scanning/default-setup`
 
