@@ -14,7 +14,10 @@ import "net/http"
 // Whether an unlicensed org's advsec endpoints actually return 403 or 404
 // is an open [fixture-verify] item (issue #34) — this conservatively covers
 // both codes ADO generally uses for forbidden-vs-absent until that's
-// confirmed against a recorded response and finalized in issue #151 (S5).
+// confirmed against a recorded response and finalized in issue #155 (S9):
+// that empirical check needs the live demo org with GHAzDO licensing,
+// which is S9's territory (gated on the epic's owner decisions), not
+// something any single collector story can settle on its own.
 func IsAdvSecGated(statusCode int) bool {
 	return statusCode == http.StatusForbidden || statusCode == http.StatusNotFound
 }

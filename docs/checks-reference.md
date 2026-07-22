@@ -8,7 +8,7 @@
 
 Source data:
 
-- SSDF mapping: NIST SP 800-218, mapping version `1.11.0`, retrieved 2026-07-13 — [https://csrc.nist.gov/pubs/sp/800/218/final](https://csrc.nist.gov/pubs/sp/800/218/final)
+- SSDF mapping: NIST SP 800-218, mapping version `1.12.0`, retrieved 2026-07-13 — [https://csrc.nist.gov/pubs/sp/800/218/final](https://csrc.nist.gov/pubs/sp/800/218/final)
 - CISA SSDA form mapping: mapping version `1.0.0`, retrieved 2026-07-13 — [https://www.cisa.gov/sites/default/files/2024-03/Self-Attestation-Common-Form-03082024-FINAL.pdf](https://www.cisa.gov/sites/default/files/2024-03/Self-Attestation-Common-Form-03082024-FINAL.pdf)
 
 No wall-clock generation timestamp is recorded here on purpose: this file is regenerated
@@ -619,11 +619,30 @@ This check is registered under more than one platform — details for each below
 
 ## C04.secrets-hygiene
 
-### `C04.deps.dependabot-alerts` — Dependabot vulnerability alerts are enabled
+### `C04.deps.dependabot-alerts`
 
-- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.4.4` (practice `PW.4`: Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — Dependency scanning (GHAzDO Code Security) is enabled
+
+- **Token permission:** vso.advsec (Repo Enablement - Get)
+- **Fixture:** `internal/collect/azuredevops/secretshygiene/secretshygiene_test.go`
+- **API endpoint(s):** `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement?includeAllProperties=true`
+
+**Status rubric:**
+
+- **verified-fail:** codeSecurityFeatures.codeSecurityEnabled is false
+- **not-checkable:** the repo enablement fetch itself failed with a non-licensing error (403/404/other API error not attributable to GHAzDO licensing — see the not-checkable entry for the advsec-unavailable case specifically); or the call failed with a response azuredevops.IsAdvSecGated treats as GHAzDO not being licensed/enabled for this org/project (403 or 404) — Microsoft's own REST reference never states which of the two an unlicensed org/project actually returns here [fixture-verify], so this is never asserted as a confirmed "disabled" state, only an honest unknown
+- **verified-pass:** codeSecurityFeatures.codeSecurityEnabled is true (dependency scanning is part of the Code Security plan)
+
+**Remediation:** Project Settings -> Repositories -> [repo] -> Security -> GitHub Advanced Security -> enable Code Security (this enables dependency scanning as part of the Code Security plan).
+
+#### github — Dependabot vulnerability alerts are enabled
+
+- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
 - **Fixture:** `internal/collect/github/secretshygiene/secretshygiene_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/vulnerability-alerts`
 
@@ -641,11 +660,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C04.org.security-defaults` — Org enables secret/dependency security features by default for new repos
+### `C04.org.security-defaults`
 
-- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Org enables Code Security/Secret Protection features by default for new repos
+
+- **Token permission:** vso.advsec (Org Enablement - Get)
+- **Fixture:** `internal/collect/azuredevops/secretshygiene/secretshygiene_test.go`
+- **API endpoint(s):** `GET advsec.dev.azure.com/{org}/_apis/management/enablement?includeAllProperties=true`
+
+**Status rubric:**
+
+- **verified-fail:** at least one of the four on-create-default fields is false
+- **not-checkable:** the org enablement fetch failed with a non-licensing error (403/404/other API error); or the call failed with a response azuredevops.IsAdvSecGated treats as GHAzDO not being licensed/enabled for this org/project (403 or 404) — Microsoft's own REST reference never states which of the two an unlicensed org/project actually returns here [fixture-verify], so this is never asserted as a confirmed "disabled" state, only an honest unknown; or the response decoded successfully but omitted enablementOnCreateSettings entirely — never assumed to mean every on-create default is off
+- **verified-pass:** all four of enablementOnCreateSettings.enableCodeSecurityOnCreate, enableSecretProtectionOnCreate, enableBlockPushesOnCreate, and enableDependencyScanningInjectionOnCreate are true
+
+**Remediation:** Organization Settings -> GitHub Advanced Security -> enable Code Security, Secret Protection, block-pushes-on-create, AND dependency-scanning-injection-on-create for newly created repositories — all four must be on for this check to pass, so every repo created going forward starts protected instead of relying on each repo owner to enable them individually.
+
+#### github — Org enables secret/dependency security features by default for new repos
+
+- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
 - **Fixture:** `internal/collect/github/secretshygiene/secretshygiene_test.go`
 - **API endpoint(s):** `GET /orgs/{org}`
 
@@ -663,11 +701,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C04.secrets.advanced-security` — GitHub Advanced Security is enabled where applicable
+### `C04.secrets.advanced-security`
 
-- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — GitHub Advanced Security for Azure DevOps is enabled where applicable
+
+- **Token permission:** vso.advsec (Repo Enablement - Get)
+- **Fixture:** `internal/collect/azuredevops/secretshygiene/secretshygiene_test.go`
+- **API endpoint(s):** `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement?includeAllProperties=true`
+
+**Status rubric:**
+
+- **verified-fail:** codeSecurityEnabled and secretProtectionEnabled are not both true
+- **not-checkable:** the repo enablement fetch itself failed with a non-licensing error (403/404/other API error not attributable to GHAzDO licensing — see the not-checkable entry for the advsec-unavailable case specifically); or the call failed with a response azuredevops.IsAdvSecGated treats as GHAzDO not being licensed/enabled for this org/project (403 or 404) — Microsoft's own REST reference never states which of the two an unlicensed org/project actually returns here [fixture-verify], so this is never asserted as a confirmed "disabled" state, only an honest unknown
+- **verified-pass:** both codeSecurityFeatures.codeSecurityEnabled and secretProtectionFeatures.secretProtectionEnabled are true (post-unbundling GHAzDO is the combination of the Code Security and Secret Protection plans)
+
+**Remediation:** Enable both Code Security and Secret Protection for the repo (Project Settings -> Repositories -> [repo] -> Security -> GitHub Advanced Security) — post-unbundling GHAzDO is the combination of these two plans, not a single toggle.
+
+#### github — GitHub Advanced Security is enabled where applicable
+
+- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
 - **Fixture:** `internal/collect/github/secretshygiene/secretshygiene_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`
 
@@ -685,11 +742,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C04.secrets.push-protection` — Secret scanning push protection is active
+### `C04.secrets.push-protection`
 
-- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Secret scanning push protection is active
+
+- **Token permission:** vso.advsec (Repo Enablement - Get)
+- **Fixture:** `internal/collect/azuredevops/secretshygiene/secretshygiene_test.go`
+- **API endpoint(s):** `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement?includeAllProperties=true`
+
+**Status rubric:**
+
+- **verified-fail:** secretProtectionFeatures.blockPushes is false
+- **not-checkable:** the repo enablement fetch itself failed with a non-licensing error (403/404/other API error not attributable to GHAzDO licensing — see the not-checkable entry for the advsec-unavailable case specifically); or the call failed with a response azuredevops.IsAdvSecGated treats as GHAzDO not being licensed/enabled for this org/project (403 or 404) — Microsoft's own REST reference never states which of the two an unlicensed org/project actually returns here [fixture-verify], so this is never asserted as a confirmed "disabled" state, only an honest unknown; or the response decoded successfully but blockPushes came back null even though includeAllProperties=true was requested — that field is only ever populated with that parameter set, so a null here means the request didn't actually carry it, not that push protection is off
+- **verified-pass:** secretProtectionFeatures.blockPushes is true
+
+**Remediation:** With Secret Protection enabled (see C04.secrets.scanning-enabled), also enable "Block pushes that expose secrets" so a push containing a detected secret is rejected before it lands.
+
+#### github — Secret scanning push protection is active
+
+- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
 - **Fixture:** `internal/collect/github/secretshygiene/secretshygiene_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`
 
@@ -707,11 +783,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C04.secrets.scanning-enabled` — Secret scanning is active
+### `C04.secrets.scanning-enabled`
 
-- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Secret scanning (GHAzDO Secret Protection) is active
+
+- **Token permission:** vso.advsec (Repo Enablement - Get)
+- **Fixture:** `internal/collect/azuredevops/secretshygiene/secretshygiene_test.go`
+- **API endpoint(s):** `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement?includeAllProperties=true`
+
+**Status rubric:**
+
+- **verified-fail:** secretProtectionFeatures.secretProtectionEnabled is false
+- **not-checkable:** the repo enablement fetch itself failed with a non-licensing error (403/404/other API error not attributable to GHAzDO licensing — see the not-checkable entry for the advsec-unavailable case specifically); or the call failed with a response azuredevops.IsAdvSecGated treats as GHAzDO not being licensed/enabled for this org/project (403 or 404) — Microsoft's own REST reference never states which of the two an unlicensed org/project actually returns here [fixture-verify], so this is never asserted as a confirmed "disabled" state, only an honest unknown
+- **verified-pass:** secretProtectionFeatures.secretProtectionEnabled is true
+
+**Remediation:** Project Settings -> Repositories -> [repo] -> Security -> GitHub Advanced Security -> enable Secret Protection. Requires a GHAzDO Secret Protection license (or the combined GHAzDO plan, pre-unbundling).
+
+#### github — Secret scanning is active
+
+- **Token permission:** repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager
 - **Fixture:** `internal/collect/github/secretshygiene/secretshygiene_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`
 
@@ -722,6 +817,28 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** the repo's security_and_analysis.secret_scanning.status is "enabled" (checked first, unconditionally — a direct positive observation always wins over any licensing inference)
 
 **Remediation:** Repo Settings -> Code security -> enable "Secret scanning". Free for public repos; on a private repo it needs a GitHub Advanced Security license, or (since GitHub's 2025 GHAS unbundling) a standalone GitHub Secret Protection license.
+
+**SSDF task text (verbatim from NIST SP 800-218):**
+
+> **`PO.5.1`:** Separate and protect each environment involved in software development.
+
+---
+
+### `C04.vars.secret-hygiene` — Variable groups don't store sensitive-named variables in plaintext
+
+- **Token permission:** vso.variablegroups_read (Variable Groups - Get Variable Groups)
+- **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
+- **CISA form cluster(s):** 1, 2, 3
+- **Fixture:** `internal/collect/azuredevops/secretshygiene/secretshygiene_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/distributedtask/variablegroups`
+
+**Status rubric:**
+
+- **verified-fail:** at least one variable with a sensitive-looking name is stored in plaintext (isSecret absent/false, value non-empty) — the offending variable and group names are recorded in Facts, never the value
+- **not-checkable:** the project's variable groups list couldn't be read (403/404/other API error)
+- **verified-pass:** no variable across every variable group in the project has both a name matching (?i)(password|passwd|secret|token|api[_-]?key|connectionstring) and isSecret absent/false with a non-empty value
+
+**Remediation:** Open the flagged variable group (Pipelines -> Library) and mark every offending variable (name matching password/passwd/secret/token/api-key/connectionstring) as secret — the padlock icon next to its value — so Azure DevOps encrypts it at rest instead of storing it in plaintext.
 
 **SSDF task text (verbatim from NIST SP 800-218):**
 
