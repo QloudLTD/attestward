@@ -133,8 +133,14 @@ itself, so re-run it any time rather than hand-editing it.
   via a disposable `v0.1.0-rc.1` then deleted, `v0.1.0` tagged and cosign-verified
   from an independent machine)
 
-**Post-v0.1 backlog (seams only, do not build)**
-- #34 Azure DevOps · #35 GitLab/SLSA/VEX · #36 Continuous mode GitHub Action
+**Post-v0.1 backlog** (the "seams only, do not build" rule was v0.1-scoped and has
+lapsed — this is now active work)
+- [x] #36 Continuous mode (built 2026-07-22: `attestward diff` via #143/#144/#145
+  ships in v0.2.0; the action lives in the separate
+  [attestward-action](https://github.com/sioakim/attestward-action) repo; ADR-0007
+  write boundary; self-scan migrates to the action as its first consumer in its own
+  PR, right after the v0.2.0 tag it pins)
+- [ ] #34 Azure DevOps (being broken down into an epic + stories) · #35 GitLab/SLSA/VEX
 
 **v1.0 milestone**
 - Hosted tier (commercial, separate from the OSS CLI; DECISIONS.md D4): #121 portfolio

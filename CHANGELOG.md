@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-22
+
 ### Added
 
 - **`attestward diff`** — semantic comparison of two evidence packs from the same
@@ -13,7 +15,9 @@ All notable changes to this project are documented here. Format follows
   changes (verified ↔ not-checkable, reported separately from posture drift), and
   informational changes; volatile fields ignored; tool/mapping/scope changes surfaced
   as context. `--format text|md|json`. The foundation for continuous-mode drift
-  detection (#36).
+  detection (#36); consumed by the new
+  [attestward-action](https://github.com/sioakim/attestward-action), which runs
+  pinned, signature-verified release binaries in CI and fails on posture drift.
 
 ## [0.1.0] - 2026-07-21
 
@@ -59,5 +63,6 @@ Pre-1.0 caveat: CLI flags and output formats may still change between 0.x versio
   architecture doc, threat model, generated checks reference, ADRs, community health
   files, and a worked example pack from the public demo org in `examples/`.
 
-[Unreleased]: https://github.com/sioakim/attestward/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sioakim/attestward/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sioakim/attestward/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sioakim/attestward/releases/tag/v0.1.0
