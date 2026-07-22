@@ -1,0 +1,21 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: SonarCloudPrepare@4
+    inputs:
+      SonarCloud: 'MySonarCloudServiceConnection'
+      organization: 'my-org'
+      scannerMode: 'cli'
+      configMode: 'manual'
+      cliProjectKey: 'my-project-key'
+    displayName: 'Prepare SonarCloud analysis configuration'
+
+  - script: dotnet build --configuration Release
+    displayName: 'Build'
+
+  - task: SonarCloudAnalyze@4
+    displayName: 'Run SonarCloud analysis'

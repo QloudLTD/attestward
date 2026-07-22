@@ -542,13 +542,15 @@ func TestAdoTaskMajorSegment(t *testing.T) {
 
 // pipelineFixtureExpectations is the Azure Pipelines counterpart to
 // scannermatch_test.go's fixtureExpectations: for every ado_tasks-detectable
-// signature (codeql, ghazdo-dependency-scanning, snyk, sonarqube), plus the
-// CLI-driven tools whose existing run_patterns are exercised only via an
-// ADO script/bash/pwsh/powershell step since they have no ado_tasks of
-// their own (trivy, cosign, osv-scanner — syft has no existing signature
-// in this registry to attach a fixture to, so it's not included here; see
-// #149's PR description), its fixture pipeline file and the confidence its
-// detect block should match at.
+// signature (codeql, ghazdo-dependency-scanning, snyk, sonarqube — the
+// latter with two fixtures, one per distinct task family it detects, see
+// sonarcloud.yaml below), plus the CLI-driven tools whose existing
+// run_patterns are exercised only via an ADO script/bash/pwsh/powershell
+// step since they have no ado_tasks of their own (trivy, cosign,
+// osv-scanner — syft has no existing signature in this registry to attach
+// a fixture to, so it's not included here; see #149's PR description),
+// its fixture pipeline file and the confidence its detect block should
+// match at.
 var pipelineFixtureExpectations = []struct {
 	fixture         string
 	wantSignatureID string
@@ -558,6 +560,10 @@ var pipelineFixtureExpectations = []struct {
 	{"ghazdo-dependency-scanning.yaml", "ghazdo-dependency-scanning", ConfidenceHigh},
 	{"snyk.yaml", "snyk", ConfidenceHigh},
 	{"sonarqube.yaml", "sonarqube", ConfidenceHigh},
+	// SonarQube Cloud (SonarCloudPrepare/Analyze) is a genuinely different
+	// task family from SonarQube Server's, not a version difference of it
+	// (issue #167) — its own fixture, same "sonarqube" signature ID.
+	{"sonarcloud.yaml", "sonarqube", ConfidenceHigh},
 	{"trivy.yaml", "trivy", ConfidenceMedium},
 	{"cosign.yaml", "cosign", ConfidenceMedium},
 	{"osv-scanner.yaml", "osv-scanner", ConfidenceMedium},

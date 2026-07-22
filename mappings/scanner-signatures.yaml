@@ -62,16 +62,20 @@
 # AdvancedSecurity-Codeql-Analyze — same CodeQL engine as the GitHub-native
 # entry, hence reusing this signature's id rather than a separate one),
 # `snyk` (SnykSecurityScan), and `sonarqube` (SonarQubePrepare/
-# SonarQubeAnalyze — SonarQube Server only; SonarCloud's ADO extension uses
-# entirely different task names, SonarCloudPrepare/SonarCloudAnalyze, not
-# yet added), plus a new `ghazdo-dependency-scanning` entry for GHAzDO's
-# Dependency Scanning task (AdvancedSecurity-Dependency-Scanning), which has
-# no existing GitHub-side signature to extend. Every task name above was
-# verified against Microsoft/vendor documentation, not guessed — see each
-# entry's own comment for the source and the major-version-pinning
-# rationale (a bare, current major for Microsoft's own fast-moving GHAzDO
-# tasks and Snyk's long-stable one; left unpinned for SonarQube, whose ADO
-# extension has shipped several concurrently-supported majors).
+# SonarQubeAnalyze for SonarQube Server), plus a new
+# `ghazdo-dependency-scanning` entry for GHAzDO's Dependency Scanning task
+# (AdvancedSecurity-Dependency-Scanning), which has no existing GitHub-side
+# signature to extend. #167 (a fast-follow, filed from #165's own review)
+# then added `sonarqube`'s SonarCloud counterpart —
+# SonarCloudPrepare/SonarCloudAnalyze, a genuinely different task family
+# from SonarQube Server's, not a version difference of it — closing the
+# zero-detection gap a real ADO pipeline using those tasks hit until then.
+# Every task name above was verified against Microsoft/vendor
+# documentation, not guessed — see each entry's own comment for the source
+# and the major-version-pinning rationale (a bare, current major for
+# Microsoft's own fast-moving GHAzDO tasks and Snyk's long-stable one; left
+# unpinned for both SonarQube Server and SonarQube Cloud, whose ADO
+# extensions have each shipped several concurrently-supported majors).
 #
 # `template:` references in an Azure Pipelines file — a step, job, or
 # stage that points at another YAML file instead of containing its
@@ -96,7 +100,7 @@
 # for that file directly via the GitHub API; it's listed here now purely
 # for SCA-category registry completeness.
 
-version: "1.2.0"
+version: "1.3.0"
 
 signatures:
   - id: codeql
@@ -157,18 +161,45 @@ signatures:
         # Legacy SonarCloud-specific action — archived but still widely
         # referenced by existing workflows.
         - slug: SonarSource/sonarcloud-github-action
-      # SonarQube Server's Azure Pipelines extension only — verified
+      # Both products' Azure Pipelines extensions — verified against
+      # SonarSource's own docs (docs.sonarsource.com):
+      #
+      # SonarQube Server: SonarQubePrepare/SonarQubeAnalyze, cross-checked
       # against Microsoft Learn's task reference (sonar-qube-prepare-v7,
-      # sonar-qube-analyze-v7). Major deliberately left unpinned: unlike
-      # codeql/snyk above, this extension has shipped several majors
-      # (at least v5-v7) that remain in concurrent real-world use, so
-      # pinning one would make this entry go stale rather than more
-      # accurate. SonarCloud's own Azure Pipelines extension uses entirely
-      # different task names (SonarCloudPrepare/SonarCloudAnalyze, not
-      # SonarQube*) and isn't covered by this entry yet.
+      # sonar-qube-analyze-v7, and a v8 has since appeared too). Major
+      # deliberately left unpinned: unlike codeql/snyk above, this
+      # extension has shipped several majors (at least v5-v8) that remain
+      # in concurrent real-world use, so pinning one would make this entry
+      # go stale rather than more accurate.
+      #
+      # SonarQube Cloud (formerly SonarCloud) — a DIFFERENT task family,
+      # not a version difference of the SonarQube Server one, hence its
+      # own ado_tasks entries here rather than folding into the pair
+      # above: SonarCloudPrepare/SonarCloudAnalyze (issue #167, a fast-
+      # follow to #149/#165, which shipped SonarQube Server's ado_tasks
+      # but missed this — a real, common setup that matched nothing).
+      # SonarSource's own docs (sonarqube-cloud/analyzing-source-code/
+      # ci-based-analysis/azure-pipelines/sonarqube-tasks) state "the
+      # current major version is SonarCloudPrepare@4 (and
+      # SonarCloudAnalyze@4); version 3 is deprecated" — despite that
+      # explicit "current version" framing (stronger than SonarQube
+      # Server's docs, which don't deprecate the recent majors v6-v8 —
+      # v5 itself WAS deprecated, per the Server extension's own 6.0.1
+      # release notes, "Deprecate the old SonarQube v5 tasks with proper
+      # warnings"), major is left unpinned here too, for the same
+      # underlying reason: a
+      # "deprecated" task still runs in any pipeline that hasn't been
+      # upgraded, and this family already has at least four historical
+      # majors (1/2 legacy, 3 deprecated, 4 current) — the same
+      # multiple-concurrent-majors situation as SonarQube Server, not a
+      # single-current-version one, so pinning would under-detect
+      # real-world SonarCloud usage on an older major rather than add
+      # accuracy.
       ado_tasks:
         - task: SonarQubePrepare
         - task: SonarQubeAnalyze
+        - task: SonarCloudPrepare
+        - task: SonarCloudAnalyze
       run_patterns:
         - "\\bsonar-scanner\\b"
       workflow_name_patterns: []
@@ -176,9 +207,10 @@ signatures:
       Workflow run of the job invoking the scan action or sonar-scanner
       CLI; SonarCloud/SonarQube separately posts its own quality-gate
       status check on the commit. On Azure Pipelines, a run is a pipeline
-      run invoking SonarQubePrepare followed by SonarQubeAnalyze; the
-      quality-gate status still posts to the SonarQube server itself,
-      independent of the pipeline run's own status.
+      run invoking SonarQubePrepare/SonarCloudPrepare followed by
+      SonarQubeAnalyze/SonarCloudAnalyze; the quality-gate status still
+      posts to the SonarQube/SonarCloud server itself, independent of the
+      pipeline run's own status.
 
   - id: dependency-review-action
     name: "GitHub Dependency Review"
