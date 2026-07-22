@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/mdescape"
 	"github.com/sioakim/attestward/internal/model"
 )
 
@@ -96,7 +97,7 @@ func RenderMarkdown(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *ma
 	ctx := buildContext(pack, ssdf, cisa, saQuestions)
 
 	tmpl, err := texttemplate.New("report.md.tmpl").Funcs(texttemplate.FuncMap{
-		"esc":          escapeMD,
+		"esc":          mdescape.Escape,
 		"statusLabel":  statusLabel,
 		"statusBadge":  statusBadge,
 		"fmtTime":      fmtTime,

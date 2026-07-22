@@ -6,6 +6,7 @@ import (
 	texttemplate "text/template"
 
 	"github.com/sioakim/attestward/internal/mapping"
+	"github.com/sioakim/attestward/internal/mdescape"
 	"github.com/sioakim/attestward/internal/model"
 )
 
@@ -145,7 +146,7 @@ func RenderPOAM(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mappin
 	ctx := buildPOAMContext(pack, ssdf, cisa, remediationByCheckID)
 
 	tmpl, err := texttemplate.New("poam.md.tmpl").Funcs(texttemplate.FuncMap{
-		"esc":         escapeMD,
+		"esc":         mdescape.Escape,
 		"statusLabel": statusLabel,
 		"statusBadge": statusBadge,
 		"fmtTime":     fmtTime,
