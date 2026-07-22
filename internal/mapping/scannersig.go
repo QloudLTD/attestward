@@ -55,16 +55,17 @@ type ActionMatcher struct {
 //
 // Task is matched as the exact, full string written before the last `@`
 // — no dot-segment splitting is performed on it. Azure Pipelines also
-// allows referencing a task by its fully-qualified marketplace form
-// (`publisherId.extensionId.taskName@version`) or by a bare task GUID;
-// neither cross-matches a short-name Task value here, and that's
-// deliberate: two different publishers' tasks can share a bare task name,
-// so collapsing a fully-qualified or GUID reference down to "the part
-// that looks like the short name" could cross-match the wrong tool,
-// against this registry's per-signature accuracy standard (see
-// scanner-signatures.yaml's header comment). A signature that needs to
-// recognize the fully-qualified or GUID form lists that exact string as
-// its own ado_tasks entry instead.
+// allows referencing a task by its fully-qualified marketplace form —
+// four segments, `publisher.extensionId.contributionId.taskName@version`
+// (e.g. `qetza.replacetokens.replacetokens-task.replacetokens@3`), not
+// three — or by a bare task GUID; neither cross-matches a short-name Task
+// value here, and that's deliberate: two different publishers' tasks can
+// share a bare task name, so collapsing a fully-qualified or GUID
+// reference down to "the part that looks like the short name" could
+// cross-match the wrong tool, against this registry's per-signature
+// accuracy standard (see scanner-signatures.yaml's header comment). A
+// signature that needs to recognize the fully-qualified or GUID form
+// lists that exact string as its own ado_tasks entry instead.
 //
 // This is ActionMatcher's Azure-Pipelines-native counterpart (Slug+Version
 // there, Task+Major here): Actions itself isn't reused for ADO because an

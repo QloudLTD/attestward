@@ -42,9 +42,11 @@
 # version pin like `GoTool@0.3.1` — a form Microsoft's own docs use);
 # `task` matches the exact, full string before the last `@`,
 # case-insensitively — no dot-segment splitting, so a fully-qualified
-# marketplace reference (`publisherId.extensionId.taskName@version`) or a
-# bare task GUID does NOT cross-match a matcher written against a short
-# task name (two different publishers can share a bare task name, so
+# marketplace reference — four segments,
+# `publisher.extensionId.contributionId.taskName@version` (e.g.
+# `qetza.replacetokens.replacetokens-task.replacetokens@3`), not three —
+# or a bare task GUID does NOT cross-match a matcher written against a
+# short task name (two different publishers can share a bare task name, so
 # collapsing either form down to "the part that looks like the short
 # name" could cross-match the wrong tool — a signature that genuinely
 # needs to recognize the fully-qualified or GUID form lists that exact
@@ -54,9 +56,22 @@
 # `@1` and `@1.2.3`) — this is `actions`' Slug+Version pair, reimplemented
 # for ADO's own task-versioning scheme rather than reused, since an action
 # slug and an ADO task name are different namespaces. #149 added the
-# `ado_tasks` field and the MatchPipeline matcher only; no signature below
-# has an `ado_tasks` entry yet — those land per-signature in #34's
-# follow-on stories, alongside the version bump each will need.
+# `ado_tasks` field and the MatchPipeline matcher (schema+matcher PR), then
+# the first per-signature `ado_tasks` entries (registry PR): `codeql`
+# (GitHub Advanced Security for Azure DevOps' AdvancedSecurity-Codeql-Init/
+# AdvancedSecurity-Codeql-Analyze — same CodeQL engine as the GitHub-native
+# entry, hence reusing this signature's id rather than a separate one),
+# `snyk` (SnykSecurityScan), and `sonarqube` (SonarQubePrepare/
+# SonarQubeAnalyze — SonarQube Server only; SonarCloud's ADO extension uses
+# entirely different task names, SonarCloudPrepare/SonarCloudAnalyze, not
+# yet added), plus a new `ghazdo-dependency-scanning` entry for GHAzDO's
+# Dependency Scanning task (AdvancedSecurity-Dependency-Scanning), which has
+# no existing GitHub-side signature to extend. Every task name above was
+# verified against Microsoft/vendor documentation, not guessed — see each
+# entry's own comment for the source and the major-version-pinning
+# rationale (a bare, current major for Microsoft's own fast-moving GHAzDO
+# tasks and Snyk's long-stable one; left unpinned for SonarQube, whose ADO
+# extension has shipped several concurrently-supported majors).
 #
 # `template:` references in an Azure Pipelines file — a step, job, or
 # stage that points at another YAML file instead of containing its
@@ -81,7 +96,7 @@
 # for that file directly via the GitHub API; it's listed here now purely
 # for SCA-category registry completeness.
 
-version: "1.1.0"
+version: "1.2.0"
 
 signatures:
   - id: codeql
@@ -90,6 +105,18 @@ signatures:
     detect:
       actions:
         - slug: github/codeql-action/analyze
+      # GitHub Advanced Security for Azure DevOps (GHAzDO) runs the same
+      # CodeQL engine via a two-task pipeline sequence rather than a GitHub
+      # Actions step — verified against Microsoft Learn's own task
+      # reference pages (advanced-security-codeql-init-v1,
+      # advanced-security-codeql-analyze-v1): both tasks are currently only
+      # published at major version 1, so that's pinned rather than left
+      # open, unlike sonarqube's ado_tasks below.
+      ado_tasks:
+        - task: AdvancedSecurity-Codeql-Init
+          major: "1"
+        - task: AdvancedSecurity-Codeql-Analyze
+          major: "1"
       run_patterns: []
       workflow_name_patterns:
         - "(?i)\\bcodeql\\b"
@@ -97,7 +124,10 @@ signatures:
       Each CodeQL run is a workflow run of the workflow containing the
       github/codeql-action/analyze step; the analyze step's own run also
       appears as a check run (typically named "CodeQL") on the commit/PR it
-      scanned.
+      scanned. On Azure Pipelines (GHAzDO), a run is a pipeline run whose
+      steps include AdvancedSecurity-Codeql-Init followed by
+      AdvancedSecurity-Codeql-Analyze; results surface on the repo's
+      Advanced Security tab in Azure DevOps, not as a GitHub check run.
 
   - id: semgrep
     name: "Semgrep"
@@ -127,13 +157,28 @@ signatures:
         # Legacy SonarCloud-specific action — archived but still widely
         # referenced by existing workflows.
         - slug: SonarSource/sonarcloud-github-action
+      # SonarQube Server's Azure Pipelines extension only — verified
+      # against Microsoft Learn's task reference (sonar-qube-prepare-v7,
+      # sonar-qube-analyze-v7). Major deliberately left unpinned: unlike
+      # codeql/snyk above, this extension has shipped several majors
+      # (at least v5-v7) that remain in concurrent real-world use, so
+      # pinning one would make this entry go stale rather than more
+      # accurate. SonarCloud's own Azure Pipelines extension uses entirely
+      # different task names (SonarCloudPrepare/SonarCloudAnalyze, not
+      # SonarQube*) and isn't covered by this entry yet.
+      ado_tasks:
+        - task: SonarQubePrepare
+        - task: SonarQubeAnalyze
       run_patterns:
         - "\\bsonar-scanner\\b"
       workflow_name_patterns: []
     run_evidence: >-
       Workflow run of the job invoking the scan action or sonar-scanner
       CLI; SonarCloud/SonarQube separately posts its own quality-gate
-      status check on the commit.
+      status check on the commit. On Azure Pipelines, a run is a pipeline
+      run invoking SonarQubePrepare followed by SonarQubeAnalyze; the
+      quality-gate status still posts to the SonarQube server itself,
+      independent of the pipeline run's own status.
 
   - id: dependency-review-action
     name: "GitHub Dependency Review"
@@ -146,6 +191,27 @@ signatures:
     run_evidence: >-
       Runs only on pull requests (it diffs the PR's dependency changes);
       surfaces as a check run on the PR, not on ordinary pushes.
+
+  - id: ghazdo-dependency-scanning
+    name: "GitHub Advanced Security for Azure DevOps Dependency Scanning"
+    category: sca
+    detect:
+      actions: []
+      # Verified against Microsoft Learn's task reference
+      # (advanced-security-dependency-scanning-v1): currently only
+      # published at major version 1. No GitHub-side signature to extend
+      # here (unlike codeql/snyk/sonarqube below) — this is a
+      # GHAzDO-specific mechanism with no equivalent GitHub Actions tool by
+      # the same name; dependency-review-action and dependabot above are
+      # conceptually related but are different, unrelated tools.
+      ado_tasks:
+        - task: AdvancedSecurity-Dependency-Scanning
+          major: "1"
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Pipeline run whose steps include AdvancedSecurity-Dependency-Scanning;
+      results surface on the repo's Advanced Security tab in Azure DevOps.
 
   - id: snyk
     name: "Snyk"
@@ -163,13 +229,21 @@ signatures:
         - slug: snyk/actions/docker
         - slug: snyk/actions/maven
         - slug: snyk/actions/gradle
+      # Verified against Snyk's own Azure Pipelines integration docs and
+      # the "Snyk Security Scan" marketplace listing (Snyk.snyk-security-scan):
+      # the task has been SnykSecurityScan@1 since it shipped, with no
+      # newer major found, so major is pinned rather than left open.
+      ado_tasks:
+        - task: SnykSecurityScan
+          major: "1"
       run_patterns:
         - "snyk (test|monitor)"
       workflow_name_patterns:
         - "(?i)\\bsnyk\\b"
     run_evidence: >-
       Workflow run of the job invoking a snyk/actions/* action or the snyk
-      CLI directly.
+      CLI directly. On Azure Pipelines, a run is a pipeline run invoking the
+      SnykSecurityScan task.
 
   - id: trivy
     name: "Trivy"

@@ -539,3 +539,115 @@ func TestAdoTaskMajorSegment(t *testing.T) {
 		}
 	}
 }
+
+// pipelineFixtureExpectations is the Azure Pipelines counterpart to
+// scannermatch_test.go's fixtureExpectations: for every ado_tasks-detectable
+// signature (codeql, ghazdo-dependency-scanning, snyk, sonarqube), plus the
+// CLI-driven tools whose existing run_patterns are exercised only via an
+// ADO script/bash/pwsh/powershell step since they have no ado_tasks of
+// their own (trivy, cosign, osv-scanner — syft has no existing signature
+// in this registry to attach a fixture to, so it's not included here; see
+// #149's PR description), its fixture pipeline file and the confidence its
+// detect block should match at.
+var pipelineFixtureExpectations = []struct {
+	fixture         string
+	wantSignatureID string
+	wantConfidence  MatchConfidence
+}{
+	{"codeql.yaml", "codeql", ConfidenceHigh},
+	{"ghazdo-dependency-scanning.yaml", "ghazdo-dependency-scanning", ConfidenceHigh},
+	{"snyk.yaml", "snyk", ConfidenceHigh},
+	{"sonarqube.yaml", "sonarqube", ConfidenceHigh},
+	{"trivy.yaml", "trivy", ConfidenceMedium},
+	{"cosign.yaml", "cosign", ConfidenceMedium},
+	{"osv-scanner.yaml", "osv-scanner", ConfidenceMedium},
+}
+
+func loadFixturePipeline(t *testing.T, name string) PipelineFile {
+	t.Helper()
+	data, err := os.ReadFile("testdata/pipelines/" + name)
+	if err != nil {
+		t.Fatalf("read testdata/pipelines/%s: %v", name, err)
+	}
+	pl, err := ParsePipelineFile(data)
+	if err != nil {
+		t.Fatalf("parse testdata/pipelines/%s: %v", name, err)
+	}
+	return pl
+}
+
+// TestMatchPipeline_CrossMatrix is scanner-signatures.yaml's own accuracy
+// standard, extended to Azure Pipelines: for each fixture, asserts its own
+// signature matches at the expected confidence, and that no OTHER
+// signature in the FULL registry also fires against it — not just the
+// other entries in pipelineFixtureExpectations. On the GitHub side,
+// TestMatchWorkflow_CrossMatrix's identical-looking inner loop gets full
+// registry coverage for free, because
+// TestFixtureExpectationsCoverAllDetectableSignatures requires every
+// workflow-detectable signature to already be in fixtureExpectations; the
+// ADO side has no equivalent guarantee (most signatures are
+// cross-platform via run_patterns/workflow_name_patterns without an
+// ado_tasks entry or a dedicated pipeline fixture of their own), so this
+// loop checks reg.Signatures directly instead.
+func TestMatchPipeline_CrossMatrix(t *testing.T) {
+	reg, err := LoadScannerSignatures("../../mappings/scanner-signatures.yaml")
+	if err != nil {
+		t.Fatalf("LoadScannerSignatures: %v", err)
+	}
+
+	for _, tc := range pipelineFixtureExpectations {
+		t.Run(tc.fixture, func(t *testing.T) {
+			pl := loadFixturePipeline(t, tc.fixture)
+			matches, unresolved := reg.MatchPipeline(pl)
+			if len(unresolved) != 0 {
+				t.Errorf("unresolved = %+v, want none (these fixtures contain no template:/extends: refs)", unresolved)
+			}
+
+			byID := map[string]ScannerMatch{}
+			for _, m := range matches {
+				byID[m.SignatureID] = m
+			}
+
+			got, ok := byID[tc.wantSignatureID]
+			if !ok {
+				t.Fatalf("expected signature %q to match %s, but it did not (matches: %+v)", tc.wantSignatureID, tc.fixture, matches)
+			}
+			if got.Confidence != tc.wantConfidence {
+				t.Errorf("signature %q matched %s at confidence %q, want %q", tc.wantSignatureID, tc.fixture, got.Confidence, tc.wantConfidence)
+			}
+
+			for _, other := range reg.Signatures {
+				if other.ID == tc.wantSignatureID {
+					continue
+				}
+				if m, matched := byID[other.ID]; matched {
+					t.Errorf("%s unexpectedly also matched signature %q (cross-contamination): %+v", tc.fixture, other.ID, m)
+				}
+			}
+		})
+	}
+}
+
+// TestPipelineFixtureExpectationsCoverAllADOTaskSignatures enforces the
+// same invariant TestFixtureExpectationsCoverAllDetectableSignatures does
+// for GitHub Actions: every registry signature with a non-empty ado_tasks
+// block must have a pipelineFixtureExpectations entry, so a future
+// ado_tasks addition without a matching fixture doesn't pass every
+// existing test untested.
+func TestPipelineFixtureExpectationsCoverAllADOTaskSignatures(t *testing.T) {
+	reg, err := LoadScannerSignatures("../../mappings/scanner-signatures.yaml")
+	if err != nil {
+		t.Fatalf("LoadScannerSignatures: %v", err)
+	}
+
+	covered := map[string]bool{}
+	for _, tc := range pipelineFixtureExpectations {
+		covered[tc.wantSignatureID] = true
+	}
+
+	for _, sig := range reg.Signatures {
+		if len(sig.Detect.ADOTasks) > 0 && !covered[sig.ID] {
+			t.Errorf("signature %q has a non-empty ado_tasks block but no pipelineFixtureExpectations entry — add a fixture pipeline under testdata/pipelines/ and a table entry", sig.ID)
+		}
+	}
+}
