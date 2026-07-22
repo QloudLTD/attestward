@@ -179,6 +179,7 @@ func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
 			ID:          id,
+			Platform:    "github",
 			Title:       checkTitles[id],
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Actions: read-only + Contents: read-only (fine-grained) — plus whatever fine-grained category gates the code-scanning default-setup endpoint specifically, not independently verified against GitHub's docs (see C04's TokenScope for the same kind of hedge, and why)",

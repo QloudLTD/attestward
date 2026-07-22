@@ -136,6 +136,7 @@ func init() {
 	for _, id := range orgCheckIDs {
 		collect.Register(collect.CheckMeta{
 			ID:        id,
+			Platform:  "github",
 			Title:     checkTitles[id],
 			Collector: collectorID,
 			TokenScope: "read:audit_log (classic OAuth/PAT scope) — the authenticated user must also be an " +
@@ -150,6 +151,7 @@ func init() {
 	}
 	collect.Register(collect.CheckMeta{
 		ID:        webhooksID,
+		Platform:  "github",
 		Title:     checkTitles[webhooksID],
 		Collector: collectorID,
 		TokenScope: "repo (classic) or Webhooks: read-only (fine-grained) — exact fine-grained category not " +

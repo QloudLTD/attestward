@@ -90,6 +90,7 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 			Repos:             []string{"good-repo"},
 			ReleaseTagPattern: "v*",
 			LookbackReleases:  5,
+			Platform:          "github",
 		},
 		ScanStartedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 		ScanEndedAt:   time.Date(2026, 7, 13, 12, 0, 5, 0, time.UTC),
@@ -99,7 +100,7 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 				Title:   "Branch protection requires reviews",
 				Status:  StatusVerifiedPass,
 				Reason:  "main requires 1 approving review and passing status checks",
-				Scope:   ScopeRef{Org: "attestward-demo", Repo: "good-repo"},
+				Scope:   ScopeRef{Org: "attestward-demo", Repo: "good-repo", Platform: "github"},
 				Provenance: []Provenance{
 					{
 						Endpoint:       "/repos/attestward-demo/good-repo/rulesets",
@@ -135,6 +136,12 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 	}
 	if roundTripped.Rollup == nil || len(roundTripped.Rollup.Tasks) != 1 || roundTripped.Rollup.Tasks[0].TaskID != "PO.5.1" {
 		t.Fatalf("round trip lost Rollup: got %+v", roundTripped.Rollup)
+	}
+	if roundTripped.Scope.Platform != "github" {
+		t.Errorf("round trip lost Scope.Platform: got %q, want %q", roundTripped.Scope.Platform, "github")
+	}
+	if roundTripped.Results[0].Scope.Platform != "github" {
+		t.Errorf("round trip lost Results[0].Scope.Platform: got %q, want %q", roundTripped.Results[0].Scope.Platform, "github")
 	}
 
 	var doc any

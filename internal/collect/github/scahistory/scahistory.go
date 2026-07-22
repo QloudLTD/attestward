@@ -194,6 +194,7 @@ func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
 			ID:          id,
+			Platform:    "github",
 			Title:       checkTitles[id],
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope",

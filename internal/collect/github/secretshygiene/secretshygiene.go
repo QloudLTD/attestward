@@ -154,6 +154,7 @@ func init() {
 	for _, id := range allCheckIDs {
 		collect.Register(collect.CheckMeta{
 			ID:          id,
+			Platform:    "github",
 			Title:       checkTitles[id],
 			Collector:   collectorID,
 			TokenScope:  "repo (classic); fine-grained equivalent requires repo admin-level read access (security_and_analysis and vulnerability-alerts are both admin-only visible) — exact fine-grained permission category not independently verified against GitHub's docs, unlike the other entries in this table; org check additionally needs org owner or security manager",

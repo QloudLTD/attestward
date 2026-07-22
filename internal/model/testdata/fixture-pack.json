@@ -9,7 +9,8 @@
     "org": "attestward-demo",
     "repos": ["good-repo"],
     "release_tag_pattern": "v*",
-    "lookback_releases": 5
+    "lookback_releases": 5,
+    "platform": "github"
   },
   "scan_started_at": "2026-07-13T12:00:00Z",
   "scan_ended_at": "2026-07-13T12:00:05Z",
@@ -19,7 +20,7 @@
       "title": "Branch protection requires reviews",
       "status": "verified-pass",
       "reason": "main requires 1 approving review and passing status checks",
-      "scope": { "org": "attestward-demo", "repo": "good-repo" },
+      "scope": { "org": "attestward-demo", "repo": "good-repo", "platform": "github" },
       "provenance": [
         {
           "endpoint": "/repos/attestward-demo/good-repo/rulesets",

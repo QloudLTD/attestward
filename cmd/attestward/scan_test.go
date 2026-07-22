@@ -204,6 +204,13 @@ func TestRunScan_EndToEndWithFakeCollectorsAndRealMappings(t *testing.T) {
 	if result.pack.Scope.Org != "attestward-demo" || len(result.pack.Scope.Repos) != 1 {
 		t.Errorf("pack.Scope = %+v, want org=attestward-demo repos=[good-repo]", result.pack.Scope)
 	}
+	// Platform-field write policy (issue #148): runScan writes "github"
+	// explicitly rather than leaving it absent, even though absent means
+	// the same thing today — a signed evidence pack should be
+	// self-describing, not lean on an implicit default.
+	if result.pack.Scope.Platform != "github" {
+		t.Errorf("pack.Scope.Platform = %q, want %q (written explicitly, not left absent)", result.pack.Scope.Platform, "github")
+	}
 	if result.pack.Rollup == nil {
 		t.Fatal("pack.Rollup is nil, want it populated (even if empty) by BuildRollup")
 	}

@@ -136,6 +136,7 @@ func init() {
 	for _, id := range repoCheckIDs {
 		collect.Register(collect.CheckMeta{
 			ID:        id,
+			Platform:  "github",
 			Title:     checkTitles[id],
 			Collector: collectorID,
 			TokenScope: "public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — " +
@@ -149,6 +150,7 @@ func init() {
 	}
 	collect.Register(collect.CheckMeta{
 		ID:        securityPolicyOrgID,
+		Platform:  "github",
 		Title:     checkTitles[securityPolicyOrgID],
 		Collector: collectorID,
 		TokenScope: "public_repo/repo (classic) or Contents: read-only (fine-grained), against the org's own " +

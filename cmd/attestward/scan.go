@@ -354,12 +354,23 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		// information already surfaces per-check via each not-checkable
 		// CheckResult's own Reason text, so it'd be redundant schema
 		// surface, not new honesty.
+		//
+		// Platform is hardcoded "github" rather than left absent, even
+		// though absent means the same thing today (issue #148's platform
+		// seam plumbing): a long-lived legal artifact should be
+		// self-describing, not lean on an implicit default a reader years
+		// from now — or a future --platform flag's own default — has to
+		// already know to assume. This is the only platform runScan can
+		// produce until Azure DevOps collectors land (issue #34), at which
+		// point this becomes conditional on the CLI's --platform flag, not
+		// this PR's concern.
 		Scope: model.ScanScope{
 			Org:               scope.Org,
 			Repos:             scope.Repos,
 			ReleaseTagPattern: scope.ReleaseTagPattern,
 			LookbackReleases:  scope.LookbackReleases,
 			LookbackMonths:    scope.LookbackMonths,
+			Platform:          "github",
 		},
 		ScanStartedAt: startedAt,
 		ScanEndedAt:   endedAt,

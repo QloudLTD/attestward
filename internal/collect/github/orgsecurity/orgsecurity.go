@@ -97,6 +97,7 @@ func init() {
 	for id, title := range checkTitles {
 		collect.Register(collect.CheckMeta{
 			ID:          id,
+			Platform:    "github",
 			Title:       title,
 			Collector:   collectorID,
 			TokenScope:  "read:org",

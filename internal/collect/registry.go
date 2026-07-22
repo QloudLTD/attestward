@@ -13,7 +13,15 @@ import (
 // registered yet as of this issue, which is deliberate: `attestward checks
 // list` must work correctly against an empty registry (see #8).
 type CheckMeta struct {
-	ID         string
+	ID string
+	// Platform is which platform this check runs against — "github" or
+	// "azuredevops" (issue #34's v0.2 epic). Register defaults an empty
+	// Platform to "github", so pre-v0.2 code that never set it keeps
+	// meaning exactly what it always meant; every github collector package
+	// sets it explicitly anyway (mechanically backfilled), since relying on
+	// the implicit default is fine for the registry but reads as an
+	// oversight in package source a future contributor has to re-derive.
+	Platform   string
 	Title      string
 	Collector  string
 	TokenScope string
@@ -69,33 +77,75 @@ type CheckMeta struct {
 	FixtureRef string
 }
 
-var registry = map[string]CheckMeta{}
+// defaultPlatform is what an empty CheckMeta.Platform means — the only
+// platform this tool supported before the v0.2 Azure DevOps epic (#34), and
+// the fallback Lookup still assumes so every pre-v0.2 call site (every
+// github collector package's own tests, cmd/attestward/report.go, ...)
+// keeps working unmodified.
+const defaultPlatform = "github"
 
-// Register adds a check's metadata to the global registry. Panics on a
-// duplicate ID — that is a programming error to catch at collector-package
-// init time, not a runtime condition any caller should need to handle.
-func Register(meta CheckMeta) {
-	if _, exists := registry[meta.ID]; exists {
-		panic("collect: duplicate check id registered: " + meta.ID)
-	}
-	registry[meta.ID] = meta
+// registryKey is the registry's actual identity: a check ID is only unique
+// within one platform, not globally — GitHub and Azure DevOps collectors
+// deliberately reuse the same check ID for the same SSDF-mapped control
+// (issue #34's "check identity" model), so ID alone can't be the map key
+// once a second platform registers anything.
+type registryKey struct {
+	Platform string
+	ID       string
 }
 
-// Registered returns every currently registered check, sorted by ID for
-// deterministic output.
+var registry = map[registryKey]CheckMeta{}
+
+// Register adds a check's metadata to the global registry, keyed by
+// (Platform, ID) — an empty Platform defaults to "github". Panics on a
+// duplicate (Platform, ID) pair — that is a programming error to catch at
+// collector-package init time, not a runtime condition any caller should
+// need to handle. Two different platforms registering the same ID is not a
+// duplicate; it's the intended shape for check parity across platforms.
+func Register(meta CheckMeta) {
+	if meta.Platform == "" {
+		meta.Platform = defaultPlatform
+	}
+	key := registryKey{Platform: meta.Platform, ID: meta.ID}
+	if _, exists := registry[key]; exists {
+		panic("collect: duplicate check id registered for platform " + meta.Platform + ": " + meta.ID)
+	}
+	registry[key] = meta
+}
+
+// Registered returns every currently registered check across every
+// platform, sorted by Platform then ID for deterministic output.
 func Registered() []CheckMeta {
 	out := make([]CheckMeta, 0, len(registry))
 	for _, meta := range registry {
 		out = append(out, meta)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Platform != out[j].Platform {
+			return out[i].Platform < out[j].Platform
+		}
+		return out[i].ID < out[j].ID
+	})
 	return out
 }
 
-// Lookup returns a check's metadata and whether it was found.
-func Lookup(id string) (CheckMeta, bool) {
-	meta, ok := registry[id]
+// LookupPlatform returns a check's metadata for a specific platform (an
+// empty platform defaults to "github", same as Register) and whether it
+// was found.
+func LookupPlatform(platform, id string) (CheckMeta, bool) {
+	if platform == "" {
+		platform = defaultPlatform
+	}
+	meta, ok := registry[registryKey{Platform: platform, ID: id}]
 	return meta, ok
+}
+
+// Lookup returns a GitHub check's metadata and whether it was found —
+// shorthand for LookupPlatform("github", id), preserved so the dozens of
+// existing GitHub-only call sites (every collector package's own tests)
+// don't need to learn about platforms at all.
+func Lookup(id string) (CheckMeta, bool) {
+	return LookupPlatform(defaultPlatform, id)
 }
 
 // collectors holds every Collector the orchestrator (issue #10) runs during

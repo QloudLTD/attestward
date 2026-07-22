@@ -36,7 +36,9 @@
         "repos": { "type": "array", "items": { "type": "string" } },
         "release_tag_pattern": { "type": "string" },
         "lookback_releases": { "type": "integer" },
-        "lookback_months": { "type": "integer" }
+        "lookback_months": { "type": "integer" },
+        "platform": { "type": "string" },
+        "project": { "type": "string" }
       }
     },
     "scan_started_at": { "type": "string", "format": "date-time" },
@@ -105,7 +107,9 @@
           "additionalProperties": false,
           "properties": {
             "org": { "type": "string" },
-            "repo": { "type": "string" }
+            "repo": { "type": "string" },
+            "platform": { "type": "string" },
+            "project": { "type": "string" }
           }
         },
         "provenance": {

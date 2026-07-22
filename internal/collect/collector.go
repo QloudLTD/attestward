@@ -47,9 +47,15 @@ type Scope struct {
 	// Org is the target GitHub account name — despite the field name, it
 	// may name either an Organization or a personal User account; see
 	// AccountType.
-	Org               string
-	AccountType       AccountType
-	Repos             []string
+	Org         string
+	AccountType AccountType
+	Repos       []string
+	// Project is the Azure DevOps project name a scan is scoped to. GitHub
+	// collectors ignore this field entirely — Org+Repos already fully
+	// scopes a GitHub collector, and GitHub has no equivalent concept at
+	// this level. Azure DevOps collectors require it: every ADO REST path
+	// is org+project scoped, never org-only (issue #34's v0.2 epic).
+	Project           string
 	ReleaseTagPattern string
 	LookbackReleases  int
 	LookbackMonths    int

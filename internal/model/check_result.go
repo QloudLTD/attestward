@@ -20,6 +20,16 @@ type Provenance struct {
 type ScopeRef struct {
 	Org  string `json:"org"`
 	Repo string `json:"repo,omitempty"`
+	// Platform names which platform this specific check ran against:
+	// "github" or "azuredevops" (issue #34's v0.2 epic). Additive/optional
+	// — no SchemaVersion bump (docs/architecture.md's versioning policy).
+	// Absent means "github": every check result produced before v0.2 never
+	// set this field, and that must keep meaning exactly what it always
+	// meant now that a second platform exists, not become ambiguous.
+	Platform string `json:"platform,omitempty"`
+	// Project is the Azure DevOps project this specific check ran against;
+	// empty for GitHub checks.
+	Project string `json:"project,omitempty"`
 }
 
 // CheckResult is one check's execution against one scope. Collectors

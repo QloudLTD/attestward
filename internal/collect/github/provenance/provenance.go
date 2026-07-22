@@ -176,6 +176,7 @@ func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
 			ID:          id,
+			Platform:    "github",
 			Title:       checkTitles[id],
 			Collector:   collectorID,
 			TokenScope:  "repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)",

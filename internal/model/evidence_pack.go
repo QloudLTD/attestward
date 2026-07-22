@@ -26,6 +26,17 @@ type ScanScope struct {
 	ReleaseTagPattern string   `json:"release_tag_pattern,omitempty"`
 	LookbackReleases  int      `json:"lookback_releases,omitempty"`
 	LookbackMonths    int      `json:"lookback_months,omitempty"`
+	// Platform is which platform this scan covered: "github" or
+	// "azuredevops" (issue #34's v0.2 epic). Additive/optional — no
+	// SchemaVersion bump (docs/architecture.md's versioning policy) — but
+	// the writer sets it explicitly for every scan regardless of platform:
+	// a long-lived legal artifact should be self-describing rather than
+	// lean on an implicit "absent means github" default a reader years
+	// from now has to already know to assume.
+	Platform string `json:"platform,omitempty"`
+	// Project is the Azure DevOps project name a scan is scoped to; empty
+	// for GitHub scans, which have no equivalent concept at this level.
+	Project string `json:"project,omitempty"`
 }
 
 // TaskRollup is one SSDF task's rolled-up status: the reduction (via
