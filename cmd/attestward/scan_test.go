@@ -609,29 +609,32 @@ func TestBuildScanDeps_GitHubWiresRepoListerAndOrgChecker(t *testing.T) {
 
 // TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector proves the CLI
 // wiring layer actually reaches defaultAzureDevOpsCollectors: as of issues
-// #150 (S4, two PRs) and #154 (S8), an azuredevops scan gets every real
-// collector landed so far — C01 org-security, C09 audit-logging, and C02
-// repo-protection — replacing this same test's pre-#150 assertion that
-// buildScanDeps refused the scan outright (see git history for that
-// version). repoLister/orgChecker stay nil regardless, since no ADO
-// implementation of either exists yet (see buildScanDeps' own doc
-// comment); asserting all three collector IDs (not just a non-zero count)
-// catches defaultAzureDevOpsCollectors silently dropping one of them,
-// which a bare len() check would miss.
+// #150 (S4, two PRs) and #154 (S8, two PRs), an azuredevops scan gets
+// every real collector landed so far — C01 org-security, C02
+// repo-protection, C09 audit-logging, and C10 vdp — replacing this same
+// test's pre-#150 assertion that buildScanDeps refused the scan outright
+// (see git history for that version). repoLister/orgChecker stay nil
+// regardless, since no ADO implementation of either exists yet (see
+// buildScanDeps' own doc comment) — a real gap for repoprotection and vdp
+// specifically, since both are the first project/repo-scoped ADO
+// collectors, but not one buildScanDeps itself needs to close (repo
+// resolution happens later, in runScan). Asserting all four collector IDs
+// (not just a non-zero count) catches defaultAzureDevOpsCollectors
+// silently dropping one of them, which a bare len() check would miss.
 func TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector(t *testing.T) {
 	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "proj"}, scanConfig{}, nil)
 	deps, err := buildScanDeps(cfg, "ado-pat", &bytes.Buffer{})
 	if err != nil {
 		t.Fatalf("buildScanDeps: %v", err)
 	}
-	if len(deps.collectors) != 3 {
-		t.Fatalf("azuredevops scanDeps has %d collectors, want exactly 3 (C01 org-security, C09 audit-logging, C02 repo-protection)", len(deps.collectors))
+	if len(deps.collectors) != 4 {
+		t.Fatalf("azuredevops scanDeps has %d collectors, want exactly 4 (C01 org-security, C02 repo-protection, C09 audit-logging, C10 vdp)", len(deps.collectors))
 	}
 	gotIDs := map[string]bool{}
 	for _, c := range deps.collectors {
 		gotIDs[c.ID()] = true
 	}
-	for _, wantID := range []string{"C01.org-security", "C09.audit-logging", "C02.repo-protection"} {
+	for _, wantID := range []string{"C01.org-security", "C02.repo-protection", "C09.audit-logging", "C10.vdp"} {
 		if !gotIDs[wantID] {
 			t.Errorf("azuredevops scanDeps.collectors missing %q, got %v", wantID, gotIDs)
 		}

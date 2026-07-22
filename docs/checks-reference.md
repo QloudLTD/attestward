@@ -1261,11 +1261,31 @@ This check is registered under more than one platform — details for each below
 
 ## C10.vdp
 
-### `C10.vdp.intake-channel` — SECURITY.md advertises an actionable intake channel
+### `C10.vdp.intake-channel`
 
-- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `RV.1.1` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis), `RV.1.3` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — SECURITY.md advertises an actionable intake channel
+
+- **Token permission:** vso.code
+- **Fixture:** `internal/collect/azuredevops/vdp/vdp_test.go`
+- **API endpoint(s):** `GET /{organization}/{project}/_apis/git/repositories/{repositoryId}/items (dev.azure.com host; path=/SECURITY.md then path=/docs/SECURITY.md, $format=json to force a JSON envelope instead of a raw byte stream)`
+
+**Status rubric:**
+
+- **verified-fail:** no SECURITY.md exists to advertise an intake channel at all — shares C10.vdp.security-md's own fail condition, since there's nothing to inspect for a channel
+- **partial:** SECURITY.md resolved, but neither intake-channel signal was found in its content — the file exists but doesn't tell a reporter how to actually reach the producer
+- **not-checkable:** resolving SECURITY.md failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate path is never this cause, since that just means the next path is tried
+- **verified-pass:** SECURITY.md resolved (see C10.vdp.security-md) and its content matches at least one of two signals: an email address or an http(s):// URL — narrower than the GitHub twin's three signals, since Azure DevOps has no private-vulnerability-reporting feature whose mention could count as a third (see C10.vdp.private-reporting)
+
+**Remediation:** If no SECURITY.md exists at all, add one first (see C10.vdp.security-md). If it exists but this still fails, make the intake channel concrete and actionable: an email address, or a URL (e.g. a reporting form or bug-bounty page) — not just general prose like "we take security seriously."
+
+#### github — SECURITY.md advertises an actionable intake channel
+
+- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/vdp/vdp_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1285,11 +1305,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C10.vdp.private-reporting` — GitHub private vulnerability reporting is enabled
+### `C10.vdp.private-reporting`
 
-- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `RV.1.1` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — A private-vulnerability-reporting mechanism is enabled
+
+- **Token permission:** none — this check makes no API call of its own; Azure DevOps has no private-vulnerability-reporting feature to query (see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/vdp/vdp_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps has no private-vulnerability-reporting feature or API surface at all, unlike GitHub's dedicated feature and endpoint; there is nothing this tool could ever call to verify it
+
+**Remediation:** No remediation applicable via this tool: Azure DevOps has no private-vulnerability-reporting feature or API surface at all, unlike GitHub's dedicated feature — there is nothing to enable. If the producer has an out-of-band private reporting channel (e.g. a security@ mailbox), advertise it in SECURITY.md (see C10.vdp.intake-channel) and/or document it in the self-attestation questionnaire.
+
+#### github — GitHub private vulnerability reporting is enabled
+
+- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/vdp/vdp_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/private-vulnerability-reporting`
 
@@ -1307,11 +1344,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C10.vdp.security-md` — A SECURITY.md resolves for this repo
+### `C10.vdp.security-md`
 
-- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `RV.1.3` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 4
+
+#### azuredevops — A SECURITY.md resolves for this repo
+
+- **Token permission:** vso.code
+- **Fixture:** `internal/collect/azuredevops/vdp/vdp_test.go`
+- **API endpoint(s):** `GET /{organization}/{project}/_apis/git/repositories/{repositoryId}/items (dev.azure.com host; path=/SECURITY.md then path=/docs/SECURITY.md, $format=json to force a JSON envelope instead of a raw byte stream)`
+
+**Status rubric:**
+
+- **verified-fail:** no SECURITY.md resolved at either candidate location — includes the case where the repository itself doesn't exist or isn't visible to this token, which a 404 at both paths can't distinguish from a genuinely missing file
+- **not-checkable:** resolving SECURITY.md failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate path is never this cause, since that just means the next path is tried
+- **verified-pass:** SECURITY.md resolved at one of two candidate repo-content locations (repo root, or docs/) — a repo-content convention this collector checks for, not a platform-enforced one: Azure DevOps documents no community-health-file search order the way GitHub does, and has no org-wide-default mechanism to fall back to (see C10.vdp.security-policy-org)
+
+**Remediation:** Add a SECURITY.md at the repo root or under docs/ describing how to report a vulnerability. Azure DevOps has no org-wide-default mechanism to add it to instead (see C10.vdp.security-policy-org) — it must live in this repo.
+
+#### github — A SECURITY.md resolves for this repo
+
+- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/vdp/vdp_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1329,11 +1385,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C10.vdp.security-policy-org` — The org has an org-wide default security policy
+### `C10.vdp.security-policy-org`
 
-- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained), against the org's own ".github" repo if one exists
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `RV.1.3` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 4
+
+#### azuredevops — The org has an org-wide default security policy
+
+- **Token permission:** none — this check makes no API call of its own; Azure DevOps has no ".github"-repo-style org-default mechanism to query (see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/vdp/vdp_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps has no ".github"-repo-style org-wide-default convention or mechanism; there is no project/repo this tool could check as a fallback the way GitHub's own ".github" special repo works
+
+**Remediation:** No remediation applicable via this tool: Azure DevOps has no ".github"-repo-style org-wide-default mechanism — there is no project/repo this tool could check as a fallback. Add a SECURITY.md to each repo individually (see C10.vdp.security-md), or document an org-wide policy elsewhere and reference it in the self-attestation questionnaire.
+
+#### github — The org has an org-wide default security policy
+
+- **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained), against the org's own ".github" repo if one exists
 - **Fixture:** `internal/collect/github/vdp/vdp_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/contents/{path}`
 

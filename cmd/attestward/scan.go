@@ -20,6 +20,7 @@ import (
 	adoauditlogging "github.com/sioakim/attestward/internal/collect/azuredevops/auditlogging"
 	adoorgsecurity "github.com/sioakim/attestward/internal/collect/azuredevops/orgsecurity"
 	adorepoprotection "github.com/sioakim/attestward/internal/collect/azuredevops/repoprotection"
+	advdp "github.com/sioakim/attestward/internal/collect/azuredevops/vdp"
 	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 	"github.com/sioakim/attestward/internal/collect/github/actionssecurity"
 	"github.com/sioakim/attestward/internal/collect/github/auditlogging"
@@ -120,28 +121,35 @@ func defaultGitHubCollectors(token string) []collect.Collector {
 }
 
 // defaultAzureDevOpsCollectors mirrors defaultGitHubCollectors' role for a
-// --platform azuredevops scan. C01 org-security (issue #150, S4), C09
-// audit-logging (issue #154, S8), and now C02 repo-protection (issue #150,
-// S4's second PR) are the ADO collectors landed so far; each builds its
-// Client from just org+pat, with project and (for repoprotection) repos
-// read from collect.Scope at Collect time rather than constructor
-// arguments — the same choice auditlogging already made. Collectors for
-// other stories append here the same way as they land.
+// --platform azuredevops scan. C01 org-security, C02 repo-protection (both
+// issue #150, S4's two PRs), C09 audit-logging, and C10 vdp (both issue
+// #154, S8's two PRs) are the four ADO collectors landed so far.
+// org-security and auditlogging are both org-scoped only (auditlogging
+// reads project from collect.Scope.Project at Collect time rather than a
+// constructor argument), so both take a pre-built Client sharing one
+// org+pat pair. repoprotection is also project-scoped rather than truly
+// per-repo — its two backing calls (policy configurations, repositories)
+// each happen once per Collect, not once per repo — so it too takes a
+// pre-built Client. vdp is different: it's genuinely per-repo (Azure
+// DevOps has no per-repo webhook concept the way GitHub does, but
+// SECURITY.md is genuinely per-repo content), so — mirroring its own
+// GitHub twin's per-repo collectors — its constructor takes (org, pat)
+// directly and builds a fresh Client per repo internally, rather than
+// sharing one Client the way the three project/org-scoped collectors
+// above do.
 //
-// repoprotection is the first ADO collector that actually consults
-// scope.Repos: buildScanDeps below still has no ADO repoLister, so an
-// azuredevops scan with no explicit --repo now genuinely hits
-// resolveRepos' nil-lister guard (an actionable error, not a silent
-// no-op) the moment C02 is in scope — previously moot, since neither
-// org-security nor audit-logging ever read scope.Repos at all. Passing
-// --repo explicitly is required for a real ADO scan today; a proper ADO
-// repoLister remains a future story's job, not this one's (see
-// buildScanDeps' own doc comment for the existing guard this relies on).
+// repoprotection was the first ADO collector to actually consult
+// scope.Repos, and vdp does too: buildScanDeps below still has no ADO
+// repoLister, so a real `attestward scan --platform azuredevops`
+// invocation needs an explicit --repo (resolveRepos' own nil-lister guard
+// is what enforces that) until a later story adds one. Collectors for the
+// remaining stories (S5-S7) append here the same way as they land.
 func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 	return append(collect.Collectors(),
 		adoorgsecurity.New(azuredevops.NewClient(org, pat)),
-		adoauditlogging.New(azuredevops.NewClient(org, pat)),
 		adorepoprotection.New(azuredevops.NewClient(org, pat)),
+		adoauditlogging.New(azuredevops.NewClient(org, pat)),
+		advdp.New(org, pat),
 	)
 }
 
