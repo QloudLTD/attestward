@@ -2,6 +2,12 @@ name: Self-scan
 
 # Issue #32: the repo is the first case study. Runs attestward against
 # sioakim/attestward itself and publishes the evidence pack as an artifact.
+# Since issue #36 this workflow is also the first consumer (and the live
+# end-to-end test) of the sioakim/attestward-action composite action: the
+# scan runs the pinned, signature-verified *release* binary rather than a
+# HEAD build (HEAD correctness is ci.yaml's job; this workflow validates
+# the artifact users actually run), and every run diffs against the pack
+# attached to the latest release — posture drift fails the run (ADR-0007).
 #
 # Token strategy: the ambient GITHUB_TOKEN, scoped read-only by the
 # `permissions:` block below — not a fine-grained PAT. This is one of the
@@ -44,39 +50,43 @@ jobs:
       # below accidentally read stale evidence.json from a previous run
       # and pass against it.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
 
-      - name: Build attestward
-        run: go build -trimpath -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }}" -o attestward ./cmd/attestward
-
-      # attestward scan exits 2 on gaps (any verified-fail/partial) — that's
-      # a real, informative outcome we want to inspect below, not a step
-      # failure to short-circuit on before the render/artifact-upload/
-      # evaluate steps (all `if: always()`) get to run. The evaluate step
-      # re-derives the pass/fail verdict from evidence.json itself rather
-      # than reading this step's own exit code or outcome.
-      - name: Scan sioakim/attestward
-        id: scan
-        continue-on-error: true
+      # Drift baseline: the evidence.json attached to the latest release
+      # (durable, unlike expiring workflow artifacts — see the
+      # attach-to-release job below, which maintains it). A missing asset
+      # is expected, not an error: it just means no baseline yet (first
+      # run after this workflow landed, or no release-triggered run has
+      # attached one), and the action skips drift mode on an empty
+      # baseline input.
+      - name: Fetch drift baseline from the latest release
+        id: baseline
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./attestward scan --org sioakim --repo attestward --out evidence/ --self-attestation-file self-attestation.yaml
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release download --repo "$GITHUB_REPOSITORY" \
+               --pattern evidence.json --dir baseline 2>/dev/null; then
+            echo "path=baseline/evidence.json" >> "$GITHUB_OUTPUT"
+            echo "baseline: latest release's evidence.json"
+          else
+            echo "path=" >> "$GITHUB_OUTPUT"
+            echo "no evidence.json on the latest release — drift detection skipped this run"
+          fi
 
-      - name: Render report.html
-        if: always()
-        run: ./attestward report evidence/evidence.json --format html
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
+      - uses: sioakim/attestward-action@45e3861d57f503a2b7362253d4c924de3158ed87 # v1.0.0
+        id: attestward
         with:
-          name: self-scan-evidence
-          path: evidence/
-          # Explicit, not the repo default: this artifact is small
-          # (a JSON pack + one HTML file) and is meant to be inspectable
-          # for a reasonable stretch between releases, not indefinitely.
-          retention-days: 90
+          version: "0.2.0"
+          org: sioakim
+          repos: attestward
+          self-attestation-file: self-attestation.yaml
+          out: evidence
+          baseline: ${{ steps.baseline.outputs.path }}
+          # Posture drift against the last release's pack fails the run —
+          # that's the alarm this workflow exists to ring (#36). Gaps
+          # per se don't (fail-on-gaps default false): the evaluate step
+          # below holds the sharper line, a documented exception list.
+          fail-on-drift: "true"
 
       # The exception list below is the "deliberate, documented exception
       # list" issue #32 asks for, rather than letting exit 2 fail every
@@ -106,6 +116,7 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          test -f evidence/evidence.json || { echo "::error::no evidence.json was written — the scan itself failed; see the action step above"; exit 1; }
           allowed='["C06.sca.dependency-review","C02.branch.admin-enforced","C09.repo.webhooks"]'
           unexpected=$(jq --argjson allowed "$allowed" '
             [.results[] | select(.status == "verified-fail" or .status == "partial") | select(.check_id as $id | $allowed | index($id) | not)]
@@ -138,3 +149,38 @@ jobs:
           fi
 
           echo "no undocumented gaps — every verified-fail/partial result (if any) is on the documented exception list, and $pass_count check(s) genuinely verified-pass"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: self-scan-evidence
+          path: evidence/
+          # Explicit, not the repo default: this artifact is small
+          # (a JSON pack + one HTML file) and is meant to be inspectable
+          # for a reasonable stretch between releases, not indefinitely.
+          retention-days: 90
+
+  # The one write in this workflow, isolated in its own job so the scan
+  # job's permissions stay read-only (ADR-0007): on release events, the
+  # fresh pack becomes the new drift baseline by being attached to the
+  # triggering release.
+  attach-to-release:
+    if: github.event_name == 'release'
+    needs: self-scan
+    runs-on: [self-hosted, macOS]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: self-scan-evidence
+          path: evidence
+      - name: Attach pack to the triggering release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" \
+            --repo "$GITHUB_REPOSITORY" --clobber \
+            evidence/evidence.json evidence/report.html

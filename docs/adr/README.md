@@ -12,6 +12,8 @@ acceptance (superseded instead).
 | [0003](0003-mappings-as-data.md) | Compliance mappings are data, not code | Accepted |
 | [0004](0004-read-only-local-first.md) | Read-only, local-first, zero telemetry | Accepted |
 | [0005](0005-collector-interface-seam.md) | Collector interface is the platform seam | Accepted |
+| [0006](0006-exec-cosign-not-sigstore-go.md) | Exec cosign, don't embed sigstore-go | Accepted |
+| [0007](0007-continuous-mode-write-boundary.md) | Continuous mode's writes live in workflow steps, never the CLI | Accepted |
 
 To add one: copy the newest file, increment the number, open a PR. Decisions that are
 still open questions belong in [DECISIONS.md](../../DECISIONS.md) until resolved.
