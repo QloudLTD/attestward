@@ -1144,11 +1144,31 @@ This check is registered under more than one platform — details for each below
 
 ## C07.provenance
 
-### `C07.provenance.commit-linkage` — Release artifacts are traceable to a workflow run on the release commit
+### `C07.provenance.commit-linkage`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.3.2` (practice `PS.3`: Archive and Protect Each Software Release)
 - **CISA form cluster(s):** 3
+
+#### azuredevops — Release artifacts are traceable to a build on the release commit
+
+- **Token permission:** vso.build, vso.code
+- **Fixture:** `internal/collect/azuredevops/provenance/provenance_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/refs`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/annotatedtags/{objectId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/commits/{commitId}`, `GET dev.azure.com/{org}/{project}/_apis/build/builds`
+
+**Status rubric:**
+
+- **verified-fail:** at least one release in the lookback window has zero builds on its commit within the bounded search window — builds are fetched from the oldest evaluated release's own date minus a fixed 90-day grace window, not an unbounded history (see Facts.builds_search_start for the exact bound this run applied), so an unusually large gap between a release tag and the build/commit it names could in principle still be missed
+- **partial:** one or more release tags matching the configured pattern could not be dated (their commit is always already known straight from the refs listing itself — it's only the date lookup that failed; see the package doc comment for why this collector applies C05/C06's unconditional-dropped-tag rule here too); if that leaves nothing evaluable, the reason names the drop count directly and no release's build coverage was evaluated at all; otherwise every evaluated release is still traceable to a build on its commit, but the exclusion caps the result at partial
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), the named repository wasn't found in the project, or resolving this repo's release tags failed (403/other API error) — collectRepo returns not-checkable for both evidence checks on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or no release tag matches the configured pattern within the lookback window, and none of the tags that did match were dropped as unresolvable either — genuinely nothing to evaluate; or the project's build history itself could not be fetched
+- **verified-pass:** every release in the lookback window has at least one build whose sourceVersion equals the release's own resolved commit SHA, within the bounded build search window (see Facts.builds_search_start)
+
+**Remediation:** Make sure the pipeline that produces release assets is triggered by (or runs on) the same commit being tagged — e.g. a tag-created trigger, or the same branch build release automation consumes — rather than run manually against an unrelated commit.
+
+#### github — Release artifacts are traceable to a workflow run on the release commit
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/git/ref/{ref}`, `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`, `GET /repos/{owner}/{repo}/actions/runs?head_sha={sha}`
 
@@ -1167,11 +1187,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C07.provenance.workflow` — A provenance-generating tool is configured
+### `C07.provenance.workflow`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.3.2` (practice `PS.3`: Archive and Protect Each Software Release)
 - **CISA form cluster(s):** 3
+
+#### azuredevops — A provenance-generating tool is configured
+
+- **Token permission:** vso.build, vso.code (pipeline discovery and YAML fetch)
+- **Fixture:** `internal/collect/azuredevops/provenance/provenance_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/pipelines`, `GET dev.azure.com/{org}/{project}/_apis/build/definitions/{definitionId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`
+
+**Status rubric:**
+
+- **verified-fail:** no provenance-generating tool of any confidence was detected in any pipeline, and every pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo skip) — a real absence, not an evidence gap
+- **partial:** only a low-confidence (pipeline/step-name-only) match was found — not enough signal alone to confirm a provenance tool is genuinely configured
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), the named repository wasn't found in the project, or resolving this repo's release tags failed (403/other API error) — collectRepo returns not-checkable for both evidence checks on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or one or more of this repo's own pipelines could not be fully inspected (a build-definition fetch failure, an unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail — issue #178 tracks fully consuming these skips across every check/platform; this check applies the honest not-checkable fix now rather than asserting a confident absence over incomplete evidence
+- **verified-pass:** at least one matched pipeline reaches medium-or-high confidence (an ado_task or run-pattern match — e.g. a cosign sign/sign-blob/attest invocation — not just a suggestive pipeline/step name)
+
+**Remediation:** Add a provenance-generating step to the pipeline: Sigstore/cosign (a `cosign sign`/`sign-blob`/`attest` invocation), or a SLSA provenance generator — see mappings/scanner-signatures.yaml for what this tool recognizes. No ADO-native attestation task exists, so a pipeline whose name merely suggests provenance (e.g. "SLSA") isn't enough on its own; it needs a matched run-pattern invocation to count as more than a low-confidence signal.
+
+#### github — A provenance-generating tool is configured
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1190,11 +1230,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C07.release.checksums` — Releases ship checksum assets
+### `C07.release.checksums`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.2.1` (practice `PS.2`: Provide a Mechanism for Verifying Software Release Integrity)
 - **CISA form cluster(s):** 2
+
+#### azuredevops — Releases ship checksum assets
+
+- **Token permission:** none — this check makes no API call of its own; Azure DevOps has no release-asset concept to query (see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/provenance/provenance_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps has no release-asset concept the way GitHub Releases does; Azure Artifacts is a package registry, not a release-asset store, and is out of scope for this collector (issue #153's own C07 spec)
+
+**Remediation:** No remediation applicable via this tool: Azure DevOps has no release-asset concept the way GitHub Releases does. Azure Artifacts is a package registry, not a release-asset store, and is out of scope for this collector (issue #153's own C07 spec). Document any real checksum-publishing practice (e.g. via Azure Artifacts or an external release process) in the self-attestation questionnaire instead.
+
+#### github — Releases ship checksum assets
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/releases`
 
@@ -1212,11 +1269,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C07.release.signatures` — Releases ship signature or attestation assets
+### `C07.release.signatures`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.2.1` (practice `PS.2`: Provide a Mechanism for Verifying Software Release Integrity), `PS.3.2` (practice `PS.3`: Archive and Protect Each Software Release)
 - **CISA form cluster(s):** 2, 3
+
+#### azuredevops — Releases ship signature or attestation assets
+
+- **Token permission:** none — this check makes no API call of its own; Azure DevOps has no release-asset concept to query (see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/provenance/provenance_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps has no release-asset concept the way GitHub Releases does; Azure Artifacts is a package registry, not a release-asset store, and is out of scope for this collector (issue #153's own C07 spec)
+
+**Remediation:** No remediation applicable via this tool: the same platform gap as C07.release.checksums applies — Azure DevOps has no release-asset concept for this collector to inspect signature/attestation assets against. Document any real signing practice in the self-attestation questionnaire instead.
+
+#### github — Releases ship signature or attestation assets
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/attestations/{subject_digest}`
 
@@ -1236,11 +1310,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C07.release.tags-signed` — Release tags are signed and GitHub reports the signature verified
+### `C07.release.tags-signed`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.2.1` (practice `PS.2`: Provide a Mechanism for Verifying Software Release Integrity)
 - **CISA form cluster(s):** 2
+
+#### azuredevops — Release tags are signed and their signature is verified
+
+- **Token permission:** none — this check makes no API call of its own; Azure DevOps has no tag-signature-verification feature to query (see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/provenance/provenance_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps's GitAnnotatedTag exposes message/taggedBy/taggedObject and no signature or verification field of any kind; Azure DevOps does not verify tag signatures the way GitHub does — there is nothing this tool could ever call to confirm it, verified head-on against the GitAnnotatedTag reference
+
+**Remediation:** No remediation applicable via this tool: Azure DevOps's GitAnnotatedTag (Git Annotated Tags - Get) exposes message/taggedBy/taggedObject and no signature or verification field of any kind, and Azure DevOps does not verify tag signatures the way GitHub does — there is nothing this tool could ever confirm here, regardless of whether tags are genuinely signed with git's own mechanisms. Document any real tag-signing practice in the self-attestation questionnaire instead.
+
+#### github — Release tags are signed and GitHub reports the signature verified
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/git/ref/{ref}`, `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`
 

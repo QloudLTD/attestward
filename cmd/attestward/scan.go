@@ -20,6 +20,7 @@ import (
 	adoauditlogging "github.com/sioakim/attestward/internal/collect/azuredevops/auditlogging"
 	adoenvseparation "github.com/sioakim/attestward/internal/collect/azuredevops/envseparation"
 	adoorgsecurity "github.com/sioakim/attestward/internal/collect/azuredevops/orgsecurity"
+	adoprovenance "github.com/sioakim/attestward/internal/collect/azuredevops/provenance"
 	adorepoprotection "github.com/sioakim/attestward/internal/collect/azuredevops/repoprotection"
 	adosasthistory "github.com/sioakim/attestward/internal/collect/azuredevops/sasthistory"
 	adosecretshygiene "github.com/sioakim/attestward/internal/collect/azuredevops/secretshygiene"
@@ -128,39 +129,41 @@ func defaultGitHubCollectors(token string) []collect.Collector {
 // issue #150, S4's two PRs), C03 env-separation, C04 secrets-hygiene (both
 // issue #151, S5's two PRs), C05 sast-history (issue #152, S6's first of
 // three PRs — pipelinehistory landed first, sca-history follows), C09
-// audit-logging, and C10 vdp (both issue #154, S8's two PRs) are the seven
-// ADO collectors landed so far. org-security and auditlogging are both
+// audit-logging, C10 vdp (both issue #154, S8's two PRs), and C07
+// provenance (issue #153, S7's first of two PRs) are the eight ADO
+// collectors landed so far. org-security and auditlogging are both
 // org-scoped only (auditlogging reads project from collect.Scope.Project
 // at Collect time rather than a constructor argument), so both take a
 // pre-built Client sharing one org+pat pair. repoprotection, envseparation,
-// and sasthistory are also project-scoped rather than truly per-repo —
-// envseparation's own two backing calls (environments, per-environment
-// check configurations) each happen once per Collect, not once per repo,
-// and its results carry Scope.Project with Scope.Repo left empty (see its
-// own package doc comment); sasthistory's own pipeline discovery
-// (ListPipelines, MatchPipelines) and repository listing likewise happen
-// exactly once per Collect, the same as repoprotection's two backing
-// calls, filtered client-side per repo — so all three take a pre-built
-// Client the same way. vdp and secretshygiene are different: both are
-// genuinely per-repo (Azure DevOps has no per-repo webhook concept the way
-// GitHub does, but SECURITY.md and GHAzDO repo enablement are each
-// genuinely per-repo), so — mirroring their own GitHub twins' per-repo
-// collectors — both constructors take (org, pat) directly and build a
-// fresh Client per repo internally, rather than sharing one Client the way
-// the five project/org-scoped collectors above do. secretshygiene is also
-// the first ADO collector spanning all three scope levels at once (org,
-// project, and per-repo) in a single Collect() call — see its own package
-// doc comment for how it isolates provenance across all three.
+// sasthistory, and provenance are also project-scoped rather than truly
+// per-repo — envseparation's own two backing calls (environments,
+// per-environment check configurations) each happen once per Collect, not
+// once per repo, and its results carry Scope.Project with Scope.Repo left
+// empty (see its own package doc comment); sasthistory's and provenance's
+// own pipeline discovery (ListPipelines, MatchPipelines) and repository
+// listing likewise happen exactly once per Collect, the same as
+// repoprotection's two backing calls, filtered client-side per repo — so
+// all four take a pre-built Client the same way. vdp and secretshygiene are
+// different: both are genuinely per-repo (Azure DevOps has no per-repo
+// webhook concept the way GitHub does, but SECURITY.md and GHAzDO repo
+// enablement are each genuinely per-repo), so — mirroring their own GitHub
+// twins' per-repo collectors — both constructors take (org, pat) directly
+// and build a fresh Client per repo internally, rather than sharing one
+// Client the way the six project/org-scoped collectors above do.
+// secretshygiene is also the first ADO collector spanning all three scope
+// levels at once (org, project, and per-repo) in a single Collect() call —
+// see its own package doc comment for how it isolates provenance across
+// all three.
 //
 // repoprotection was the first ADO collector to actually consult
-// scope.Repos; vdp, sasthistory, and secretshygiene do too: buildScanDeps
-// below still has no ADO repoLister, so a real `attestward scan --platform
-// azuredevops` invocation needs an explicit --repo (resolveRepos' own
-// nil-lister guard is what enforces that) until a later story adds one.
-// envseparation never consults scope.Repos at all (environments are
-// project-scoped, not repo-scoped), so it doesn't change that requirement
-// either way. Collectors for the remaining stories (the rest of S6, S7)
-// append here the same way as they land.
+// scope.Repos; vdp, sasthistory, secretshygiene, and provenance do too:
+// buildScanDeps below still has no ADO repoLister, so a real `attestward
+// scan --platform azuredevops` invocation needs an explicit --repo
+// (resolveRepos' own nil-lister guard is what enforces that) until a later
+// story adds one. envseparation never consults scope.Repos at all
+// (environments are project-scoped, not repo-scoped), so it doesn't change
+// that requirement either way. Collectors for the remaining stories (the
+// rest of S6, S7) append here the same way as they land.
 func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 	return append(collect.Collectors(),
 		adoorgsecurity.New(azuredevops.NewClient(org, pat)),
@@ -170,6 +173,7 @@ func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 		advdp.New(org, pat),
 		adosasthistory.New(azuredevops.NewClient(org, pat)),
 		adosecretshygiene.New(org, pat),
+		adoprovenance.New(azuredevops.NewClient(org, pat)),
 	)
 }
 

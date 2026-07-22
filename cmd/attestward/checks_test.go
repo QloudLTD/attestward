@@ -189,7 +189,8 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// and vdp, plus azuredevops' own orgsecurity, repoprotection (both
 	// issue #150, S4's two PRs), envseparation, secretshygiene (both issue
 	// #151, S5's two PRs), sasthistory (issue #152, S6's first collector
-	// PR), auditlogging, and vdp (both issue #154, S8's two PRs),
+	// PR), auditlogging, vdp (both issue #154, S8's two PRs), and
+	// provenance (issue #153, S7's first collector PR),
 	// transitively imported via scan.go) — not the disk-based loaders or
 	// synthetic fixtures the other tests in this file use, which would
 	// miss a broken //go:embed pattern, a renamed file, or a check
@@ -274,10 +275,19 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C06.sca.dependency-review",
 		"C06.sca.ran-per-release",
 		"C06.sca.tool-configured",
+		// C07's five checks are now registered under both platforms (issue
+		// #153, S7, the first ADO collector of this story) — each ID sorts
+		// next to its own duplicate, the same azuredevops-before-github
+		// ordering as C05/C09/C10 above.
+		"C07.provenance.commit-linkage",
 		"C07.provenance.commit-linkage",
 		"C07.provenance.workflow",
+		"C07.provenance.workflow",
+		"C07.release.checksums",
 		"C07.release.checksums",
 		"C07.release.signatures",
+		"C07.release.signatures",
+		"C07.release.tags-signed",
 		"C07.release.tags-signed",
 		"C08.actions.oidc-vs-secrets",
 		"C08.actions.pinned",
@@ -341,8 +351,9 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 // (S5, two PRs: C03 then C04), #152 (S6, its first collector PR, C05),
 // and #154 (S8, two PRs: C09 then C10): azuredevops' own C01 org-security
 // (4 checks), C02 repo-protection (6 checks), C03 env-separation (4
-// checks), C05 sast-history (4 checks), C09 audit-logging (4 checks), and
-// C10 vdp (4 checks) each register the same check IDs their GitHub twins
+// checks), C05 sast-history (4 checks), C09 audit-logging (4 checks), C10
+// vdp (4 checks), and C07 provenance (5 checks, issue #153, S7's first
+// collector PR) each register the same check IDs their GitHub twins
 // already do (issue #34's check-identity model — same ID, per-platform
 // metadata), each a distinct (Platform, ID) registry entry. C04
 // secrets-hygiene is different: it registers 6 checks, but only 5 mirror
@@ -351,7 +362,7 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 // C04.vars.secret-hygiene, is azuredevops-only with no GitHub twin at all
 // (see its own package doc comment), so it's a wholly new registry entry,
 // not a second platform for an existing one. Total: 46 + 4 + 6 + 4 + 6 +
-// 4 + 4 + 4 = 78.
+// 4 + 4 + 4 + 5 = 83.
 func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 	registered := collect.Registered()
 	for _, meta := range registered {
@@ -359,7 +370,7 @@ func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if len(registered) != 78 {
-		t.Fatalf("len(collect.Registered()) = %d, want 78 — did the registered check count change?", len(registered))
+	if len(registered) != 83 {
+		t.Fatalf("len(collect.Registered()) = %d, want 83 — did the registered check count change?", len(registered))
 	}
 }
