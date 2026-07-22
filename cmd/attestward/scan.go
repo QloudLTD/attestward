@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/sioakim/attestward/internal/collect"
+	"github.com/sioakim/attestward/internal/collect/azuredevops"
+	adoorgsecurity "github.com/sioakim/attestward/internal/collect/azuredevops/orgsecurity"
 	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 	"github.com/sioakim/attestward/internal/collect/github/actionssecurity"
 	"github.com/sioakim/attestward/internal/collect/github/auditlogging"
@@ -116,19 +118,21 @@ func defaultGitHubCollectors(token string) []collect.Collector {
 }
 
 // defaultAzureDevOpsCollectors mirrors defaultGitHubCollectors' role for a
-// --platform azuredevops scan. Empty until issue #150 (S4) lands the first
-// ADO collector — wiring one in here is a small, additive change (append a
-// constructor call, the same shape defaultGitHubCollectors already has),
-// but it is not the only thing S4 needs from this file: buildScanDeps below
-// also has no ADO repoLister/orgChecker yet, so S4 (or whichever story
-// lands ADO's C01 first) must add one alongside the first collector, not
-// assume this function alone is the whole seam. The (org, project, pat
-// string) signature is fixed now, ahead of any real use, so it doesn't need
-// to change again once real per-collector clients are built from them —
-// see buildScanDeps' own doc comment for why a zero-collector result here
-// is refused before it ever reaches runScan.
-func defaultAzureDevOpsCollectors(_, _, _ string) []collect.Collector {
-	return nil
+// --platform azuredevops scan. Issue #150 (S4) lands the first ADO
+// collector (C01 org-security, org-scoped — it never consults project);
+// every other story in the epic (#151-#154) appends its own constructor
+// call here the same way, the shape defaultGitHubCollectors already
+// established. buildScanDeps below still has no ADO repoLister/orgChecker
+// (a real gap: an azuredevops scan without explicit --repo can't resolve
+// project-scoped collectors' repos yet) — that remains a later story's
+// job, not something this collector's org-level checks need. The (org,
+// project, pat string) signature is fixed now, ahead of every collector
+// needing all three, so it doesn't need to change again as later stories
+// add project/repo-scoped collectors here too.
+func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
+	return append(collect.Collectors(),
+		adoorgsecurity.New(azuredevops.NewClient(org, pat)),
+	)
 }
 
 // runScanCmd is cobra's entry point: it resolves config, builds real
@@ -222,15 +226,15 @@ func resolveScanToken(platform string) (string, error) {
 
 // buildScanDeps wires the real dependencies runScanCmd passes to runScan,
 // branching on cfg.Platform: a github scan gets a live GitHub client plus
-// its repo lister/org checker; an azuredevops scan gets today's (empty) ADO
-// collector set and leaves repoLister/orgChecker nil, since there's no ADO
-// implementation of either yet — this is a real gap this function papers
-// over only because the zero-collector guard below stops the scan before
-// runScan ever has to resolve repos with a nil lister. Landing the first
-// ADO collector (issue #150, S4) must also land an ADO repoLister (and
-// wire it in here) before an azuredevops scan without explicit --repo can
-// work; resolveRepos' own nil-lister guard is the backstop if that's ever
-// missed, not a substitute for doing it.
+// its repo lister/org checker; an azuredevops scan still leaves
+// repoLister/orgChecker nil, since there's no ADO implementation of either
+// yet — a real gap, but not this collector's to close: C01 org-security
+// (issue #150, S4) is org-scoped only and never consults scope.Repos, so it
+// needs neither. resolveRepos' own nil-lister guard covers an azuredevops
+// scan run without --repo in the meantime (it errors asking for --repo
+// explicitly, rather than silently scanning nothing); the first ADO
+// collector that's per-repo/per-project-scoped (a later story in issue #34)
+// is what must add an ADO repoLister and wire it in here.
 //
 // An azuredevops scan with zero collectors errors here rather than being
 // let through to runScan (which — matching its established contract, see
@@ -240,12 +244,18 @@ func resolveScanToken(platform string) (string, error) {
 // scan --platform azuredevops` invocation producing a pack with zero
 // API-verified results would look like a clean, fully-verified scan
 // instead of the honest "this platform isn't implemented yet" it actually
-// is, so the CLI wiring layer is where that gets refused.
+// is, so the CLI wiring layer is where that gets refused. This guard is
+// dead code once at least one ADO collector is registered (true as of
+// issue #150), but it's left in place rather than removed: an empty result
+// from defaultAzureDevOpsCollectors would again mean "nothing implemented",
+// not "nothing applicable to this scan" (every registered collector always
+// runs), so the same honest refusal is still the right behavior if that
+// ever recurs.
 func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, error) {
 	if effectivePlatform(cfg.Platform) == platformAzureDevOps {
 		collectors := defaultAzureDevOpsCollectors(cfg.Org, cfg.Project, token)
 		if len(collectors) == 0 {
-			return scanDeps{}, fmt.Errorf("no collectors registered for platform %q yet (see issue #150)", platformAzureDevOps)
+			return scanDeps{}, fmt.Errorf("no collectors registered for platform %q yet (see issue #34's epic)", platformAzureDevOps)
 		}
 		return scanDeps{
 			collectors: collectors,

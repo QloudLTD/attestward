@@ -40,11 +40,30 @@ against inventing SSDF citations).
 
 ## C01.org-security
 
-### `C01.org.2fa-required` — Org requires two-factor authentication
+### `C01.org.2fa-required`
 
-- **Token permission:** read:org
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Org requires two-factor authentication
+
+- **Token permission:** vso.graph (Graph Users - List)
+- **Fixture:** `internal/collect/azuredevops/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** `GET vssps.dev.azure.com/{org}/_apis/graph/users`
+
+**Status rubric:**
+
+- **verified-fail:** at least one org identity returned by the Graph Users list (subjectKind=="user") has origin=="msa" — a Microsoft/personal account, which sits entirely outside any Microsoft Entra tenant's MFA/Conditional Access enforcement, so 2FA cannot be assumed for that member at all (the exact count is recorded in Facts; member names/identities are deliberately never recorded)
+- **partial:** no org identity has origin=="msa", at least one has origin=="aad", and none have any other unrecognized origin among subjectKind=="user" entries (origin=="vsts" service identities are excluded from this count entirely, not treated as unrecognized — see Facts.vsts_service_identity_count) — every human identity this tool could classify authenticates via Microsoft Entra ID. This states only what was verified, not full MFA enforcement: that lives in Microsoft Entra Conditional Access, a surface no vso.* PAT scope reaches, so this cannot exceed partial (epic #34 open decision 3)
+- **not-checkable:** the Graph Users list (GET vssps.dev.azure.com/{org}/_apis/graph/users) couldn't be read (403/404/other API error); or it read successfully but at least one subjectKind=="user" identity has an origin this tool doesn't classify as aad or msa (e.g. GitHub-linked "ghb" accounts — see Facts.other_origin_user_count), so it can't assert the org is uniformly Entra-backed; or zero identities with a recognized human origin were found at all, leaving nothing to evaluate
+
+**Remediation:** Azure DevOps has no direct "require 2FA" organization toggle. MFA enforcement is a Microsoft Entra ID Conditional Access policy applied to the tenant backing this org: in the Microsoft Entra admin center, create (or verify) a Conditional Access policy requiring MFA for all users, and migrate any Microsoft Account (MSA, origin=msa) members to Entra-backed (aad) identities — Organization Settings -> Users, or by moving the org under a Microsoft Entra tenant if it isn't backed by one already. If this check instead reports not-checkable because members have an origin this tool doesn't recognize (e.g. GitHub-linked "ghb" accounts), the same migration to an Entra-backed (aad) identity removes the ambiguity, independent of whatever this tool later decides that origin should count as.
+
+#### github — Org requires two-factor authentication
+
+- **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}`
 
@@ -62,11 +81,28 @@ against inventing SSDF citations).
 
 ---
 
-### `C01.org.default-repo-permission` — Default repository permission for members
+### `C01.org.default-repo-permission`
 
-- **Token permission:** read:org
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Default repository permission for members
+
+- **Token permission:** none — default repository permission has no vso.* scope; ADO exposes no org-level field for it at all (see this check's Rubric)
+- **Fixture:** `internal/collect/azuredevops/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps has no single org-level default-repository-permission field; repository access is governed per security-group/ACL (_apis/accesscontrollists), out of scope for v0.2 (issue #34's non-goals) — there is no API this tool calls to determine a default permission
+
+**Remediation:** Not remediable via this tool: Azure DevOps grants default repository access through security groups and ACLs (Project Settings -> Permissions, and per-repository Security tabs), not a single org-level field. Review the "Project Collection Valid Users" / per-project "Contributors" group's default permissions directly in the ADO UI.
+
+#### github — Default repository permission for members
+
+- **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}`
 
@@ -84,11 +120,29 @@ against inventing SSDF citations).
 
 ---
 
-### `C01.org.members-can-create-public` — Whether members can create public repositories
+### `C01.org.members-can-create-public`
 
-- **Token permission:** read:org
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Whether members can create public projects
+
+- **Token permission:** vso.project (Projects - List)
+- **Fixture:** `internal/collect/azuredevops/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/_apis/projects`
+
+**Status rubric:**
+
+- **verified-fail:** at least one project returned by GET dev.azure.com/{org}/_apis/projects has visibility=="public" (Facts records which project(s) and how many)
+- **not-checkable:** either the org's project list couldn't be read (403/404/other API error), or it read successfully but zero projects are currently public — a policy that disallows public projects and a policy that allows it but is simply unused look identical from this endpoint alone (the org-policy setting itself lives behind an undocumented API this tool does not call), so a genuine pass can't be told apart from an unused allowance
+
+**Remediation:** Organization Settings -> Policies -> turn off "Allow public projects" (or, per project, set visibility to Private under Project Settings -> Overview) so members can't create or keep a publicly visible project without an explicit, separately reviewed change.
+
+#### github — Whether members can create public repositories
+
+- **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}`
 
@@ -106,11 +160,28 @@ against inventing SSDF citations).
 
 ---
 
-### `C01.org.members-without-2fa` — Count of members without two-factor authentication
+### `C01.org.members-without-2fa`
 
-- **Token permission:** read:org
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Count of members without two-factor authentication
+
+- **Token permission:** none — per-user MFA registration state has no vso.* scope at all; it lives in Microsoft Entra ID / Microsoft Graph, a separate service with its own (non-ADO) auth model
+- **Fixture:** `internal/collect/azuredevops/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — per-user two-factor/MFA registration state lives in Microsoft Entra ID / Microsoft Graph, a different API and service than anything a vso.* PAT scope reaches; no Azure DevOps endpoint exposes it. Facts carries msa_user_count as context only, borrowed from the same Graph Users call C01.org.2fa-required makes (see that check's own Endpoints) when that call succeeded — it is not evidence this check itself gathered
+
+**Remediation:** Not remediable via this tool: per-user MFA registration state is a Microsoft Entra ID / Microsoft Graph concept, not exposed through any Azure DevOps API or vso.* PAT scope. Review MFA registration in the Microsoft Entra admin center (Users -> Per-user MFA, or the Conditional Access sign-in logs) instead.
+
+#### github — Count of members without two-factor authentication
+
+- **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}/members?filter=2fa_disabled`
 

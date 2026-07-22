@@ -607,21 +607,25 @@ func TestBuildScanDeps_GitHubWiresRepoListerAndOrgChecker(t *testing.T) {
 	}
 }
 
-// TestBuildScanDeps_AzureDevOpsErrorsWithZeroCollectors proves the CLI
-// wiring layer, not just runScan's tolerant testable core, is what actually
-// stops a real `attestward scan --platform azuredevops` invocation today —
-// see buildScanDeps' own doc comment for why the check lives here.
-func TestBuildScanDeps_AzureDevOpsErrorsWithZeroCollectors(t *testing.T) {
+// TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector proves the CLI
+// wiring layer actually reaches defaultAzureDevOpsCollectors: as of issue
+// #150 (S4), an azuredevops scan gets at least the real C01 org-security
+// collector, replacing this same test's pre-#150 assertion that
+// buildScanDeps refused the scan outright (see git history for that
+// version) — repoLister/orgChecker stay nil regardless, since no ADO
+// implementation of either exists yet (see buildScanDeps' own doc
+// comment).
+func TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector(t *testing.T) {
 	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "proj"}, scanConfig{}, nil)
-	_, err := buildScanDeps(cfg, "ado-pat", &bytes.Buffer{})
-	if err == nil {
-		t.Fatal("buildScanDeps(azuredevops) = nil error, want an error (no ADO collectors registered yet)")
+	deps, err := buildScanDeps(cfg, "ado-pat", &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("buildScanDeps: %v", err)
 	}
-	if !strings.Contains(err.Error(), "azuredevops") {
-		t.Errorf("error = %v, want it to name the platform", err)
+	if len(deps.collectors) == 0 {
+		t.Error("azuredevops scanDeps has zero collectors, want at least C01 org-security")
 	}
-	if !strings.Contains(err.Error(), "#150") {
-		t.Errorf("error = %v, want it to point at issue #150 for actionability", err)
+	if deps.repoLister != nil || deps.orgChecker != nil {
+		t.Error("azuredevops scanDeps has a non-nil repoLister/orgChecker, want both nil until a real ADO implementation of either exists")
 	}
 }
 

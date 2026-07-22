@@ -183,14 +183,22 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// Smoke test against the exact code path the shipped binary runs
 	// (runChecksList calls these same LoadSSDFFS/LoadCISAFS functions
 	// against mappings.FS, and collect.Registered() reflects every
-	// collector package's init()-time registration — here, orgsecurity's,
-	// repoprotection's, envseparation's, secretshygiene's, sasthistory's,
-	// scahistory's, provenance's, actionssecurity's, auditlogging's, and
-	// vdp's, transitively imported via scan.go) — not the
-	// disk-based loaders or synthetic fixtures the other tests in this
-	// file use, which would miss a broken //go:embed pattern, a renamed
-	// file, or a check registered on one side (registry or mapping) but
-	// not the other.
+	// collector package's init()-time registration — here, github's
+	// orgsecurity, repoprotection, envseparation, secretshygiene,
+	// sasthistory, scahistory, provenance, actionssecurity, auditlogging,
+	// and vdp, plus azuredevops' own orgsecurity (issue #150, S4),
+	// transitively imported via scan.go) — not the disk-based loaders or
+	// synthetic fixtures the other tests in this file use, which would miss
+	// a broken //go:embed pattern, a renamed file, or a check registered on
+	// one side (registry or mapping) but not the other.
+	//
+	// wantIDs lists each shared check ID once per platform that registers
+	// it — as of issue #150, the four C01.org.* IDs are registered under
+	// both azuredevops and github (same ID, per-platform metadata; see
+	// issue #34's check-identity model), so buildMatrix's own
+	// one-row-per-(platform,ID) contract (TestBuildMatrix_SameID...) means
+	// each appears twice here, sorted by CheckID then Platform —
+	// "azuredevops" sorts before "github", so the ADO row comes first.
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
 		t.Fatalf("LoadSSDFFS: %v", err)
@@ -207,8 +215,12 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 
 	wantIDs := []string{
 		"C01.org.2fa-required",
+		"C01.org.2fa-required",
+		"C01.org.default-repo-permission",
 		"C01.org.default-repo-permission",
 		"C01.org.members-can-create-public",
+		"C01.org.members-can-create-public",
+		"C01.org.members-without-2fa",
 		"C01.org.members-without-2fa",
 		"C02.branch.admin-enforced",
 		"C02.branch.deletion-blocked",
@@ -283,7 +295,11 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 // on CheckMeta.Remediation), so no prefix filtering is needed here,
 // unlike the narrower per-group predecessors of this test. The
 // found-count assertion guards against this silently covering zero
-// checks if the registry were ever emptied by an import change.
+// checks if the registry were ever emptied by an import change. The count
+// grew from 46 to 50 with issue #150 (S4): azuredevops' own C01
+// org-security registers the same four check IDs github's C01 already
+// does (issue #34's check-identity model — same ID, per-platform
+// metadata), each a distinct (Platform, ID) registry entry.
 func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 	registered := collect.Registered()
 	for _, meta := range registered {
@@ -291,7 +307,7 @@ func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if len(registered) != 46 {
-		t.Fatalf("len(collect.Registered()) = %d, want 46 — did the registered check count change?", len(registered))
+	if len(registered) != 50 {
+		t.Fatalf("len(collect.Registered()) = %d, want 50 — did the registered check count change?", len(registered))
 	}
 }
