@@ -135,12 +135,15 @@ itself, so re-run it any time rather than hand-editing it.
 
 **Post-v0.1 backlog** (the "seams only, do not build" rule was v0.1-scoped and has
 lapsed — this is now active work)
-- [x] #36 Continuous mode (built 2026-07-22: `attestward diff` via #143/#144/#145
-  ships in v0.2.0; the action lives in the separate
-  [attestward-action](https://github.com/sioakim/attestward-action) repo; ADR-0007
-  write boundary; self-scan migrates to the action as its first consumer in its own
-  PR, right after the v0.2.0 tag it pins)
-- [ ] #34 Azure DevOps (being broken down into an epic + stories) · #35 GitLab/SLSA/VEX
+- [x] #36 Continuous mode (built + closed 2026-07-22: `attestward diff` via
+  #143/#144/#145 shipped in v0.2.0; the action lives in the separate
+  [attestward-action](https://github.com/sioakim/attestward-action) repo, v1.0.0;
+  ADR-0007 write boundary; self-scan migrated as first consumer in #147, drift
+  baseline attached to the v0.2.0 release; the first live run correctly caught two
+  real gaps, tracked in #157 (no SAST covers releases) and #158 (unsigned release
+  tags — needs a signing-identity decision))
+- [ ] #34 Azure DevOps — now an epic with nine stories (#148–#156; S1 in
+  implementation) · #35 GitLab/SLSA/VEX
 
 **v1.0 milestone**
 - Hosted tier (commercial, separate from the OSS CLI; DECISIONS.md D4): #121 portfolio
