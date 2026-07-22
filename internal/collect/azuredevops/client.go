@@ -71,6 +71,30 @@ func NewClient(org, pat string) *Client {
 	}
 }
 
+// NewClientForTest builds a Client whose transport chain terminates in
+// transport instead of a real network round-tripper (typically
+// adofixture.New()), reusing this package's real auth+provenance+rate-limit
+// layers unmodified — the cross-package testing seam every external
+// consumer of Client needs (starting with pipelinehistory, issue #152, and
+// every C05-C10-parity collector package after it). This package's own
+// tests use an unexported equivalent (client_test.go's newTestClient,
+// identical logic) directly against Client's unexported fields; a package
+// outside azuredevops has no such access, and — unlike the GitHub client,
+// whose REST field wraps a third-party client with its own public,
+// test-server-redirectable BaseURL — this Client has no field a caller can
+// swap after construction, since it's a from-scratch implementation with
+// the transport chain fully assembled inside the constructor. This is that
+// missing seam, exported.
+func NewClientForTest(org, pat string, transport http.RoundTripper) *Client {
+	prov := newProvenanceTransport(pat, transport)
+	rl := newRateLimitTransport(prov)
+	return &Client{
+		org:        org,
+		prov:       prov,
+		httpClient: &http.Client{Transport: rl},
+	}
+}
+
 // Org returns the organization this Client is scoped to, for collectors
 // building ADO's org-scoped request paths (e.g. "/{org}/_apis/projects").
 func (c *Client) Org() string {

@@ -46,6 +46,34 @@ func newTestClient(t *testing.T, org, pat string, base http.RoundTripper) *Clien
 	return &Client{org: org, prov: prov, httpClient: &http.Client{Transport: rl}}
 }
 
+// TestNewClientForTest_UsableThroughGetJSON proves the exported
+// cross-package testing seam actually wires the same transport chain
+// newTestClient does — this package's own tests could keep using the
+// unexported constructor, but external packages (pipelinehistory and
+// later collector packages) need NewClientForTest itself proven, not just
+// its unexported twin.
+func TestNewClientForTest_UsableThroughGetJSON(t *testing.T) {
+	fx := adofixture.New().Set("GET", HostCore, "/org/_apis/projects", adofixture.Response{
+		Status: http.StatusOK,
+		Body:   map[string]any{"count": 1, "value": []map[string]any{{"name": "repo-a"}}},
+	})
+	client := NewClientForTest("org", "ado-test-pat", fx)
+
+	var items []demoItem
+	if err := GetJSON(context.Background(), client, HostCore, "/org/_apis/projects", nil, &items); err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+	if len(items) != 1 || items[0].Name != "repo-a" {
+		t.Errorf("items = %+v, want [{repo-a}]", items)
+	}
+	if client.Org() != "org" {
+		t.Errorf("Org() = %q, want %q", client.Org(), "org")
+	}
+	if len(client.Provenance()) != 1 {
+		t.Errorf("len(Provenance()) = %d, want 1", len(client.Provenance()))
+	}
+}
+
 func TestGetJSON_DecodesSinglePage(t *testing.T) {
 	fx := adofixture.New().Set("GET", HostCore, "/org/_apis/projects", adofixture.Response{
 		Status: http.StatusOK,
