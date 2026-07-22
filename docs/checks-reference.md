@@ -201,11 +201,28 @@ This check is registered under more than one platform — details for each below
 
 ## C02.repo-protection
 
-### `C02.branch.admin-enforced` — Default branch protections apply to admins (no unconditional bypass actor)
+### `C02.branch.admin-enforced`
 
-- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Default branch protections apply to admins (no unconditional bypass permission)
+
+- **Token permission:** vso.security_manage — same scope, and the same no-read-only-variant story, as C02.branch.force-push-blocked (see this check's Rubric)
+- **Fixture:** `internal/collect/azuredevops/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps' bypass model here is the "Bypass policies when completing pull requests" and "Bypass policies when pushing" Git repository security permissions (ACLs), not policy configuration data, out of scope for v0.2 (issue #34's non-goals); a future ACL-reading story would read these permission bits directly
+
+**Remediation:** Project Settings -> Repositories -> [repo] -> Security -> for every group/user that shouldn't be exempt (including admins), set both "Bypass policies when completing pull requests" and "Bypass policies when pushing" to Deny (not just unset/inherited) at the repository or branch level.
+
+#### github — Default branch protections apply to admins (no unconditional bypass actor)
+
+- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`, `GET /repos/{owner}/{repo}/rulesets/{ruleset_id}?includes_parents=true`
 
@@ -224,11 +241,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C02.branch.deletion-blocked` — Default branch blocks branch deletion
+### `C02.branch.deletion-blocked`
 
-- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Default branch blocks branch deletion
+
+- **Token permission:** vso.security_manage — same scope, and the same no-read-only-variant story, as C02.branch.force-push-blocked (see this check's Rubric)
+- **Fixture:** `internal/collect/azuredevops/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps has no permission distinct from "Force push (rewrite history, delete branches and tags)" for deleting a branch (confirmed against Microsoft's own Git branch-permissions documentation, which states this one permission is also required to delete a branch) — an ACL, not policy configuration data, out of scope for v0.2 (issue #34's non-goals)
+
+**Remediation:** Azure DevOps has no permission distinct from "Force push (rewrite history, delete branches and tags)" for deleting a branch specifically — the same remediation as C02.branch.force-push-blocked (set that permission to Deny) closes this gap too.
+
+#### github — Default branch blocks branch deletion
+
+- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
 
@@ -246,11 +280,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C02.branch.force-push-blocked` — Default branch blocks force pushes
+### `C02.branch.force-push-blocked`
 
-- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Default branch blocks force pushes
+
+- **Token permission:** vso.security_manage — Azure DevOps has no read-only PAT scope for security permissions/ACLs at all (verified against Microsoft's own OAuth scopes reference: the Security category has exactly one scope, and it's read+write+manage); reading this permission at all would require a high-privilege scope in tension with PAT minimality, which is arguably the more honest story than a missing read-only variant this tool simply chose not to use (see this check's Rubric)
+- **Fixture:** `internal/collect/azuredevops/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure DevOps controls force pushes via the "Force push (rewrite history, delete branches and tags)" Git repository security permission (an ACL, not policy configuration data), out of scope for v0.2 (issue #34's non-goals); a future ACL-reading story would read this permission bit directly
+
+**Remediation:** Project Settings -> Repositories -> [repo] -> Security (or the branch's own Security tab) -> for every group that shouldn't have it, set "Force push (rewrite history, delete branches and tags)" to Deny (not just unset/inherited).
+
+#### github — Default branch blocks force pushes
+
+- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
 
@@ -268,11 +319,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C02.branch.protection-exists` — Default branch has protection (legacy branch protection or a ruleset)
+### `C02.branch.protection-exists`
 
-- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Default branch has an enabled branch policy
+
+- **Token permission:** vso.code (Repositories - List, Policy Configurations - List)
+- **Fixture:** `internal/collect/azuredevops/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/policy/configurations`
+
+**Status rubric:**
+
+- **verified-fail:** no enabled, non-deleted policy configuration of a tracked type is scoped to this repo's default branch
+- **not-checkable:** the project's repositories couldn't be read (403/404/other API error), the named repository wasn't found in the project, the repository has no default branch (an empty repository), or the project's policy configurations couldn't be read (403/404/other API error)
+- **verified-pass:** at least one enabled, non-deleted policy configuration of a tracked type (Minimum approval count, fa4e907d-c16b-4a4c-9dfa-4906e5d171dd; or Build, 0609b952-1397-4640-95ec-e00a01b2c241) is scoped, via settings.scope[], to this repo's default branch — a project-wide entry (repositoryId==null) or a repo-specific entry (repositoryId equal) whose refName matches exactly, as a prefix, or via matchKind=="DefaultBranch" (which always matches a repo's own default branch by definition — the shape Azure DevOps's project-level "Protect the default branch of each repository" cross-repository policy emits)
+
+**Remediation:** Project Settings -> Repositories -> [repo] -> Policies (or Repos -> Branches -> ... -> Branch policies) -> add a branch policy (minimum number of reviewers and/or build validation) scoped to the default branch.
+
+#### github — Default branch has protection (legacy branch protection or a ruleset)
+
+- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
 
@@ -290,11 +360,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C02.branch.required-reviews` — Default branch requires at least one approving review before merge
+### `C02.branch.required-reviews`
 
-- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Default branch requires at least one approving review before merge
+
+- **Token permission:** vso.code (Repositories - List, Policy Configurations - List)
+- **Fixture:** `internal/collect/azuredevops/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/policy/configurations`
+
+**Status rubric:**
+
+- **verified-fail:** no enabled, non-deleted Minimum approval count policy scoped to the default branch requires >=1 approver
+- **partial:** at least one matching Minimum approval count policy requires >=1 approver, but no single matching policy is both blocking and free of creatorVoteCounts: either every blocking matching policy has creatorVoteCounts==true (the PR author's own vote counts toward its own requirement), or no matching policy is blocking at all (isBlocking==false everywhere, so the requirement can be overridden at PR completion) — never both framed as "overridable" when a blocking policy exists, since a blocking policy's own requirement can't be overridden regardless of a weaker sibling
+- **not-checkable:** the project's repositories couldn't be read (403/404/other API error), the named repository wasn't found in the project, the repository has no default branch (an empty repository), or the project's policy configurations couldn't be read (403/404/other API error)
+- **verified-pass:** at least one matching, enabled, non-deleted Minimum approval count policy (fa4e907d-c16b-4a4c-9dfa-4906e5d171dd) scoped to the default branch individually has minimumApproverCount >= 1, isBlocking==true, and creatorVoteCounts==false — Azure DevOps enforces every matching policy simultaneously, so one policy meeting the full bar is a genuine, unbypassable requirement even if a separate, weaker matching policy also applies (the same either-regime-provides-it convention the GitHub twin's effective-protection merge uses)
+
+**Remediation:** In that branch policy blade, enable "Require a minimum number of reviewers", set it to at least 1, set the policy to Required (blocking, not Optional), and leave "Allow requesters to approve their own changes" (creatorVoteCounts) unchecked.
+
+#### github — Default branch requires at least one approving review before merge
+
+- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
 
@@ -313,11 +403,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C02.branch.required-status-checks` — Default branch requires status checks before merge
+### `C02.branch.required-status-checks`
 
-- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PS.1.1` (practice `PS.1`: Protect All Forms of Code from Unauthorized Access and Tampering)
 - **CISA form cluster(s):** 2, 4
+
+#### azuredevops — Default branch requires build validation before merge
+
+- **Token permission:** vso.code (Repositories - List, Policy Configurations - List)
+- **Fixture:** `internal/collect/azuredevops/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/policy/configurations`
+
+**Status rubric:**
+
+- **verified-fail:** no enabled, non-deleted Build policy is scoped to the default branch
+- **partial:** at least one matching Build policy is scoped to the default branch, but every matching Build policy is non-blocking (isBlocking==false) — a failing or missing build does not block merge for any of them
+- **not-checkable:** the project's repositories couldn't be read (403/404/other API error), the named repository wasn't found in the project, the repository has no default branch (an empty repository), or the project's policy configurations couldn't be read (403/404/other API error)
+- **verified-pass:** at least one matching, enabled, non-deleted Build policy (0609b952-1397-4640-95ec-e00a01b2c241) scoped to the default branch is individually blocking (isBlocking==true) — Azure DevOps enforces every matching policy simultaneously, so one blocking policy is a genuine requirement even if a separate, non-blocking matching policy also applies
+
+**Remediation:** In that branch policy blade, add a "Build validation" policy pointing at the build pipeline that must pass, and set it to Required (blocking), not Optional.
+
+#### github — Default branch requires status checks before merge
+
+- **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
 

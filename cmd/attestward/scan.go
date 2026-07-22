@@ -19,6 +19,7 @@ import (
 	"github.com/sioakim/attestward/internal/collect/azuredevops"
 	adoauditlogging "github.com/sioakim/attestward/internal/collect/azuredevops/auditlogging"
 	adoorgsecurity "github.com/sioakim/attestward/internal/collect/azuredevops/orgsecurity"
+	adorepoprotection "github.com/sioakim/attestward/internal/collect/azuredevops/repoprotection"
 	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 	"github.com/sioakim/attestward/internal/collect/github/actionssecurity"
 	"github.com/sioakim/attestward/internal/collect/github/auditlogging"
@@ -119,22 +120,28 @@ func defaultGitHubCollectors(token string) []collect.Collector {
 }
 
 // defaultAzureDevOpsCollectors mirrors defaultGitHubCollectors' role for a
-// --platform azuredevops scan. C01 org-security (issue #150, S4) and C09
-// audit-logging (issue #154, S8) are the first two ADO collectors landed;
-// every check either registers is org-scoped (Azure DevOps has no per-repo
-// webhook concept the way GitHub does — see auditlogging's own doc
-// comment — and org-security's checks are all org-level too), so both need
-// only org+pat to build their Client, with auditlogging reading project
-// from collect.Scope.Project at Collect time rather than a constructor
-// argument. Collectors for other stories (S5-S7) append here the same way
-// as they land; buildScanDeps below still has no ADO repoLister/orgChecker,
-// so an azuredevops scan without an explicit --repo still errors in
-// resolveRepos until one of those stories adds it — not this function's
-// concern, since neither collector here consults scope.Repos.
+// --platform azuredevops scan. C01 org-security (issue #150, S4), C09
+// audit-logging (issue #154, S8), and now C02 repo-protection (issue #150,
+// S4's second PR) are the ADO collectors landed so far; each builds its
+// Client from just org+pat, with project and (for repoprotection) repos
+// read from collect.Scope at Collect time rather than constructor
+// arguments — the same choice auditlogging already made. Collectors for
+// other stories append here the same way as they land.
+//
+// repoprotection is the first ADO collector that actually consults
+// scope.Repos: buildScanDeps below still has no ADO repoLister, so an
+// azuredevops scan with no explicit --repo now genuinely hits
+// resolveRepos' nil-lister guard (an actionable error, not a silent
+// no-op) the moment C02 is in scope — previously moot, since neither
+// org-security nor audit-logging ever read scope.Repos at all. Passing
+// --repo explicitly is required for a real ADO scan today; a proper ADO
+// repoLister remains a future story's job, not this one's (see
+// buildScanDeps' own doc comment for the existing guard this relies on).
 func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 	return append(collect.Collectors(),
 		adoorgsecurity.New(azuredevops.NewClient(org, pat)),
 		adoauditlogging.New(azuredevops.NewClient(org, pat)),
+		adorepoprotection.New(azuredevops.NewClient(org, pat)),
 	)
 }
 
@@ -231,13 +238,18 @@ func resolveScanToken(platform string) (string, error) {
 // branching on cfg.Platform: a github scan gets a live GitHub client plus
 // its repo lister/org checker; an azuredevops scan still leaves
 // repoLister/orgChecker nil, since there's no ADO implementation of either
-// yet — a real gap, but not this collector's to close: C01 org-security
-// (issue #150, S4) is org-scoped only and never consults scope.Repos, so it
-// needs neither. resolveRepos' own nil-lister guard covers an azuredevops
-// scan run without --repo in the meantime (it errors asking for --repo
-// explicitly, rather than silently scanning nothing); the first ADO
-// collector that's per-repo/per-project-scoped (a later story in issue #34)
-// is what must add an ADO repoLister and wire it in here.
+// yet — a real gap, but not this collector's to close. orgChecker is moot
+// for ADO regardless (Azure DevOps orgs have no personal-account/
+// organization distinction the way GitHub does — see collect.AccountType's
+// own doc comment). repoLister is a real, now-live gap as of C02
+// repo-protection (issue #150, S4's second PR): unlike C01/C09, it
+// genuinely consults scope.Repos, so an azuredevops scan run without an
+// explicit --repo hits resolveRepos' nil-lister guard for real (an
+// actionable error asking for --repo, not a silent no-op or a panic) —
+// previously this path was reachable but moot, since nothing yet in scope
+// read scope.Repos at all. --repo is required for a useful ADO scan today;
+// the first story to add a proper ADO repoLister (issue #34) is what
+// removes that requirement, not this one.
 //
 // An azuredevops scan with zero collectors errors here rather than being
 // let through to runScan (which — matching its established contract, see
