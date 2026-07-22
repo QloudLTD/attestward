@@ -1,0 +1,12 @@
+version: "1.0.0"
+signatures:
+  - id: broken-tool
+    name: "Broken Tool"
+    category: sast
+    detect:
+      actions: []
+      ado_tasks:
+        - task: ""
+          major: "1"
+      run_patterns: []
+      workflow_name_patterns: []

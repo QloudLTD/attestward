@@ -35,6 +35,10 @@
           "type": "array",
           "items": { "$ref": "#/$defs/action_matcher" }
         },
+        "ado_tasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ado_task_matcher" }
+        },
         "run_patterns": {
           "type": "array",
           "items": { "type": "string" }
@@ -52,6 +56,15 @@
       "properties": {
         "slug": { "type": "string", "minLength": 1 },
         "version": { "type": "string" }
+      }
+    },
+    "ado_task_matcher": {
+      "type": "object",
+      "required": ["task"],
+      "additionalProperties": false,
+      "properties": {
+        "task": { "type": "string", "minLength": 1 },
+        "major": { "type": "string" }
       }
     }
   }

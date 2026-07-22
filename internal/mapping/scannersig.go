@@ -44,16 +44,58 @@ type ActionMatcher struct {
 	Version string `yaml:"version,omitempty"`
 }
 
+// ADOTaskMatcher matches an Azure Pipelines step's `task:` reference —
+// written "TaskName@Version" (e.g. "AdvancedSecurity-Codeql-Init@1", or a
+// full version pin like "GoTool@0.3.1", a form Microsoft's own docs use) —
+// by task name, case-insensitively, and, optionally, a major-version pin:
+// Major, if set, is compared against only the segment of the post-`@`
+// version before its first `.` (so major: "1" matches both "@1" and
+// "@1.2.3"), never the whole version string. Major empty means match the
+// task at any version.
+//
+// Task is matched as the exact, full string written before the last `@`
+// — no dot-segment splitting is performed on it. Azure Pipelines also
+// allows referencing a task by its fully-qualified marketplace form
+// (`publisherId.extensionId.taskName@version`) or by a bare task GUID;
+// neither cross-matches a short-name Task value here, and that's
+// deliberate: two different publishers' tasks can share a bare task name,
+// so collapsing a fully-qualified or GUID reference down to "the part
+// that looks like the short name" could cross-match the wrong tool,
+// against this registry's per-signature accuracy standard (see
+// scanner-signatures.yaml's header comment). A signature that needs to
+// recognize the fully-qualified or GUID form lists that exact string as
+// its own ado_tasks entry instead.
+//
+// This is ActionMatcher's Azure-Pipelines-native counterpart (Slug+Version
+// there, Task+Major here): Actions itself isn't reused for ADO because an
+// action `uses:` slug and an ADO task name are different namespaces
+// entirely, not two spellings of the same thing.
+type ADOTaskMatcher struct {
+	Task  string `yaml:"task"`
+	Major string `yaml:"major,omitempty"`
+}
+
 // ScannerSignatureDetect lists a signature's any-of matchers, tried in
-// confidence order by MatchWorkflow: Actions (high), then RunPatterns
-// (medium), then WorkflowNamePatterns (low). All three may be empty — see
-// scanner-signatures.yaml's "dependabot" entry, whose real detection
-// mechanism (a config file's presence) this workflow-content-only schema
-// can't express.
+// confidence order by MatchWorkflow/MatchPipeline: Actions/ADOTasks
+// (high), then RunPatterns (medium), then WorkflowNamePatterns (low). All
+// four may be empty — see scanner-signatures.yaml's "dependabot" entry,
+// whose real detection mechanism (a config file's presence) this
+// workflow/pipeline-content-only schema can't express.
+//
+// RunPatterns and WorkflowNamePatterns are cross-platform, not
+// GitHub-specific, despite their names (kept for backward compatibility
+// rather than renamed): on GitHub Actions (MatchWorkflow) RunPatterns
+// matches a step's `run:` text and WorkflowNamePatterns matches the
+// workflow's own `name:`; on Azure Pipelines (MatchPipeline, added by
+// #149) RunPatterns matches a step's `script:`/`bash:`/`pwsh:`/
+// `powershell:` text and WorkflowNamePatterns matches the pipeline's own
+// `name:` plus each step's `displayName:`. ADOTasks has no GitHub
+// equivalent — it's the ADO-only high-confidence tier, alongside Actions.
 type ScannerSignatureDetect struct {
-	Actions              []ActionMatcher `yaml:"actions"`
-	RunPatterns          []string        `yaml:"run_patterns"`
-	WorkflowNamePatterns []string        `yaml:"workflow_name_patterns"`
+	Actions              []ActionMatcher  `yaml:"actions"`
+	ADOTasks             []ADOTaskMatcher `yaml:"ado_tasks,omitempty"`
+	RunPatterns          []string         `yaml:"run_patterns"`
+	WorkflowNamePatterns []string         `yaml:"workflow_name_patterns"`
 }
 
 // ScannerSignature is one detectable tool entry.
@@ -143,6 +185,11 @@ func decodeScannerSignatures(r io.Reader, source string) (*ScannerSignatureRegis
 		for j, am := range sig.Detect.Actions {
 			if am.Slug == "" {
 				return nil, fmt.Errorf("%s: signature %s: actions[%d] has an empty slug", source, sig.ID, j)
+			}
+		}
+		for j, tm := range sig.Detect.ADOTasks {
+			if tm.Task == "" {
+				return nil, fmt.Errorf("%s: signature %s: ado_tasks[%d] has an empty task", source, sig.ID, j)
 			}
 		}
 

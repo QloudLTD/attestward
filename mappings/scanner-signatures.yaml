@@ -2,30 +2,76 @@
 #
 # Detection signatures for SAST/SCA/container/secrets/SBOM/provenance
 # scanning and signing tools, as they appear in GitHub Actions workflow
-# files — action `uses:` slugs, `run:` step CLI invocations, and (last
-# resort) workflow `name:` heuristics. Used by C05 (SAST), C06 (SCA), and
-# C07 (provenance) to fingerprint which tools a repo actually runs and how
-# often. Data, not code (ADR-0003): adding a new scanner is a YAML
-# contribution, not a Go change — see CONTRIBUTING.md's "New scanner
-# signature" section.
+# files and (since #149) Azure Pipelines YAML — action `uses:` slugs / ADO
+# `task:` references, `run:` / `script:`-`bash:`-`pwsh:`-`powershell:` step
+# CLI invocations, and (last resort) workflow/pipeline `name:` heuristics.
+# Used by C05 (SAST), C06 (SCA), and C07 (provenance) to fingerprint which
+# tools a repo actually runs and how often. Data, not code (ADR-0003):
+# adding a new scanner is a YAML contribution, not a Go change — see
+# CONTRIBUTING.md's "New scanner signature" section.
 #
 # Unlike ssdf-800-218.yaml/cisa-ssda-form.yaml, this file isn't a citable
 # transcription of a regulatory source — CLAUDE.md's "never invent SSDF task
 # IDs, CISA form language, or regulatory citations" rule doesn't apply to it.
-# Action slugs and CLI patterns below are still meant to be accurate, not
-# invented; each is exercised by a fixture workflow under
-# internal/mapping/testdata/workflows/ that the loader's tests assert
-# actually matches (and that no other signature in this file also matches).
+# Action slugs, ADO task names, and CLI patterns below are still meant to be
+# accurate, not invented; each is exercised by a fixture workflow under
+# internal/mapping/testdata/workflows/ (or, for ADO, a fixture pipeline
+# under internal/mapping/testdata/pipelines/) that the loader's tests
+# assert actually matches (and that no other signature in this file also
+# matches).
 #
 # `detect` lists any-of matchers, in confidence order — the matcher
-# (internal/mapping's MatchWorkflow) tries `actions` first (confidence:
-# high, an action `uses:` slug is a strong, hard-to-fake signal), then
-# `run_patterns` (confidence: medium, a regex over `run:` step text — a
-# real CLI invocation, but could in principle appear in an unrelated
-# comment or string), then `workflow_name_patterns` (confidence: low, a
-# regex over the workflow's own `name:` field — a naming convention, not
-# actual tool usage). Confidence is a property of *which* matcher fired,
-# not a static field on the signature itself.
+# (internal/mapping's MatchWorkflow for GitHub Actions, MatchPipeline for
+# Azure Pipelines) tries `actions`/`ado_tasks` first (confidence: high, an
+# action `uses:` slug or an ADO `task:` reference is a strong, hard-to-fake
+# signal), then `run_patterns` (confidence: medium, a regex over CLI
+# invocation text — a real CLI invocation, but could in principle appear in
+# an unrelated comment or string), then `workflow_name_patterns`
+# (confidence: low, a regex over the workflow/pipeline's own `name:` field —
+# a naming convention, not actual tool usage). Confidence is a property of
+# *which* matcher fired, not a static field on the signature itself.
+#
+# `run_patterns` and `workflow_name_patterns` are cross-platform despite
+# their GitHub-flavored names (kept as-is rather than renamed, for backward
+# compatibility): on GitHub Actions they match a step's `run:` text and the
+# workflow's own `name:`; on Azure Pipelines they match a step's
+# `script:`/`bash:`/`pwsh:`/`powershell:` text and the pipeline's own
+# `name:` field, plus each step's own `displayName:`. `ado_tasks` has no
+# GitHub equivalent: an ADO pipeline `task:` reference is written
+# `TaskName@Version` (e.g. `AdvancedSecurity-Codeql-Init@1`, or a full
+# version pin like `GoTool@0.3.1` — a form Microsoft's own docs use);
+# `task` matches the exact, full string before the last `@`,
+# case-insensitively — no dot-segment splitting, so a fully-qualified
+# marketplace reference (`publisherId.extensionId.taskName@version`) or a
+# bare task GUID does NOT cross-match a matcher written against a short
+# task name (two different publishers can share a bare task name, so
+# collapsing either form down to "the part that looks like the short
+# name" could cross-match the wrong tool — a signature that genuinely
+# needs to recognize the fully-qualified or GUID form lists that exact
+# string as its own `ado_tasks` entry instead); `major` is an optional
+# exact-match pin against only the segment of the post-`@` version before
+# its first `.` (empty matches any version; `major: "1"` matches both
+# `@1` and `@1.2.3`) — this is `actions`' Slug+Version pair, reimplemented
+# for ADO's own task-versioning scheme rather than reused, since an action
+# slug and an ADO task name are different namespaces. #149 added the
+# `ado_tasks` field and the MatchPipeline matcher only; no signature below
+# has an `ado_tasks` entry yet — those land per-signature in #34's
+# follow-on stories, alongside the version bump each will need.
+#
+# `template:` references in an Azure Pipelines file — a step, job, or
+# stage that points at another YAML file instead of containing its
+# content directly, or the pipeline's own root-level `extends:` (the
+# standard mandated-template pattern, e.g. `extends: {template:
+# v1/pipeline.yml@templates}`, where the entire pipeline body lives in
+# another file) — are outside what MatchPipeline can see: it does no I/O
+# and cannot fetch the referenced file, so every one of these is surfaced
+# to callers as unresolved rather than silently treated as "not present".
+# One gap this does NOT yet cover: a deployment job's steps (`-
+# deployment: <name>`, nested under strategy.runOnce/canary/rolling rather
+# than a plain `steps:` list) aren't traversed at all — not even flagged
+# as unresolved, since a deployment job has no `template:` field to detect
+# it by. See MatchPipeline's own doc comment in internal/mapping for the
+# same caveat; traversal support is deferred to a follow-up.
 #
 # dependabot is special-cased: unlike every other entry here, Dependabot
 # isn't invoked from a workflow at all — it's detected by the *presence* of

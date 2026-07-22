@@ -51,6 +51,13 @@ func TestLoadScannerSignatures_RejectsMalformedRegex(t *testing.T) {
 	}
 }
 
+func TestLoadScannerSignatures_RejectsEmptyADOTask(t *testing.T) {
+	_, err := LoadScannerSignatures("testdata/scannersig-bad-ado-task-empty.yaml")
+	if err == nil {
+		t.Fatal("expected an error for an ado_tasks entry with an empty task, got nil")
+	}
+}
+
 func TestLoadScannerSignatures_MissingFile(t *testing.T) {
 	_, err := LoadScannerSignatures("testdata/does-not-exist.yaml")
 	if err == nil {
