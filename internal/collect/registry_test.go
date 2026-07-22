@@ -15,7 +15,7 @@ func (f fakeCollector) Collect(context.Context, Scope) ([]model.CheckResult, err
 }
 
 func TestRegisterAndLookup(t *testing.T) {
-	t.Cleanup(func() { delete(registry, registryKey{Platform: defaultPlatform, ID: "TEST.example"}) })
+	t.Cleanup(func() { delete(registry, registryKey{Platform: DefaultPlatform, ID: "TEST.example"}) })
 
 	Register(CheckMeta{ID: "TEST.example", Title: "Example", Collector: "test", TokenScope: "repo:read"})
 
@@ -32,7 +32,7 @@ func TestRegisterAndLookup(t *testing.T) {
 }
 
 func TestRegisterDuplicatePanics(t *testing.T) {
-	t.Cleanup(func() { delete(registry, registryKey{Platform: defaultPlatform, ID: "TEST.dup"}) })
+	t.Cleanup(func() { delete(registry, registryKey{Platform: DefaultPlatform, ID: "TEST.dup"}) })
 	Register(CheckMeta{ID: "TEST.dup", Title: "First"})
 
 	defer func() {
@@ -58,6 +58,26 @@ func TestRegisterDuplicateSamePlatformExplicitlyPanics(t *testing.T) {
 		}
 	}()
 	Register(CheckMeta{ID: "TEST.ado-dup", Platform: "azuredevops", Title: "Second"})
+}
+
+// TestRegisterMismatchedCollectorAcrossPlatformsPanics pins the review
+// finding from #169: nothing enforced that the same check ID uses the same
+// Collector string across platforms, so a second platform registering it
+// under a different Collector would make internal/checksref (which groups
+// by Collector, then merges same-ID entries) silently render two separate,
+// duplicated sections instead of one merged check — worse than the
+// last-write-wins bug that grouping replaced. Register must catch this at
+// init time, the same way it already catches a duplicate (platform, id).
+func TestRegisterMismatchedCollectorAcrossPlatformsPanics(t *testing.T) {
+	t.Cleanup(func() { delete(registry, registryKey{Platform: "github", ID: "TEST.mismatched-collector"}) })
+	Register(CheckMeta{ID: "TEST.mismatched-collector", Platform: "github", Collector: "C01.org-security"})
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Register with a mismatched Collector for an already-registered ID did not panic")
+		}
+	}()
+	Register(CheckMeta{ID: "TEST.mismatched-collector", Platform: "azuredevops", Collector: "C01.org-security-ado"})
 }
 
 // TestRegisterSameIDDifferentPlatformsBothRetrievable pins issue #34's
@@ -107,7 +127,7 @@ func TestRegisterSameIDDifferentPlatformsBothRetrievable(t *testing.T) {
 // reports a clean miss for a platform that has nothing registered under
 // that ID, rather than e.g. silently falling back to github's entry.
 func TestLookupPlatformFallbackSemantics(t *testing.T) {
-	t.Cleanup(func() { delete(registry, registryKey{Platform: defaultPlatform, ID: "TEST.fallback"}) })
+	t.Cleanup(func() { delete(registry, registryKey{Platform: DefaultPlatform, ID: "TEST.fallback"}) })
 	Register(CheckMeta{ID: "TEST.fallback", Title: "Default-platform title"})
 
 	byEmpty, ok := LookupPlatform("", "TEST.fallback")
@@ -125,8 +145,8 @@ func TestLookupPlatformFallbackSemantics(t *testing.T) {
 
 func TestRegisteredIsSortedAndLookupMisses(t *testing.T) {
 	t.Cleanup(func() {
-		delete(registry, registryKey{Platform: defaultPlatform, ID: "TEST.b"})
-		delete(registry, registryKey{Platform: defaultPlatform, ID: "TEST.a"})
+		delete(registry, registryKey{Platform: DefaultPlatform, ID: "TEST.b"})
+		delete(registry, registryKey{Platform: DefaultPlatform, ID: "TEST.a"})
 	})
 	Register(CheckMeta{ID: "TEST.b"})
 	Register(CheckMeta{ID: "TEST.a"})

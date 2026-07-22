@@ -30,9 +30,19 @@ const (
 
 // MatrixRow is one row of `attestward checks list`'s output — the contract
 // issue #30's generated checks-reference docs build on, so field names are
-// meant to stay stable.
+// meant to stay stable. Platform is empty for an "unimplemented" row (a
+// check referenced by a mapping task but registered under no platform at
+// all — there's no platform to attribute) and for self-attestation
+// questions (platform-agnostic by design); every other row names exactly
+// one platform, since the same check ID registered under two platforms
+// (issue #34's check-identity model) is two separate rows, not one merged
+// row — unlike docs/checks-reference.md's narrative rendering
+// (internal/checksref), which merges them into one heading with
+// per-platform subsections, this is a flat matrix where "one row per
+// (platform, check)" is the more useful shape.
 type MatrixRow struct {
 	CheckID    string      `json:"check_id" yaml:"check_id"`
+	Platform   string      `json:"platform,omitempty" yaml:"platform,omitempty"`
 	Title      string      `json:"title" yaml:"title"`
 	Collector  string      `json:"collector" yaml:"collector"`
 	SSDFTasks  []string    `json:"ssdf_tasks" yaml:"ssdf_tasks"`
@@ -44,18 +54,23 @@ type MatrixRow struct {
 // buildMatrix cross-references the registered collector checks against the
 // checks referenced by ssdf's tasks — no hardcoded duplication of either
 // side. A check present in both is "ok"; referenced by a mapping task but
-// not registered is "unimplemented"; registered but not referenced by any
-// mapping task is "unmapped". saQuestions are handled separately (see
-// below) rather than folded into that same three-way judgment: unlike a
-// collector check, a self-attestation question's own existence in the
-// embedded questions file *is* its complete implementation — there's no
-// second "is it registered in a Go collector" half to be missing, so
-// "unimplemented" can never apply, and a question with no ssdf_tasks
-// (dev-security-training, agency-notification-process — no task in this
-// project's deliberately-scoped 31-task subset fits either) is a
-// legitimate, deliberate design choice, not the same kind of gap
-// "unmapped" flags for a stray collector check. Rows are sorted by check
-// ID for deterministic output.
+// not registered under any platform is "unimplemented"; registered under a
+// platform but not referenced by any mapping task is "unmapped" (evaluated
+// per platform — the same ID could in principle be unmapped under one
+// platform and fine under another, though nothing produces that today).
+// saQuestions are handled separately (see below) rather than folded into
+// that same three-way judgment: unlike a collector check, a
+// self-attestation question's own existence in the embedded questions file
+// *is* its complete implementation — there's no second "is it registered in
+// a Go collector" half to be missing, so "unimplemented" can never apply,
+// and a question with no ssdf_tasks (dev-security-training,
+// agency-notification-process — no task in this project's
+// deliberately-scoped 31-task subset fits either) is a legitimate,
+// deliberate design choice, not the same kind of gap "unmapped" flags for a
+// stray collector check. Rows are sorted by check ID then platform for
+// deterministic output — platform only breaks ties, so a single-platform
+// registry (every check as of this writing) sorts identically to before
+// this field existed.
 func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registered []collect.CheckMeta, saQuestions []mapping.SelfAttestationQuestion) []MatrixRow {
 	tasksByCheck := map[string][]string{}
 	for _, task := range ssdf.Tasks {
@@ -93,44 +108,43 @@ func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registere
 		saIDs[q.ID] = true
 	}
 
-	metaByID := map[string]collect.CheckMeta{}
+	// checkKey is (platform, id) — the registry's own identity (issue
+	// #148/#164's review): an ID-only map here would let a second
+	// platform's registration silently overwrite the first's Title/
+	// Collector/TokenScope in this row.
+	type checkKey struct{ Platform, ID string }
+	metaByKey := map[checkKey]collect.CheckMeta{}
+	registeredIDs := map[string]bool{} // every ID registered under at least one platform
 	for _, meta := range registered {
-		metaByID[meta.ID] = meta
+		platform := collect.NormalizePlatform(meta.Platform)
+		metaByKey[checkKey{platform, meta.ID}] = meta
+		registeredIDs[meta.ID] = true
 	}
 
-	ids := map[string]struct{}{}
-	for id := range tasksByCheck {
-		if saIDs[id] {
-			continue
+	rows := make([]MatrixRow, 0, len(metaByKey)+len(saQuestions))
+
+	for key, meta := range metaByKey {
+		tasks, clusters := tasksAndClustersFor(key.ID)
+		_, inMapping := tasksByCheck[key.ID]
+
+		row := MatrixRow{
+			CheckID: key.ID, Platform: key.Platform, SSDFTasks: tasks, Clusters: clusters,
+			Title: meta.Title, Collector: meta.Collector, TokenScope: meta.TokenScope,
 		}
-		ids[id] = struct{}{}
-	}
-	for id := range metaByID {
-		ids[id] = struct{}{}
-	}
-
-	rows := make([]MatrixRow, 0, len(ids)+len(saQuestions))
-	for id := range ids {
-		tasks, clusters := tasksAndClustersFor(id)
-
-		_, inMapping := tasksByCheck[id]
-		meta, inRegistry := metaByID[id]
-
-		row := MatrixRow{CheckID: id, SSDFTasks: tasks, Clusters: clusters}
-		switch {
-		case inRegistry && inMapping:
+		if inMapping {
 			row.Status = statusOK
-		case inMapping:
-			row.Status = statusUnimplemented
-		default:
+		} else {
 			row.Status = statusUnmapped
 		}
-		if inRegistry {
-			row.Title = meta.Title
-			row.Collector = meta.Collector
-			row.TokenScope = meta.TokenScope
-		}
 		rows = append(rows, row)
+	}
+
+	for id := range tasksByCheck {
+		if saIDs[id] || registeredIDs[id] {
+			continue
+		}
+		tasks, clusters := tasksAndClustersFor(id)
+		rows = append(rows, MatrixRow{CheckID: id, SSDFTasks: tasks, Clusters: clusters, Status: statusUnimplemented})
 	}
 
 	for _, q := range saQuestions {
@@ -146,18 +160,23 @@ func buildMatrix(ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, registere
 		})
 	}
 
-	sort.Slice(rows, func(i, j int) bool { return rows[i].CheckID < rows[j].CheckID })
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].CheckID != rows[j].CheckID {
+			return rows[i].CheckID < rows[j].CheckID
+		}
+		return rows[i].Platform < rows[j].Platform
+	})
 	return rows
 }
 
 func renderChecksTable(w io.Writer, rows []MatrixRow) error {
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	if _, err := fmt.Fprintln(tw, "CHECK ID\tTITLE\tCOLLECTOR\tSSDF TASKS\tCLUSTERS\tTOKEN SCOPE\tSTATUS"); err != nil {
+	if _, err := fmt.Fprintln(tw, "CHECK ID\tPLATFORM\tTITLE\tCOLLECTOR\tSSDF TASKS\tCLUSTERS\tTOKEN SCOPE\tSTATUS"); err != nil {
 		return err
 	}
 	for _, r := range rows {
-		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			r.CheckID, r.Title, r.Collector, strings.Join(r.SSDFTasks, ","), strings.Join(r.Clusters, ","), r.TokenScope, r.Status); err != nil {
+		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			r.CheckID, r.Platform, r.Title, r.Collector, strings.Join(r.SSDFTasks, ","), strings.Join(r.Clusters, ","), r.TokenScope, r.Status); err != nil {
 			return err
 		}
 	}

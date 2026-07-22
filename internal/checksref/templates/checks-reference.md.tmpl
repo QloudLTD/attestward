@@ -31,11 +31,35 @@ against inventing SSDF citations).
 {{range .Groups}}
 ## {{.CollectorID}}
 {{range .Checks}}
-### `{{.ID}}` — {{.Title}}
+{{if eq (len .Platforms) 1}}{{$p := index .Platforms 0}}### `{{.ID}}` — {{$p.Title}}
 
-- **Token permission:** {{.TokenScope}}
+- **Token permission:** {{$p.TokenScope}}
 - **SSDF task(s):** {{if .Tasks}}{{range $i, $t := .Tasks}}{{if $i}}, {{end}}`{{$t.ID}}` (practice `{{$t.PracticeID}}`: {{$t.PracticeText}}){{end}}{{else}}(none cited){{end}}
 - **CISA form cluster(s):** {{if .Clusters}}{{range $i, $c := .Clusters}}{{if $i}}, {{end}}{{$c}}{{end}}{{else}}(none cited){{end}}
+- **Fixture:** `{{$p.FixtureRef}}`
+- **API endpoint(s):** {{if $p.Endpoints}}{{range $i, $e := $p.Endpoints}}{{if $i}}, {{end}}`{{$e}}`{{end}}{{else}}none — this check's result is a fixed fact, not derived from an API call (see rubric below){{end}}
+
+**Status rubric:**
+
+{{range $p.Rubric}}- **{{.Status}}:** {{.Text}}
+{{end}}
+**Remediation:** {{$p.Remediation}}
+{{if .Tasks}}
+**SSDF task text (verbatim from NIST SP 800-218):**
+
+{{range .Tasks}}> **`{{.ID}}`:** {{.Text}}
+{{end}}{{end}}
+---
+{{else}}{{$check := .}}### `{{.ID}}`
+
+This check is registered under more than one platform — details for each below.
+
+- **SSDF task(s):** {{if .Tasks}}{{range $i, $t := .Tasks}}{{if $i}}, {{end}}`{{$t.ID}}` (practice `{{$t.PracticeID}}`: {{$t.PracticeText}}){{end}}{{else}}(none cited){{end}}
+- **CISA form cluster(s):** {{if .Clusters}}{{range $i, $c := .Clusters}}{{if $i}}, {{end}}{{$c}}{{end}}{{else}}(none cited){{end}}
+{{range .Platforms}}
+#### {{.Platform}} — {{.Title}}
+
+- **Token permission:** {{.TokenScope}}
 - **Fixture:** `{{.FixtureRef}}`
 - **API endpoint(s):** {{if .Endpoints}}{{range $i, $e := .Endpoints}}{{if $i}}, {{end}}`{{$e}}`{{end}}{{else}}none — this check's result is a fixed fact, not derived from an API call (see rubric below){{end}}
 
@@ -44,13 +68,13 @@ against inventing SSDF citations).
 {{range .Rubric}}- **{{.Status}}:** {{.Text}}
 {{end}}
 **Remediation:** {{.Remediation}}
-{{if .Tasks}}
+{{end}}{{if $check.Tasks}}
 **SSDF task text (verbatim from NIST SP 800-218):**
 
-{{range .Tasks}}> **`{{.ID}}`:** {{.Text}}
+{{range $check.Tasks}}> **`{{.ID}}`:** {{.Text}}
 {{end}}{{end}}
 ---
-{{end}}{{end}}
+{{end}}{{end}}{{end}}
 ## Self-Attestation Questions
 
 These questions have no registered check metadata: nothing here is independently verified or

@@ -27,8 +27,12 @@ type ScopeRef struct {
 	// set this field, and that must keep meaning exactly what it always
 	// meant now that a second platform exists, not become ambiguous.
 	Platform string `json:"platform,omitempty"`
-	// Project is the Azure DevOps project this specific check ran against;
-	// empty for GitHub checks.
+	// Project is the project scope of the scan that produced this result —
+	// stamped by the orchestrator from the scan's own config (cmd/attestward's
+	// runScan), not derived per-check. An org-level check has no project of
+	// its own, but still carries this to describe which scan produced it,
+	// same as every other result from that scan. Empty for GitHub checks,
+	// which have no project concept at this level.
 	Project string `json:"project,omitempty"`
 }
 

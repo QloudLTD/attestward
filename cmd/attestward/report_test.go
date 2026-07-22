@@ -171,6 +171,56 @@ func TestRunReport_PoamIncludesRealRemediationText(t *testing.T) {
 	}
 }
 
+// TestBuildRemediationByCheckID_ResolvesPerResultsOwnPlatform proves the
+// fix for the last-write-wins bug review of #164 found: two platforms
+// registering the same check ID with different remediation text must each
+// resolve correctly via the RESULT's own Scope.Platform, not collapse to
+// whichever platform a naive collect.Registered()-wholesale map happened to
+// visit last. Uses a synthetic lookup function rather than collect.Register
+// — registering a fake check into the real global registry would corrupt
+// other tests in this package that assert an exact collect.Registered()
+// count (e.g. TestAllC01ThroughC10ChecksHaveRemediation).
+func TestBuildRemediationByCheckID_ResolvesPerResultsOwnPlatform(t *testing.T) {
+	lookup := func(platform, id string) (collect.CheckMeta, bool) {
+		if platform == "" {
+			platform = "github"
+		}
+		switch {
+		case platform == "github" && id == "TEST.dual":
+			return collect.CheckMeta{Remediation: "Fix it the GitHub way."}, true
+		case platform == "azuredevops" && id == "TEST.dual":
+			return collect.CheckMeta{Remediation: "Fix it the Azure DevOps way."}, true
+		default:
+			return collect.CheckMeta{}, false
+		}
+	}
+
+	githubResults := []model.CheckResult{{CheckID: "TEST.dual", Scope: model.ScopeRef{Platform: "github"}}}
+	if got := buildRemediationByCheckID(githubResults, lookup)["TEST.dual"]; got != "Fix it the GitHub way." {
+		t.Errorf("github remediation = %q, want the github text", got)
+	}
+
+	adoResults := []model.CheckResult{{CheckID: "TEST.dual", Scope: model.ScopeRef{Platform: "azuredevops"}}}
+	if got := buildRemediationByCheckID(adoResults, lookup)["TEST.dual"]; got != "Fix it the Azure DevOps way." {
+		t.Errorf("azuredevops remediation = %q, want the Azure DevOps text", got)
+	}
+
+	// A pre-#164 pack has no Platform field at all — must fall back to
+	// github, same convention as LookupPlatform itself.
+	absentPlatformResults := []model.CheckResult{{CheckID: "TEST.dual", Scope: model.ScopeRef{}}}
+	if got := buildRemediationByCheckID(absentPlatformResults, lookup)["TEST.dual"]; got != "Fix it the GitHub way." {
+		t.Errorf("absent-platform remediation = %q, want the github text (absent falls back to github)", got)
+	}
+
+	// A check with no registered metadata for its result's platform gets no
+	// entry at all (not a zero-value empty string) — RenderPOAM's own
+	// missing-entry contract renders a placeholder for that.
+	unknownResults := []model.CheckResult{{CheckID: "TEST.unknown", Scope: model.ScopeRef{Platform: "azuredevops"}}}
+	if _, ok := buildRemediationByCheckID(unknownResults, lookup)["TEST.unknown"]; ok {
+		t.Error("expected no entry for a check with no registered metadata under its platform")
+	}
+}
+
 func TestRunReport_DefaultOutDirIsAlongsideInput(t *testing.T) {
 	dir := t.TempDir()
 	path, _ := writeReportFixture(t, dir, false)

@@ -39,6 +39,36 @@ func TestResolveRepos_ExplicitReposSkipsListing(t *testing.T) {
 	}
 }
 
+// TestResolveRepos_NilListerWithExplicitReposStillWorks proves a nil lister
+// (what buildScanDeps leaves for an azuredevops scan today, since there's
+// no ADO repoLister yet) doesn't matter as long as --repo was given
+// explicitly — resolveRepos never touches the lister in that path.
+func TestResolveRepos_NilListerWithExplicitReposStillWorks(t *testing.T) {
+	repos, err := resolveRepos(context.Background(), nil, "attestward-demo", collect.AccountTypeOrganization, []string{"a", "b"}, func(string) {})
+	if err != nil {
+		t.Fatalf("resolveRepos: %v", err)
+	}
+	if len(repos) != 2 {
+		t.Errorf("repos = %v, want [a b]", repos)
+	}
+}
+
+// TestResolveRepos_NilListerWithNoExplicitReposErrors pins the fix for the
+// mined ADO seam review of #169 found: buildScanDeps leaves repoLister nil
+// for an azuredevops scan, and the moment a real ADO collector lands
+// without an accompanying ADO repoLister, `scan --platform azuredevops`
+// with no --repo would otherwise nil-pointer panic here instead of
+// producing an actionable error.
+func TestResolveRepos_NilListerWithNoExplicitReposErrors(t *testing.T) {
+	_, err := resolveRepos(context.Background(), nil, "attestward-demo", collect.AccountTypeOrganization, nil, func(string) {})
+	if err == nil {
+		t.Fatal("resolveRepos(nil lister, no explicit repos) = nil error, want an actionable error instead of a nil-pointer panic")
+	}
+	if !strings.Contains(err.Error(), "--repo") {
+		t.Errorf("error = %v, want it to suggest passing --repo explicitly", err)
+	}
+}
+
 func TestResolveRepos_EmptyFiltersArchivedAndForksWithWarning(t *testing.T) {
 	lister := &fakeRepoLister{repos: []repoInfo{
 		{Name: "good-repo"},

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sioakim/attestward/internal/collect"
@@ -224,5 +225,124 @@ func TestRender_GroupsByCollectorAndSortsByCheckID(t *testing.T) {
 	}
 	if bytes.Count(got, []byte("## C01.org-security")) != 1 {
 		t.Error("expected exactly one '## C01.org-security' collector heading — both checks should group under it, not duplicate the heading")
+	}
+}
+
+// dualPlatformFixtureInputs is a synthetic registry — not collect.Register,
+// which would pollute the real global registry (this package's Render
+// takes []collect.CheckMeta as a plain parameter specifically so tests
+// don't have to touch it) — registering the SAME check ID under two
+// platforms with deliberately different Title/TokenScope/Remediation/
+// FixtureRef/Endpoints/Rubric, to prove issue #148's per-platform
+// subsection rendering.
+func dualPlatformFixtureInputs() ([]collect.CheckMeta, *mapping.SSDFMapping, *mapping.CISAMapping) {
+	ssdf := &mapping.SSDFMapping{
+		Practices: map[string]mapping.SSDFPractice{
+			"PO.5": {Title: "Implement supporting toolchains"},
+		},
+		Tasks: []mapping.SSDFTask{
+			{ID: "PO.5.1", Family: "PO", Practice: "PO.5", Text: "Verbatim task text.", Checks: []string{"C01.org.mfa"}},
+		},
+	}
+	ssdf.TaskByID = map[string]mapping.SSDFTask{"PO.5.1": ssdf.Tasks[0]}
+
+	cisa := &mapping.CISAMapping{
+		Clusters: []mapping.CISACluster{
+			{ID: "1", Title: "Secure Development Environment", SSDFTasks: []string{"PO.5.1"}},
+		},
+	}
+
+	registered := []collect.CheckMeta{
+		{
+			ID: "C01.org.mfa", Platform: "github", Title: "GitHub: org requires MFA", Collector: "C01.org-security",
+			TokenScope: "read:org", Remediation: "Enable MFA enforcement in GitHub org settings.",
+			FixtureRef: "internal/collect/github/orgsecurity/orgsecurity_test.go",
+			Endpoints:  []string{"GET /orgs/{org}"},
+			Rubric: map[model.Status]string{
+				model.StatusVerifiedPass: "the GitHub org enforces MFA for all members.",
+				model.StatusVerifiedFail: "the GitHub org does not enforce MFA.",
+			},
+		},
+		{
+			ID: "C01.org.mfa", Platform: "azuredevops", Title: "ADO: org requires MFA", Collector: "C01.org-security",
+			TokenScope: "vso.graph", Remediation: "Enable MFA enforcement via Entra ID Conditional Access.",
+			FixtureRef: "internal/collect/azuredevops/orgsecurity/orgsecurity_test.go",
+			Endpoints:  nil,
+			Rubric: map[model.Status]string{
+				model.StatusPartial: "the org is Entra-backed but MFA enforcement is invisible to this tool.",
+			},
+		},
+	}
+
+	return registered, ssdf, cisa
+}
+
+// TestRender_SameIDUnderTwoPlatformsRendersOneHeadingWithSubsections proves
+// issue #148's checklist item: the same check ID registered under more
+// than one platform must render as ONE heading with a labeled subsection
+// per platform (token permission, endpoints, rubric, remediation, fixture),
+// not two separate headings for what a reader should see as one check.
+func TestRender_SameIDUnderTwoPlatformsRendersOneHeadingWithSubsections(t *testing.T) {
+	registered, ssdf, cisa := dualPlatformFixtureInputs()
+
+	got, err := Render(registered, ssdf, cisa, nil)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	text := string(got)
+
+	if n := strings.Count(text, "### `C01.org.mfa`"); n != 1 {
+		t.Errorf(`count of "### `+"`C01.org.mfa`"+`" headings = %d, want 1 (one heading shared across platforms)`, n)
+	}
+	if !strings.Contains(text, "#### github — GitHub: org requires MFA") {
+		t.Error("expected a github platform subsection with its own title")
+	}
+	if !strings.Contains(text, "#### azuredevops — ADO: org requires MFA") {
+		t.Error("expected an azuredevops platform subsection with its own title")
+	}
+	if !strings.Contains(text, "Enable MFA enforcement in GitHub org settings.") {
+		t.Error("expected the github platform's own remediation text")
+	}
+	if !strings.Contains(text, "Enable MFA enforcement via Entra ID Conditional Access.") {
+		t.Error("expected the azuredevops platform's own remediation text")
+	}
+	if !strings.Contains(text, "vso.graph") {
+		t.Error("expected the azuredevops platform's own token permission")
+	}
+	if !strings.Contains(text, "internal/collect/azuredevops/orgsecurity/orgsecurity_test.go") {
+		t.Error("expected the azuredevops platform's own fixture reference")
+	}
+	// SSDF task(s)/CISA form cluster(s) are shared, platform-agnostic
+	// mapping data — printed once for the check, not duplicated per
+	// platform subsection.
+	if n := strings.Count(text, "PO.5.1"); n != 2 { // once in "SSDF task(s):", once in the verbatim task-text quote
+		t.Errorf(`count of "PO.5.1" = %d, want 2 (cited once, not once per platform)`, n)
+	}
+	// Found in review of #169: a stray {{end}} on its own template line
+	// added an extra blank line between the last platform subsection's
+	// Remediation and the shared "SSDF task text" heading.
+	if strings.Contains(text, "\n\n\n") {
+		t.Error("expected no triple-newline (double blank line) anywhere in the multi-platform check's section")
+	}
+}
+
+// TestRender_SinglePlatformCheckHasNoSubsectionLabel proves the "zero diff
+// for the current file until ADO packages exist" requirement holds at the
+// per-check level, not just for the whole-file golden test: a check
+// registered under exactly one platform renders with no platform label at
+// all (today's exact heading shape), not a one-item subsection.
+func TestRender_SinglePlatformCheckHasNoSubsectionLabel(t *testing.T) {
+	registered, ssdf, cisa, saQuestions := fixtureInputs()
+
+	got, err := Render(registered, ssdf, cisa, saQuestions)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	text := string(got)
+	if strings.Contains(text, "####") {
+		t.Error("single-platform checks must not render a platform subsection heading (####)")
+	}
+	if !strings.Contains(text, "### `C01.org.mfa` — Org MFA enforced") {
+		t.Error("expected the single-platform heading shape unchanged: ID + title inline, no platform label")
 	}
 }

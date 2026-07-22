@@ -82,23 +82,25 @@ func init() {
 	scanCmd.Flags().StringSliceVar(&scanCheckFilter, "check", nil, "comma-separated check-ID prefixes to run (e.g. C01,C05); default runs every registered collector")
 	scanCmd.Flags().BoolVar(&scanFlags.Sign, "sign", false, "sign evidence.json with cosign sign-blob after writing it (issue #27; requires cosign on PATH)")
 	scanCmd.Flags().StringArrayVar(&scanFlags.SignArgs, "sign-args", nil, "extra arg passed through to cosign sign-blob verbatim (repeatable, e.g. --sign-args=--key=cosign.key); omit for keyless signing")
+	scanCmd.Flags().StringVar(&scanFlags.Platform, "platform", "", "platform to scan: github or azuredevops (default \"github\")")
+	scanCmd.Flags().StringVar(&scanFlags.Project, "project", "", "Azure DevOps project name (required iff --platform azuredevops; rejected otherwise)")
 	rootCmd.AddCommand(scanCmd)
 }
 
-// defaultCollectors builds the full set of real collectors authenticated
-// with token — the same wiring runScanCmd uses, extracted so the
-// integration test (issue #15) exercises the exact same collector set the
-// shipped binary runs, without duplicating this list and risking drift as
-// new collectors land. Each real collector gets its own dedicated Client
-// instance rather than sharing one: Client.Provenance() reflects every call
-// made through it, and each collector attributes provenance to its
-// CheckResults by diffing that log, which only stays correct if nothing
-// else (another collector run concurrently) issues calls through the same
-// Client. repoprotection/envseparation/secretshygiene/sasthistory/
-// scahistory/provenance/actionssecurity/auditlogging/vdp take the token
-// directly rather than a pre-built Client since they construct a fresh
-// Client per repo internally (see their own doc comments for why).
-func defaultCollectors(token string) []collect.Collector {
+// defaultGitHubCollectors builds the full set of real GitHub collectors
+// authenticated with token — the same wiring runScanCmd uses for a github
+// scan, extracted so the integration test (issue #15) exercises the exact
+// same collector set the shipped binary runs, without duplicating this list
+// and risking drift as new collectors land. Each real collector gets its
+// own dedicated Client instance rather than sharing one: Client.Provenance()
+// reflects every call made through it, and each collector attributes
+// provenance to its CheckResults by diffing that log, which only stays
+// correct if nothing else (another collector run concurrently) issues calls
+// through the same Client. repoprotection/envseparation/secretshygiene/
+// sasthistory/scahistory/provenance/actionssecurity/auditlogging/vdp take
+// the token directly rather than a pre-built Client since they construct a
+// fresh Client per repo internally (see their own doc comments for why).
+func defaultGitHubCollectors(token string) []collect.Collector {
 	return append(collect.Collectors(),
 		orgsecurity.New(ghcollect.NewClient(token)),
 		repoprotection.New(token),
@@ -113,12 +115,28 @@ func defaultCollectors(token string) []collect.Collector {
 	)
 }
 
+// defaultAzureDevOpsCollectors mirrors defaultGitHubCollectors' role for a
+// --platform azuredevops scan. Empty until issue #150 (S4) lands the first
+// ADO collector — wiring one in here is a small, additive change (append a
+// constructor call, the same shape defaultGitHubCollectors already has),
+// but it is not the only thing S4 needs from this file: buildScanDeps below
+// also has no ADO repoLister/orgChecker yet, so S4 (or whichever story
+// lands ADO's C01 first) must add one alongside the first collector, not
+// assume this function alone is the whole seam. The (org, project, pat
+// string) signature is fixed now, ahead of any real use, so it doesn't need
+// to change again once real per-collector clients are built from them —
+// see buildScanDeps' own doc comment for why a zero-collector result here
+// is refused before it ever reaches runScan.
+func defaultAzureDevOpsCollectors(_, _, _ string) []collect.Collector {
+	return nil
+}
+
 // runScanCmd is cobra's entry point: it resolves config, builds real
-// dependencies (a live GitHub client from GITHUB_TOKEN, the real repo
-// lister, the collector registry), and delegates to the testable core
-// (runScan). Exit codes 0/1/2 are custom (cobra's own RunE-error path only
-// ever yields 0 or 1 via root.go's Execute), so a gaps-found result calls
-// os.Exit(exitGaps) directly rather than returning an error.
+// dependencies (a live client from the platform-appropriate token env var,
+// the real repo lister, the collector registry), and delegates to the
+// testable core (runScan). Exit codes 0/1/2 are custom (cobra's own RunE-error
+// path only ever yields 0 or 1 via root.go's Execute), so a gaps-found result
+// calls os.Exit(exitGaps) directly rather than returning an error.
 func runScanCmd(cmd *cobra.Command, _ []string) error {
 	var fileCfg scanConfig
 	if scanConfigPath != "" {
@@ -136,19 +154,13 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		return fmt.Errorf("GITHUB_TOKEN is not set")
+	token, err := resolveScanToken(cfg.Platform)
+	if err != nil {
+		return err
 	}
-	client := ghcollect.NewClient(token)
-
-	deps := scanDeps{
-		repoLister: &restRepoLister{client: client.REST},
-		orgChecker: &restOrgChecker{client: client.REST},
-		client:     client,
-		collectors: defaultCollectors(token),
-		stdout:     cmd.OutOrStdout(),
-		signer:     integrity.CosignSigner{},
+	deps, err := buildScanDeps(cfg, token, cmd.OutOrStdout())
+	if err != nil {
+		return err
 	}
 
 	result, err := runScan(cmd.Context(), cfg, scanCheckFilter, deps)
@@ -184,6 +196,73 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 		os.Exit(result.exitCode)
 	}
 	return nil
+}
+
+// resolveScanToken picks the credential env var for platform: GITHUB_TOKEN
+// for github (unchanged from before issue #148 — every existing setup keeps
+// working), AZURE_DEVOPS_EXT_PAT for azuredevops (the az-CLI convention, so
+// an existing az-CLI environment already has it set). GITHUB_TOKEN is never
+// consulted for an azuredevops scan, and the error says so explicitly
+// rather than leaving a user with GITHUB_TOKEN exported to guess why it
+// didn't help.
+func resolveScanToken(platform string) (string, error) {
+	if effectivePlatform(platform) == platformAzureDevOps {
+		pat := os.Getenv("AZURE_DEVOPS_EXT_PAT")
+		if pat == "" {
+			return "", fmt.Errorf("AZURE_DEVOPS_EXT_PAT is not set (GITHUB_TOKEN is ignored for --platform azuredevops)")
+		}
+		return pat, nil
+	}
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return "", fmt.Errorf("GITHUB_TOKEN is not set")
+	}
+	return token, nil
+}
+
+// buildScanDeps wires the real dependencies runScanCmd passes to runScan,
+// branching on cfg.Platform: a github scan gets a live GitHub client plus
+// its repo lister/org checker; an azuredevops scan gets today's (empty) ADO
+// collector set and leaves repoLister/orgChecker nil, since there's no ADO
+// implementation of either yet — this is a real gap this function papers
+// over only because the zero-collector guard below stops the scan before
+// runScan ever has to resolve repos with a nil lister. Landing the first
+// ADO collector (issue #150, S4) must also land an ADO repoLister (and
+// wire it in here) before an azuredevops scan without explicit --repo can
+// work; resolveRepos' own nil-lister guard is the backstop if that's ever
+// missed, not a substitute for doing it.
+//
+// An azuredevops scan with zero collectors errors here rather than being
+// let through to runScan (which — matching its established contract, see
+// e.g. TestRunScan_SelfAttestationFileProvided_AnsweredQuestionsAreSelfAttested
+// — tolerates an empty collector set and just runs self-attestation, a
+// deliberate testing seam, not a production signal): a real `attestward
+// scan --platform azuredevops` invocation producing a pack with zero
+// API-verified results would look like a clean, fully-verified scan
+// instead of the honest "this platform isn't implemented yet" it actually
+// is, so the CLI wiring layer is where that gets refused.
+func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, error) {
+	if effectivePlatform(cfg.Platform) == platformAzureDevOps {
+		collectors := defaultAzureDevOpsCollectors(cfg.Org, cfg.Project, token)
+		if len(collectors) == 0 {
+			return scanDeps{}, fmt.Errorf("no collectors registered for platform %q yet (see issue #150)", platformAzureDevOps)
+		}
+		return scanDeps{
+			collectors: collectors,
+			stdout:     stdout,
+			signer:     integrity.CosignSigner{},
+		}, nil
+	}
+
+	client := ghcollect.NewClient(token)
+	return scanDeps{
+		repoLister: &restRepoLister{client: client.REST},
+		orgChecker: &restOrgChecker{client: client.REST},
+		client:     client,
+		collectors: defaultGitHubCollectors(token),
+		stdout:     stdout,
+		signer:     integrity.CosignSigner{},
+	}, nil
 }
 
 // scanDeps are runScan's injected dependencies — real ones from
@@ -265,6 +344,7 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		Org:               cfg.Org,
 		AccountType:       accountType,
 		Repos:             repos,
+		Project:           cfg.Project,
 		ReleaseTagPattern: cfg.ReleaseTagPattern,
 		LookbackReleases:  cfg.LookbackReleases,
 		LookbackMonths:    cfg.LookbackMonths,
@@ -336,6 +416,16 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		return results[i].Scope.Repo < results[j].Scope.Repo
 	})
 
+	// The orchestrator, not each collector, is the single source of truth
+	// for which platform a result belongs to (found in review of #164): a
+	// pack is one scan of one platform (no mixed-platform packs), so every
+	// result — including the not-checkable ones runCollectors and
+	// BuildSelfAttestedResults synthesize themselves, which never set
+	// Scope.Platform — is stamped here, unconditionally, rather than
+	// trusting N different collector implementations across N platforms to
+	// all remember to set it themselves.
+	stampResultsWithPlatform(results, effectivePlatform(cfg.Platform), cfg.Project)
+
 	rollup := mapping.BuildRollup(results, ssdf, cisa)
 
 	endedAt := now().UTC()
@@ -355,22 +445,20 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		// CheckResult's own Reason text, so it'd be redundant schema
 		// surface, not new honesty.
 		//
-		// Platform is hardcoded "github" rather than left absent, even
-		// though absent means the same thing today (issue #148's platform
-		// seam plumbing): a long-lived legal artifact should be
-		// self-describing, not lean on an implicit default a reader years
-		// from now — or a future --platform flag's own default — has to
-		// already know to assume. This is the only platform runScan can
-		// produce until Azure DevOps collectors land (issue #34), at which
-		// point this becomes conditional on the CLI's --platform flag, not
-		// this PR's concern.
+		// Platform is always written explicitly (effectivePlatform, never
+		// cfg.Platform raw) rather than left absent, even when it's
+		// "github" and absent would mean the same thing: a long-lived
+		// legal artifact should be self-describing, not lean on an
+		// implicit default a reader years from now has to already know to
+		// assume.
 		Scope: model.ScanScope{
 			Org:               scope.Org,
 			Repos:             scope.Repos,
 			ReleaseTagPattern: scope.ReleaseTagPattern,
 			LookbackReleases:  scope.LookbackReleases,
 			LookbackMonths:    scope.LookbackMonths,
-			Platform:          "github",
+			Platform:          effectivePlatform(cfg.Platform),
+			Project:           cfg.Project,
 		},
 		ScanStartedAt: startedAt,
 		ScanEndedAt:   endedAt,
@@ -389,6 +477,17 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 	}
 
 	return scanResult{pack: pack, exitCode: computeExitCode(results)}, nil
+}
+
+// stampResultsWithPlatform sets every result's Scope.Platform/Project to
+// the scan's own platform/project, in place, overwriting whatever (if
+// anything) a collector already set — the orchestrator is authoritative
+// here, not each collector; see runScan's call site for why.
+func stampResultsWithPlatform(results []model.CheckResult, platform, project string) {
+	for i := range results {
+		results[i].Scope.Platform = platform
+		results[i].Scope.Project = project
+	}
 }
 
 // computeExitCode implements issue #10's exit-code table: any

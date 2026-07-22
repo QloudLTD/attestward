@@ -146,6 +146,82 @@ func TestCompareRejectsDifferentOrgs(t *testing.T) {
 	}
 }
 
+// TestCompareRejectsDifferentPlatforms pins issue #148's checklist item:
+// comparing packs from different platforms is an error, the same class as
+// comparing different orgs — a github pack and an azuredevops pack cannot
+// share a meaningful drift baseline even if (hypothetically) their org
+// names happened to collide.
+func TestCompareRejectsDifferentPlatforms(t *testing.T) {
+	github := pack("acme")
+	github.Scope.Platform = "github"
+	azuredevops := pack("acme")
+	azuredevops.Scope.Platform = "azuredevops"
+
+	_, err := Compare(github, azuredevops)
+	if err == nil || !strings.Contains(err.Error(), "different platforms") {
+		t.Fatalf("expected different-platforms error, got %v", err)
+	}
+
+	// Same check, reverse direction — the guard must not be order-dependent.
+	_, err = Compare(azuredevops, github)
+	if err == nil || !strings.Contains(err.Error(), "different platforms") {
+		t.Fatalf("expected different-platforms error in the reverse direction too, got %v", err)
+	}
+}
+
+// TestCompareAbsentPlatformEqualsExplicitGitHub proves the pre-#164 self-scan
+// drift baseline (no Platform field at all) stays comparable against a new
+// pack that writes "github" explicitly (issue #148's writer policy) — an
+// absent Platform and an explicit "github" must be treated as the same
+// platform, not flagged as a difference.
+func TestCompareAbsentPlatformEqualsExplicitGitHub(t *testing.T) {
+	absent := pack("acme") // Platform left unset, as every pre-#164 pack is
+	explicit := pack("acme")
+	explicit.Scope.Platform = "github"
+
+	if _, err := Compare(absent, explicit); err != nil {
+		t.Fatalf("Compare(absent, explicit-github) = %v, want nil error (absent means github)", err)
+	}
+	if _, err := Compare(explicit, absent); err != nil {
+		t.Fatalf("Compare(explicit-github, absent) = %v, want nil error (absent means github)", err)
+	}
+}
+
+// TestCompareRejectsDifferentProjects mirrors TestCompareRejectsDifferentPlatforms
+// for the Azure DevOps project axis (found in review of #169): two packs from
+// the same org but different ADO projects are the same "not meaningful"
+// comparison class as different orgs, since a project is effectively a
+// second scope dimension ADO scans add.
+func TestCompareRejectsDifferentProjects(t *testing.T) {
+	projectA := pack("acme")
+	projectA.Scope.Platform = "azuredevops"
+	projectA.Scope.Project = "project-a"
+	projectB := pack("acme")
+	projectB.Scope.Platform = "azuredevops"
+	projectB.Scope.Project = "project-b"
+
+	_, err := Compare(projectA, projectB)
+	if err == nil || !strings.Contains(err.Error(), "different projects") {
+		t.Fatalf("expected different-projects error, got %v", err)
+	}
+
+	_, err = Compare(projectB, projectA)
+	if err == nil || !strings.Contains(err.Error(), "different projects") {
+		t.Fatalf("expected different-projects error in the reverse direction too, got %v", err)
+	}
+}
+
+// TestCompareGitHubPacksWithEmptyProjectsAreComparable proves the Project
+// guard doesn't false-positive on ordinary github packs, which always leave
+// Project empty on both sides (no fallback needed — absent-vs-absent is
+// already equal).
+func TestCompareGitHubPacksWithEmptyProjectsAreComparable(t *testing.T) {
+	a, b := pack("acme"), pack("acme")
+	if _, err := Compare(a, b); err != nil {
+		t.Fatalf("Compare(a, b) = %v, want nil error (both github packs, empty Project on both sides)", err)
+	}
+}
+
 func TestCompareRejectsDuplicateKeys(t *testing.T) {
 	dup := pack("acme",
 		res("C01.a", "acme", "r1", model.StatusVerifiedPass, ""),

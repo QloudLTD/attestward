@@ -185,3 +185,66 @@ func TestScanConfigValidate_RequiresOrg(t *testing.T) {
 		t.Errorf("validate() with org set = %v, want nil", err)
 	}
 }
+
+// TestScanConfigValidate_PlatformProjectMatrix pins issue #148's CLI
+// validation matrix: --project is required for azuredevops, rejected for
+// github (including the empty-Platform case, which mergeScanConfig would
+// otherwise have defaulted to github before validate() ever normally sees
+// it — this test calls validate() directly, as TestScanConfigValidate_
+// RequiresOrg above does, to prove the empty case is handled here too, not
+// only downstream of mergeScanConfig).
+func TestScanConfigValidate_PlatformProjectMatrix(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     scanConfig
+		wantErr bool
+	}{
+		{"github, no project", scanConfig{Org: "x", Platform: "github"}, false},
+		{"empty platform, no project", scanConfig{Org: "x"}, false},
+		{"github, project given", scanConfig{Org: "x", Platform: "github", Project: "proj"}, true},
+		{"empty platform, project given", scanConfig{Org: "x", Project: "proj"}, true},
+		{"azuredevops, project given", scanConfig{Org: "x", Platform: "azuredevops", Project: "proj"}, false},
+		{"azuredevops, no project", scanConfig{Org: "x", Platform: "azuredevops"}, true},
+		{"unrecognized platform", scanConfig{Org: "x", Platform: "gitlab"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cfg.validate()
+			if tc.wantErr && err == nil {
+				t.Errorf("validate() = nil error, want an error")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("validate() = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestMergeScanConfig_PlatformDefaultsToGitHubAndProjectPassesThrough(t *testing.T) {
+	merged := mergeScanConfig(scanConfig{Org: "x"}, scanConfig{}, nil)
+	if merged.Platform != platformGitHub {
+		t.Errorf("Platform = %q, want %q", merged.Platform, platformGitHub)
+	}
+
+	merged = mergeScanConfig(scanConfig{Org: "x"}, scanConfig{Platform: "azuredevops", Project: "proj"}, map[string]bool{"platform": true, "project": true})
+	if merged.Platform != "azuredevops" {
+		t.Errorf("Platform = %q, want azuredevops (flag was set)", merged.Platform)
+	}
+	if merged.Project != "proj" {
+		t.Errorf("Project = %q, want proj (flag was set)", merged.Project)
+	}
+}
+
+// TestMergeScanConfig_PlatformProjectFlagsDoNotClobberFileWhenUnset mirrors
+// TestMergeScanConfig_FlagsOverrideFileWhenSet for the new fields: a flag
+// the user didn't pass must never clobber a value the config file set.
+func TestMergeScanConfig_PlatformProjectFlagsDoNotClobberFileWhenUnset(t *testing.T) {
+	file := scanConfig{Org: "x", Platform: "azuredevops", Project: "file-proj"}
+	merged := mergeScanConfig(file, scanConfig{}, nil)
+	if merged.Platform != "azuredevops" {
+		t.Errorf("Platform = %q, want azuredevops (from file, no flag override)", merged.Platform)
+	}
+	if merged.Project != "file-proj" {
+		t.Errorf("Project = %q, want file-proj (from file, no flag override)", merged.Project)
+	}
+}

@@ -451,6 +451,180 @@ func (f fakeScanCollectorFunc) Collect(ctx context.Context, scope collect.Scope)
 	return f.fn(ctx, scope)
 }
 
+// TestRunScan_ProjectFlowsIntoCollectorScope mirrors
+// TestRunScan_AccountTypeFlowsIntoScope for issue #148's collect.Scope.Project
+// field: a future ADO collector reading scope.Project depends on runScan
+// actually threading cfg.Project through, not just compiling.
+func TestRunScan_ProjectFlowsIntoCollectorScope(t *testing.T) {
+	var gotScope collect.Scope
+	collectors := []collect.Collector{
+		fakeScanCollectorFunc{id: "DEMO.check", fn: func(_ context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+			gotScope = scope
+			return []model.CheckResult{{CheckID: "DEMO.check", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: scope.Org}}}, nil
+		}},
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "my-project"}, scanConfig{}, nil)
+
+	if _, err := runScan(context.Background(), cfg, nil, deps); err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if gotScope.Project != "my-project" {
+		t.Errorf("scope.Project = %q, want my-project", gotScope.Project)
+	}
+}
+
+// TestRunScan_PackScopeRecordsPlatformAndProject proves runScan's pack
+// assembly no longer hardcodes "github": a non-default platform/project
+// flow all the way into the written pack's top-level Scope.
+func TestRunScan_PackScopeRecordsPlatformAndProject(t *testing.T) {
+	collectors := []collect.Collector{fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
+		{CheckID: "DEMO.pass", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo"}},
+	}}}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "my-project"}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if result.pack.Scope.Platform != "azuredevops" {
+		t.Errorf("pack.Scope.Platform = %q, want azuredevops", result.pack.Scope.Platform)
+	}
+	if result.pack.Scope.Project != "my-project" {
+		t.Errorf("pack.Scope.Project = %q, want my-project", result.pack.Scope.Project)
+	}
+}
+
+// TestRunScan_BackfillsScopePlatformOntoEveryResult pins the review finding
+// from #164: the orchestrator, not each collector, is the single source of
+// truth for a result's ScopeRef.Platform/Project. The fake collector here
+// deliberately sets the WRONG platform on its own result to prove runScan
+// overwrites it rather than trusting it — and the self-attestation results
+// (which never set Scope.Platform themselves) must end up stamped too.
+func TestRunScan_BackfillsScopePlatformOntoEveryResult(t *testing.T) {
+	collectors := []collect.Collector{
+		fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
+			{CheckID: "DEMO.pass", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo", Repo: "good-repo", Platform: "a-collector-cannot-be-trusted-to-set-this"}},
+		}},
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo"}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if len(result.pack.Results) == 0 {
+		t.Fatal("no results produced")
+	}
+	for _, r := range result.pack.Results {
+		if r.Scope.Platform != "github" {
+			t.Errorf("result %s Scope.Platform = %q, want %q (orchestrator must overwrite whatever a collector set)", r.CheckID, r.Scope.Platform, "github")
+		}
+	}
+}
+
+// TestResolveScanToken_GitHub / TestResolveScanToken_AzureDevOps* pin issue
+// #148's token-sourcing branch: github reads GITHUB_TOKEN (unchanged from
+// before this issue), azuredevops reads AZURE_DEVOPS_EXT_PAT and never
+// consults GITHUB_TOKEN at all, and says so in its missing-PAT error.
+func TestResolveScanToken_GitHubReadsGitHubToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "ghp_test-token")
+
+	token, err := resolveScanToken("github")
+	if err != nil {
+		t.Fatalf("resolveScanToken: %v", err)
+	}
+	if token != "ghp_test-token" {
+		t.Errorf("token = %q, want ghp_test-token", token)
+	}
+}
+
+func TestResolveScanToken_GitHubMissingTokenErrors(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+
+	if _, err := resolveScanToken("github"); err == nil {
+		t.Fatal("resolveScanToken(github) with no GITHUB_TOKEN = nil error, want an error")
+	}
+	if _, err := resolveScanToken(""); err == nil {
+		t.Fatal(`resolveScanToken("") with no GITHUB_TOKEN = nil error, want an error (empty platform defaults to github)`)
+	}
+}
+
+func TestResolveScanToken_AzureDevOpsReadsPATIgnoresGitHubToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "ghp_should-be-ignored")
+	t.Setenv("AZURE_DEVOPS_EXT_PAT", "ado-pat")
+
+	token, err := resolveScanToken("azuredevops")
+	if err != nil {
+		t.Fatalf("resolveScanToken: %v", err)
+	}
+	if token != "ado-pat" {
+		t.Errorf("token = %q, want ado-pat", token)
+	}
+}
+
+func TestResolveScanToken_AzureDevOpsMissingPATErrorsAndMentionsGitHubTokenIgnored(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "ghp_irrelevant")
+	t.Setenv("AZURE_DEVOPS_EXT_PAT", "")
+
+	_, err := resolveScanToken("azuredevops")
+	if err == nil {
+		t.Fatal("resolveScanToken(azuredevops) with no AZURE_DEVOPS_EXT_PAT = nil error, want an error")
+	}
+	if !strings.Contains(err.Error(), "GITHUB_TOKEN") {
+		t.Errorf("error = %v, want it to explicitly mention that GITHUB_TOKEN is ignored, got: %v", err, err)
+	}
+}
+
+// TestBuildScanDeps_GitHub/AzureDevOps* pin the CLI wiring layer's
+// per-platform branch — unit-tested directly rather than through cobra
+// (issue #148's acceptance criterion).
+func TestBuildScanDeps_GitHubWiresRepoListerAndOrgChecker(t *testing.T) {
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo"}, scanConfig{}, nil)
+	deps, err := buildScanDeps(cfg, "ghp_test-token", &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("buildScanDeps: %v", err)
+	}
+	if deps.repoLister == nil || deps.orgChecker == nil || deps.client == nil {
+		t.Error("github scanDeps missing repoLister/orgChecker/client")
+	}
+	if len(deps.collectors) == 0 {
+		t.Error("github scanDeps has zero collectors, want the real ten")
+	}
+}
+
+// TestBuildScanDeps_AzureDevOpsErrorsWithZeroCollectors proves the CLI
+// wiring layer, not just runScan's tolerant testable core, is what actually
+// stops a real `attestward scan --platform azuredevops` invocation today —
+// see buildScanDeps' own doc comment for why the check lives here.
+func TestBuildScanDeps_AzureDevOpsErrorsWithZeroCollectors(t *testing.T) {
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "proj"}, scanConfig{}, nil)
+	_, err := buildScanDeps(cfg, "ado-pat", &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("buildScanDeps(azuredevops) = nil error, want an error (no ADO collectors registered yet)")
+	}
+	if !strings.Contains(err.Error(), "azuredevops") {
+		t.Errorf("error = %v, want it to name the platform", err)
+	}
+	if !strings.Contains(err.Error(), "#150") {
+		t.Errorf("error = %v, want it to point at issue #150 for actionability", err)
+	}
+}
+
 func TestWriteEvidencePack_WritesValidJSON(t *testing.T) {
 	dir := t.TempDir()
 	pack := model.EvidencePack{

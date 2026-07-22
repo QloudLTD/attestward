@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/sioakim/attestward/internal/collect"
 	"github.com/sioakim/attestward/internal/model"
 )
 
@@ -86,11 +87,22 @@ func (d Delta) Empty() bool {
 }
 
 // Compare diffs current against baseline. It errors on packs that aren't
-// meaningfully comparable: different orgs, or duplicate (check_id, org,
-// repo) keys within one pack (which would make "the same check" ambiguous).
+// meaningfully comparable: different orgs, different platforms, different
+// Azure DevOps projects, or duplicate (check_id, org, repo) keys within one
+// pack (which would make "the same check" ambiguous).
 func Compare(baseline, current model.EvidencePack) (Delta, error) {
 	if baseline.Scope.Org != current.Scope.Org {
 		return Delta{}, fmt.Errorf("packs cover different orgs (%q vs %q) — comparing them is not meaningful", baseline.Scope.Org, current.Scope.Org)
+	}
+	if bp, cp := collect.NormalizePlatform(baseline.Scope.Platform), collect.NormalizePlatform(current.Scope.Platform); bp != cp {
+		return Delta{}, fmt.Errorf("packs cover different platforms (%q vs %q) — comparing them is not meaningful", bp, cp)
+	}
+	// Project has no "absent means X" fallback the way Platform does — it's
+	// empty for every github pack on both sides (equal, no error) and
+	// distinguishes real ADO projects otherwise, the same "not meaningful"
+	// class as different orgs.
+	if baseline.Scope.Project != current.Scope.Project {
+		return Delta{}, fmt.Errorf("packs cover different projects (%q vs %q) — comparing them is not meaningful", baseline.Scope.Project, current.Scope.Project)
 	}
 
 	base, err := index(baseline, "baseline")

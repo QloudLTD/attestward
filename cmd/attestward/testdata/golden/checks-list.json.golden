@@ -1,6 +1,7 @@
 [
   {
     "check_id": "C01.org.mfa",
+    "platform": "github",
     "title": "Org MFA enforced",
     "collector": "org-security",
     "ssdf_tasks": [
@@ -27,6 +28,7 @@
   },
   {
     "check_id": "C99.example.unmapped",
+    "platform": "github",
     "title": "Unmapped example",
     "collector": "example",
     "ssdf_tasks": [],

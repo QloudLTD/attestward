@@ -8,6 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/sioakim/attestward/internal/collect"
 	"github.com/sioakim/attestward/internal/collect/github"
 )
 
@@ -19,6 +20,29 @@ const (
 	defaultLookbackMonths    = 12
 	defaultOut               = "./evidence/"
 )
+
+// Platform names scanConfig.Platform can take — the only two this build
+// understands (issue #148's v0.2 platform seam; azuredevops has no real
+// collectors yet, see defaultAzureDevOpsCollectors). platformGitHub is
+// collect.DefaultPlatform under another name for readability at this
+// package's many call sites, not a second source of truth for what the
+// default actually is.
+const (
+	platformGitHub      = collect.DefaultPlatform
+	platformAzureDevOps = "azuredevops"
+)
+
+// effectivePlatform returns platform, defaulting an empty value to
+// platformGitHub — collect.NormalizePlatform, the single place this
+// fallback is decided (internal/checksref and internal/packdiff call the
+// same function). mergeScanConfig already fills this in for the normal CLI
+// path, but callers that build a scanConfig directly (bypassing
+// mergeScanConfig — e.g. the live integration test) still get correct
+// behavior rather than writing an empty Platform into a pack or a "no
+// collectors registered for platform \"\"" error.
+func effectivePlatform(platform string) string {
+	return collect.NormalizePlatform(platform)
+}
 
 // scanConfig is the parsed, merged configuration for `attestward scan`. Flags
 // override file values field by field (mergeScanConfig); any field left
@@ -39,6 +63,12 @@ type scanConfig struct {
 	// a Sigstore client.
 	Sign     bool     `yaml:"sign"`
 	SignArgs []string `yaml:"sign_args"`
+	// Platform selects which platform to scan: "github" (default) or
+	// "azuredevops" (issue #148's v0.2 platform seam). Project is the
+	// Azure DevOps project name — required iff Platform is "azuredevops",
+	// rejected otherwise (validate()).
+	Platform string `yaml:"platform"`
+	Project  string `yaml:"project"`
 }
 
 // loadScanConfigFile strictly parses a config file: unknown keys are
@@ -108,6 +138,12 @@ func mergeScanConfig(file scanConfig, flags scanConfig, flagsSet map[string]bool
 	if flagsSet["sign-args"] {
 		merged.SignArgs = flags.SignArgs
 	}
+	if flagsSet["platform"] {
+		merged.Platform = flags.Platform
+	}
+	if flagsSet["project"] {
+		merged.Project = flags.Project
+	}
 
 	if merged.ReleaseTagPattern == "" {
 		merged.ReleaseTagPattern = defaultReleaseTagPattern
@@ -124,13 +160,38 @@ func mergeScanConfig(file scanConfig, flags scanConfig, flagsSet map[string]bool
 	if merged.Concurrency == 0 {
 		merged.Concurrency = github.DefaultConcurrency
 	}
+	if merged.Platform == "" {
+		merged.Platform = platformGitHub
+	}
 
 	return merged
 }
 
+// validate checks scanConfig invariants, including the --platform/--project
+// matrix (issue #148): Project is required iff Platform is azuredevops, and
+// rejected otherwise — a --project passed against a github scan is a
+// user-confusion bug this rejects rather than silently ignores. Platform
+// itself may be empty here (validate() runs both after mergeScanConfig,
+// which always defaults it, and directly against a raw scanConfig in
+// tests) — an empty Platform is treated exactly like "github" throughout,
+// never as its own third invalid state.
 func (c scanConfig) validate() error {
 	if c.Org == "" {
 		return fmt.Errorf("org is required (--org or config file's org:)")
+	}
+
+	switch c.Platform {
+	case "", platformGitHub, platformAzureDevOps:
+	default:
+		return fmt.Errorf("platform %q is not recognized (must be %q or %q; --platform or config file's platform:)", c.Platform, platformGitHub, platformAzureDevOps)
+	}
+
+	isADO := effectivePlatform(c.Platform) == platformAzureDevOps
+	switch {
+	case isADO && c.Project == "":
+		return fmt.Errorf("project is required when platform is %q (--project or config file's project:)", platformAzureDevOps)
+	case !isADO && c.Project != "":
+		return fmt.Errorf("--project (or config file's project:) is only valid when platform is %q (got platform %q)", platformAzureDevOps, effectivePlatform(c.Platform))
 	}
 	return nil
 }

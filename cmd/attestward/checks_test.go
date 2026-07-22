@@ -88,6 +88,58 @@ func TestBuildMatrixStatuses(t *testing.T) {
 	}
 }
 
+// TestBuildMatrix_SameIDUnderTwoPlatformsProducesTwoRows uses a synthetic
+// dual-platform registered slice (not collect.Register — that would pollute
+// the real global registry and corrupt other tests in this package that
+// assert an exact collect.Registered() count) to prove issue #148/#164's
+// review finding is fixed: the same check ID registered under two platforms
+// must render as two separate rows, each with its own Title/Collector/
+// TokenScope, not one row where the second platform silently overwrote the
+// first's metadata. Both rows still agree on the SSDF task/cluster
+// citation, since that comes from the platform-agnostic mapping data, not
+// the registry.
+func TestBuildMatrix_SameIDUnderTwoPlatformsProducesTwoRows(t *testing.T) {
+	ssdf := &mapping.SSDFMapping{
+		Tasks: []mapping.SSDFTask{
+			{ID: "PO.5.1", Family: "PO", Practice: "PO.5", Checks: []string{"C01.org.mfa"}},
+		},
+	}
+	cisa := &mapping.CISAMapping{
+		Clusters: []mapping.CISACluster{{ID: "1", SSDFTasks: []string{"PO.5.1"}}},
+	}
+	registered := []collect.CheckMeta{
+		{ID: "C01.org.mfa", Platform: "github", Title: "GitHub title", Collector: "org-security", TokenScope: "read:org"},
+		{ID: "C01.org.mfa", Platform: "azuredevops", Title: "ADO title", Collector: "org-security", TokenScope: "vso.project"},
+	}
+
+	rows := buildMatrix(ssdf, cisa, registered, nil)
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2 (one row per platform for the shared check ID): %+v", len(rows), rows)
+	}
+
+	byPlatform := map[string]MatrixRow{}
+	for _, r := range rows {
+		if r.CheckID != "C01.org.mfa" {
+			t.Errorf("unexpected row for check %s", r.CheckID)
+		}
+		byPlatform[r.Platform] = r
+	}
+	if byPlatform["github"].Title != "GitHub title" || byPlatform["github"].TokenScope != "read:org" {
+		t.Errorf("github row = %+v, want Title=GitHub title TokenScope=read:org", byPlatform["github"])
+	}
+	if byPlatform["azuredevops"].Title != "ADO title" || byPlatform["azuredevops"].TokenScope != "vso.project" {
+		t.Errorf("azuredevops row = %+v, want Title=ADO title TokenScope=vso.project", byPlatform["azuredevops"])
+	}
+	for platform, row := range byPlatform {
+		if len(row.SSDFTasks) != 1 || row.SSDFTasks[0] != "PO.5.1" {
+			t.Errorf("%s row SSDFTasks = %v, want [PO.5.1] (shared mapping data, independent of platform)", platform, row.SSDFTasks)
+		}
+		if row.Status != statusOK {
+			t.Errorf("%s row status = %q, want ok", platform, row.Status)
+		}
+	}
+}
+
 func TestChecksListGoldenTable(t *testing.T) {
 	ssdf, cisa, registered := fixtureMatrixInputs()
 	rows := buildMatrix(ssdf, cisa, registered, nil)

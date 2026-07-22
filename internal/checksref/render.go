@@ -60,16 +60,37 @@ type collectorGroup struct {
 	Checks      []checkView
 }
 
+// checkView is one check ID's section. Tasks/Clusters are shared across
+// platforms — SSDF/CISA mapping data has no platform concept, so a check ID
+// cites the same tasks/clusters no matter which platform(s) implement it.
+// Everything else (title, token permission, endpoints, rubric, remediation,
+// fixture) is platform-specific and lives in Platforms — one entry for a
+// single-platform check (every check as of this writing), more than one
+// once a second platform registers the same ID (issue #34's check-identity
+// model: same ID, per-platform everything else). The template renders a
+// single platform's fields inline with no platform label when there's only
+// one (today's exact output), and a labeled subsection per platform
+// otherwise.
 type checkView struct {
-	ID          string
+	ID        string
+	Tasks     []taskView
+	Clusters  []string
+	Platforms []checkPlatformView
+}
+
+// checkPlatformView is one platform's rendering of a check — the fields
+// the checklist for issue #148's per-platform subsections names explicitly:
+// token permission, endpoints, rubric, remediation, fixture (plus Title,
+// which the epic's own design also treats as per-platform, e.g. a
+// GitHub-product-named ID keeping its ID with a different Title on ADO).
+type checkPlatformView struct {
+	Platform    string
 	Title       string
 	TokenScope  string
 	Remediation string
 	FixtureRef  string
 	Endpoints   []string
 	Rubric      []rubricRow
-	Tasks       []taskView
-	Clusters    []string
 }
 
 type rubricRow struct {
@@ -162,37 +183,56 @@ func buildContext(registered []collect.CheckMeta, ssdf *mapping.SSDFMapping, cis
 		return tasksAndClusters(checkID, tasksByCheck, clustersByTask, ssdf)
 	}
 
+	// Group by Collector, then by check ID: the same ID can be registered
+	// under more than one platform (issue #34's check-identity model), and
+	// must render as one heading with a per-platform subsection each — two
+	// platforms silently producing two separate headings for what a reader
+	// should see as one check would be worse than the last-write-wins bug
+	// this replaces (found in review of #164).
+	byCollectorThenID := map[string]map[string][]collect.CheckMeta{}
+	for _, meta := range registered {
+		if byCollectorThenID[meta.Collector] == nil {
+			byCollectorThenID[meta.Collector] = map[string][]collect.CheckMeta{}
+		}
+		byCollectorThenID[meta.Collector][meta.ID] = append(byCollectorThenID[meta.Collector][meta.ID], meta)
+	}
+
 	groupByCollector := map[string][]checkView{}
-	for _, meta := range sortedByID(registered) {
-		if len(meta.Rubric) == 0 {
-			return context{}, fmt.Errorf("checksref: check %s has no Rubric registered — every check must document what each status it can produce means before the reference can be generated", meta.ID)
+	for collectorID, byID := range byCollectorThenID {
+		ids := make([]string, 0, len(byID))
+		for id := range byID {
+			ids = append(ids, id)
 		}
-		if meta.FixtureRef == "" {
-			return context{}, fmt.Errorf("checksref: check %s has no FixtureRef registered", meta.ID)
-		}
-		if meta.Remediation == "" {
-			return context{}, fmt.Errorf("checksref: check %s has no Remediation registered", meta.ID)
-		}
-		if meta.Title == "" {
-			return context{}, fmt.Errorf("checksref: check %s has no Title registered", meta.ID)
-		}
-		if meta.TokenScope == "" {
-			return context{}, fmt.Errorf("checksref: check %s has no TokenScope registered", meta.ID)
-		}
+		sort.Strings(ids)
 
-		rubric, err := rubricRows(meta.ID, meta.Rubric)
-		if err != nil {
-			return context{}, err
-		}
+		for _, id := range ids {
+			metas := append([]collect.CheckMeta{}, byID[id]...)
+			sort.Slice(metas, func(i, j int) bool {
+				return collect.NormalizePlatform(metas[i].Platform) < collect.NormalizePlatform(metas[j].Platform)
+			})
 
-		tasks, clusters := tasksAndClustersFor(meta.ID)
-		cv := checkView{
-			ID: meta.ID, Title: meta.Title, TokenScope: meta.TokenScope,
-			Remediation: meta.Remediation, FixtureRef: meta.FixtureRef,
-			Endpoints: meta.Endpoints, Rubric: rubric,
-			Tasks: tasks, Clusters: clusters,
+			tasks, clusters := tasksAndClustersFor(id)
+			cv := checkView{ID: id, Tasks: tasks, Clusters: clusters}
+			for _, meta := range metas {
+				if err := requireCompleteMeta(meta); err != nil {
+					return context{}, err
+				}
+				rubric, err := rubricRows(meta.ID, meta.Rubric)
+				if err != nil {
+					return context{}, err
+				}
+				cv.Platforms = append(cv.Platforms, checkPlatformView{
+					Platform:    collect.NormalizePlatform(meta.Platform),
+					Title:       meta.Title,
+					TokenScope:  meta.TokenScope,
+					Remediation: meta.Remediation,
+					FixtureRef:  meta.FixtureRef,
+					Endpoints:   meta.Endpoints,
+					Rubric:      rubric,
+				})
+			}
+			groupByCollector[collectorID] = append(groupByCollector[collectorID], cv)
 		}
-		groupByCollector[meta.Collector] = append(groupByCollector[meta.Collector], cv)
 	}
 
 	collectorIDs := make([]string, 0, len(groupByCollector))
@@ -216,10 +256,32 @@ func buildContext(registered []collect.CheckMeta, ssdf *mapping.SSDFMapping, cis
 	return ctx, nil
 }
 
-func sortedByID(registered []collect.CheckMeta) []collect.CheckMeta {
-	out := append([]collect.CheckMeta{}, registered...)
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out
+// requireCompleteMeta is issue #30's "fails loudly, not blanks" criterion,
+// applied per platform instance now that the same check ID can carry more
+// than one CheckMeta (issue #34's check-identity model): every platform
+// registering a check must independently supply Rubric/FixtureRef/
+// Remediation/Title/TokenScope, not just whichever platform happens to be
+// checked first. Endpoints is deliberately NOT checked here: it may
+// legitimately be empty for a check whose result is a fixed fact rather
+// than an API-derived one (see collect.CheckMeta.Endpoints's own doc
+// comment).
+func requireCompleteMeta(meta collect.CheckMeta) error {
+	if len(meta.Rubric) == 0 {
+		return fmt.Errorf("checksref: check %s has no Rubric registered — every check must document what each status it can produce means before the reference can be generated", meta.ID)
+	}
+	if meta.FixtureRef == "" {
+		return fmt.Errorf("checksref: check %s has no FixtureRef registered", meta.ID)
+	}
+	if meta.Remediation == "" {
+		return fmt.Errorf("checksref: check %s has no Remediation registered", meta.ID)
+	}
+	if meta.Title == "" {
+		return fmt.Errorf("checksref: check %s has no Title registered", meta.ID)
+	}
+	if meta.TokenScope == "" {
+		return fmt.Errorf("checksref: check %s has no TokenScope registered", meta.ID)
+	}
+	return nil
 }
 
 // rubricRows orders rubric's entries per rubricOrder. It errors rather than

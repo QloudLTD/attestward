@@ -136,6 +136,12 @@ func (c *restOrgChecker) CheckAccount(ctx context.Context, account string) (coll
 // non-archived, non-fork repos with a warning" requirement. For a personal
 // user account (issue #102), the warning additionally flags that only
 // public repos are listed this way — see listByUser's doc comment.
+//
+// A nil lister is only safe when explicit is non-empty (buildScanDeps
+// leaves it nil for an azuredevops scan, which has no ADO repoLister yet —
+// see its own doc comment): the guard below turns what would otherwise be
+// a nil-pointer panic the moment ADO auto-discovery is attempted into an
+// actionable error instead.
 func resolveRepos(ctx context.Context, lister repoLister, account string, accountType collect.AccountType, explicit []string, warn func(string)) ([]string, error) {
 	filtered := make([]string, 0, len(explicit))
 	for _, r := range explicit {
@@ -145,6 +151,9 @@ func resolveRepos(ctx context.Context, lister repoLister, account string, accoun
 	}
 	if len(filtered) > 0 {
 		return filtered, nil
+	}
+	if lister == nil {
+		return nil, fmt.Errorf("no repos specified and this platform has no repo-listing support yet — pass --repo explicitly")
 	}
 
 	all, err := lister.ListRepos(ctx, account, accountType)

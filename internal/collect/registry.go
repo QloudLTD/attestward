@@ -77,12 +77,27 @@ type CheckMeta struct {
 	FixtureRef string
 }
 
-// defaultPlatform is what an empty CheckMeta.Platform means — the only
-// platform this tool supported before the v0.2 Azure DevOps epic (#34), and
-// the fallback Lookup still assumes so every pre-v0.2 call site (every
-// github collector package's own tests, cmd/attestward/report.go, ...)
-// keeps working unmodified.
-const defaultPlatform = "github"
+// DefaultPlatform is what an empty platform value means everywhere in this
+// codebase — the only platform this tool supported before the v0.2 Azure
+// DevOps epic (#34), and the fallback Lookup still assumes so every pre-v0.2
+// call site (every github collector package's own tests, cmd/attestward's
+// CLI) keeps working unmodified.
+const DefaultPlatform = "github"
+
+// NormalizePlatform returns platform, defaulting an empty value to
+// DefaultPlatform. This is the single place "absent platform means github"
+// is decided — Register/LookupPlatform below, cmd/attestward's CLI wiring,
+// internal/checksref's renderer, and internal/packdiff's pack comparison
+// all call this rather than each re-deriving the same fallback locally
+// (found in review of #169: four independent copies of the same one-line
+// check is exactly the kind of drift risk a single exported helper exists
+// to prevent).
+func NormalizePlatform(platform string) string {
+	if platform == "" {
+		return DefaultPlatform
+	}
+	return platform
+}
 
 // registryKey is the registry's actual identity: a check ID is only unique
 // within one platform, not globally — GitHub and Azure DevOps collectors
@@ -101,14 +116,27 @@ var registry = map[registryKey]CheckMeta{}
 // duplicate (Platform, ID) pair — that is a programming error to catch at
 // collector-package init time, not a runtime condition any caller should
 // need to handle. Two different platforms registering the same ID is not a
-// duplicate; it's the intended shape for check parity across platforms.
+// duplicate; it's the intended shape for check parity across platforms —
+// but only if every platform agrees on which Collector implements it: an ID
+// registered under two different Collector strings would make
+// internal/checksref (which groups by Collector, then merges same-ID
+// entries into one heading with per-platform subsections) silently render
+// the same ID as two unrelated, duplicated sections instead of one merged
+// check — an outcome worse than the last-write-wins bug that grouping
+// replaced (found in review of #169), so it's rejected here structurally
+// rather than left to be caught by a renderer's own output.
 func Register(meta CheckMeta) {
-	if meta.Platform == "" {
-		meta.Platform = defaultPlatform
-	}
+	meta.Platform = NormalizePlatform(meta.Platform)
 	key := registryKey{Platform: meta.Platform, ID: meta.ID}
 	if _, exists := registry[key]; exists {
 		panic("collect: duplicate check id registered for platform " + meta.Platform + ": " + meta.ID)
+	}
+	for k, existing := range registry {
+		if k.ID == meta.ID && existing.Collector != meta.Collector {
+			panic("collect: check " + meta.ID + " registered under platform " + meta.Platform + " with collector " +
+				meta.Collector + ", but platform " + k.Platform + " already registered it under collector " +
+				existing.Collector + " — every platform registering the same check ID must agree on its Collector")
+		}
 	}
 	registry[key] = meta
 }
@@ -133,10 +161,7 @@ func Registered() []CheckMeta {
 // empty platform defaults to "github", same as Register) and whether it
 // was found.
 func LookupPlatform(platform, id string) (CheckMeta, bool) {
-	if platform == "" {
-		platform = defaultPlatform
-	}
-	meta, ok := registry[registryKey{Platform: platform, ID: id}]
+	meta, ok := registry[registryKey{Platform: NormalizePlatform(platform), ID: id}]
 	return meta, ok
 }
 
@@ -145,7 +170,7 @@ func LookupPlatform(platform, id string) (CheckMeta, bool) {
 // existing GitHub-only call sites (every collector package's own tests)
 // don't need to learn about platforms at all.
 func Lookup(id string) (CheckMeta, bool) {
-	return LookupPlatform(defaultPlatform, id)
+	return LookupPlatform(DefaultPlatform, id)
 }
 
 // collectors holds every Collector the orchestrator (issue #10) runs during

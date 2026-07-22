@@ -120,10 +120,7 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 		return fmt.Errorf("load self-attestation questions: %w", err)
 	}
 
-	remediationByCheckID := map[string]string{}
-	for _, meta := range collect.Registered() {
-		remediationByCheckID[meta.ID] = meta.Remediation
-	}
+	remediationByCheckID := buildRemediationByCheckID(pack.Results, collect.LookupPlatform)
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", outDir, err)
@@ -156,6 +153,31 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 		logf(stdout, "wrote %s\n", outPath)
 	}
 	return nil
+}
+
+// buildRemediationByCheckID resolves each result's remediation text via its
+// own Scope.Platform (falling back to github when absent, same convention
+// as collect.LookupPlatform itself) rather than building the map from
+// collect.Registered() wholesale. A pack covers exactly one platform (no
+// mixed-platform packs), but Registered() returns every platform's checks —
+// once a second platform registers the same check ID under different
+// remediation text, building this map from the full registry would
+// silently overwrite one platform's remediation with whichever platform's
+// entry a range over Registered() happened to visit last (found in review
+// of #164). lookup is collect.LookupPlatform in production, and a synthetic
+// stand-in in tests, so this resolves per-platform correctly without ever
+// registering a fake check into the real global registry.
+func buildRemediationByCheckID(results []model.CheckResult, lookup func(platform, id string) (collect.CheckMeta, bool)) map[string]string {
+	m := map[string]string{}
+	for _, r := range results {
+		if _, ok := m[r.CheckID]; ok {
+			continue
+		}
+		if meta, ok := lookup(r.Scope.Platform, r.CheckID); ok {
+			m[r.CheckID] = meta.Remediation
+		}
+	}
+	return m
 }
 
 // checkPackIntegrity reports whether path fails hash verification against

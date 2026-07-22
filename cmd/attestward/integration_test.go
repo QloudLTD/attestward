@@ -60,7 +60,7 @@ func TestIntegration_DemoOrgMatchesFixtures(t *testing.T) {
 		repoLister: &restRepoLister{client: client.REST},
 		orgChecker: &restOrgChecker{client: client.REST},
 		client:     client,
-		collectors: defaultCollectors(token),
+		collectors: defaultGitHubCollectors(token),
 		stdout:     os.Stdout,
 	}
 	cfg := scanConfig{
