@@ -1024,11 +1024,30 @@ This check is registered under more than one platform — details for each below
 
 ## C06.sca-history
 
-### `C06.sca.alerts-triaged` — Open Dependabot alerts are triaged within the default window
+### `C06.sca.alerts-triaged`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.4.4` (practice `PW.4`: Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality), `RV.2.1` (practice `RV.2`: Assess, Prioritize, and Remediate Vulnerabilities)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — Open GHAzDO dependency-scanning alerts are triaged within the default window
+
+- **Token permission:** vso.advsec (Alerts - List)
+- **Fixture:** `internal/collect/azuredevops/scahistory/scahistory_test.go`
+- **API endpoint(s):** `GET advsec.dev.azure.com/{org}/{project}/_apis/alert/repositories/{repository}/alerts?criteria.alertType=dependency&criteria.states=active&criteria.severities=critical`
+
+**Status rubric:**
+
+- **partial:** one or more active critical dependency-scanning alerts are open, and the oldest has been open longer than the 30-day triage window; or one or more active critical alerts were found but none of their firstSeenDate values could be parsed, so their age relative to the 30-day window is genuinely unknown
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), or the named repository wasn't found in the project — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or the alerts query returned 404 — likely means GHAzDO isn't licensed for this org/project, but that reading is unconfirmed [fixture-verify, issue #34/#155's S9 pass — see checkAlertsTriaged's own doc comment for why this stays not-checkable, not verified-fail, until then]; or the alerts query failed with a 403 (ambiguous between a missing vso.advsec scope and an unlicensed org/project [fixture-verify]) or another API error
+- **verified-pass:** the active-critical-alerts query succeeded, and no alert has been open longer than the 30-day triage window
+
+**Remediation:** If GHAzDO dependency scanning is disabled entirely, enable it first (see C06.sca.tool-configured). Once enabled, triage: repo -> Advanced Security -> filter by Critical severity -> fix or dismiss (with a documented reason) any critical alert open longer than 30 days.
+
+#### github — Open Dependabot alerts are triaged within the default window
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/dependabot/alerts`
 
@@ -1048,11 +1067,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C06.sca.dependabot-config` — Dependabot config covers the repo's detected dependency ecosystems
+### `C06.sca.dependabot-config`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.4.4` (practice `PW.4`: Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — Dependency-scan config covers the repo's detected ecosystems
+
+- **Token permission:** n/a — no ADO evidence source exists for this check; see its Rubric
+- **Fixture:** `internal/collect/azuredevops/scahistory/scahistory_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), or the named repository wasn't found in the project — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or (the common case) Azure DevOps has no per-repo Dependabot-config-file convention at all — GHAzDO dependency scanning is enablement-driven (see C06.sca.tool-configured), not configured via a checked-in file the way .github/dependabot.yml is on GitHub — this check has no ADO evidence source and reports not-checkable unconditionally, on every repo, regardless of any other evidence gathered
+
+**Remediation:** Not applicable to Azure DevOps — GHAzDO dependency scanning is enablement-driven (Project Settings -> Repositories -> [repo] -> Security -> GitHub Advanced Security), not configured via a checked-in file; see C06.sca.tool-configured instead.
+
+#### github — Dependabot config covers the repo's detected dependency ecosystems
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1071,11 +1107,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C06.sca.dependency-review` — Dependency review is enforced as a required check on pull requests
+### `C06.sca.dependency-review`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.4.4` (practice `PW.4`: Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — Dependency review is enforced as a required check on pull requests
+
+- **Token permission:** n/a — no ADO evidence source exists for this check; see its Rubric
+- **Fixture:** `internal/collect/azuredevops/scahistory/scahistory_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), or the named repository wasn't found in the project — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or (the common case) Azure DevOps has no pull-request dependency-review gate equivalent to GitHub's dependency-review-action — this check has no ADO evidence source and reports not-checkable unconditionally, on every repo, regardless of any other evidence gathered
+
+**Remediation:** Not applicable to Azure DevOps — there is no pull-request dependency-review gate equivalent to GitHub's dependency-review-action; GHAzDO surfaces dependency-scanning alerts (see C06.sca.alerts-triaged) but does not block a PR merge on them.
+
+#### github — Dependency review is enforced as a required check on pull requests
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
 
@@ -1094,11 +1147,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C06.sca.ran-per-release` — An SCA tool ran for each release in the lookback window
+### `C06.sca.ran-per-release`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.4.4` (practice `PW.4`: Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality), `RV.1.2` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — An SCA tool ran for each release in the lookback window
+
+- **Token permission:** vso.build, vso.code
+- **Fixture:** `internal/collect/azuredevops/scahistory/scahistory_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/pipelines`, `GET dev.azure.com/{org}/{project}/_apis/build/definitions/{definitionId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/refs`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/annotatedtags/{objectId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/commits/{commitId}`, `GET dev.azure.com/{org}/{project}/_apis/build/builds`
+
+**Status rubric:**
+
+- **verified-fail:** at least one release in the lookback window has zero matched SCA builds at all (not even a failed one)
+- **partial:** one or more release tags matching the configured pattern could not be dated (their commit is always already known straight from the refs listing itself — it's only the date lookup that failed; this collector's own deliberate choice, inherited from C05, applies that unconditionally, not only to tags provably inside the lookback window); if that leaves nothing evaluable, the reason names the drop count directly, otherwise every evaluated release still succeeded but the exclusion caps the result at partial; or a matched SCA pipeline ran for every evaluated release, but not every build succeeded
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), or the named repository wasn't found in the project — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or resolving this repo's release tags failed (403/other API error) — unlike the four other checks in this package, this failure is local to this check alone (see the package doc comment's judgment call 6); or GHAzDO dependency scanning injection is this repo's ONLY SCA evidence (no signature-matched pipeline at all) — injected scanning runs invisibly to this collector's own build-matching, so this check has no verified way to observe it per release (see the package doc comment's judgment call 7); or no release tag matches the configured pattern within the lookback window, and none of the tags that did match were dropped as unresolvable either — genuinely nothing to evaluate; or the project's build history itself could not be fetched
+- **verified-pass:** an SCA pipeline ran successfully (at least one matched build whose result is "succeeded", case-insensitive) for every release in the lookback window, and every matching release tag was successfully dated
+
+**Remediation:** Make sure the SCA pipeline's trigger actually fires on (or before) the commit each release tag points at — e.g. trigger on push to the release branch — and that any build that did fire completed with result=="succeeded" rather than failing or being canceled.
+
+#### github — An SCA tool ran for each release in the lookback window
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`, `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/git/ref/{ref}`, `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`, `GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs`
 
@@ -1118,11 +1191,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C06.sca.tool-configured` — An SCA tool is configured
+### `C06.sca.tool-configured`
 
-- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.4.4` (practice `PW.4`: Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality), `RV.1.2` (practice `RV.1`: Identify and Confirm Vulnerabilities on an Ongoing Basis)
 - **CISA form cluster(s):** 2, 3, 4
+
+#### azuredevops — An SCA tool is configured
+
+- **Token permission:** vso.build, vso.code (pipeline discovery and YAML fetch), vso.advsec (GHAzDO repo enablement)
+- **Fixture:** `internal/collect/azuredevops/scahistory/scahistory_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories`, `GET dev.azure.com/{org}/{project}/_apis/pipelines`, `GET dev.azure.com/{org}/{project}/_apis/build/definitions/{definitionId}`, `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`, `GET advsec.dev.azure.com/{org}/{project}/_apis/management/repositories/{repository}/enablement`
+
+**Status rubric:**
+
+- **verified-fail:** no pipeline match of any confidence was found, dependency scanning injection is not confirmed enabled, and every pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo skip) — a real absence, not an evidence gap
+- **partial:** only a low-confidence (pipeline/step-name-only) match was found in any pipeline, and dependency scanning injection is not confirmed enabled — not enough signal alone to confirm an SCA tool is genuinely configured
+- **not-checkable:** the project's repositories or pipelines couldn't be read (403/other API error), or the named repository wasn't found in the project — collectRepo returns not-checkable for every check on the first such failure; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo); or there is no pipeline-based evidence at all and the GHAzDO repo-enablement query itself failed with anything other than a 404 — including a 403, ambiguous between a missing vso.advsec scope and an unlicensed org/project [fixture-verify] — an unresolved unknown, not a confirmed absence; or one or more of this repo's own pipelines could not be fully inspected (a build-definition fetch failure, an unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail — issue #178 tracks fully consuming these skips across every check/platform; this check applies the honest partial fix now rather than asserting a confident absence over incomplete evidence
+- **verified-pass:** at least one matched pipeline reaches medium-or-high confidence (an ado_task or run-pattern match, not just a suggestive pipeline/step name), or GHAzDO dependency scanning injection (codeSecurityFeatures.dependencyScanningInjectionEnabled) reads true
+
+**Remediation:** Add a pipeline task using a recognized SCA action/CLI (see mappings/scanner-signatures.yaml), or enable GHAzDO dependency scanning (Project Settings -> Repositories -> [repo] -> Security -> GitHub Advanced Security -> enable Code Security, which includes dependency scanning injection) — a pipeline whose name merely suggests SCA isn't enough on its own; it needs a matched task/CLI invocation to count as more than a low-confidence signal.
+
+#### github — An SCA tool is configured
+
+- **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 

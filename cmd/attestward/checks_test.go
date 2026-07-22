@@ -188,9 +188,9 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// sasthistory, scahistory, provenance, actionssecurity, auditlogging,
 	// and vdp, plus azuredevops' own orgsecurity, repoprotection (both
 	// issue #150, S4's two PRs), envseparation, secretshygiene (both issue
-	// #151, S5's two PRs), sasthistory (issue #152, S6's first collector
-	// PR), auditlogging, vdp (both issue #154, S8's two PRs), and
-	// provenance (issue #153, S7's first collector PR),
+	// #151, S5's two PRs), sasthistory, scahistory (both issue #152, S6's
+	// two collector PRs so far), provenance (issue #153, S7's first
+	// collector PR), and auditlogging, vdp (both issue #154, S8's two PRs),
 	// transitively imported via scan.go) — not the disk-based loaders or
 	// synthetic fixtures the other tests in this file use, which would
 	// miss a broken //go:embed pattern, a renamed file, or a check
@@ -201,13 +201,14 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// #150), the four C03.env.* IDs and five of C04's six IDs (issue #151
 	// — C04.vars.secret-hygiene is the sixth, azuredevops-only, so it
 	// appears just once, not twice; see its own doc comment), the four
-	// C05.sast.* IDs (issue #152), the four C09.* IDs, and the four
-	// C10.vdp.* IDs (both issue #154) are each registered under both
-	// azuredevops and github (same ID, per-platform metadata; see issue
-	// #34's check-identity model), so buildMatrix's own
-	// one-row-per-(platform,ID) contract (TestBuildMatrix_SameID...) means
-	// each appears twice here, sorted by CheckID then Platform —
-	// "azuredevops" sorts before "github", so the ADO row comes first.
+	// C05.sast.* IDs and the five C06.sca.* IDs (both issue #152), the
+	// four C09.* IDs, and the four C10.vdp.* IDs (both issue #154) are
+	// each registered under both azuredevops and github (same ID,
+	// per-platform metadata; see issue #34's check-identity model), so
+	// buildMatrix's own one-row-per-(platform,ID) contract
+	// (TestBuildMatrix_SameID...) means each appears twice here, sorted by
+	// CheckID then Platform — "azuredevops" sorts before "github", so the
+	// ADO row comes first.
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
 		t.Fatalf("LoadSSDFFS: %v", err)
@@ -271,9 +272,14 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C05.sast.tool-configured",
 		"C05.sast.tool-configured",
 		"C06.sca.alerts-triaged",
+		"C06.sca.alerts-triaged",
+		"C06.sca.dependabot-config",
 		"C06.sca.dependabot-config",
 		"C06.sca.dependency-review",
+		"C06.sca.dependency-review",
 		"C06.sca.ran-per-release",
+		"C06.sca.ran-per-release",
+		"C06.sca.tool-configured",
 		"C06.sca.tool-configured",
 		// C07's five checks are now registered under both platforms (issue
 		// #153, S7, the first ADO collector of this story) — each ID sorts
@@ -347,22 +353,22 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 // unlike the narrower per-group predecessors of this test. The
 // found-count assertion guards against this silently covering zero
 // checks if the registry were ever emptied by an import change. The count
-// grew from 46 to 78 across issues #150 (S4, two PRs: C01 then C02), #151
-// (S5, two PRs: C03 then C04), #152 (S6, its first collector PR, C05),
-// and #154 (S8, two PRs: C09 then C10): azuredevops' own C01 org-security
-// (4 checks), C02 repo-protection (6 checks), C03 env-separation (4
-// checks), C05 sast-history (4 checks), C09 audit-logging (4 checks), C10
-// vdp (4 checks), and C07 provenance (5 checks, issue #153, S7's first
-// collector PR) each register the same check IDs their GitHub twins
-// already do (issue #34's check-identity model — same ID, per-platform
-// metadata), each a distinct (Platform, ID) registry entry. C04
-// secrets-hygiene is different: it registers 6 checks, but only 5 mirror
-// a GitHub twin (scanning-enabled, push-protection, advanced-security,
-// dependabot-alerts, org-security-defaults) — the sixth,
-// C04.vars.secret-hygiene, is azuredevops-only with no GitHub twin at all
-// (see its own package doc comment), so it's a wholly new registry entry,
-// not a second platform for an existing one. Total: 46 + 4 + 6 + 4 + 6 +
-// 4 + 4 + 4 + 5 = 83.
+// grew from 46 to 88 across issues #150 (S4, two PRs: C01 then C02), #151
+// (S5, two PRs: C03 then C04), #152 (S6, two collector PRs so far: C05
+// then C06), #153 (S7, its first collector PR: C07), and #154 (S8, two
+// PRs: C09 then C10): azuredevops' own C01 org-security (4 checks), C02
+// repo-protection (6 checks), C03 env-separation (4 checks), C05
+// sast-history (4 checks), C06 sca-history (5 checks), C07 provenance (5
+// checks), C09 audit-logging (4 checks), and C10 vdp (4 checks) each
+// register the same check IDs their GitHub twins already do (issue #34's
+// check-identity model — same ID, per-platform metadata), each a distinct
+// (Platform, ID) registry entry. C04 secrets-hygiene is different: it
+// registers 6 checks, but only 5 mirror a GitHub twin (scanning-enabled,
+// push-protection, advanced-security, dependabot-alerts,
+// org-security-defaults) — the sixth, C04.vars.secret-hygiene, is
+// azuredevops-only with no GitHub twin at all (see its own package doc
+// comment), so it's a wholly new registry entry, not a second platform
+// for an existing one. Total: 46 + 4 + 6 + 4 + 6 + 4 + 5 + 5 + 4 + 4 = 88.
 func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 	registered := collect.Registered()
 	for _, meta := range registered {
@@ -370,7 +376,7 @@ func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if len(registered) != 83 {
-		t.Fatalf("len(collect.Registered()) = %d, want 83 — did the registered check count change?", len(registered))
+	if len(registered) != 88 {
+		t.Fatalf("len(collect.Registered()) = %d, want 88 — did the registered check count change?", len(registered))
 	}
 }
