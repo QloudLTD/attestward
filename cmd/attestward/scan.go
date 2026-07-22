@@ -17,6 +17,7 @@ import (
 
 	"github.com/sioakim/attestward/internal/collect"
 	"github.com/sioakim/attestward/internal/collect/azuredevops"
+	adoauditlogging "github.com/sioakim/attestward/internal/collect/azuredevops/auditlogging"
 	adoorgsecurity "github.com/sioakim/attestward/internal/collect/azuredevops/orgsecurity"
 	ghcollect "github.com/sioakim/attestward/internal/collect/github"
 	"github.com/sioakim/attestward/internal/collect/github/actionssecurity"
@@ -118,20 +119,22 @@ func defaultGitHubCollectors(token string) []collect.Collector {
 }
 
 // defaultAzureDevOpsCollectors mirrors defaultGitHubCollectors' role for a
-// --platform azuredevops scan. Issue #150 (S4) lands the first ADO
-// collector (C01 org-security, org-scoped — it never consults project);
-// every other story in the epic (#151-#154) appends its own constructor
-// call here the same way, the shape defaultGitHubCollectors already
-// established. buildScanDeps below still has no ADO repoLister/orgChecker
-// (a real gap: an azuredevops scan without explicit --repo can't resolve
-// project-scoped collectors' repos yet) — that remains a later story's
-// job, not something this collector's org-level checks need. The (org,
-// project, pat string) signature is fixed now, ahead of every collector
-// needing all three, so it doesn't need to change again as later stories
-// add project/repo-scoped collectors here too.
+// --platform azuredevops scan. C01 org-security (issue #150, S4) and C09
+// audit-logging (issue #154, S8) are the first two ADO collectors landed;
+// every check either registers is org-scoped (Azure DevOps has no per-repo
+// webhook concept the way GitHub does — see auditlogging's own doc
+// comment — and org-security's checks are all org-level too), so both need
+// only org+pat to build their Client, with auditlogging reading project
+// from collect.Scope.Project at Collect time rather than a constructor
+// argument. Collectors for other stories (S5-S7) append here the same way
+// as they land; buildScanDeps below still has no ADO repoLister/orgChecker,
+// so an azuredevops scan without an explicit --repo still errors in
+// resolveRepos until one of those stories adds it — not this function's
+// concern, since neither collector here consults scope.Repos.
 func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 	return append(collect.Collectors(),
 		adoorgsecurity.New(azuredevops.NewClient(org, pat)),
+		adoauditlogging.New(azuredevops.NewClient(org, pat)),
 	)
 }
 

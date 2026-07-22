@@ -609,20 +609,31 @@ func TestBuildScanDeps_GitHubWiresRepoListerAndOrgChecker(t *testing.T) {
 
 // TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector proves the CLI
 // wiring layer actually reaches defaultAzureDevOpsCollectors: as of issue
-// #150 (S4), an azuredevops scan gets at least the real C01 org-security
-// collector, replacing this same test's pre-#150 assertion that
-// buildScanDeps refused the scan outright (see git history for that
-// version) — repoLister/orgChecker stay nil regardless, since no ADO
-// implementation of either exists yet (see buildScanDeps' own doc
-// comment).
+// #150 (S4) and #154 (S8), an azuredevops scan gets both real collectors
+// landed so far — C01 org-security and C09 audit-logging — replacing this
+// same test's pre-#150 assertion that buildScanDeps refused the scan
+// outright (see git history for that version). repoLister/orgChecker stay
+// nil regardless, since no ADO implementation of either exists yet (see
+// buildScanDeps' own doc comment); asserting both collector IDs (not just
+// a non-zero count) catches defaultAzureDevOpsCollectors silently dropping
+// one of them, which a bare len() check would miss.
 func TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector(t *testing.T) {
 	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "proj"}, scanConfig{}, nil)
 	deps, err := buildScanDeps(cfg, "ado-pat", &bytes.Buffer{})
 	if err != nil {
 		t.Fatalf("buildScanDeps: %v", err)
 	}
-	if len(deps.collectors) == 0 {
-		t.Error("azuredevops scanDeps has zero collectors, want at least C01 org-security")
+	if len(deps.collectors) != 2 {
+		t.Fatalf("azuredevops scanDeps has %d collectors, want exactly 2 (C01 org-security, C09 audit-logging)", len(deps.collectors))
+	}
+	gotIDs := map[string]bool{}
+	for _, c := range deps.collectors {
+		gotIDs[c.ID()] = true
+	}
+	for _, wantID := range []string{"C01.org-security", "C09.audit-logging"} {
+		if !gotIDs[wantID] {
+			t.Errorf("azuredevops scanDeps.collectors missing %q, got %v", wantID, gotIDs)
+		}
 	}
 	if deps.repoLister != nil || deps.orgChecker != nil {
 		t.Error("azuredevops scanDeps has a non-nil repoLister/orgChecker, want both nil until a real ADO implementation of either exists")

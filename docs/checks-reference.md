@@ -993,11 +993,30 @@ This check is registered under more than one platform — details for each below
 
 ## C09.audit-logging
 
-### `C09.audit.log-streaming` — Audit-log export/streaming is configured
+### `C09.audit.log-streaming`
 
-- **Token permission:** read:audit_log (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API in the response this collector sees, both surface identically (see C09.audit.org-log-available's Reason wording)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Audit-log streaming to an external destination is enabled
+
+- **Token permission:** vso.auditlog
+- **Fixture:** `internal/collect/azuredevops/auditlogging/auditlogging_test.go`
+- **API endpoint(s):** `GET /{organization}/_apis/audit/streams (auditservice.dev.azure.com host)`
+
+**Status rubric:**
+
+- **verified-fail:** GET .../_apis/audit/streams returned zero streams, or every returned stream's status is something other than "enabled" (disabledByUser, disabledBySystem, deleted, backfilling, or unknown)
+- **not-checkable:** the call failed with a gated response (see azuredevops.IsAuditGated) — the org isn't Entra-backed, audit logging isn't enabled for it, or the token lacks the vso.auditlog scope — or another API error
+- **verified-pass:** GET .../_apis/audit/streams returned at least one stream with status=="enabled" — unlike GitHub, where this check can only ever report not-checkable (audit-log streaming lives exclusively at the Enterprise-account level, a concept this tool has no notion of), Azure DevOps exposes streaming configuration at the organization level this tool already scans, making this a real, verifiable pass/fail here
+
+**Remediation:** Organization Settings -> Auditing -> Streams -> Add stream, configure a supported consumer (Splunk, Azure Event Grid, Azure Monitor Logs, etc.), and confirm its status shows Enabled — a stream left Disabled by the system (e.g. after repeated delivery failures) or by a user still fails this check.
+
+#### github — Audit-log export/streaming is configured
+
+- **Token permission:** read:audit_log (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API in the response this collector sees, both surface identically (see C09.audit.org-log-available's Reason wording)
 - **Fixture:** `internal/collect/github/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
@@ -1013,11 +1032,29 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C09.audit.org-log-available` — Organization audit log is reachable via the API
+### `C09.audit.org-log-available`
 
-- **Token permission:** read:audit_log (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API in the response this collector sees, both surface identically (see C09.audit.org-log-available's Reason wording)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Organization audit log is reachable via the API
+
+- **Token permission:** vso.auditlog — the Audit Log API additionally requires the org to be Azure AD (Entra ID)-backed and the caller to have View-audit-log permission; Azure DevOps returns the same gated status whether the cause is missing scope, missing permission, or org type, so none of the three can be independently confirmed from this token alone (see this check's own Reason wording)
+- **Fixture:** `internal/collect/azuredevops/auditlogging/auditlogging_test.go`
+- **API endpoint(s):** `GET /{organization}/_apis/audit/auditlog (auditservice.dev.azure.com host, batchSize=1)`
+
+**Status rubric:**
+
+- **not-checkable:** the call failed with a gated response (see azuredevops.IsAuditGated) — one of three indistinguishable causes: the org isn't Azure AD (Entra ID)-backed, the org's "Log Audit Events" policy is off (off by default; the feature is in public preview), or the token lacks the vso.auditlog scope or the caller lacks View-audit-log permission — Azure DevOps returns the same status for all three, so this can't be told apart from the response alone — or another API error
+- **verified-pass:** GET .../_apis/audit/auditlog?batchSize=1 succeeded — the endpoint is reachable; this check never inspects the returned entries themselves, only whether the call succeeded
+
+**Remediation:** This check can only ever report verified-pass or not-checkable, never a fail — if it's not-checkable: confirm the organization is backed by Azure AD (Entra ID), not a Microsoft Account; have an Organization Administrator turn on Organization Settings -> Auditing -> "Log Audit Events" (off by default; the feature is in public preview); and use a PAT with the vso.auditlog scope from a user with View-audit-log permission.
+
+#### github — Organization audit log is reachable via the API
+
+- **Token permission:** read:audit_log (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API in the response this collector sees, both surface identically (see C09.audit.org-log-available's Reason wording)
 - **Fixture:** `internal/collect/github/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** `GET /orgs/{org}/audit-log`
 
@@ -1034,11 +1071,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C09.audit.retention-awareness` — Audit-log retention window (informational)
+### `C09.audit.retention-awareness`
 
-- **Token permission:** read:audit_log (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API in the response this collector sees, both surface identically (see C09.audit.org-log-available's Reason wording)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Audit-log retention window (informational)
+
+- **Token permission:** vso.auditlog (informational only — this check makes no API call of its own, see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/auditlogging/auditlogging_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — this check is purely informational; no Azure DevOps API reports an org's actually-applied audit-log retention, so there is nothing to verify. Facts carry Azure DevOps's documented 90-day retention window as context only
+
+**Remediation:** No remediation applicable — this check is purely informational (documents Azure DevOps's 90-day audit-log retention window) and never reports a fail. If longer retention is required, configure audit-log streaming (see C09.audit.log-streaming), Azure DevOps's documented mechanism for retention beyond 90 days.
+
+#### github — Audit-log retention window (informational)
+
+- **Token permission:** read:audit_log (classic OAuth/PAT scope) — the authenticated user must also be an organization owner; GitHub's docs don't distinguish a missing scope from a plan that doesn't include the Enterprise Cloud audit-log API in the response this collector sees, both surface identically (see C09.audit.org-log-available's Reason wording)
 - **Fixture:** `internal/collect/github/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
@@ -1054,11 +1108,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C09.repo.webhooks` — A webhook exports push/release/deployment events
+### `C09.repo.webhooks`
 
-- **Token permission:** repo (classic) or Webhooks: read-only (fine-grained) — exact fine-grained category not independently verified against GitHub's docs, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — A service hook subscription exports push/build events
+
+- **Token permission:** vso.project (Projects - Get, to resolve the scanned project to its id) plus vso.build and/or vso.code (Subscriptions - List's own documented scopes are vso.work, vso.build, and vso.code; only vso.build/vso.code appear elsewhere in this epic's scope list — issue #34 — so vso.work isn't claimed as already-held here). All three named scopes are already part of this project's epic-wide ADO token-scope set, so this check needs nothing beyond that
+- **Fixture:** `internal/collect/azuredevops/auditlogging/auditlogging_test.go`
+- **API endpoint(s):** `GET /{organization}/_apis/projects/{project} (dev.azure.com host — resolves the scanned project's id for matching publisherInputs.projectId)`, `GET /{organization}/_apis/hooks/subscriptions (dev.azure.com host)`
+
+**Status rubric:**
+
+- **verified-fail:** no enabled service hook subscription with eventType git.push or build.complete is scoped to this project (or to all projects) — includes the case where the org has zero subscriptions at all
+- **not-checkable:** the scanned project couldn't be resolved to a project id, or the subscriptions-listing call itself failed (403/404/other API error)
+- **verified-pass:** at least one enabled (status=="enabled", or status absent — Azure DevOps's own documented sample responses show several subscriptions omitting the field entirely, which this collector treats as the enum's default/enabled state) org-level service hook subscription has eventType git.push or build.complete, and its publisherInputs.projectId either matches the scanned project or is empty/absent (an all-projects subscription counts)
+
+**Remediation:** Organization Settings -> Service Hooks -> Create subscription -> choose the "Code pushed" (git.push) or "Build completed" (build.complete) event, and scope it to (or leave unscoped, covering every project in) the project being scanned.
+
+#### github — A webhook exports push/release/deployment events
+
+- **Token permission:** repo (classic) or Webhooks: read-only (fine-grained) — exact fine-grained category not independently verified against GitHub's docs, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/hooks`
 
