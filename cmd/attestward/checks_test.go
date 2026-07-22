@@ -187,22 +187,22 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// orgsecurity, repoprotection, envseparation, secretshygiene,
 	// sasthistory, scahistory, provenance, actionssecurity, auditlogging,
 	// and vdp, plus azuredevops' own orgsecurity, repoprotection (both
-	// issue #150, S4's two PRs), auditlogging, and vdp (both issue #154,
-	// S8's two PRs), transitively imported via scan.go) — not the
-	// disk-based loaders or synthetic fixtures the other tests in this
-	// file use, which would miss a broken //go:embed pattern, a renamed
-	// file, or a check registered on one side (registry or mapping) but
-	// not the other.
+	// issue #150, S4's two PRs), envseparation (issue #151, S5's first
+	// PR), auditlogging, and vdp (both issue #154, S8's two PRs),
+	// transitively imported via scan.go) — not the disk-based loaders or
+	// synthetic fixtures the other tests in this file use, which would
+	// miss a broken //go:embed pattern, a renamed file, or a check
+	// registered on one side (registry or mapping) but not the other.
 	//
 	// wantIDs lists each shared check ID once per platform that registers
 	// it — the four C01.org.* IDs, the six C02.branch.* IDs (both issue
-	// #150), the four C09.* IDs, and the four C10.vdp.* IDs (both issue
-	// #154) are each registered under both azuredevops and github (same
-	// ID, per-platform metadata; see issue #34's check-identity model), so
-	// buildMatrix's own one-row-per-(platform,ID) contract
-	// (TestBuildMatrix_SameID...) means each appears twice here, sorted by
-	// CheckID then Platform — "azuredevops" sorts before "github", so the
-	// ADO row comes first.
+	// #150), the four C03.env.* IDs (issue #151), the four C09.* IDs, and
+	// the four C10.vdp.* IDs (both issue #154) are each registered under
+	// both azuredevops and github (same ID, per-platform metadata; see
+	// issue #34's check-identity model), so buildMatrix's own
+	// one-row-per-(platform,ID) contract (TestBuildMatrix_SameID...) means
+	// each appears twice here, sorted by CheckID then Platform —
+	// "azuredevops" sorts before "github", so the ADO row comes first.
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
 		t.Fatalf("LoadSSDFFS: %v", err)
@@ -239,8 +239,12 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C02.branch.required-status-checks",
 		"C02.branch.required-status-checks",
 		"C03.env.branch-policy",
+		"C03.env.branch-policy",
+		"C03.env.exists",
 		"C03.env.exists",
 		"C03.env.protection-rules",
+		"C03.env.protection-rules",
+		"C03.env.required-reviewers",
 		"C03.env.required-reviewers",
 		"C04.deps.dependabot-alerts",
 		"C04.org.security-defaults",
@@ -319,13 +323,13 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 // unlike the narrower per-group predecessors of this test. The
 // found-count assertion guards against this silently covering zero
 // checks if the registry were ever emptied by an import change. The count
-// grew from 46 to 64 across issues #150 (S4, two PRs: C01 then C02) and
-// #154 (S8, two PRs: C09 then C10): azuredevops' own C01 org-security (4
-// checks), C02 repo-protection (6 checks), C09 audit-logging (4 checks),
-// and C10 vdp (4 checks) each register the same check IDs their GitHub
-// twins already do (issue #34's check-identity model — same ID,
-// per-platform metadata), each a distinct (Platform, ID) registry entry
-// — 46 + 4 + 6 + 4 + 4 = 64.
+// grew from 46 to 68 across issues #150 (S4, two PRs: C01 then C02), #151
+// (S5's first PR: C03), and #154 (S8, two PRs: C09 then C10): azuredevops'
+// own C01 org-security (4 checks), C02 repo-protection (6 checks), C03
+// env-separation (4 checks), C09 audit-logging (4 checks), and C10 vdp (4
+// checks) each register the same check IDs their GitHub twins already do
+// (issue #34's check-identity model — same ID, per-platform metadata),
+// each a distinct (Platform, ID) registry entry — 46 + 4 + 6 + 4 + 4 + 4 = 68.
 func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 	registered := collect.Registered()
 	for _, meta := range registered {
@@ -333,7 +337,7 @@ func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if len(registered) != 64 {
-		t.Fatalf("len(collect.Registered()) = %d, want 64 — did the registered check count change?", len(registered))
+	if len(registered) != 68 {
+		t.Fatalf("len(collect.Registered()) = %d, want 68 — did the registered check count change?", len(registered))
 	}
 }

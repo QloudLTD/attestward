@@ -447,11 +447,31 @@ This check is registered under more than one platform — details for each below
 
 ## C03.env-separation
 
-### `C03.env.branch-policy` — Production-like environments restrict which branches/tags can deploy
+### `C03.env.branch-policy`
 
-- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Production-like environments restrict which branches can deploy
+
+- **Token permission:** vso.environment_manage (Environments - List, see C03.env.exists' own caveat) plus vso.build (Check Configurations - List)
+- **Fixture:** `internal/collect/azuredevops/envseparation/envseparation_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/distributedtask/environments`, `GET dev.azure.com/{org}/{project}/_apis/pipelines/checks/configurations?resourceType=environment&resourceId={envId}&$expand=settings`
+
+**Status rubric:**
+
+- **verified-fail:** at least one production-like environment has no non-disabled Task Check configuration at all — a confident, definitive absence of any branch restriction
+- **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything. Separately — when every production-like environment has at least one Task Check, but at least one Task Check's settings couldn't be confidently interpreted per the verified-pass entry's [fixture-verify] caveat — the conservative fallback issue #151 specifies: "a task check exists but its branch-control settings could not be interpreted"
+- **not-checkable:** the project's environments list couldn't be read (403/404/other API error), or the project has zero environments configured at all, or a production-like environment's check configurations couldn't be read (403/404/other API error)
+- **verified-pass:** every production-like environment has a non-disabled Task Check configuration (type id fe1de3ee-a436-41b4-bb20-f6eb4cb879a7) whose $expand=settings payload could be confidently interpreted as a real, non-wildcard allowed-branches restriction — [fixture-verify]: this settings schema is undocumented by Microsoft, so the interpretation is a corroborated-but-unconfirmed best guess (see taskCheckSettingsRaw's own doc comment) pending a recorded real response
+
+**Remediation:** Open the production-like environment -> Approvals and checks -> Add check -> Branch control -> set "Allowed branches" to a real restrictive list (e.g. refs/heads/main), not the task's "*" (no restriction) default.
+
+#### github — Production-like environments restrict which branches/tags can deploy
+
+- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
 
@@ -470,11 +490,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C03.env.exists` — A production-like environment exists
+### `C03.env.exists`
 
-- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — A production-like environment exists
+
+- **Token permission:** vso.environment_manage — Environments - List has no documented read-only PAT scope at all; the only documented scope for this read endpoint is manage-level
+- **Fixture:** `internal/collect/azuredevops/envseparation/envseparation_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/distributedtask/environments`
+
+**Status rubric:**
+
+- **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
+- **not-checkable:** the project's environments list couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **verified-pass:** at least one environment's name matches the production-like heuristic (`prod`* prefix, case-insensitive)
+
+**Remediation:** Pipelines -> Environments -> New environment -> name it "production" (or any prod*/production variant — this check's name heuristic is case-insensitive) so deployments can be routed through it.
+
+#### github — A production-like environment exists
+
+- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
 
@@ -492,11 +531,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C03.env.protection-rules` — Production-like environments have at least one protection rule
+### `C03.env.protection-rules`
 
-- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Production-like environments have at least one protection check
+
+- **Token permission:** vso.environment_manage (Environments - List, see C03.env.exists' own caveat) plus vso.build (Check Configurations - List)
+- **Fixture:** `internal/collect/azuredevops/envseparation/envseparation_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/distributedtask/environments`, `GET dev.azure.com/{org}/{project}/_apis/pipelines/checks/configurations?resourceType=environment&resourceId={envId}&$expand=settings`
+
+**Status rubric:**
+
+- **verified-fail:** at least one production-like environment has zero non-disabled check configurations
+- **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
+- **not-checkable:** the project's environments list couldn't be read (403/404/other API error), or the project has zero environments configured at all, or a production-like environment's check configurations couldn't be read (403/404/other API error)
+- **verified-pass:** every production-like environment has at least one non-disabled check configuration of any type (GET .../_apis/pipelines/checks/configurations?resourceType=environment&resourceId={id} returns at least one entry with isDisabled!=true)
+
+**Remediation:** Open the production-like environment -> "..." (kebab menu) -> Approvals and checks -> Add check -> configure at least one check (Approval, Branch control, Business hours, Invoke Azure Function, etc.).
+
+#### github — Production-like environments have at least one protection rule
+
+- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
 
@@ -515,11 +574,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C03.env.required-reviewers` — Production-like environments require reviewer approval before deployment
+### `C03.env.required-reviewers`
 
-- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Production-like environments require reviewer approval before deployment
+
+- **Token permission:** vso.environment_manage (Environments - List, see C03.env.exists' own caveat) plus vso.build (Check Configurations - List)
+- **Fixture:** `internal/collect/azuredevops/envseparation/envseparation_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/distributedtask/environments`, `GET dev.azure.com/{org}/{project}/_apis/pipelines/checks/configurations?resourceType=environment&resourceId={envId}&$expand=settings`
+
+**Status rubric:**
+
+- **verified-fail:** at least one production-like environment lacks a non-disabled Approval check configuration
+- **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
+- **not-checkable:** the project's environments list couldn't be read (403/404/other API error), or the project has zero environments configured at all, or a production-like environment's check configurations couldn't be read (403/404/other API error)
+- **verified-pass:** every production-like environment has a non-disabled Approval check configuration (type id 8c6f20a7-a545-4486-9777-f762fafe0d4d)
+
+**Remediation:** Open the production-like environment -> Approvals and checks -> Add check -> Approvals -> add at least one approver.
+
+#### github — Production-like environments require reviewer approval before deployment
+
+- **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
 
