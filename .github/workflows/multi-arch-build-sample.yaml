@@ -59,7 +59,7 @@ jobs:
             os: [self-hosted, macOS]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -93,7 +93,7 @@ jobs:
     outputs:
       cold_woke: ${{ steps.wake.outputs.cold_woke }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Wake AORUS
         id: wake
         run: |
@@ -109,7 +109,7 @@ jobs:
       group: aorus-windows-runner
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # This runner also has WSL's bash.exe launcher stub on PATH (no
       # installed distribution), and GitHub's `shell: bash` resolution
       # picked that one over Git for Windows' real bash — confirmed
@@ -156,7 +156,7 @@ jobs:
       group: aorus-windows-runner
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Power off AORUS
         if: needs.wake-aorus.outputs.cold_woke == 'true'
         run: tools/aorus.sh off
