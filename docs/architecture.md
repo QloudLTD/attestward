@@ -42,7 +42,7 @@ architecture; it is updated in the same PR as any change that affects it.
 
 ```
 /cmd/attestward/          # main
-/internal/collect/        # collector interface + github/ implementation
+/internal/collect/        # collector interface + github/, azuredevops/ implementations
 /internal/model/          # evidence, check, finding types (versioned schema)
 /internal/mapping/        # YAML loader, rollup logic
 /internal/report/         # md/html/poam renderers (go templates)
@@ -65,7 +65,8 @@ Recorded as ADRs in [docs/adr/](adr/). Summary:
   mappings and scanner signatures live in versioned YAML; community extensions never touch Go.
 - **Read-only, local-first, zero telemetry** ([ADR-0004](adr/0004-read-only-local-first.md)).
 - **Collector interface as the platform seam** ([ADR-0005](adr/0005-collector-interface-seam.md)) —
-  Azure DevOps / GitLab slot in behind the same interface in v0.2+.
+  Azure DevOps slots in behind the same interface per the v0.2 Azure DevOps epic
+  (#34, see below) — ships in the next tagged release; GitLab remains backlog (issue #35).
 
 ## Collector contract
 
@@ -80,6 +81,67 @@ type Collector interface {
 - Platform-specific code stays behind the interface.
 - Each collector is independently unit-tested against recorded API fixtures.
 
+## Azure DevOps (`internal/collect/azuredevops/`)
+
+A second platform behind the same `collect.Collector` seam (ADR-0005; the v0.2 Azure
+DevOps epic, issue #34): full C01–C10 parity, same check IDs, `not-checkable` with an
+honest, specific reason wherever Azure DevOps has no equivalent control — ships in the
+next tagged release. Package tree:
+
+```
+/internal/collect/azuredevops/
+  client.go, transport.go, ratelimit.go, plangate.go   # foundation
+  adofixture/          # recorded-response test harness (twin of github/'s ghfixture)
+  orgsecurity/         # C01
+  repoprotection/      # C02
+  envseparation/       # C03
+  secretshygiene/      # C04 (+ ADO-only C04.vars.secret-hygiene)
+  pipelinehistory/     # shared pipeline discovery + YAML scanner-signature matching,
+                       # used by sasthistory, scahistory, provenance, pipelinesecurity
+  sasthistory/         # C05
+  scahistory/          # C06
+  provenance/          # C07
+  pipelinesecurity/    # C08 (+ ADO-only C08.pipelines.fork-protection)
+  auditlogging/        # C09
+  vdp/                 # C10
+```
+
+**Multi-host client.** Unlike GitHub's single `api.github.com`, one Azure DevOps scan
+spreads across four hosts, each a `HostXxx` constant in `client.go`: `dev.azure.com`
+(`HostCore` — projects, repositories, pipelines, builds; most collector traffic),
+`vssps.dev.azure.com` (`HostGraph` — org membership/Graph; no scope-introspection
+analog to GitHub's `X-OAuth-Scopes` exists here), `advsec.dev.azure.com` (`HostAdvSec`
+— GitHub Advanced Security for Azure DevOps, GHAzDO, licensed per active committer
+with no free tier), and `auditservice.dev.azure.com` (`HostAudit` — the Audit Log API,
+available only for Azure AD/Entra-backed organizations). `Provenance.Endpoint` and the
+`adofixture` recorded-response cache key both carry host, not just path, since a bare
+path (e.g. `/{org}/_apis/projects`) would otherwise be ambiguous about which of the
+four it went to.
+
+Authentication is HTTP Basic (`Authorization: Basic base64(":"+pat)` — empty username,
+the PAT as password), not GitHub's Bearer token: a different scheme injected by the
+same single `provenanceTransport` choke point (`transport.go`) that also rejects any
+request whose method isn't `GET`/`HEAD`, before auth injection or the network call —
+ADR-0004's read-only guard, ported to this package (not shared with the GitHub
+client's own copy) per ADR-0005's sibling-implementations framing.
+
+**Rate limiting** (`ratelimit.go`) honors Azure DevOps's TSTU (**Azure DevOps
+throughput unit** — Microsoft's own term, an abstract blend of database/compute/storage
+load, not an acronym for a literal "time" unit) model, which differs from GitHub's
+primary/secondary limits on a structural
+axis, not just header names: a **delay** (HTTP 200 — the request still succeeds,
+`Retry-After` asks the caller to slow down before its *next* request) and a **block**
+(HTTP 429, error code `TF400733` — retried in place, bounded, before surfacing as an
+error) are already distinguished by status code alone, with no response-header
+inspection needed the way telling GitHub's two tiers apart requires.
+
+**Plan-gating** (`plangate.go`): `IsAdvSecGated`/`IsAuditGated` name the response(s) a
+collector treats as "this feature isn't licensed/available for this org" on the
+`HostAdvSec`/`HostAudit` surfaces respectively — mirroring `internal/collect/github`'s
+own `IsPlanGated`. Several of these paths were only confirmed against a real org
+during S9 (issue #155, 2026-07-23); see `docs/threat-model.md` and issue #190 for what
+that live run settled versus what's still an open, honestly-hedged assumption.
+
 ## Evidence provenance
 
 Every `CheckResult` stores:
@@ -90,6 +152,16 @@ Every `CheckResult` stores:
   contain sensitive content)
 - A minimal extracted fact set (only the fields the check needs)
 - Check status: `verified-pass | verified-fail | partial | self-attested | not-checkable`
+
+`CheckResult.Scope` (`model.ScopeRef`) and `EvidencePack.Scope` (`model.ScanScope`) both
+additionally carry `Platform` (`"github"` or `"azuredevops"`) and `Project` (the Azure
+DevOps project name a scan is scoped to; always empty for a GitHub scan, which has no
+equivalent concept) — additive/optional fields (the v0.2 Azure DevOps epic, issue #34)
+requiring no `SchemaVersion` bump per the versioning policy below. The scan orchestrator, not each
+collector, stamps both fields from the scan's own resolved config, so every result from
+one scan — including the not-checkable ones the orchestrator synthesizes itself — is
+attributed consistently rather than trusting N collector implementations across two
+platforms to each remember to set them.
 
 Tokens are never stored. Anything secret-shaped is scrubbed defensively before persistence.
 
@@ -139,9 +211,9 @@ apart silently.
 `goreleaser` (build-time). Avoid heavyweight frameworks. Every new dependency needs
 justification in the PR description.
 
-## Explicitly out of scope for v0.1
+## Explicitly out of scope for v0.1 (Azure DevOps is covered by the v0.2 epic — see above)
 
-- Azure DevOps, GitLab, Bitbucket collectors (v0.2+ — the interface is the seam)
+- GitLab, Bitbucket collectors (backlog — issue #35 — the interface is the seam)
 - Any hosted service, web UI, database, telemetry
 - Auto-remediation or write operations of any kind
 - Filling/submitting the actual CISA form; RSAA integration

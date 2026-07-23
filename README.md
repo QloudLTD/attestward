@@ -229,6 +229,56 @@ what the token couldn't read (diffing the degraded pack against the full one sho
 silently wrong verified result), and only a token that can't see the target account at
 all fails preflight outright.
 
+### Azure DevOps: required token scopes
+
+`attestward scan --platform azuredevops` reads `AZURE_DEVOPS_EXT_PAT` from the
+environment instead of `GITHUB_TOKEN` (the az-CLI convention, chosen for zero-friction
+reuse in an existing az-CLI setup) — never a CLI flag, never persisted, see
+[docs/threat-model.md](docs/threat-model.md). `--project <name>` is required for this
+platform (rejected for GitHub scans); `--repo` is also required — there is no
+Azure DevOps repo-listing support yet (a fast follow), so omitting it errors asking for
+it explicitly rather than silently scanning nothing:
+
+```bash
+export AZURE_DEVOPS_EXT_PAT=<pat>
+attestward scan --platform azuredevops --org my-org --project my-project \
+  --repo my-repo --out ./evidence/
+```
+
+| Collector | Minimum scope |
+|-----------|----------------|
+| `org-security` (C01) | `vso.graph` — *Graph (read)* — plus `vso.project` — *Project and Team (read)* — for the members-can-create-public check's own Projects - List call |
+| `repo-protection` (C02) | `vso.code` — *Code (read)* |
+| `env-separation` (C03) | `vso.environment_manage` — *Environment (read & manage)*: Azure DevOps documents no lower-privilege, read-only variant for the Environments - List endpoint this check depends on at all — plus `vso.build` — *Build (read)* — for the environment's check configurations (Approval/Task Check) |
+| `secrets-hygiene` (C04) | `vso.advsec` — *Advanced Security (read)* — for GHAzDO enablement state — plus `vso.variablegroups_read` — *Variable Groups (read)* — for the ADO-only variable-group secret-hygiene check |
+| `sast-history` (C05) | `vso.build` + `vso.code` — *Build/Code (read)* — for pipeline discovery and YAML content — plus `vso.advsec` — *Advanced Security (read)* — for GHAzDO CodeQL default-setup state |
+| `sca-history` (C06) | `vso.build` + `vso.code` — *Build/Code (read)* — plus `vso.advsec` — *Advanced Security (read)* — for GHAzDO dependency-scanning-injection state and dependency-scanning alerts |
+| `provenance` (C07) | `vso.build` + `vso.code` — *Build/Code (read)* |
+| `pipeline-security` (C08) | `vso.serviceendpoint` — *Service Connections (read)* — for the OIDC-vs-static-credentials check — plus `vso.build` — *Build (read)* — for the self-hosted check's Pipelines - List/Definitions - Get calls — plus `vso.project` — *Project and Team (read)* — for the pipeline general-settings-backed token-permissions and fork-protection checks |
+| `audit-logging` (C09) | `vso.auditlog` — *Audit Log (read)* — plus `vso.project` — *Project and Team (read)* — to resolve the scanned project, and `vso.build`/`vso.code` — *Build/Code (read)* — for the per-project service-hook-subscription (webhooks) check |
+| `vdp` (C10) | `vso.code` — *Code (read)* — for SECURITY.md content |
+
+This table's scope names and the `vso.environment_manage` no-read-only-variant caveat
+were verified against Microsoft's own [OAuth scopes
+reference](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth)
+and each collector's own `TokenScope` documentation
+([docs/checks-reference.md](docs/checks-reference.md)'s `azuredevops` subsections). As
+on the GitHub side, scanning with a broader token than a check needs still works — the
+check just doesn't need the extra access it was given; there is no ADO analog of
+GitHub's write-scope warning (`HasWriteScope`) — Azure DevOps has no scope-introspection
+endpoint this tool could call to detect it (issue #34's own scope note).
+
+**Live-validated 2026-07-23** against the real `dev.azure.com/seciq` organization
+(issue #155's S9 harness): a single PAT carrying the scope set documented in this
+table produced a full scan whose every one of 81 results matched the demo project's
+expected outcomes (`fixtures-ado.yaml`) — note this set is not uniformly read-only:
+`vso.environment_manage` is manage-level, since (as its own row above says) no
+lower-privilege scope exists for the endpoint it backs. The same honesty this
+document's GitHub token table already states applies identically here: this proves
+the scope set is *sufficient* as a whole, not that each row is individually
+*necessary* — the token carried its full set at once, so per-row minimums were not
+individually exercised.
+
 ## Verifying an evidence pack
 
 Every scan hashes and hash-verifies itself, always, whether or not you sign anything:

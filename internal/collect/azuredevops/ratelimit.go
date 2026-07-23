@@ -19,9 +19,12 @@ const maxRateLimitRetries = 5
 var ErrRateLimited = fmt.Errorf("collect/azuredevops: rate limit exceeded after %d retries", maxRateLimitRetries)
 
 // rateLimitTransport wraps an http.RoundTripper and honors Azure DevOps's
-// TSTU (Time to Service Time Unit) rate-limit model — 200 TSTUs per sliding
-// 5-minute window — which differs from GitHub's primary/secondary limits on
-// a structural axis, not just in header names:
+// TSTU rate-limit model — TSTU is Microsoft's own term, "Azure DevOps
+// throughput unit" (an abstract blend of database/compute/storage load, not
+// an acronym for a literal "time" unit — see
+// https://learn.microsoft.com/en-us/azure/devops/integrate/concepts/rate-limits),
+// 200 TSTUs per sliding 5-minute window — which differs from GitHub's
+// primary/secondary limits on a structural axis, not just in header names:
 //
 //   - GitHub signals both of its limits the same way — a failed request
 //     (403/429) — and the transport tells them apart after the fact by

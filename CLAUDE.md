@@ -8,8 +8,8 @@ an issue.
 
 `attestward` (CLI binary; product name **Attestward**, see [DECISIONS.md](DECISIONS.md)
 D1) is a read-only CLI that verifies the technical controls behind the CISA SSDA form
-against a GitHub org/repo and emits a signed evidence pack. Full mission and rationale:
-[README.md](README.md).
+against a GitHub org/repo or Azure DevOps project and emits a signed evidence pack.
+Full mission and rationale: [README.md](README.md).
 
 Status: **v0.1.0 released** (2026-07-21, tag at `fa3c4cf` — archives for five
 platforms with a cosign keyless-signed `checksums.txt`, verified from a machine other
@@ -48,6 +48,8 @@ accuracy standard that does (every signature backed by a real fixture workflow).
 | `tools/progress/` | Local-only build-progress dashboard (issue #37) — dev convenience, not shipped, not hosted, not linked from README |
 | `hack/demo-org-setup.sh` | Idempotent setup script for the public demo org (`Qloud-LTD`) the integration test scans — see DECISIONS.md's D5 |
 | `fixtures.yaml` | Expected check status per check per demo repo — the integration test's assertion table; grows as C05–C10 land |
+| `hack/demo-ado-setup.sh` | Azure DevOps twin of `demo-org-setup.sh` (issue #155) — idempotent REST 7.1 setup script for the `attestward-demo` project on `dev.azure.com/seciq` |
+| `fixtures-ado.yaml` | Azure DevOps twin of `fixtures.yaml` (issue #155) — all 81 entries captured from the definitive 2026-07-23 live scan, kept as a separate file so `fixtures.yaml`/its integration test stay untouched |
 
 Work is tracked entirely in [GitHub Issues](../../issues) — see the
 [v0.1 epic (#1)](../../issues/1) for the full build plan across Phases 0–6. There is no
@@ -145,10 +147,19 @@ lapsed — this is now active work)
 - [ ] #34 Azure DevOps — epic implementation phase COMPLETE (2026-07-23): stories
   S1–S8 all closed (#148–#154, #156), all ten collectors live on both platforms, 94
   registered checks, 18 collector-phase PRs each through independent session-level
-  review. Open review-spawned follow-ups: #166/#176/#178/#179/#181/#184. Only S9
-  (#155, demo org + integration + docs) remains, gated on the two owner decisions on
-  #34 (ADO demo-org provisioning, GHAzDO licensing); the accumulated [fixture-verify]
-  ledger resolves there. Do not tag v0.2.0's successor until S9 lands. ·
+  review. S9 (#155)'s harness merged and live-proven (PR #188, 2026-07-23):
+  hack/demo-ado-setup.sh ran live against dev.azure.com/seciq (found + fixed 5 real
+  bugs across two review rounds), the definitive 81-result fixture capture is in
+  fixtures-ado.yaml, `TestIntegration_ADODemoOrgMatchesFixtures` passed live against
+  the real org, `integration-scan-ado` is wired into CI. S9's docs pass
+  (architecture.md, README token table, threat-model coverage, this tracker) is the
+  companion PR to this commit; once it merges, #155's full scope is done and it will
+  be closed manually with the evidence recorded on it (session convention — no
+  closing keywords in PR bodies/commits). After that, only #190 (retire the
+  [fixture-verify] ledger with the recorded seciq answers) plus review-spawned
+  follow-ups #166/#176/#178/#179/#181/#184 remain open under this
+  epic — both are chores against an already-shipped, live-proven feature, not gates
+  on it. ·
   #35 GitLab/SLSA/VEX
 
 **v1.0 milestone**
