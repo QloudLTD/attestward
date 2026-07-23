@@ -12,6 +12,13 @@ name: Integration scan (demo org)
 # workflow's DEMO_ORG_PAT/schedule rather than living in ci.yaml: signing a
 # real pack needs a real org to scan, and testing it on every PR would add
 # real latency/cost to a leaf feature, not core check logic.
+#
+# A third job, integration-scan-ado (issue #155, epic #34's v0.2 Azure
+# DevOps parity work), is that same API-drift tripwire's Azure DevOps twin:
+# scans the ADO demo project and asserts against fixtures-ado.yaml. It has
+# no `needs:` on integration-scan — GitHub and Azure DevOps drift are
+# independent failure modes, so one platform's outage/token expiry must
+# never block the other platform's job from running or reporting.
 
 on:
   schedule:
@@ -21,11 +28,11 @@ on:
 permissions:
   contents: read
 
-# Both jobs run on the self-hosted Mac mini (spyros-mac-mini-ssdf) rather
-# than a GitHub-hosted runner — plain Go tooling plus cosign, no OS-specific
-# execution requirement (see ci.yaml's matching comment). id-token: write
-# below still works identically on a self-hosted runner: GitHub's Actions
-# service mints the OIDC token, not the runner itself.
+# All three jobs run on the self-hosted Mac mini (spyros-mac-mini-ssdf)
+# rather than a GitHub-hosted runner — plain Go tooling plus cosign, no
+# OS-specific execution requirement (see ci.yaml's matching comment).
+# id-token: write below still works identically on a self-hosted runner:
+# GitHub's Actions service mints the OIDC token, not the runner itself.
 jobs:
   integration-scan:
     runs-on: [self-hosted, macOS]
@@ -138,3 +145,74 @@ jobs:
           ./attestward verify ./evidence \
             --verify-args="--certificate-identity-regexp=^https://github.com/sioakim/attestward/\.github/workflows/integration-scan\.yaml@refs/heads/main$" \
             --verify-args="--certificate-oidc-issuer=https://token.actions.githubusercontent.com"
+
+  # Azure DevOps twin of integration-scan above (issue #155). Deliberately
+  # has no `needs:` on integration-scan: GitHub and Azure DevOps drift are
+  # independent failure modes, so this job runs regardless of whether the
+  # GitHub job passed, failed, or is still running.
+  integration-scan-ado:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write # only for the on-failure pinned-issue step below; never writes to the scanned ADO project itself (ADR-0004: attestward never mutates a scanned target)
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Run integration test against the ADO demo project
+        env:
+          AZURE_DEVOPS_EXT_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
+        run: |
+          # Same missing-secret tripwire as the integration-scan job above
+          # — TestIntegration_ADODemoOrgMatchesFixtures' own "skip cleanly
+          # without a token" behavior is correct for local runs, but must
+          # not let a missing CI secret make this drift tripwire go green
+          # while never actually checking anything.
+          if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
+            echo "::error::AZURE_DEVOPS_EXT_PAT secret is not set — see CONTRIBUTING.md's PAT provisioning section" >&2
+            exit 1
+          fi
+          go test -tags integration ./cmd/attestward/... -run TestIntegration_ADODemoOrgMatchesFixtures -v
+
+      - name: Open or update the ADO drift-tripwire issue on failure
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = "Integration scan drift: ADO demo project no longer matches fixtures-ado.yaml";
+            const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `The scheduled integration scan against the Azure DevOps demo project (issue #155) failed.\n\nThis usually means either a real regression in an azuredevops collector, or Azure DevOps's API behavior drifted out from under an assumption a collector makes.\n\nFailed run: ${runURL}\n\nClose this issue once the drift is understood and either the collector or \`fixtures-ado.yaml\` is fixed to match.`;
+            // A DISTINCT label from the GitHub job's "integration-drift":
+            // both jobs' failure-tracking steps only look at the FIRST open
+            // issue carrying their label, with no other disambiguation — if
+            // this job reused "integration-drift", an ADO-only failure
+            // could land as a comment on an unrelated, already-open GitHub
+            // drift issue (or vice versa) instead of getting its own thread.
+            const label = "integration-drift-ado";
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+            });
+
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body: `Still failing as of ${runURL}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }
