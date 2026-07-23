@@ -410,11 +410,29 @@ type auditStreamRaw struct {
 	Status       auditStreamStatus `json:"status"`
 }
 
-// checkLogStreaming queries GET .../_apis/audit/streams — the response is a
-// bare JSON array (AuditStream[]), not the {count,value} list envelope
-// GetJSON expects (see internal/collect/azuredevops's own page doc comment:
-// "the audit-service family doesn't even share this shape"), so this uses
-// GetJSONObject decoding straight into a slice instead.
+// checkLogStreaming queries GET .../_apis/audit/streams via GetJSON, the
+// same generic {count,value}-envelope decode path every other documented
+// list endpoint in this project goes through.
+//
+// Corrected in review (issue #154/#155): an earlier version of this
+// function decoded straight into a bare `[]auditStreamRaw` via
+// GetJSONObject, on the theory (recorded in internal/collect/azuredevops's
+// own now-corrected page doc comment) that "the audit-service family
+// doesn't even share this shape." That was an unhedged assertion, not a
+// tagged [fixture-verify] guess — stated as settled fact with no caveat
+// at all — and it was still wrong: a live scan against a real
+// Entra-backed org proved it false. The first real recorded response —
+// `GET auditservice.dev.azure.com/{org}/_apis/audit/streams` →
+// `{"count":0,"value":[]}` — is the ordinary envelope, and the bare-array
+// assumption was producing a decode error (surfacing as not-checkable,
+// "cannot unmarshal object into Go value of type []auditlogging.auditStreamRaw")
+// on literally every real org, including the simplest zero-streams case,
+// which this check's own rubric says should read verified-fail. Contrast
+// this with auditStreamStatus's own ordinal-vs-string ambiguity, which
+// DOES carry a genuine [fixture-verify] tag — that one stays, since this
+// project still hasn't observed a POPULATED stream object to confirm
+// which form (or whether Azure DevOps even still uses the ordinal form at
+// all) a real stream's status field takes.
 //
 // This is the one check in this package whose result genuinely depends on
 // Azure DevOps organization state rather than being a fixed fact — see the
@@ -427,7 +445,7 @@ func (c *Collector) checkLogStreaming(ctx context.Context, org string) model.Che
 	query := url.Values{"api-version": {"7.1-preview.1"}}
 
 	var streams []auditStreamRaw
-	err := azuredevops.GetJSONObject(ctx, c.client, azuredevops.HostAudit, path, query, &streams)
+	err := azuredevops.GetJSON(ctx, c.client, azuredevops.HostAudit, path, query, &streams)
 	prov := tailProvenance(c.client.Provenance(), start)
 	if err != nil {
 		return model.CheckResult{

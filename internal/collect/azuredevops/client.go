@@ -114,9 +114,21 @@ func (c *Client) Provenance() []model.Provenance {
 // for a body-level continuation signal: every documented list host this
 // project has verified (dev.azure.com core and vssps.dev.azure.com Graph)
 // signals pagination via the X-MS-ContinuationToken response header
-// instead, not a body field, and the audit-service family doesn't even
-// share this {count,value} shape — it gets its own decode logic when S8
-// (issue #154) needs it, not this generic path.
+// instead, not a body field.
+//
+// Corrected in review (issue #154/#155): an earlier version of this
+// comment claimed "the audit-service family doesn't even share this
+// {count,value} shape," used to justify decoding auditlogging's Streams -
+// List response as a bare JSON array. A live scan against a real
+// Entra-backed org proved that claim false — a recorded
+// `GET auditservice.dev.azure.com/{org}/_apis/audit/streams` response came
+// back as `{"count":0,"value":[]}`, the same envelope every other
+// documented list endpoint this project has verified uses. auditlogging's
+// checkLogStreaming now goes through this same generic path (GetJSON)
+// rather than its own bespoke bare-array decode — see that package's own
+// doc comment for the corrected history. Nothing else in this codebase
+// assumed the audit-service family was an exception, so this comment is
+// the only place that claim needed retracting.
 type page[T any] struct {
 	Count             int    `json:"count"`
 	Value             []T    `json:"value"`

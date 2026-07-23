@@ -90,6 +90,25 @@
 //     actually determines this check's verdict could be sitting on a page
 //     this collector never fetches.
 //
+//     Also found in review (issue #154/#155's live audit-streams bug):
+//     this function used to decode the alerts response as a bare JSON
+//     array on the strength of Microsoft's own REST reference alone,
+//     citing auditlogging's checkLogStreaming as an identical precedent —
+//     a live scan proved checkLogStreaming's own identically-sourced
+//     bare-array assumption (asserted with no hedge at all, not a tagged
+//     guess) false: the real response was the ordinary {count,value}
+//     envelope. Since this endpoint's real response has never been
+//     observed at all (the live demo org 400s here, unlicensed for
+//     GHAzDO), documentation alone is no longer trusted for it either:
+//     fetchActiveCriticalDependencyAlerts now decodes tolerantly (bare
+//     array first, {count,value} envelope as a fallback, with the same
+//     count>0-but-empty-value wrong-envelope sanity guard
+//     azuredevops.GetJSON itself applies) via its own alertsEnvelope
+//     type, rather than assuming either shape and risking the same
+//     silent decode-error-as-not-checkable failure mode on every real
+//     org — or, worse, a garbage response silently decoding to zero
+//     alerts and a false verified-pass.
+//
 //  5. Consuming pipelinehistory.MatchPipelines' skipped list from the
 //     start (issue #178, filed as a cross-platform completion item after
 //     C05 shipped without ever reading it): tool-configured filters

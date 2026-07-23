@@ -2,6 +2,7 @@ package scahistory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -35,19 +36,40 @@ type alertRaw struct {
 // the GitHub twin's "fetch every open alert, categorize client-side"
 // approach.
 //
-// The response shape is a bare JSON array (Alert[] per Microsoft's own REST
-// reference), not the {count,value} envelope azuredevops.GetJSON expects —
-// mirrors auditlogging's checkLogStreaming's identical situation for its
-// own bare-array AuditStream[] endpoint; this uses GetJSONObject decoding
-// straight into a slice instead, the same established pattern.
+// Response envelope: TOLERANT, not assumed bare (found in review, issue
+// #154/#155). This package's own comment used to claim the response is a
+// bare JSON array (Alert[] per Microsoft's own REST reference), citing
+// auditlogging's checkLogStreaming as precedent for that exact pattern —
+// but a live scan proved checkLogStreaming's identical bare-array
+// assumption (also sourced from Microsoft's own REST reference for ITS
+// endpoint) false: the real response was the ordinary {count,value}
+// envelope. Microsoft's REST reference generator has now been observed to
+// state a bare-array response type for at least one endpoint whose real
+// runtime behavior wraps results in the envelope instead, so a second
+// endpoint's identically-worded reference table entry is no longer strong
+// enough evidence on its own — especially since this specific endpoint's
+// populated (or even just real, unlicensed-org) response has never been
+// observed at all (the live demo org 400s here, unlicensed for GHAzDO
+// Advanced Security, so this exact shape question is still on issue
+// #34/#155's S9 verify list, not resolved by this fix). alertsEnvelope's
+// UnmarshalJSON tries the bare-array shape first (matching the
+// documented type) and falls back to the {count,value} envelope,
+// applying the same count>0-but-empty-value wrong-envelope sanity guard
+// azuredevops.GetJSON itself applies (see its own doc comment) — a third
+// shape (e.g. a "count" key alongside anything other than a "value" key)
+// or a mismatched count must not silently decode to zero alerts, which
+// would otherwise read as a clean verified-pass over what's actually a
+// decoding failure. Whichever real shape this endpoint turns out to use,
+// this call decodes it rather than erroring the way checkLogStreaming
+// silently did on every real org.
 //
 // Pagination (a continuationToken query parameter / x-ms-continuationtoken
 // response header pair the same List operation documents) is not followed
-// here, matching that same auditStreams precedent: an org's currently
-// active, critical-severity, dependency-only alert count is expected to be
-// small enough in practice that a single page suffices. If a real scan
-// target ever proves that assumption wrong, extending this to page is this
-// check's own follow-up, not a correctness bug silently accepted here.
+// here: an org's currently active, critical-severity, dependency-only
+// alert count is expected to be small enough in practice that a single
+// page suffices. If a real scan target ever proves that assumption wrong,
+// extending this to page is this check's own follow-up, not a correctness
+// bug silently accepted here.
 //
 // [fixture-verify, issue #34/#155's S9 verify list] A real false-pass edge
 // this single-page assumption creates: no orderBy is set here, so results
@@ -70,11 +92,57 @@ func fetchActiveCriticalDependencyAlerts(ctx context.Context, client *azuredevop
 		"api-version":         {"7.2-preview.1"},
 	}
 
-	var raw []alertRaw
-	if err := azuredevops.GetJSONObject(ctx, client, azuredevops.HostAdvSec, path, query, &raw); err != nil {
+	var envelope alertsEnvelope
+	if err := azuredevops.GetJSONObject(ctx, client, azuredevops.HostAdvSec, path, query, &envelope); err != nil {
 		return nil, err
 	}
-	return raw, nil
+	return envelope.Alerts, nil
+}
+
+// alertsEnvelope decodes fetchActiveCriticalDependencyAlerts' response
+// tolerantly — see that function's own doc comment for why neither shape
+// is trusted on documentation alone. Tried in this order: a bare JSON
+// array first (matching Microsoft's own documented Alert[] response
+// type), then the ordinary {"count":N,"value":[...]} envelope every other
+// verified ADO list endpoint in this project actually uses — Count is
+// decoded (not ignored) specifically to apply the same wrong-envelope
+// sanity guard azuredevops.GetJSON's own page[T] does: a response
+// reporting count>0 alongside an empty (or absent, e.g. a differently-
+// keyed third shape like {"count":2,"alerts":[...]}) value array is an
+// error, not zero alerts — silently reading that as "zero alerts" would
+// turn a decoding failure into a false verified-pass.
+type alertsEnvelope struct {
+	Alerts []alertRaw
+}
+
+func (e *alertsEnvelope) UnmarshalJSON(data []byte) error {
+	var bare []alertRaw
+	bareErr := json.Unmarshal(data, &bare)
+	if bareErr == nil {
+		e.Alerts = bare
+		return nil
+	}
+
+	var enveloped struct {
+		Count int        `json:"count"`
+		Value []alertRaw `json:"value"`
+	}
+	envErr := json.Unmarshal(data, &enveloped)
+	if envErr != nil {
+		// Both decode attempts failed — include both errors, not just the
+		// envelope path's (found in review): if data is array-shaped but
+		// one element is malformed, bareErr names the real problem (e.g.
+		// a field type mismatch on a specific element) while envErr is
+		// just "cannot unmarshal array into Go struct value," a
+		// misleading "neither shape matched" message that would mask the
+		// actually-useful error.
+		return fmt.Errorf("collect/azuredevops/scahistory: alerts response decoded as neither a bare array (%v) nor a {count,value} envelope (%v)", bareErr, envErr)
+	}
+	if enveloped.Count > 0 && len(enveloped.Value) == 0 {
+		return fmt.Errorf("collect/azuredevops/scahistory: alerts response reported count %d but an empty value array — wrong envelope shape", enveloped.Count)
+	}
+	e.Alerts = enveloped.Value
+	return nil
 }
 
 // summarizeAlerts is a pure function: no I/O, so its count/age math is

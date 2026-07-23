@@ -51,7 +51,7 @@ func happyPathFixture() *adofixture.Transport {
 	})
 	fx.Set("GET", azuredevops.HostAudit, streamsPath(), adofixture.Response{
 		Status: http.StatusOK,
-		Body:   []map[string]any{{"id": 1, "consumerType": "Splunk", "status": "enabled"}},
+		Body:   map[string]any{"count": 1, "value": []map[string]any{{"id": 1, "consumerType": "Splunk", "status": "enabled"}}},
 	})
 	fx.Set("GET", azuredevops.HostCore, projectPath(testProject), adofixture.Response{
 		Status: http.StatusOK,
@@ -206,7 +206,7 @@ func TestCollect_LogStreaming_ConsumerInputsNeverInFacts(t *testing.T) {
 	fx := happyPathFixture()
 	fx.Set("GET", azuredevops.HostAudit, streamsPath(), adofixture.Response{
 		Status: http.StatusOK,
-		Body: []map[string]any{
+		Body: map[string]any{"count": 1, "value": []map[string]any{
 			{
 				"id":           1,
 				"consumerType": "Splunk",
@@ -217,7 +217,7 @@ func TestCollect_LogStreaming_ConsumerInputsNeverInFacts(t *testing.T) {
 					"SplunkEventCollectorToken": sentinel,
 				},
 			},
-		},
+		}},
 	})
 
 	c := newCollector(fx)
@@ -248,11 +248,21 @@ func TestCollect_LogStreaming_ConsumerInputsNeverInFacts(t *testing.T) {
 	}
 }
 
+// TestCollect_LogStreaming_ZeroStreams_VerifiedFail is the regression test
+// for issue #154/#155's live-scan bug: this fixture body is the EXACT
+// response Azure DevOps recorded live against a real org with no streams
+// configured — `{"count":0,"value":[]}` — not a bare `[]`. The bare-array
+// fixture this test used before the fix happened to still decode
+// successfully under the old (wrong) bare-array-decoding code, masking the
+// bug entirely: a real org's true envelope response failed to decode as a
+// bare array (a decode error surfacing as not-checkable), so this
+// verified-fail path was never actually reached in production, even for
+// the simplest zero-streams case, until this fix.
 func TestCollect_LogStreaming_ZeroStreams_VerifiedFail(t *testing.T) {
 	fx := happyPathFixture()
 	fx.Set("GET", azuredevops.HostAudit, streamsPath(), adofixture.Response{
 		Status: http.StatusOK,
-		Body:   []map[string]any{},
+		Body:   map[string]any{"count": 0, "value": []map[string]any{}},
 	})
 
 	c := newCollector(fx)
@@ -270,10 +280,10 @@ func TestCollect_LogStreaming_AllDisabled_VerifiedFail(t *testing.T) {
 	fx := happyPathFixture()
 	fx.Set("GET", azuredevops.HostAudit, streamsPath(), adofixture.Response{
 		Status: http.StatusOK,
-		Body: []map[string]any{
+		Body: map[string]any{"count": 2, "value": []map[string]any{
 			{"id": 1, "consumerType": "Splunk", "status": "disabledBySystem"},
 			{"id": 2, "consumerType": "AzureEventGrid", "status": "disabledByUser"},
-		},
+		}},
 	})
 
 	c := newCollector(fx)
@@ -300,7 +310,7 @@ func TestCollect_LogStreaming_NumericStatus_DecodesAsEnabled(t *testing.T) {
 	fx := happyPathFixture()
 	fx.Set("GET", azuredevops.HostAudit, streamsPath(), adofixture.Response{
 		Status: http.StatusOK,
-		Body:   []map[string]any{{"id": 1, "consumerType": "Splunk", "status": 1}},
+		Body:   map[string]any{"count": 1, "value": []map[string]any{{"id": 1, "consumerType": "Splunk", "status": 1}}},
 	})
 
 	c := newCollector(fx)
@@ -344,7 +354,7 @@ func TestCollect_LogStreaming_MixedCaseEnabled_VerifiedPass(t *testing.T) {
 	fx := happyPathFixture()
 	fx.Set("GET", azuredevops.HostAudit, streamsPath(), adofixture.Response{
 		Status: http.StatusOK,
-		Body:   []map[string]any{{"id": 1, "consumerType": "Splunk", "status": "Enabled"}},
+		Body:   map[string]any{"count": 1, "value": []map[string]any{{"id": 1, "consumerType": "Splunk", "status": "Enabled"}}},
 	})
 
 	c := newCollector(fx)
