@@ -116,11 +116,11 @@ jobs:
       #     remains only until every release in the lookback window
       #     postdates it — same rolling-window logic as the tags-signed
       #     entry below.
-      #   - C07.release.tags-signed: same first-real-releases moment —
-      #     v0.1.0/v0.2.0 tags are annotated but unsigned; signing needs a
-      #     key-identity decision (D6/D8 family), tracked in issue #158.
-      #     Note: even after signing starts, this entry outlives it until
-      #     every tag in the 5-release/12-month window is signed.
+      #   - C07.release.tags-signed: v0.1.0/v0.2.0 tags are annotated but
+      #     unsigned; the key-identity decision is RESOLVED (DECISIONS.md
+      #     D12, issue #158) and tags are signed from v0.3.0 onward — this
+      #     entry outlives the fix until every tag in the 5-release/
+      #     12-month window is signed, then it comes off the list.
       - name: Evaluate gaps against the documented exception list
         if: always()
         run: |

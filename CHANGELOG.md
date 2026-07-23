@@ -6,6 +6,30 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-23
+
+### Added
+
+- **Azure DevOps support** (epic #34) — the full C01–C10 check matrix now runs against
+  Azure DevOps behind the same collector seam: `attestward scan --platform azuredevops
+  --org <org> --project <project> --repo <repo>...`, authenticated via
+  `AZURE_DEVOPS_EXT_PAT`. 94 registered checks across the two platforms: 46 mirrored
+  under the same check IDs (honest per-platform degradation where ADO has no
+  equivalent — every not-checkable carries a reason naming the exact platform gap),
+  plus two new ADO-only checks: `C04.vars.secret-hygiene` (plaintext sensitive-named
+  variables in variable groups) and `C08.pipelines.fork-protection`. Includes the
+  four-host read-only client (the same transport-level write rejection as GitHub's),
+  azure-pipelines scanner-signature matching, per-platform sections in
+  `docs/checks-reference.md`, an ADO token-scope table in the README (live-validated),
+  and a live-proven demo project with a weekly drift-scanning integration job. (The
+  first live scan found and fixed an audit-streams envelope decode bug within this
+  release's own dev cycle — no released version carried it.)
+- **SAST in CI** (#157): a pinned semgrep workflow scans the codebase on every push to
+  main, every PR, and weekly — registry-recognized, so the tool's own self-scan sees it.
+- **Signed release tags** (#158, DECISIONS.md D12): from v0.3.0 onward, release tags
+  are signed with a dedicated Ed25519 SSH key registered to the repository owner's
+  GitHub account.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added
@@ -63,6 +87,7 @@ Pre-1.0 caveat: CLI flags and output formats may still change between 0.x versio
   architecture doc, threat model, generated checks reference, ADRs, community health
   files, and a worked example pack from the public demo org in `examples/`.
 
-[Unreleased]: https://github.com/sioakim/attestward/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sioakim/attestward/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sioakim/attestward/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sioakim/attestward/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sioakim/attestward/releases/tag/v0.1.0

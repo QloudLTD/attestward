@@ -10,8 +10,8 @@
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
 **CLI binary:** `attestward`. **Product name:** Attestward (see [DECISIONS.md](DECISIONS.md) D1).
-**Status:** v0.1.0 released (see [CHANGELOG.md](CHANGELOG.md)); pre-1.0, so CLI flags
-and output formats may still change between 0.x versions.
+**Status:** pre-1.0, under active development — see [CHANGELOG.md](CHANGELOG.md) for
+the current release; CLI flags and output formats may still change between 0.x versions.
 **License:** [Apache-2.0](LICENSE)
 
 [![CI](https://github.com/sioakim/attestward/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/attestward/actions/workflows/ci.yaml)
@@ -73,7 +73,13 @@ report) plus a **gap analysis** and a **draft POA&M** for anything that fails.
    community can extend to other frameworks without touching Go.
 6. **Boring, auditable code.** Minimal dependencies, no clever magic, everything reviewable.
 
-## What v0.1 verifies (GitHub only)
+## What it verifies (GitHub and Azure DevOps)
+
+The same ten collectors run against both platforms under the same check IDs; where a
+platform has no equivalent for a control, the check reports `not-checkable` with a
+reason naming the exact gap rather than pretending. Per-platform detail for every
+check lives in [docs/checks-reference.md](docs/checks-reference.md); the table below
+describes each collector's GitHub-side surface (the original v0.1 scope).
 
 | ID | Collector | Verifies |
 |----|-----------|----------|
