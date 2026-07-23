@@ -11,12 +11,13 @@ D1) is a read-only CLI that verifies the technical controls behind the CISA SSDA
 against a GitHub org/repo or Azure DevOps project and emits a signed evidence pack.
 Full mission and rationale: [README.md](README.md).
 
-Status: **v0.1.0 released** (2026-07-21, tag at `fa3c4cf` — archives for five
-platforms with a cosign keyless-signed `checksums.txt`, verified from a machine other
-than the build host; evidence on #33). The repo stays private for
-now: the public flip and everything gated on it land with v1.0 (DECISIONS.md D7,
-issue #138). All v0.1 phases (0–6) are closed; open work is the v1.0 milestone and the
-post-v0.1 backlog — see **Progress tracker** below.
+Status: **v0.3.0 released** (2026-07-23 — Azure DevOps support (epic #34, ten
+collectors on both platforms), semgrep SAST, and the first signed + GitHub-verified
+release tag; verified from a clean machine). The repo stays private for now: the public
+flip and everything gated on it land with v1.0 (DECISIONS.md D7, issue #138). All v0.1
+phases (0–6) are closed, as is the v0.2 Azure DevOps epic; open work is the v1.0
+milestone, the hosted tier (separate repo `attestward-cloud`), and the post-v0.1
+backlog — see **Progress tracker** below.
 
 ## The one rule that overrides convenience
 
