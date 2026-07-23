@@ -142,8 +142,14 @@ lapsed — this is now active work)
   baseline attached to the v0.2.0 release; the first live run correctly caught two
   real gaps, tracked in #157 (no SAST covers releases) and #158 (unsigned release
   tags — needs a signing-identity decision))
-- [ ] #34 Azure DevOps — now an epic with nine stories (#148–#156; S1 in
-  implementation) · #35 GitLab/SLSA/VEX
+- [ ] #34 Azure DevOps — epic implementation phase COMPLETE (2026-07-23): stories
+  S1–S8 all closed (#148–#154, #156), all ten collectors live on both platforms, 94
+  registered checks, 18 collector-phase PRs each through independent session-level
+  review. Open review-spawned follow-ups: #166/#176/#178/#179/#181/#184. Only S9
+  (#155, demo org + integration + docs) remains, gated on the two owner decisions on
+  #34 (ADO demo-org provisioning, GHAzDO licensing); the accumulated [fixture-verify]
+  ledger resolves there. Do not tag v0.2.0's successor until S9 lands. ·
+  #35 GitLab/SLSA/VEX
 
 **v1.0 milestone**
 - Hosted tier (commercial, separate from the OSS CLI; DECISIONS.md D4): #121 portfolio
