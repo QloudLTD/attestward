@@ -189,8 +189,9 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	// and vdp, plus azuredevops' own orgsecurity, repoprotection (both
 	// issue #150, S4's two PRs), envseparation, secretshygiene (both issue
 	// #151, S5's two PRs), sasthistory, scahistory (both issue #152, S6's
-	// two collector PRs so far), provenance (issue #153, S7's first
-	// collector PR), and auditlogging, vdp (both issue #154, S8's two PRs),
+	// three collector PRs — pipelinehistory landed first), auditlogging,
+	// vdp (both issue #154, S8's two PRs), and provenance, pipelinesecurity
+	// (both issue #153, S7's two collector PRs, the epic's last story),
 	// transitively imported via scan.go) — not the disk-based loaders or
 	// synthetic fixtures the other tests in this file use, which would
 	// miss a broken //go:embed pattern, a renamed file, or a check
@@ -295,11 +296,24 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C07.release.signatures",
 		"C07.release.tags-signed",
 		"C07.release.tags-signed",
+		// C08's five shared checks are now registered under both platforms
+		// (issue #153, S7, its second and final ADO collector) — each ID
+		// sorts next to its own duplicate, the same azuredevops-before-github
+		// ordering as C05/C07/C09/C10 above. C08.pipelines.fork-protection is
+		// azuredevops-only (no GitHub twin — the adjacent real control where
+		// pull_request_target has no ADO equivalent), so it appears once,
+		// sorting last among the C08 entries ("actions" < "pipelines").
+		"C08.actions.oidc-vs-secrets",
 		"C08.actions.oidc-vs-secrets",
 		"C08.actions.pinned",
+		"C08.actions.pinned",
+		"C08.actions.pull-request-target",
 		"C08.actions.pull-request-target",
 		"C08.actions.self-hosted",
+		"C08.actions.self-hosted",
 		"C08.actions.token-permissions",
+		"C08.actions.token-permissions",
+		"C08.pipelines.fork-protection",
 		// C09's four checks are now registered under both platforms (issue
 		// #154, S8, the first ADO collector landed) — each ID sorts next
 		// to its own duplicate (azuredevops before github, since rows are
@@ -353,22 +367,29 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 // unlike the narrower per-group predecessors of this test. The
 // found-count assertion guards against this silently covering zero
 // checks if the registry were ever emptied by an import change. The count
-// grew from 46 to 88 across issues #150 (S4, two PRs: C01 then C02), #151
-// (S5, two PRs: C03 then C04), #152 (S6, two collector PRs so far: C05
-// then C06), #153 (S7, its first collector PR: C07), and #154 (S8, two
+// grew from 46 to 94 across issues #150 (S4, two PRs: C01 then C02), #151
+// (S5, two PRs: C03 then C04), #152 (S6, three collector PRs:
+// pipelinehistory landed first, then C05, then C06), #153 (S7, two
+// collector PRs: C07 then C08, the epic's last story), and #154 (S8, two
 // PRs: C09 then C10): azuredevops' own C01 org-security (4 checks), C02
 // repo-protection (6 checks), C03 env-separation (4 checks), C05
 // sast-history (4 checks), C06 sca-history (5 checks), C07 provenance (5
 // checks), C09 audit-logging (4 checks), and C10 vdp (4 checks) each
 // register the same check IDs their GitHub twins already do (issue #34's
 // check-identity model — same ID, per-platform metadata), each a distinct
-// (Platform, ID) registry entry. C04 secrets-hygiene is different: it
-// registers 6 checks, but only 5 mirror a GitHub twin (scanning-enabled,
-// push-protection, advanced-security, dependabot-alerts,
-// org-security-defaults) — the sixth, C04.vars.secret-hygiene, is
-// azuredevops-only with no GitHub twin at all (see its own package doc
-// comment), so it's a wholly new registry entry, not a second platform
-// for an existing one. Total: 46 + 4 + 6 + 4 + 6 + 4 + 5 + 5 + 4 + 4 = 88.
+// (Platform, ID) registry entry. C04 secrets-hygiene and C08
+// pipeline-security are different: each registers one more check than it
+// mirrors from a GitHub twin. C04 registers 6 checks, but only 5 mirror a
+// GitHub twin (scanning-enabled, push-protection, advanced-security,
+// dependabot-alerts, org-security-defaults) — the sixth,
+// C04.vars.secret-hygiene, is azuredevops-only with no GitHub twin at all
+// (see its own package doc comment). C08 registers 6 checks, but only 5
+// mirror a GitHub twin (pinned, token-permissions, pull-request-target,
+// oidc-vs-secrets, self-hosted) — the sixth, C08.pipelines.fork-protection,
+// is azuredevops-only with no GitHub twin at all (see its own package doc
+// comment). Both sixth checks are wholly new registry entries, not a
+// second platform for an existing one. Total:
+// 46 + 4 + 6 + 4 + 6 + 4 + 5 + 5 + 4 + 4 + 6 = 94.
 func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 	registered := collect.Registered()
 	for _, meta := range registered {
@@ -376,7 +397,7 @@ func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 			t.Errorf("%s (%s) has no Remediation text", meta.ID, meta.Title)
 		}
 	}
-	if len(registered) != 88 {
-		t.Fatalf("len(collect.Registered()) = %d, want 88 — did the registered check count change?", len(registered))
+	if len(registered) != 94 {
+		t.Fatalf("len(collect.Registered()) = %d, want 94 — did the registered check count change?", len(registered))
 	}
 }

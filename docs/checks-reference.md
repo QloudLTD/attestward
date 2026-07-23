@@ -8,7 +8,7 @@
 
 Source data:
 
-- SSDF mapping: NIST SP 800-218, mapping version `1.12.0`, retrieved 2026-07-13 — [https://csrc.nist.gov/pubs/sp/800/218/final](https://csrc.nist.gov/pubs/sp/800/218/final)
+- SSDF mapping: NIST SP 800-218, mapping version `1.13.0`, retrieved 2026-07-13 — [https://csrc.nist.gov/pubs/sp/800/218/final](https://csrc.nist.gov/pubs/sp/800/218/final)
 - CISA SSDA form mapping: mapping version `1.0.0`, retrieved 2026-07-13 — [https://www.cisa.gov/sites/default/files/2024-03/Self-Attestation-Common-Form-03082024-FINAL.pdf](https://www.cisa.gov/sites/default/files/2024-03/Self-Attestation-Common-Form-03082024-FINAL.pdf)
 
 No wall-clock generation timestamp is recorded here on purpose: this file is regenerated
@@ -1445,11 +1445,31 @@ This check is registered under more than one platform — details for each below
 
 ## C08.actions-security
 
-### `C08.actions.oidc-vs-secrets` — Cloud deployments use OIDC rather than long-lived static credentials
+### `C08.actions.oidc-vs-secrets`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Cloud deployments use workload identity federation or a managed identity, not long-lived static credentials
+
+- **Token permission:** vso.serviceendpoint (Endpoints - Get Service Endpoints)
+- **Fixture:** `internal/collect/azuredevops/pipelinesecurity/pipelinesecurity_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/serviceendpoint/endpoints?type=azurerm`
+
+**Status rubric:**
+
+- **verified-fail:** at least one azurerm service connection's authorization.scheme (case-insensitive) is serviceprincipal — Azure DevOps's own scheme name for a classic App Registration connection (client-secret- or certificate-backed; this collector doesn't distinguish the two — see the package doc comment), never OIDC/managed-identity
+- **partial:** no connection uses a confirmed long-lived-credential scheme, but at least one reports a scheme this collector doesn't recognize as either modern or a known static-secret scheme (including a missing/nil authorization) — not confirmed either way
+- **not-checkable:** the project's azurerm service connections couldn't be read (403/404/other API error); or no azurerm service connections exist in this project — nothing to evaluate
+- **verified-pass:** every azurerm service connection's authorization.scheme (case-insensitive) is workloadidentityfederation or managedserviceidentity
+
+**Remediation:** Convert each ServicePrincipal-scheme azurerm service connection to workload identity federation (Project Settings -> Service connections -> [connection] -> convert to workload identity federation) or a managed identity. If a connection's scheme isn't one this collector recognizes, review that connection's configuration directly.
+
+#### github — Cloud deployments use OIDC rather than long-lived static credentials
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1468,11 +1488,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C08.actions.pinned` — Third-party actions and reusable workflows are pinned to a full commit SHA
+### `C08.actions.pinned`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PW.4.1` (practice `PW.4`: Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality)
 - **CISA form cluster(s):** 2, 3
+
+#### azuredevops — Pipeline tasks are pinned to an immutable version, not a floating major version
+
+- **Token permission:** none — this check makes no API call of its own; Azure Pipelines has no task-SHA-pinning feature to query (see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/pipelinesecurity/pipelinesecurity_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure Pipelines resolves task references as Task@MajorVersion against org-installed task versions; there is no commit-SHA-pinning mechanism this tool could ever check for
+
+**Remediation:** No remediation applicable via this tool: Azure Pipelines resolves task references as Task@MajorVersion against org-installed task versions — there is no commit-SHA-pinning mechanism to move to. If task-version drift is a concern, pin to a specific major version explicitly (never omit the @version suffix) and review org-installed task version updates through Azure DevOps' own task management.
+
+#### github — Third-party actions and reusable workflows are pinned to a full commit SHA
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1491,11 +1528,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C08.actions.pull-request-target` — pull_request_target is not combined with checking out the PR head
+### `C08.actions.pull-request-target`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — No trigger combines base-pipeline privileges with untrusted fork checkout
+
+- **Token permission:** none — this check makes no API call of its own; Azure Pipelines has no pull_request_target-equivalent trigger to query (see its own doc comment)
+- **Fixture:** `internal/collect/azuredevops/pipelinesecurity/pipelinesecurity_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** always — Azure Pipelines has no trigger equivalent to GitHub's pull_request_target; see C08.pipelines.fork-protection for the adjacent real ADO control
+
+**Remediation:** No remediation applicable via this tool: Azure Pipelines has no pull_request_target-equivalent trigger to reconfigure. If fork pull requests can trigger a privileged build at all, see C08.pipelines.fork-protection instead.
+
+#### github — pull_request_target is not combined with checking out the PR head
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1514,11 +1568,30 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C08.actions.self-hosted` — Self-hosted runners are not exposed to public-repo pull requests
+### `C08.actions.self-hosted`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
 - **CISA form cluster(s):** 1, 2, 3
+
+#### azuredevops — Self-hosted agent pools are not exposed to public-project pull requests
+
+- **Token permission:** vso.build (Pipelines - List, Definitions - Get), vso.project (Projects - Get)
+- **Fixture:** `internal/collect/azuredevops/pipelinesecurity/pipelinesecurity_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/pipelines`, `GET dev.azure.com/{org}/{project}/_apis/build/definitions/{definitionId}`, `GET dev.azure.com/{org}/_apis/projects/{project}`
+
+**Status rubric:**
+
+- **partial:** the project is public, and at least one build definition targets a non-hosted pool, and/or at least one definition's pool could not be resolved (queue or queue.pool was absent from its own Definitions - Get response) — a public contributor's pull request is a potential path to a self-hosted pool, or this collector can't confirm otherwise. This check has no verified-fail outcome: self-hosted-pool exposure on a public project is only ever capped at partial, by design, mirroring the GitHub twin's own identical choice
+- **not-checkable:** the project's build definitions couldn't be listed or read (403/404/other API error), or the project's own visibility couldn't be read (403/404/other API error)
+- **verified-pass:** the project has zero build definitions at all (a definitive enumeration, not an evidence gap — a deliberate divergence from the GitHub twin's own zero-workflow-evidence not-checkable; see the package doc comment); or the project is private (the public-fork attack vector this check flags doesn't apply, regardless of any definition's own pool); or the project is public, but every build definition resolved to a Microsoft-hosted pool
+
+**Remediation:** Only moving affected build definitions to a Microsoft-hosted pool actually clears this check on a public project (it looks solely at queue.pool.isHosted, not at build-validation/branch- policy approval settings). Real-world exposure can also be reduced without changing this check's result: require approval for pull requests from non-team-members, or don't let those definitions build fork pull requests at all.
+
+#### github — Self-hosted runners are not exposed to public-repo pull requests
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1536,11 +1609,31 @@ This check is registered under more than one platform — details for each below
 
 ---
 
-### `C08.actions.token-permissions` — Workflows declare explicit, least-privilege GITHUB_TOKEN permissions
+### `C08.actions.token-permissions`
 
-- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
+This check is registered under more than one platform — details for each below.
+
 - **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development), `PW.6.2` (practice `PW.6`: Configure the Compilation, Interpreter, and Build Processes to Improve Executable Security)
 - **CISA form cluster(s):** 1, 2, 3, 4
+
+#### azuredevops — Pipeline job tokens are scoped to least privilege
+
+- **Token permission:** vso.project (General Settings - Get — verified against Microsoft's own REST reference, surprisingly not vso.build)
+- **Fixture:** `internal/collect/azuredevops/pipelinesecurity/pipelinesecurity_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/build/generalsettings`
+
+**Status rubric:**
+
+- **verified-fail:** none of enforceJobAuthScope, enforceJobAuthScopeForReleases, or enforceReferencedRepoScopedToken is enabled
+- **partial:** one or two, but not all three, of enforceJobAuthScope/enforceJobAuthScopeForReleases/enforceReferencedRepoScopedToken are enabled
+- **not-checkable:** the project's pipeline general settings couldn't be read (403/404/other API error)
+- **verified-pass:** enforceJobAuthScope, enforceJobAuthScopeForReleases, and enforceReferencedRepoScopedToken are all enabled
+
+**Remediation:** Project Settings -> Pipelines -> Settings: enable "Limit job authorization scope to current project" for both build and release pipelines (enforceJobAuthScope, enforceJobAuthScopeForReleases), and the setting restricting pipelines to only repositories they explicitly reference (enforceReferencedRepoScopedToken).
+
+#### github — Workflows declare explicit, least-privilege GITHUB_TOKEN permissions
+
+- **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
 
@@ -1557,6 +1650,29 @@ This check is registered under more than one platform — details for each below
 
 > **`PO.5.1`:** Separate and protect each environment involved in software development.
 > **`PW.6.2`:** Determine which compiler, interpreter, and build tool features should be used and how each should be configured, then implement and use the approved configurations.
+
+---
+
+### `C08.pipelines.fork-protection` — Fork pull request builds are protected from secret access and privilege escalation
+
+- **Token permission:** vso.project (General Settings - Get — same call as C08.actions.token-permissions)
+- **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
+- **CISA form cluster(s):** 1, 2, 3
+- **Fixture:** `internal/collect/azuredevops/pipelinesecurity/pipelinesecurity_test.go`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/build/generalsettings`
+
+**Status rubric:**
+
+- **verified-fail:** fork builds are enabled, and neither forkProtectionEnabled nor enforceNoAccessToSecretsFromForks is on — a fork's pull request can run pipeline jobs with no fork-specific protection at all (this collector's own interpretation of the zero-of-two case, not spelled out verbatim in issue #153 — see the package doc comment)
+- **partial:** fork builds are enabled, and exactly one of forkProtectionEnabled/enforceNoAccessToSecretsFromForks is on — a mixed, partially-protected configuration
+- **not-checkable:** the project's pipeline general settings couldn't be read (403/404/other API error)
+- **verified-pass:** fork builds are disabled entirely (buildsEnabledForForks is false, the attack vector this check flags is absent), or fork builds are enabled and both forkProtectionEnabled and enforceNoAccessToSecretsFromForks are on
+
+**Remediation:** Project Settings -> Pipelines -> Settings: either turn off builds from forked repositories entirely (buildsEnabledForForks), or turn on both fork-protection settings (forkProtectionEnabled and enforceNoAccessToSecretsFromForks) so a fork's pull request can't access secrets or escalate privilege during its build.
+
+**SSDF task text (verbatim from NIST SP 800-218):**
+
+> **`PO.5.1`:** Separate and protect each environment involved in software development.
 
 ---
 

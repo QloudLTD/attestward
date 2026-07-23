@@ -18,7 +18,7 @@
 # the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
 # see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
 
-version: "1.12.0"
+version: "1.13.0"
 
 source:
   title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
@@ -229,6 +229,7 @@ tasks:
         C04.vars.secret-hygiene,
         C08.actions.token-permissions,
         C08.actions.pull-request-target,
+        C08.pipelines.fork-protection,
         C08.actions.oidc-vs-secrets,
         C08.actions.self-hosted,
         C09.audit.org-log-available,

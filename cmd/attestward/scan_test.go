@@ -609,37 +609,39 @@ func TestBuildScanDeps_GitHubWiresRepoListerAndOrgChecker(t *testing.T) {
 
 // TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector proves the CLI
 // wiring layer actually reaches defaultAzureDevOpsCollectors: as of issues
-// #150 (S4, two PRs), #151 (S5, two PRs), #152 (S6, two collector PRs so
-// far: C05 then C06), #153 (S7, its first collector PR: C07), and #154
-// (S8, two PRs), an azuredevops scan gets every real collector landed so
-// far — C01 org-security, C02 repo-protection, C03 env-separation, C04
-// secrets-hygiene, C05 sast-history, C06 sca-history, C07 provenance, C09
-// audit-logging, and C10 vdp — replacing this same test's pre-#150
-// assertion that buildScanDeps refused the scan outright (see git history
-// for that version). repoLister/orgChecker stay nil regardless, since no
-// ADO implementation of either exists yet (see buildScanDeps' own doc
-// comment) — a real gap for repoprotection, vdp, sasthistory, scahistory,
-// secretshygiene, and provenance specifically, since all six are
-// project/repo-scoped ADO collectors that consult scope.Repos, but not one
-// buildScanDeps itself needs to close (repo resolution happens later, in
-// runScan; env-separation never consults scope.Repos at all). Asserting
-// all nine collector IDs (not just a non-zero count) catches
-// defaultAzureDevOpsCollectors silently dropping one of them, which a bare
-// len() check would miss.
+// #150 (S4, two PRs), #151 (S5, two PRs), #152 (S6, three collector PRs:
+// pipelinehistory landed first, then C05, then C06), #153 (S7, two
+// collector PRs: C07 then C08, the epic's last story), and #154 (S8, two
+// PRs), an azuredevops scan gets every real collector landed so far — the
+// epic's full set: C01 org-security, C02 repo-protection, C03
+// env-separation, C04 secrets-hygiene, C05 sast-history, C06 sca-history,
+// C07 provenance, C08 pipeline-security, C09 audit-logging, and C10 vdp —
+// replacing this same test's pre-#150 assertion that buildScanDeps refused
+// the scan outright (see git history for that version). repoLister/
+// orgChecker stay nil regardless, since no ADO implementation of either
+// exists yet (see buildScanDeps' own doc comment) — a real gap for
+// repoprotection, vdp, sasthistory, scahistory, and secretshygiene
+// specifically, since all five are project/repo-scoped ADO collectors
+// that consult scope.Repos, but not one buildScanDeps itself needs to
+// close (repo resolution happens later, in runScan; env-separation and
+// pipelinesecurity never consult scope.Repos at all). Asserting all ten
+// collector IDs (not just a non-zero count) catches
+// defaultAzureDevOpsCollectors silently dropping one of them, which a
+// bare len() check would miss.
 func TestBuildScanDeps_AzureDevOpsWiresOrgSecurityCollector(t *testing.T) {
 	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "proj"}, scanConfig{}, nil)
 	deps, err := buildScanDeps(cfg, "ado-pat", &bytes.Buffer{})
 	if err != nil {
 		t.Fatalf("buildScanDeps: %v", err)
 	}
-	if len(deps.collectors) != 9 {
-		t.Fatalf("azuredevops scanDeps has %d collectors, want exactly 9 (C01 org-security, C02 repo-protection, C03 env-separation, C04 secrets-hygiene, C05 sast-history, C06 sca-history, C07 provenance, C09 audit-logging, C10 vdp)", len(deps.collectors))
+	if len(deps.collectors) != 10 {
+		t.Fatalf("azuredevops scanDeps has %d collectors, want exactly 10 (C01 org-security, C02 repo-protection, C03 env-separation, C04 secrets-hygiene, C05 sast-history, C06 sca-history, C07 provenance, C08 pipeline-security, C09 audit-logging, C10 vdp)", len(deps.collectors))
 	}
 	gotIDs := map[string]bool{}
 	for _, c := range deps.collectors {
 		gotIDs[c.ID()] = true
 	}
-	for _, wantID := range []string{"C01.org-security", "C02.repo-protection", "C03.env-separation", "C04.secrets-hygiene", "C05.sast-history", "C06.sca-history", "C07.provenance", "C09.audit-logging", "C10.vdp"} {
+	for _, wantID := range []string{"C01.org-security", "C02.repo-protection", "C03.env-separation", "C04.secrets-hygiene", "C05.sast-history", "C06.sca-history", "C07.provenance", "C08.actions-security", "C09.audit-logging", "C10.vdp"} {
 		if !gotIDs[wantID] {
 			t.Errorf("azuredevops scanDeps.collectors missing %q, got %v", wantID, gotIDs)
 		}
