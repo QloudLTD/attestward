@@ -3,7 +3,7 @@ package azuredevops
 import (
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand" // nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used -- jitter timing, not a cryptographic use (same justification as the //nolint:gosec below)
 	"net/http"
 	"strconv"
 	"sync"

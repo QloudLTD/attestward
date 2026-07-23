@@ -112,11 +112,10 @@ jobs:
       #     doesn't exist yet — accepted and documented via a self-attested
       #     "no" for SA.audit-log-export-fallback instead (see
       #     self-attestation.yaml, DECISIONS.md D11, issue #106).
-      #   - C05.sast.ran-per-release: surfaced by the first self-scan with
-      #     real releases in the lookback window (v0.1.0/v0.2.0) — no
-      #     registry-recognized SAST covers them because CodeQL is
-      #     GHAS-gated until the public flip (#138); adopting an OSS SAST
-      #     sooner vs waiting is the owner's call, tracked in issue #157.
+      #   - C05.sast.ran-per-release: semgrep landed (#157); the exception
+      #     remains only until every release in the lookback window
+      #     postdates it — same rolling-window logic as the tags-signed
+      #     entry below.
       #   - C07.release.tags-signed: same first-real-releases moment —
       #     v0.1.0/v0.2.0 tags are annotated but unsigned; signing needs a
       #     key-identity decision (D6/D8 family), tracked in issue #158.
