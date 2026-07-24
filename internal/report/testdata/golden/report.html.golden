@@ -761,7 +761,8 @@
     }
 
     @page {
-      size: auto;
+       
+      size: Letter;
       margin: 15mm 14mm 17mm;
     }
 

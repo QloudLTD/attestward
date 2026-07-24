@@ -761,7 +761,10 @@
     }
 
     @page {
-      size: auto;
+      /* US Letter (8.5in × 11in) — this is a US federal compliance artifact
+         filed alongside the CISA SSDA form, so pin the sheet rather than
+         inheriting the reader's locale default (A4 elsewhere). */
+      size: Letter;
       margin: 15mm 14mm 17mm;
     }
 

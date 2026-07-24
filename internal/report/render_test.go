@@ -242,6 +242,29 @@ func TestRenderHTML_NoExternalReferences(t *testing.T) {
 	}
 }
 
+// TestRenderHTML_PrintsToUSLetter locks in that report.html paginates to US
+// Letter, not the reader's locale default. This is a US federal compliance
+// artifact filed alongside the CISA SSDA form; an @page that fell back to
+// `size: auto` would silently print A4 for anyone whose printer/PDF default
+// is A4, so the intent is pinned here explicitly rather than left to the
+// golden file (which would catch the change but not explain why it matters).
+func TestRenderHTML_PrintsToUSLetter(t *testing.T) {
+	pack := loadTestPack(t, "rich-pack.json")
+	ssdf, cisa, saQuestions := loadRealMappings(t)
+
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions)
+	if err != nil {
+		t.Fatalf("RenderHTML: %v", err)
+	}
+	html := string(got)
+	if !strings.Contains(html, "@media print") {
+		t.Fatal("report.html has no @media print block — the printed artifact is unstyled")
+	}
+	if !strings.Contains(html, "size: Letter") {
+		t.Error("report.html @page does not pin `size: Letter` — it will inherit the reader's locale paper size (A4 outside the US)")
+	}
+}
+
 // TestRenderMarkdown_NewlineDoesNotInjectMarkdownStructure locks in that a
 // newline inside attacker-influenceable content (e.g. a Facts value pulled
 // from a workflow file's `name:` field, or a Reason string) can never turn
