@@ -6,6 +6,18 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`model.Scrub` redacts Azure DevOps PAT-shaped secrets** (#192): the defense-in-depth
+  secret scrubber previously covered GitHub token prefixes, AWS access keys, and PEM
+  blocks only. It now also matches the documented Azure DevOps PAT shape (84 characters
+  total, fixed `AZDO` signature — both offset readings Microsoft's own self-inconsistent
+  PAT format reference admits, boundary-anchored to avoid matching inside a longer benign
+  alphanumeric run). Meaningfully narrows the gap `docs/threat-model.md` had flagged as
+  an open residual risk; the exact character alphabet of the non-signature portion
+  remains unverified without a real token sample, so the risk entry is updated, not
+  removed.
+
 ### Fixed
 
 - **C05 sast-history (Azure DevOps): `ran-per-release` no longer contradicts

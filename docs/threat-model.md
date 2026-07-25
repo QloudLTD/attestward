@@ -220,23 +220,27 @@ already carries a `.bundle` to verify. No scan without `--sign` ever triggers it
   environment only for `--platform azuredevops` — never a CLI flag, and `GITHUB_TOKEN`
   is deliberately never consulted on this path (nor is `AZURE_DEVOPS_EXT_PAT` consulted
   for a GitHub scan) — and never writes it anywhere.
-- **Known gap, not yet closed (surfaced during this docs pass, not fixed here):**
-  `internal/model/scrub.go`'s `secretPatterns` has **no pattern for Azure DevOps PAT
-  shapes at all** — checked directly against the file for this pass. Azure DevOps PATs
-  are a distinctive, detectable shape, the same way a GitHub `ghp_`/`github_pat_`
-  prefix is: 84 characters long with a fixed `AZDO` signature at positions 76–80,
-  verified against Microsoft's own [PAT format
-  reference](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate#pat-format).
-  No such pattern exists in `secretPatterns` today, and `internal/model/scrub_test.go`
-  has no ADO-PAT test case (confirmed: `grep -n AZDO internal/model/scrub_test.go`
-  returns nothing). Practically: this defense-in-depth layer is GitHub-only right now.
-  The primary enforcement above (PAT confined to the auth header, `Endpoint` never
-  carrying one) is what actually prevents a PAT from reaching evidence in the normal
-  path; this gap only matters if a future ADO collector bug ever put a raw PAT into a
-  `Facts`/`Reason` value some other way — exactly the scenario this second line of
-  defense exists for on the GitHub side, and doesn't yet cover here. Intentionally left
-  unfixed in this documentation-only PR rather than patched without dedicated review
-  and tests; tracked as a follow-up issue.
+- **Improved, not fully closed (issue #192):** `internal/model/scrub.go`'s
+  `secretPatterns` now includes a pattern for the Azure DevOps PAT shape — the same
+  distinctive, detectable shape a GitHub `ghp_`/`github_pat_` prefix has. Microsoft's own
+  [PAT format
+  reference](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate#pat-format)
+  states "84 characters long" with a fixed `AZDO` signature "at positions 76-80" — five
+  positions named for a four-character literal, so the source is self-inconsistent about
+  the exact offset; the pattern matches both readings that reconcile to 84 total (76
+  leading + `AZDO` + 4 trailing, or 75 + `AZDO` + 5), each anchored with a token boundary
+  (`\b`) so it can't consume part of an unrelated, longer alphanumeric run. What remains
+  unverified without a real token sample: the alphabet of the 80 non-signature
+  characters, documented only as "randomized data" — the pattern assumes
+  alphanumeric-only, which under-matches if the real alphabet includes other characters
+  (e.g. `-`, `_`). `internal/model/scrub_test.go` covers both offset readings, the
+  length/position near-misses the pattern must reject, and the token-boundary guard. As
+  before, the primary enforcement above (PAT confined to the auth header, `Endpoint`
+  never carrying one) is what actually prevents a PAT from reaching evidence in the
+  normal path; this pattern is the second, defense-in-depth line for the case a future
+  ADO collector bug ever put a raw PAT into a `Facts`/`Reason` value some other way, and
+  it is meaningfully stronger than before #192 — but not a guaranteed catch for every
+  real PAT given the unconfirmed alphabet.
 
 ### Digests, not payloads
 
@@ -257,8 +261,7 @@ evidence) before every write.
 |---|---|---|
 | Tool performs a write against the scanned platform | Transport-level GET/HEAD-only guard | `internal/collect/github/transport.go` + `internal/collect/azuredevops/transport.go`, both with their own `transport_test.go` |
 | Token leaks into logs, evidence, or a URL fragment | Token confined to auth header; `Endpoint` records path only (GitHub) or host+path (Azure DevOps, no query string either way); no CLI-flag token intake | `internal/collect/github/transport.go`, `internal/collect/azuredevops/transport.go`, `cmd/attestward/scan.go` |
-| A secret-shaped string reaches evidence some other way | Regex-based scrubber over every `Facts`/`Reason` value, applied twice (build time + write time) — **GitHub token/AWS-key/PEM shapes only; see the next row** | `internal/model/scrub.go`, `scrub_test.go` |
-| An Azure DevOps PAT specifically reaches evidence some other way | **Gap, not yet closed:** `secretPatterns` has no ADO-PAT (84-char, fixed `AZDO` signature at positions 76–80) pattern; primary enforcement (auth-header-only, no query string in `Endpoint`) still holds, but this second line of defense doesn't cover ADO PATs the way it covers GitHub tokens | `internal/model/scrub.go` (absence) — see "Tokens never persisted..." and Residual risks below |
+| A secret-shaped string reaches evidence some other way | Regex-based scrubber over every `Facts`/`Reason` value, applied twice (build time + write time) — GitHub token/AWS-key/Azure DevOps PAT (issue #192)/PEM shapes | `internal/model/scrub.go`, `scrub_test.go` |
 | Evidence pack tampered after generation | SHA-256 pack hash always computed + `.sha256` sidecar; optional cosign signature | `internal/integrity/`, `cmd/attestward/scan.go` |
 | A raw API response (possibly containing sensitive detail) ends up in evidence | `Provenance` structurally has no payload field, digest only | `internal/model/check_result.go` |
 | An oversized Fact silently bloats/leaks via evidence | Size cap + validation warning | `internal/model/validate.go` |
@@ -341,17 +344,16 @@ diagram doesn't redraw per platform.
   at `partial` even on a fully Entra-backed org, since MFA enforcement itself lives in
   Microsoft Entra Conditional Access, a surface no `vso.*` PAT scope reaches (epic #34
   open decision 3).
-- **`internal/model/scrub.go`'s defense-in-depth secret scrubber does not yet cover
-  Azure DevOps PAT shapes.** Checked directly for this document's Azure DevOps update (issue #34):
-  `secretPatterns` redacts GitHub token prefixes, AWS access keys, and PEM private-key
-  blocks, but has no pattern for the documented Azure DevOps PAT shape (84 characters,
-  fixed `AZDO` signature at positions 76–80 — see "Tokens never persisted..." above for
-  the full detail and source). The primary enforcement (PAT confined to the Basic-auth
-  header; `Endpoint` never carries a query string) is what actually keeps a PAT out of
-  evidence in the normal path, so this gap is in the *second* line of defense, not the
-  first — but it is a real, currently-true gap, not a hypothetical one, and is
-  deliberately left unfixed in this documentation-only PR rather than patched here
-  without dedicated review and test coverage. Flagged for a follow-up issue.
+- **`internal/model/scrub.go`'s Azure DevOps PAT pattern doesn't verifiably cover every
+  real PAT.** Issue #192 added a pattern for the documented 84-character/`AZDO`-signature
+  shape (both offset readings the source's own inconsistent wording admits — see "Tokens
+  never persisted..." above), but the alphabet of the other 80 characters is documented
+  only as "randomized data," and the pattern assumes alphanumeric-only. If the real
+  alphabet includes non-alphanumeric characters, a real PAT containing one would not
+  match. As with the offset itself, this is unconfirmed without a real token sample —
+  the primary enforcement (PAT confined to the Basic-auth header) is what actually keeps
+  a PAT out of evidence in the normal path, so this residual gap is in the *second* line
+  of defense only.
 - **`exec`-ing `cosign` extends trust to that binary and the user's PATH resolution of
   it.** `cosignPath()` (`internal/integrity/sign.go`) uses `exec.LookPath("cosign")` —
   standard PATH-based resolution, the same trust model as any other CLI tool a user

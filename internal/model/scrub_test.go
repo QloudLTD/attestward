@@ -7,13 +7,16 @@ import (
 
 func TestScrubRedactsSecretShapedStrings(t *testing.T) {
 	cases := map[string]string{
-		"github classic PAT":          "token=ghp_" + strings.Repeat("a", 40),
-		"github fine-grained PAT":     "token=github_pat_" + strings.Repeat("a", 60),
-		"github server token":         "token=ghs_" + strings.Repeat("a", 40),
-		"github refresh token":        "token=ghr_" + strings.Repeat("a", 40),
-		"github user-to-server token": "token=ghu_" + strings.Repeat("a", 40),
-		"aws access key":              "key=AKIA" + strings.Repeat("A", 16),
-		"aws temporary/STS key":       "key=ASIA" + strings.Repeat("A", 16),
+		"github classic PAT":                           "token=ghp_" + strings.Repeat("a", 40),
+		"github fine-grained PAT":                      "token=github_pat_" + strings.Repeat("a", 60),
+		"github server token":                          "token=ghs_" + strings.Repeat("a", 40),
+		"github refresh token":                         "token=ghr_" + strings.Repeat("a", 40),
+		"github user-to-server token":                  "token=ghu_" + strings.Repeat("a", 40),
+		"aws access key":                               "key=AKIA" + strings.Repeat("A", 16),
+		"aws temporary/STS key":                        "key=ASIA" + strings.Repeat("A", 16),
+		"azure devops PAT (0-indexed [76,80) reading)": "token=" + strings.Repeat("a", 76) + "azdo" + strings.Repeat("a", 4),
+		"azure devops PAT (1-indexed 76-79 reading)":   "token=" + strings.Repeat("a", 75) + "azdo" + strings.Repeat("a", 5),
+		"azure devops PAT (uppercase signature, as Microsoft's docs render it)": "token=" + strings.Repeat("a", 76) + "AZDO" + strings.Repeat("a", 4),
 		"pem private key block": "-----BEGIN RSA PRIVATE KEY-----\n" +
 			strings.Repeat("A", 64) + "\n-----END RSA PRIVATE KEY-----",
 		"pgp private key block": "-----BEGIN PGP PRIVATE KEY BLOCK-----\n" +
@@ -31,6 +34,71 @@ func TestScrubRedactsSecretShapedStrings(t *testing.T) {
 				t.Fatalf("scrubString(%q) = %q, secret material survived", in, out)
 			}
 		})
+	}
+}
+
+// TestScrubADOPATPositionSensitive proves the Azure DevOps PAT pattern only
+// matches the two documented-length-84 shapes — not any 84-character run
+// that merely contains "azdo" somewhere else, and not an off-by-one length
+// near either boundary (83 or 85, neither of which the source's own "84
+// characters" claim admits, even though independently ranging the leading/
+// trailing character counts would wrongly accept both — see the pattern's
+// own doc comment). Without this, a looser pattern (e.g. a bare "azdo"
+// substring search) would false-positive on ordinary text far more often
+// than the risk is worth.
+func TestScrubADOPATPositionSensitive(t *testing.T) {
+	wrongPosition := strings.Repeat("a", 40) + "azdo" + strings.Repeat("a", 40) // 84 chars, azdo at the wrong offset
+	if len(wrongPosition) != 84 {
+		t.Fatalf("test fixture length = %d, want 84", len(wrongPosition))
+	}
+	if out := scrubString("token=" + wrongPosition); out != "token="+wrongPosition {
+		t.Errorf("scrubString redacted an 84-char string with azdo at the wrong position: %q", out)
+	}
+
+	tooShort := strings.Repeat("a", 75) + "azdo" + strings.Repeat("a", 4) // 83 chars total
+	if len(tooShort) != 83 {
+		t.Fatalf("test fixture length = %d, want 83", len(tooShort))
+	}
+	if out := scrubString("token=" + tooShort); out != "token="+tooShort {
+		t.Errorf("scrubString redacted an 83-char near-miss: %q", out)
+	}
+
+	// 76 leading + azdo + 5 trailing = 85 total: satisfies BOTH readings'
+	// individual bounds (76 is a valid leading count, 5 is a valid trailing
+	// count) but not together — neither reading (a) nor (b) is 85 total.
+	// An independently-ranged {75,76}/{4,5} pattern would wrongly accept
+	// this; the exact two-combination alternation must not.
+	tooLong := strings.Repeat("a", 76) + "azdo" + strings.Repeat("a", 5) // 85 chars total
+	if len(tooLong) != 85 {
+		t.Fatalf("test fixture length = %d, want 85", len(tooLong))
+	}
+	if out := scrubString("token=" + tooLong); out != "token="+tooLong {
+		t.Errorf("scrubString redacted an 85-char near-miss (76+azdo+5, a combination neither documented reading claims): %q", out)
+	}
+}
+
+// TestScrubADOPATRequiresTokenBoundary proves the \b anchors at both ends
+// of the Azure DevOps PAT pattern: a benign, long alphanumeric run that
+// happens to contain "azdo" somewhere in its interior — with ordinary
+// alphanumeric characters immediately on both sides of what would
+// otherwise be an 84-character matching window — must NOT be redacted.
+// Without the boundary requirement, this collapses a real, unrelated value
+// (baked into the signed pack hash) into "[REDACTED]" with no record that
+// a substitution happened, which is worse than the gap it would be
+// closing: a benign 200+ character alphanumeric run is exactly the shape a
+// base64-ish blob or a concatenated set of identifiers could take.
+func TestScrubADOPATRequiresTokenBoundary(t *testing.T) {
+	// 100 leading + "azdo" + 96 trailing = 200 chars; "azdo" sits well
+	// inside the run, so any 84-char window covering it is flanked by more
+	// alphanumeric characters on both sides — no token boundary anywhere
+	// near the match.
+	benign := strings.Repeat("b", 100) + "azdo" + strings.Repeat("c", 96)
+	if len(benign) != 200 {
+		t.Fatalf("test fixture length = %d, want 200", len(benign))
+	}
+	in := "digest=" + benign
+	if out := scrubString(in); out != in {
+		t.Errorf("scrubString redacted a benign 200-char alphanumeric run merely because an 84-char window inside it matched the ADO PAT shape: %q", out)
 	}
 }
 
