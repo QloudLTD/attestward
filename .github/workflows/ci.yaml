@@ -46,10 +46,18 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test ./... -race -coverprofile=coverage.out
+      # Coverage is archival — nothing downstream consumes it — so its upload
+      # must never fail a build whose tests passed. GitHub's artifact-storage
+      # quota (recalculated every 6-12h) reddened green runs on PRs #202/#203:
+      # every Go test passed, the upload hit the quota, and the job reported
+      # failure. A red tick that doesn't mean "the code is wrong" is worse than
+      # no tick, because it trains people to merge through red.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        continue-on-error: true
         with:
           name: coverage
           path: coverage.out
+          retention-days: 7
 
   # Issue #83: restores the Linux-specific test coverage `test` above can't
   # provide on its own — case-sensitive filesystem, path/rename semantics,
@@ -134,10 +142,15 @@ jobs:
           done
       - name: Verify the darwin/arm64 build runs (matches this runner's own arch)
         run: ./attestward-darwin-arm64 version
+      # Same reasoning as the coverage upload above: these binaries are
+      # archival convenience, and the build itself has already proven it
+      # compiles and runs.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        continue-on-error: true
         with:
           name: attestward-builds
           path: attestward-*
+          retention-days: 7
 
   # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
   # push or cosign's OIDC signing context. Informational only (not a required
