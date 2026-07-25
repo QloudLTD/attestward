@@ -165,23 +165,22 @@ var checkRubrics = map[string]map[model.Status]string{
 	},
 }
 
-// checkEndpoints documents which host each endpoint lives on inline, since
-// a single ADO scan spans several hosts (see internal/collect/azuredevops's
-// own package doc comment) and Endpoints entries elsewhere in this codebase
-// are otherwise host-implicit. checksWithNoEndpoint (test file) exempts
+// checkEndpoints strings are host-first ("GET <host>/{org}/...") — the same
+// convention every other ADO collector's Endpoints entries use (issue #179;
+// this package and vdp's were the only two path-first-with-a-host-
+// parenthetical holdouts). checksWithNoEndpoint (test file) exempts
 // retentionAwarenessID from the completeness check's non-empty requirement,
 // same as the GitHub twin.
 var checkEndpoints = map[string][]string{
-	orgLogAvailableID: {"GET /{organization}/_apis/audit/auditlog (auditservice.dev.azure.com host, batchSize=1)"},
-	logStreamingID:    {"GET /{organization}/_apis/audit/streams (auditservice.dev.azure.com host)"},
+	orgLogAvailableID: {"GET auditservice.dev.azure.com/{org}/_apis/audit/auditlog?batchSize=1"},
+	logStreamingID:    {"GET auditservice.dev.azure.com/{org}/_apis/audit/streams"},
 	// retentionAwarenessID is deliberately nil: it makes no API call at
 	// all, so no endpoint backs its (permanently fixed) not-checkable
 	// status — see checkRubrics' own doc comment.
 	retentionAwarenessID: nil,
 	webhooksID: {
-		"GET /{organization}/_apis/projects/{project} (dev.azure.com host — resolves the scanned " +
-			"project's id for matching publisherInputs.projectId)",
-		"GET /{organization}/_apis/hooks/subscriptions (dev.azure.com host)",
+		"GET dev.azure.com/{org}/_apis/projects/{project}",
+		"GET dev.azure.com/{org}/_apis/hooks/subscriptions",
 	},
 }
 

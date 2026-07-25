@@ -662,7 +662,7 @@ var checkWantStatuses = map[string][]model.Status{
 	webhooksID:           {model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable},
 }
 
-var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) /`)
+var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) (dev\.azure\.com|auditservice\.dev\.azure\.com)/`)
 
 // TestCollect_RegisteredMetadataCompleteForChecksReference mirrors the
 // GitHub twin's identical test (see its own doc comment for the full
@@ -710,7 +710,7 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 		}
 		for _, e := range meta.Endpoints {
 			if !endpointVerbRE.MatchString(e) {
-				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD — this project is read-only forever (ADR-0004)", id, e)
+				t.Errorf("%s: Endpoints entry %q isn't GET/HEAD against a recognized host — this project is read-only forever (ADR-0004)", id, e)
 			}
 		}
 

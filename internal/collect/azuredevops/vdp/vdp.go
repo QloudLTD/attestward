@@ -90,14 +90,14 @@ var checkRemediations = map[string]string{
 // sharedSecurityMDResolveErrRubric.
 var checkRubrics = map[string]map[model.Status]string{
 	securityMDID: {
-		model.StatusVerifiedPass: "SECURITY.md resolved at one of two candidate repo-content locations " +
-			"(repo root, or docs/) — a repo-content convention this collector checks for, not a " +
-			"platform-enforced one: Azure DevOps documents no community-health-file search order the way " +
-			"GitHub does, and has no org-wide-default mechanism to fall back to (see " +
-			"C10.vdp.security-policy-org)",
-		model.StatusVerifiedFail: "no SECURITY.md resolved at either candidate location — includes the case " +
-			"where the repository itself doesn't exist or isn't visible to this token, which a 404 at both " +
-			"paths can't distinguish from a genuinely missing file",
+		model.StatusVerifiedPass: "SECURITY.md resolved at one of two candidate repo-content paths — " +
+			"/SECURITY.md (repo root) or /docs/SECURITY.md, tried in that order — a repo-content convention " +
+			"this collector checks for, not a platform-enforced one: Azure DevOps documents no " +
+			"community-health-file search order the way GitHub does, and has no org-wide-default mechanism " +
+			"to fall back to (see C10.vdp.security-policy-org)",
+		model.StatusVerifiedFail: "no SECURITY.md resolved at either candidate path (/SECURITY.md or " +
+			"/docs/SECURITY.md) — includes the case where the repository itself doesn't exist or isn't " +
+			"visible to this token, which a 404 at both paths can't distinguish from a genuinely missing file",
 		model.StatusNotCheckable: sharedSecurityMDResolveErrRubric,
 	},
 	intakeChannelID: {
@@ -132,19 +132,21 @@ const sharedSecurityMDResolveErrRubric = "resolving SECURITY.md failed with a ge
 	"permission denied, a malformed response, or another failure; a plain 404 at one candidate path is " +
 	"never this cause, since that just means the next path is tried"
 
-// checkEndpoints documents the host inline (see internal/collect/azuredevops's
-// own package doc comment for why) and calls out $format=json explicitly —
-// see resolve.go's own doc comment for why it's required, not optional.
+// checkEndpoints strings are host-first ("GET <host>/{org}/...") — the same
+// convention every other ADO collector's Endpoints entries use (issue #179;
+// this package and auditlogging's were the only two path-first-with-a-host-
+// parenthetical holdouts). See resolve.go's own doc comment for the
+// $format=json/candidate-path detail this used to spell out inline — dropped
+// here to match the majority convention's other Items-Get callers
+// (repoprotection/sasthistory/scahistory/provenance), which leave that same
+// operational detail to their own doc comments rather than the Endpoints
+// string.
 var checkEndpoints = map[string][]string{
 	securityMDID: {
-		"GET /{organization}/{project}/_apis/git/repositories/{repositoryId}/items (dev.azure.com host; " +
-			"path=/SECURITY.md then path=/docs/SECURITY.md, $format=json to force a JSON envelope instead " +
-			"of a raw byte stream)",
+		"GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items",
 	},
 	intakeChannelID: {
-		"GET /{organization}/{project}/_apis/git/repositories/{repositoryId}/items (dev.azure.com host; " +
-			"path=/SECURITY.md then path=/docs/SECURITY.md, $format=json to force a JSON envelope instead " +
-			"of a raw byte stream)",
+		"GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items",
 	},
 	// privateReportingID and securityPolicyOrgID are deliberately nil: both
 	// make no API call at all — see checkRubrics' own doc comment.

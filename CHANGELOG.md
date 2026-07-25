@@ -17,6 +17,17 @@ All notable changes to this project are documented here. Format follows
   `not-checkable` in that case, mirroring the identical fix already shipped for C06
   sca-history's `injectionOnly` guard.
 
+### Changed
+
+- **Harmonized `CheckMeta.Endpoints` host formatting across Azure DevOps collectors**
+  (#179): C09 audit-logging and C10 vdp used a path-first style with the host named in
+  a trailing parenthetical; every other ADO collector uses host-first
+  (`GET <host>/{org}/...`). Both now match the majority convention. Strings and
+  `docs/checks-reference.md` only — no behavior change. C10 vdp's `security-md` rubric
+  now names its two candidate paths (`/SECURITY.md`, `/docs/SECURITY.md`) explicitly,
+  restoring detail the old `Endpoints` parenthetical carried and the trim would
+  otherwise have dropped from the published reference.
+
 ## [0.3.0] - 2026-07-23
 
 ### Added

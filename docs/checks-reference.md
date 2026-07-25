@@ -1689,7 +1689,7 @@ This check is registered under more than one platform — details for each below
 
 - **Token permission:** vso.auditlog
 - **Fixture:** `internal/collect/azuredevops/auditlogging/auditlogging_test.go`
-- **API endpoint(s):** `GET /{organization}/_apis/audit/streams (auditservice.dev.azure.com host)`
+- **API endpoint(s):** `GET auditservice.dev.azure.com/{org}/_apis/audit/streams`
 
 **Status rubric:**
 
@@ -1728,7 +1728,7 @@ This check is registered under more than one platform — details for each below
 
 - **Token permission:** vso.auditlog — the Audit Log API additionally requires the org to be Azure AD (Entra ID)-backed and the caller to have View-audit-log permission; Azure DevOps returns the same gated status whether the cause is missing scope, missing permission, or org type, so none of the three can be independently confirmed from this token alone (see this check's own Reason wording)
 - **Fixture:** `internal/collect/azuredevops/auditlogging/auditlogging_test.go`
-- **API endpoint(s):** `GET /{organization}/_apis/audit/auditlog (auditservice.dev.azure.com host, batchSize=1)`
+- **API endpoint(s):** `GET auditservice.dev.azure.com/{org}/_apis/audit/auditlog?batchSize=1`
 
 **Status rubric:**
 
@@ -1804,7 +1804,7 @@ This check is registered under more than one platform — details for each below
 
 - **Token permission:** vso.project (Projects - Get, to resolve the scanned project to its id) plus vso.build and/or vso.code (Subscriptions - List's own documented scopes are vso.work, vso.build, and vso.code; only vso.build/vso.code appear elsewhere in this epic's scope list — issue #34 — so vso.work isn't claimed as already-held here). All three named scopes are already part of this project's epic-wide ADO token-scope set, so this check needs nothing beyond that
 - **Fixture:** `internal/collect/azuredevops/auditlogging/auditlogging_test.go`
-- **API endpoint(s):** `GET /{organization}/_apis/projects/{project} (dev.azure.com host — resolves the scanned project's id for matching publisherInputs.projectId)`, `GET /{organization}/_apis/hooks/subscriptions (dev.azure.com host)`
+- **API endpoint(s):** `GET dev.azure.com/{org}/_apis/projects/{project}`, `GET dev.azure.com/{org}/_apis/hooks/subscriptions`
 
 **Status rubric:**
 
@@ -1847,7 +1847,7 @@ This check is registered under more than one platform — details for each below
 
 - **Token permission:** vso.code
 - **Fixture:** `internal/collect/azuredevops/vdp/vdp_test.go`
-- **API endpoint(s):** `GET /{organization}/{project}/_apis/git/repositories/{repositoryId}/items (dev.azure.com host; path=/SECURITY.md then path=/docs/SECURITY.md, $format=json to force a JSON envelope instead of a raw byte stream)`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`
 
 **Status rubric:**
 
@@ -1930,13 +1930,13 @@ This check is registered under more than one platform — details for each below
 
 - **Token permission:** vso.code
 - **Fixture:** `internal/collect/azuredevops/vdp/vdp_test.go`
-- **API endpoint(s):** `GET /{organization}/{project}/_apis/git/repositories/{repositoryId}/items (dev.azure.com host; path=/SECURITY.md then path=/docs/SECURITY.md, $format=json to force a JSON envelope instead of a raw byte stream)`
+- **API endpoint(s):** `GET dev.azure.com/{org}/{project}/_apis/git/repositories/{repositoryId}/items`
 
 **Status rubric:**
 
-- **verified-fail:** no SECURITY.md resolved at either candidate location — includes the case where the repository itself doesn't exist or isn't visible to this token, which a 404 at both paths can't distinguish from a genuinely missing file
+- **verified-fail:** no SECURITY.md resolved at either candidate path (/SECURITY.md or /docs/SECURITY.md) — includes the case where the repository itself doesn't exist or isn't visible to this token, which a 404 at both paths can't distinguish from a genuinely missing file
 - **not-checkable:** resolving SECURITY.md failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate path is never this cause, since that just means the next path is tried
-- **verified-pass:** SECURITY.md resolved at one of two candidate repo-content locations (repo root, or docs/) — a repo-content convention this collector checks for, not a platform-enforced one: Azure DevOps documents no community-health-file search order the way GitHub does, and has no org-wide-default mechanism to fall back to (see C10.vdp.security-policy-org)
+- **verified-pass:** SECURITY.md resolved at one of two candidate repo-content paths — /SECURITY.md (repo root) or /docs/SECURITY.md, tried in that order — a repo-content convention this collector checks for, not a platform-enforced one: Azure DevOps documents no community-health-file search order the way GitHub does, and has no org-wide-default mechanism to fall back to (see C10.vdp.security-policy-org)
 
 **Remediation:** Add a SECURITY.md at the repo root or under docs/ describing how to report a vulnerability. Azure DevOps has no org-wide-default mechanism to add it to instead (see C10.vdp.security-policy-org) — it must live in this repo.
 
