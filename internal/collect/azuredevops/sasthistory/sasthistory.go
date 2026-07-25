@@ -195,10 +195,13 @@ var checkRubrics = map[string]map[model.Status]string{
 			"pipeline ran for every evaluated release, but not every build succeeded",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SAST " +
 			"builds at all (not even a failed one)",
-		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no release tag matches the " +
-			"configured pattern within the lookback window, and none of the tags that did match were " +
-			"dropped as unresolvable either — genuinely nothing to evaluate; or the project's build history " +
-			"itself could not be fetched",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or GHAzDO CodeQL default setup is " +
+			"this repo's ONLY SAST evidence (no signature-matched pipeline at all) — default-setup scans " +
+			"run invisibly to this collector's own build-matching, so this check has no verified way to " +
+			"observe them per release (issue #184, mirroring C06's identical injectionOnly guard); or no " +
+			"release tag matches the configured pattern within the lookback window, and none of the tags " +
+			"that did match were dropped as unresolvable either — genuinely nothing to evaluate; or the " +
+			"project's build history itself could not be fetched",
 	},
 	idCadence: {
 		model.StatusVerifiedPass: "one or more SAST builds were observed in the lookback window, backed by " +
@@ -425,9 +428,19 @@ func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoNa
 	enablement, enablementErr := pipelinehistory.FetchRepoEnablement(ctx, c.client, scope.Project, repo.ID)
 	enablementProv := tailProvenance(c.client.Provenance(), enablementStart)
 
+	// defaultSetupOnly feeds checkRanPerRelease's own guard against the
+	// self-contradictory pair fixed in issue #184 (twin of #183's C06
+	// injectionOnly guard): GHAzDO CodeQL default setup alone is enough
+	// for tool-configured's own verified-pass, but it runs invisibly to
+	// this collector's own build-matching, so ran-per-release must not
+	// independently conclude verified-fail from the resulting zero
+	// matched builds — see checkRanPerRelease's own doc comment.
+	hasAny, _ := matchConfidence(matched)
+	defaultSetupOnly := !hasAny && enablementErr == nil && enablement.CodeQLEnabled
+
 	return []model.CheckResult{
 		checkToolConfigured(scope.Org, repoName, matched, enablement, enablementErr, sharedProv),
-		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, buildsErr, sharedProv),
+		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, buildsErr, defaultSetupOnly, sharedProv),
 		checkCadence(scope.Org, repoName, matched, enablement, enablementErr, cadenceStats, buildsErr, sharedProv),
 		checkDefaultSetup(scope.Org, repoName, enablement, enablementErr, enablementProv),
 	}

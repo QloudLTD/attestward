@@ -163,8 +163,28 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 // doc comment for why this collector applies the GitHub twin's "any drop
 // caps at partial" rule to that UNCONDITIONAL list, a deliberate choice,
 // not an oversight.
-func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, buildsErr error, prov []model.Provenance) model.CheckResult {
+//
+// defaultSetupOnly is true when GHAzDO CodeQL default setup is this repo's
+// ONLY SAST evidence — no signature-matched pipeline at all (issue #184,
+// twin of #183's C06 sca-history fix; keep the wording symmetric with
+// that check's own identical injectionOnly guard). Default-setup scans
+// aren't observable through the Pipelines/Builds APIs this collector uses
+// — the package doc comment explains why, and checkCadence already
+// applies exactly this principle — so with zero matched pipelines,
+// coverage has nothing to link any release's build to, and every release
+// would read CoverageMissing: this check would otherwise report
+// verified-fail ("no matched SAST run at all") in the same breath
+// checkToolConfigured reports verified-pass for the identical evidence.
+func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, buildsErr error, defaultSetupOnly bool, prov []model.Provenance) model.CheckResult {
 	const id = idRanPerRelease
+
+	if defaultSetupOnly {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: "a SAST tool is configured via GHAzDO CodeQL default setup, but this collector has no verified way to observe its scan history per release via the Pipelines/Builds APIs it uses — ran-per-release can only be computed from a matched pipeline's own build history",
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+	}
 
 	if len(filteredReleases) == 0 {
 		status, reason := model.StatusNotCheckable, "no release tags match the configured pattern within the lookback window"

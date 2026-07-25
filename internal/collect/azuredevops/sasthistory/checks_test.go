@@ -30,7 +30,7 @@ func TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail(t *testing.T) {
 		{Release: filteredReleases[2], Status: pipelinehistory.CoverageRan},
 	}
 
-	got := checkRanPerRelease("attestward-demo", "mixed-repo", filteredReleases, coverage, nil, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "mixed-repo", filteredReleases, coverage, nil, nil, false, nil)
 
 	if got.Status != model.StatusVerifiedFail {
 		t.Errorf("Status = %q, want %q; reason=%q", got.Status, model.StatusVerifiedFail, got.Reason)
@@ -56,7 +56,7 @@ func TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail(t *testing.T) {
 // ADO result (versus the GitHub twin's window-gated count) can see exactly
 // which tags to investigate.
 func TestCheckRanPerRelease_DroppedTagsNamedInFacts(t *testing.T) {
-	got := checkRanPerRelease("attestward-demo", "repo", nil, nil, []string{"v0.9.0-rc1", "v0.8.0-beta"}, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "repo", nil, nil, []string{"v0.9.0-rc1", "v0.8.0-beta"}, nil, false, nil)
 
 	if got.Status != model.StatusPartial {
 		t.Errorf("Status = %q, want partial; reason=%q", got.Status, got.Reason)
@@ -67,13 +67,33 @@ func TestCheckRanPerRelease_DroppedTagsNamedInFacts(t *testing.T) {
 	}
 }
 
+// TestCheckRanPerRelease_DefaultSetupOnly_NotCheckableNotFail is issue
+// #184's regression case, mirroring azuredevops/scahistory's identical
+// injectionOnly test: a repo whose only SAST evidence is GHAzDO CodeQL
+// default setup (zero matched pipelines) must not read verified-fail —
+// that would contradict checkToolConfigured's verified-pass for the same
+// evidence. It must read not-checkable, since this collector has no
+// verified way to observe default-setup's own run history per release.
+func TestCheckRanPerRelease_DefaultSetupOnly_NotCheckableNotFail(t *testing.T) {
+	filteredReleases := []pipelinehistory.ReleaseInfo{{TagName: "v1.0.0"}}
+	coverage := []pipelinehistory.ReleaseCoverage{
+		{Release: filteredReleases[0], Status: pipelinehistory.CoverageMissing},
+	}
+
+	got := checkRanPerRelease("attestward-demo", "default-setup-only-repo", filteredReleases, coverage, nil, nil, true, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable (default-setup-only evidence can't be observed per release); reason=%q", got.Status, got.Reason)
+	}
+}
+
 // TestCheckRanPerRelease_BuildsErrIsNotCheckable proves a build-history
 // fetch failure (the single Builds List call covering every matched
 // pipeline for this repo) makes ran-per-release not-checkable rather than
 // silently reporting zero coverage as a confirmed verified-fail.
 func TestCheckRanPerRelease_BuildsErrIsNotCheckable(t *testing.T) {
 	filteredReleases := []pipelinehistory.ReleaseInfo{{TagName: "v1.0.0"}}
-	got := checkRanPerRelease("attestward-demo", "repo", filteredReleases, nil, nil, errBoom, nil)
+	got := checkRanPerRelease("attestward-demo", "repo", filteredReleases, nil, nil, errBoom, false, nil)
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
 	}

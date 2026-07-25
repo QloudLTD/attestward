@@ -352,6 +352,15 @@ func TestCollect_CodeQLDefaultSetupOnly_ToolConfiguredPassesCadenceNotCheckable(
 	if got := m[idDefaultSetup].Status; got != model.StatusVerifiedPass {
 		t.Errorf("default-setup = %q, want verified-pass", got)
 	}
+	// Issue #184: a real release tag exists in scope with zero matched
+	// pipelines and CodeQL default setup enabled — before the fix,
+	// ran-per-release independently concluded verified-fail ("no matched
+	// SAST run at all"), self-contradicting tool-configured's verified-pass
+	// for the identical evidence.
+	ranPerRelease := m[idRanPerRelease]
+	if ranPerRelease.Status != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable (default-setup-only evidence isn't observable per release); reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
 }
 
 // TestCollect_ConfiguredButBuildNeverSucceeds_RanPerReleaseIsPartial proves

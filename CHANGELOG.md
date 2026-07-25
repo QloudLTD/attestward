@@ -6,6 +6,17 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **C05 sast-history (Azure DevOps): `ran-per-release` no longer contradicts
+  `tool-configured` for default-setup-only repos** (#184). A repo whose only SAST
+  mechanism is GHAzDO CodeQL default setup (zero signature-matched pipelines) got
+  `tool-configured = verified-pass` but `ran-per-release = verified-fail` ("no matched
+  SAST run at all") — self-contradictory, since default-setup scans aren't observable
+  through the Pipelines/Builds APIs this collector uses. `ran-per-release` now reads
+  `not-checkable` in that case, mirroring the identical fix already shipped for C06
+  sca-history's `injectionOnly` guard.
+
 ## [0.3.0] - 2026-07-23
 
 ### Added
