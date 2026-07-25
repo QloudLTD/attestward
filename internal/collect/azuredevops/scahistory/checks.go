@@ -150,7 +150,7 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 		reason = "only a low-confidence (pipeline/step-name-only) match was found — not enough signal alone to confirm an SCA tool is genuinely configured"
 	case hasSkips:
 		status = model.StatusNotCheckable
-		reason = fmt.Sprintf("no matched SCA pipeline evidence and dependency scanning injection is not configured, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence (issue #178 tracks fully consuming these skips)", len(sameRepoSkips))
+		reason = fmt.Sprintf("no matched SCA pipeline evidence and dependency scanning injection is not configured, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence (issue #207 tracks this check's own ran-per-release consuming the same skips)", len(sameRepoSkips))
 	}
 
 	toolNames := make([]string, 0, len(names))

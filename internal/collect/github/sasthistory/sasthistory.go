@@ -100,13 +100,18 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusPartial: "only a low-confidence (workflow-name-only) match was found in any workflow, " +
 			"and CodeQL default setup is not confirmed configured — not enough signal alone to confirm a " +
 			"SAST tool is genuinely configured",
-		model.StatusVerifiedFail: "no workflow match of any confidence was found, and CodeQL default " +
+		model.StatusVerifiedFail: "no workflow match of any confidence was found, CodeQL default " +
 			"setup's state reads anything other than \"configured\" — including a legitimate plan-gated/" +
 			"not-found response to the default-setup query itself (a real \"not available\" fact, not an " +
-			"unknown)",
+			"unknown) — and every workflow MatchWorkflows inspected for this repo resolved cleanly (no " +
+			"same-repo skip) — a real absence, not an evidence gap",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no workflow-based " +
 			"evidence at all and the CodeQL default-setup query itself failed with something other than a " +
-			"plan-gated/not-found response — an unresolved unknown, not a confirmed absence",
+			"plan-gated/not-found response — an unresolved unknown, not a confirmed absence; or one or more " +
+			"of this repo's own workflows could not be fully inspected (a content fetch, decode, or parse " +
+			"failure — see Facts.skipped_workflows) and the evidence gathered would otherwise have produced " +
+			"verified-fail — this check applies the honest not-checkable fix now rather than asserting a " +
+			"confident absence over incomplete evidence",
 	},
 	"C05.sast.ran-per-release": {
 		model.StatusVerifiedPass: "a SAST tool ran successfully (at least one matched run whose conclusion " +
@@ -118,10 +123,14 @@ var checkRubrics = map[string]map[model.Status]string{
 			"directly, otherwise every evaluated release still succeeded but the exclusion caps the result " +
 			"at partial; or a matched SAST tool ran for every evaluated release, but not every run succeeded",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SAST runs " +
-			"at all (not even a failed one)",
+			"at all (not even a failed one), and — when there are zero matched workflows overall — every " +
+			"workflow MatchWorkflows inspected for this repo resolved cleanly (no same-repo skip)",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no release tag matches the " +
 			"configured pattern within the lookback window, and none of the tags that did match were " +
-			"dropped as unresolvable either — genuinely nothing to evaluate",
+			"dropped as unresolvable either — genuinely nothing to evaluate; or there are zero matched " +
+			"workflows and one or more of this repo's own workflows could not be fully inspected (see " +
+			"Facts.skipped_workflows) — the same evidence gap C05.sast.tool-configured itself goes " +
+			"not-checkable for, so this check does too rather than asserting a confident absence over it",
 	},
 	"C05.sast.cadence": {
 		model.StatusVerifiedPass: "one or more SAST runs were observed in the lookback window, backed by " +
@@ -304,7 +313,8 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 		}
 		realWorkflows = append(realWorkflows, wf)
 	}
-	matchedWorkflows = append(matchedWorkflows, runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, realWorkflows, mapping.CategorySAST)...)
+	realMatched, skippedWorkflows := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, realWorkflows, mapping.CategorySAST)
+	matchedWorkflows = append(matchedWorkflows, realMatched...)
 
 	now := time.Now().UTC()
 	windowStart := now.AddDate(0, -scope.LookbackMonths, 0)
@@ -382,9 +392,11 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	defaultSetup, dsResp, dsErr := client.REST.CodeScanning.GetDefaultSetupConfiguration(ctx, org, repo)
 	dsProv := tailProvenance(client.Provenance(), sharedSkip)
 
+	hasMatchedWorkflows := len(matchedWorkflows) > 0
+
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
-		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, sharedProv),
+		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
+		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, hasMatchedWorkflows, skippedWorkflows, sharedProv),
 		checkCadence(org, repo, matchedWorkflows, defaultSetup, cadence, sharedProv),
 		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, dsProv),
 	}

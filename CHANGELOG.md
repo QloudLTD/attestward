@@ -20,6 +20,20 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **C05 sast-history / C06 sca-history: a workflow/pipeline this tool couldn't fully
+  inspect no longer reads as a confirmed absence** (#178). A workflow (GitHub) or
+  pipeline (Azure DevOps) that failed to fetch, decode, or parse was silently dropped
+  rather than counted as evidence-gathering failure — a repo whose only SAST/SCA
+  mechanism happened to be that one unreadable workflow read `verified-fail` ("no tool
+  detected") instead of an honest `not-checkable`. Fixed on both platforms: skips are
+  now surfaced in each affected check's `tool-configured` **and `ran-per-release`**
+  Facts (name/path + reason per entry), and cap both checks at `not-checkable` instead
+  of `verified-fail` when a same-repo skip exists and no other evidence resolved it —
+  the two checks previously disagreed with each other over the identical evidence.
+  Every affected check's status rubric (and the generated `docs/checks-reference.md`)
+  is updated to describe the new not-checkable case. GitHub C07 provenance and three
+  other `ran-per-release`-style checks have the identical, pre-existing gap and remain
+  open, tracked in #207.
 - **C05 sast-history (Azure DevOps): `ran-per-release` no longer contradicts
   `tool-configured` for default-setup-only repos** (#184). A repo whose only SAST
   mechanism is GHAzDO CodeQL default setup (zero signature-matched pipelines) got

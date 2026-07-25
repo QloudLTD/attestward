@@ -87,20 +87,28 @@ func TestListWorkflowsAndMatchWorkflows_CategoryFiltering(t *testing.T) {
 		t.Fatalf("len(workflows) = %d, want 2", len(workflows))
 	}
 
-	sastMatches := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "mixed-repo", "main", workflows, mapping.CategorySAST)
+	sastMatches, sastSkipped := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "mixed-repo", "main", workflows, mapping.CategorySAST)
 	if len(sastMatches) != 1 || sastMatches[0].Path != ".github/workflows/codeql.yml" {
 		t.Errorf("SAST matches = %+v, want exactly the CodeQL workflow", sastMatches)
 	}
+	if len(sastSkipped) != 0 {
+		t.Errorf("SAST skipped = %+v, want none — both workflows were readable", sastSkipped)
+	}
 
-	scaMatches := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "mixed-repo", "main", workflows, mapping.CategorySCA)
+	scaMatches, scaSkipped := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "mixed-repo", "main", workflows, mapping.CategorySCA)
 	if len(scaMatches) != 1 || scaMatches[0].Path != ".github/workflows/trivy.yml" {
 		t.Errorf("SCA matches = %+v, want exactly the Trivy workflow", scaMatches)
+	}
+	if len(scaSkipped) != 0 {
+		t.Errorf("SCA skipped = %+v, want none — both workflows were readable", scaSkipped)
 	}
 }
 
 // TestMatchWorkflows_UnreadableWorkflowIsSkippedNotFatal proves an
 // individual workflow whose content can't be fetched doesn't abort the
-// whole batch — the other, readable workflow must still be matched.
+// whole batch — the other, readable workflow must still be matched — and
+// that the unreadable one is recorded in the skipped return (issue #178),
+// not silently dropped as if it simply had no match.
 func TestMatchWorkflows_UnreadableWorkflowIsSkippedNotFatal(t *testing.T) {
 	registry, err := mapping.LoadScannerSignaturesFS(mappings.FS, "scanner-signatures.yaml")
 	if err != nil {
@@ -121,8 +129,11 @@ func TestMatchWorkflows_UnreadableWorkflowIsSkippedNotFatal(t *testing.T) {
 		{ID: ghgithub.Ptr(int64(2)), Path: ghgithub.Ptr(".github/workflows/codeql.yml")},
 	}
 
-	matches := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "flaky-repo", "main", workflows, mapping.CategorySAST)
+	matches, skipped := MatchWorkflows(context.Background(), client, registry, "attestward-demo", "flaky-repo", "main", workflows, mapping.CategorySAST)
 	if len(matches) != 1 || matches[0].Path != ".github/workflows/codeql.yml" {
 		t.Errorf("matches = %+v, want exactly the readable CodeQL workflow (the 404'd one skipped, not fatal)", matches)
+	}
+	if len(skipped) != 1 || skipped[0].Path != ".github/workflows/gone.yml" || skipped[0].Reason == "" {
+		t.Errorf("skipped = %+v, want exactly one entry for gone.yml with a non-empty reason", skipped)
 	}
 }

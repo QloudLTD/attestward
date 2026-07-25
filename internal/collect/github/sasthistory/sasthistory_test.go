@@ -228,6 +228,91 @@ func TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable(t *testi
 	}
 }
 
+// TestCollect_OnlyWorkflowUnreadable_ToolConfiguredNotCheckableNotFail is
+// issue #178's regression case: a repo whose only workflow can't be
+// fetched (content 404) and has no CodeQL default setup must NOT read
+// verified-fail ("no SAST tool detected") — that asserts a confirmed
+// absence when inspection of the one workflow that exists actually
+// failed. It must read not-checkable instead, with the skip surfaced in
+// Facts.
+func TestCollect_OnlyWorkflowUnreadable_ToolConfiguredNotCheckableNotFail(t *testing.T) {
+	mux := http.NewServeMux()
+	registerRepo(t, mux, "attestward-demo", "flaky-repo", "main")
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "Mystery", "path": ".github/workflows/mystery.yml", "state": "active"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/attestward-demo/flaky-repo/contents/.github/workflows/mystery.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+	registerNoReleases(t, mux, "attestward-demo", "flaky-repo")
+	registerDefaultSetup(t, mux, "attestward-demo", "flaky-repo", "not-configured")
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"flaky-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	tc := m["C05.sast.tool-configured"]
+	if tc.Status != model.StatusNotCheckable {
+		t.Errorf("tool-configured = %q, want not-checkable (the repo's only workflow couldn't be inspected — not a confirmed absence); reason=%q", tc.Status, tc.Reason)
+	}
+	skipped, ok := tc.Facts["skipped_workflows"].([]map[string]any)
+	if !ok || len(skipped) != 1 || skipped[0]["path"] != ".github/workflows/mystery.yml" || skipped[0]["reason"] == "" {
+		t.Errorf("skipped_workflows facts = %v, want one entry for mystery.yml with a non-empty reason", tc.Facts["skipped_workflows"])
+	}
+}
+
+// TestCollect_OnlyWorkflowUnreadableWithRelease_RanPerReleaseNotCheckableNotFail
+// is the review finding on #202: TestCollect_OnlyWorkflowUnreadable... above
+// uses no releases, so it never actually exercises ran-per-release's own
+// coverage-computation path. With a real release in scope and the repo's
+// only workflow unreadable, ran-per-release previously read verified-fail
+// ("no matched SAST run at all") in the same breath tool-configured read
+// not-checkable for the identical evidence — two panels of one pack, opposite
+// claims. Both must now agree: not-checkable.
+func TestCollect_OnlyWorkflowUnreadableWithRelease_RanPerReleaseNotCheckableNotFail(t *testing.T) {
+	mux := http.NewServeMux()
+	registerRepo(t, mux, "attestward-demo", "flaky-release-repo", "main")
+	mux.HandleFunc("/repos/attestward-demo/flaky-release-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "Mystery", "path": ".github/workflows/mystery.yml", "state": "active"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/attestward-demo/flaky-release-repo/contents/.github/workflows/mystery.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+	registerOneRelease(t, mux, "attestward-demo", "flaky-release-repo", "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerDefaultSetup(t, mux, "attestward-demo", "flaky-release-repo", "not-configured")
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"flaky-release-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	toolConfigured := m["C05.sast.tool-configured"]
+	if toolConfigured.Status != model.StatusNotCheckable {
+		t.Fatalf("tool-configured = %q, want not-checkable; reason=%q (test fixture no longer matches this test's premise)", toolConfigured.Status, toolConfigured.Reason)
+	}
+	ranPerRelease := m["C05.sast.ran-per-release"]
+	if ranPerRelease.Status != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable (must agree with tool-configured's not-checkable over the identical unreadable-workflow evidence, not independently assert verified-fail); reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+}
+
 func TestCollect_LowConfidenceOnlyMatch_CapsAtPartial(t *testing.T) {
 	mux := http.NewServeMux()
 	registerRepo(t, mux, "attestward-demo", "iffy-repo", "main")

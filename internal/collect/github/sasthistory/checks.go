@@ -75,16 +75,31 @@ func matchConfidence(matched []runhistory.MatchedWorkflow) (hasAny, hasHighOrMed
 // workflow-based evidence (hasAny true), that evidence alone already
 // determines pass/partial regardless of ds, so the guard doesn't apply —
 // see TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable.
-func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, prov []model.Provenance) model.CheckResult {
+//
+// skipped is this repo's runhistory.MatchWorkflows skip list (issue #178):
+// surfaced in Facts unconditionally (path + reason per entry), and — only
+// when every other signal here would otherwise produce verified-fail —
+// capping that at not-checkable instead, since a workflow this collector
+// couldn't fully inspect means "no SAST tool configured" rests on
+// incomplete evidence, not a confirmed absence. Mirrors the identical
+// treatment already shipped for azuredevops/scahistory's checkToolConfigured.
+func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, skipped []runhistory.SkippedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.tool-configured"
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
+
+	skipDetails := make([]map[string]any, 0, len(skipped))
+	for _, sw := range skipped {
+		skipDetails = append(skipDetails, map[string]any{"path": sw.Path, "reason": sw.Reason})
+	}
+	hasSkips := len(skipped) > 0
 
 	if !hasAny && dsErr != nil && (dsResp == nil || !ghcollect.IsPlanGated(dsResp.StatusCode)) {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("no SAST tool detected in any workflow, and the CodeQL default-setup query itself failed: %s", notCheckableReason(dsResp, dsErr, org, repo)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"skipped_workflows": skipDetails},
 		}
 	}
 
@@ -104,6 +119,9 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	case hasAny:
 		status = model.StatusPartial
 		reason = "only a low-confidence (workflow-name-only) match was found — not enough signal alone to confirm a SAST tool is genuinely configured"
+	case hasSkips:
+		status = model.StatusNotCheckable
+		reason = fmt.Sprintf("no matched SAST workflow evidence and CodeQL default setup is not configured, but %d workflow(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(skipped))
 	}
 
 	toolNames := make([]string, 0, len(names))
@@ -119,6 +137,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 			"tool_names":                toolNames,
 			"codeql_default_setup":      setupConfigured,
 			"low_confidence_match_only": hasAny && !hasHighOrMedium && !setupConfigured,
+			"skipped_workflows":         skipDetails,
 		},
 	}
 }
@@ -136,8 +155,30 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 // verified-pass, and never masking a genuine verified-fail from the
 // releases that DID resolve) is the honest reflection of "some releases in
 // scope were never actually evaluated."
-func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, prov []model.Provenance) model.CheckResult {
+func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.ran-per-release"
+
+	// A skip-caused false verified-fail (issue #202's review finding): with
+	// zero matched workflows, every release's coverage reads
+	// CoverageMissing regardless of why matched is empty — a genuine
+	// absence and an inspection failure look identical to
+	// runhistory.LinkRunsToReleases. If a same-repo skip exists, that's not
+	// a confirmed absence, and reporting verified-fail here would
+	// contradict checkToolConfigured's own not-checkable for the identical
+	// evidence (two panels of the same pack, opposite claims). Mirrors
+	// checkToolConfigured's own skip-Facts + capping treatment.
+	if !hasMatchedWorkflows && len(skipped) > 0 {
+		skipDetails := make([]map[string]any, 0, len(skipped))
+		for _, sw := range skipped {
+			skipDetails = append(skipDetails, map[string]any{"path": sw.Path, "reason": sw.Reason})
+		}
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("no matched SAST workflow evidence, but %d workflow(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(skipped)),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"skipped_workflows": skipDetails},
+		}
+	}
 
 	if len(filteredReleases) == 0 {
 		status, reason := model.StatusNotCheckable, "no releases match the configured release tag pattern within the lookback window"

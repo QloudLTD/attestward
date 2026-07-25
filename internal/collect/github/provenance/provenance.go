@@ -275,7 +275,12 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	if err != nil {
 		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
 	}
-	provWorkflowMatches := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategoryProvenance)
+	// The skipped return is discarded here — C07's own not-checkable/
+	// verified-fail distinction for provenance evidence isn't in scope for
+	// issue #178 (which covers C05 sast-history and C06 sca-history only);
+	// see those packages' checkToolConfigured for the pattern this would
+	// follow if C07 ever needs it.
+	provWorkflowMatches, _ := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategoryProvenance)
 	workflowMatchProv := snapshot()
 
 	now := time.Now().UTC()

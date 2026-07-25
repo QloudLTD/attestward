@@ -170,17 +170,24 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusPartial: "only a low-confidence (pipeline/step-name-only) match was found in any " +
 			"pipeline, and CodeQL default setup is not confirmed enabled — not enough signal alone to " +
 			"confirm a SAST tool is genuinely configured",
-		model.StatusVerifiedFail: "no pipeline match of any confidence was found, and the GHAzDO " +
+		model.StatusVerifiedFail: "no pipeline match of any confidence was found, the GHAzDO " +
 			"repo-enablement query confirms codeQLEnabled reads false — including a 404 response (GHAzDO " +
 			"isn't licensed for this org/project, a real \"not available\" fact [fixture-verify]) but " +
 			"deliberately NOT a 403 (ambiguous between a missing vso.advsec scope and an unlicensed " +
 			"org/project — that response alone routes to not-checkable instead, see the next clause; found " +
 			"in review: an earlier version of this check treated any gated response, 403 included, as a " +
-			"confirmed fail, which could false-negative a licensed org whose token merely lacked the scope)",
+			"confirmed fail, which could false-negative a licensed org whose token merely lacked the scope) " +
+			"— and every pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo " +
+			"skip) — a real absence, not an evidence gap",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no pipeline-based " +
 			"evidence at all and the GHAzDO repo-enablement query itself failed with anything other than a " +
 			"404 — including a 403, ambiguous between a missing vso.advsec scope and an unlicensed " +
-			"org/project [fixture-verify] — an unresolved unknown, not a confirmed absence",
+			"org/project [fixture-verify] — an unresolved unknown, not a confirmed absence; or one or more " +
+			"of this repo's own pipelines could not be fully inspected (a build-definition fetch failure, " +
+			"an unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see " +
+			"Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail " +
+			"— this check applies the honest not-checkable fix now rather than asserting a confident " +
+			"absence over incomplete evidence",
 	},
 	idRanPerRelease: {
 		model.StatusVerifiedPass: "a SAST pipeline ran successfully (at least one matched build whose " +
@@ -194,14 +201,22 @@ var checkRubrics = map[string]map[model.Status]string{
 			"release still succeeded but the exclusion caps the result at partial; or a matched SAST " +
 			"pipeline ran for every evaluated release, but not every build succeeded",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SAST " +
-			"builds at all (not even a failed one)",
+			"builds at all (not even a failed one), and — when there are zero matched pipelines overall — " +
+			"every pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo skip)",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or GHAzDO CodeQL default setup is " +
 			"this repo's ONLY SAST evidence (no signature-matched pipeline at all) — default-setup scans " +
 			"run invisibly to this collector's own build-matching, so this check has no verified way to " +
-			"observe them per release (issue #184, mirroring C06's identical injectionOnly guard); or no " +
-			"release tag matches the configured pattern within the lookback window, and none of the tags " +
-			"that did match were dropped as unresolvable either — genuinely nothing to evaluate; or the " +
-			"project's build history itself could not be fetched",
+			"observe them per release (issue #184, mirroring C06's identical injectionOnly guard); or " +
+			"there are zero matched pipelines and one or more of this repo's own pipelines could not be " +
+			"fully inspected (see Facts.skipped_pipelines) — the same evidence gap " +
+			"C05.sast.tool-configured itself goes not-checkable for, so this check does too rather than " +
+			"asserting a confident absence over it — when default setup is ALSO the sole evidence, that " +
+			"cause wins and is what this Reason names (the skip is still recorded in Facts, just not the " +
+			"stated cause), since the skip wording would otherwise contradict tool-configured's " +
+			"verified-pass for the identical evidence; or no release tag matches the configured pattern " +
+			"within the lookback window, and none of the tags that did match were dropped as unresolvable " +
+			"either — genuinely nothing to evaluate; or the project's build history itself could not be " +
+			"fetched",
 	},
 	idCadence: {
 		model.StatusVerifiedPass: "one or more SAST builds were observed in the lookback window, backed by " +
@@ -339,15 +354,16 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 	}
 
 	var matchedAll []pipelinehistory.MatchedPipeline
+	var skippedAll []pipelinehistory.SkippedPipeline
 	if reposErr == nil && pipelinesErr == nil {
-		matchedAll, _ = pipelinehistory.MatchPipelines(ctx, c.client, registry, scope.Project, pipelines, mapping.CategorySAST)
+		matchedAll, skippedAll = pipelinehistory.MatchPipelines(ctx, c.client, registry, scope.Project, pipelines, mapping.CategorySAST)
 	}
 
 	projectProv := c.client.Provenance()
 
 	var all []model.CheckResult
 	for _, repoName := range scope.Repos {
-		all = append(all, c.collectRepo(ctx, scope, repoName, repos, reposErr, pipelinesErr, matchedAll, projectProv)...)
+		all = append(all, c.collectRepo(ctx, scope, repoName, repos, reposErr, pipelinesErr, matchedAll, skippedAll, projectProv)...)
 	}
 	if all == nil {
 		all = []model.CheckResult{}
@@ -372,7 +388,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // choice for its own tool-configured/cadence versus defaultSetup, and this
 // collector mirrors it rather than second-guessing an already-reviewed
 // design.
-func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoName string, repos []pipelinehistory.RepositoryInfo, reposErr, pipelinesErr error, matchedAll []pipelinehistory.MatchedPipeline, projectProv []model.Provenance) []model.CheckResult {
+func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoName string, repos []pipelinehistory.RepositoryInfo, reposErr, pipelinesErr error, matchedAll []pipelinehistory.MatchedPipeline, skippedAll []pipelinehistory.SkippedPipeline, projectProv []model.Provenance) []model.CheckResult {
 	if reposErr != nil {
 		return allNotCheckable(scope.Org, repoName, apiErrorReason(reposErr, "project repositories"), projectProv)
 	}
@@ -390,6 +406,12 @@ func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoNa
 		if mp.RepositoryID == repo.ID {
 			matched = append(matched, mp)
 			defIDs = append(defIDs, mp.DefinitionID)
+		}
+	}
+	var sameRepoSkips []pipelinehistory.SkippedPipeline
+	for _, sp := range skippedAll {
+		if sp.RepositoryID == repo.ID {
+			sameRepoSkips = append(sameRepoSkips, sp)
 		}
 	}
 
@@ -435,12 +457,21 @@ func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoNa
 	// this collector's own build-matching, so ran-per-release must not
 	// independently conclude verified-fail from the resulting zero
 	// matched builds — see checkRanPerRelease's own doc comment.
+	//
+	// hasMatchedPipelines is deliberately derived from the same hasAny
+	// matchConfidence already computed, not a second len(matched) > 0
+	// check (found in review: the two are equivalent only because
+	// pipelinehistory.MatchPipelines appends a MatchedPipeline solely when
+	// len(categoryMatches) > 0 — an invariant that lives in another
+	// package; two independently-written predicates for the same concept
+	// would silently disagree if that invariant ever broke).
 	hasAny, _ := matchConfidence(matched)
 	defaultSetupOnly := !hasAny && enablementErr == nil && enablement.CodeQLEnabled
+	hasMatchedPipelines := hasAny
 
 	return []model.CheckResult{
-		checkToolConfigured(scope.Org, repoName, matched, enablement, enablementErr, sharedProv),
-		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, buildsErr, defaultSetupOnly, sharedProv),
+		checkToolConfigured(scope.Org, repoName, matched, sameRepoSkips, enablement, enablementErr, sharedProv),
+		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, buildsErr, defaultSetupOnly, hasMatchedPipelines, sameRepoSkips, sharedProv),
 		checkCadence(scope.Org, repoName, matched, enablement, enablementErr, cadenceStats, buildsErr, sharedProv),
 		checkDefaultSetup(scope.Org, repoName, enablement, enablementErr, enablementProv),
 	}

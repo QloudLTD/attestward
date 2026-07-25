@@ -206,9 +206,9 @@ var checkRubrics = map[string]map[model.Status]string{
 			"pipelines could not be fully inspected (a build-definition fetch failure, an unresolved YAML " +
 			"path, a YAML fetch/parse failure, or an unresolved template reference — see " +
 			"Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail " +
-			"— issue #178 tracks fully consuming these skips across every check/platform; this check applies " +
-			"the honest not-checkable fix now rather than asserting a confident absence over incomplete " +
-			"evidence",
+			"— this check applies the honest not-checkable fix rather than asserting a confident absence over " +
+			"incomplete evidence; issue #207 tracks the identical same-repo-skip guard reaching " +
+			"C07.provenance.commit-linkage too, which doesn't consume these skips yet",
 	},
 	idCommitLinkage: {
 		model.StatusVerifiedPass: "every release in the lookback window has at least one build whose " +

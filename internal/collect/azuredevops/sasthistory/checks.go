@@ -97,16 +97,32 @@ func matchConfidence(matched []pipelinehistory.MatchedPipeline) (hasAny, hasHigh
 // verified-fail on a licensed org + enabled default setup + a scope-less
 // PAT, while the sibling checkDefaultSetup honestly reports not-checkable
 // for that identical response — see isAdvSecNotFoundErr's own doc comment.
-func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipeline, enablement pipelinehistory.RepoEnablementInfo, enablementErr error, prov []model.Provenance) model.CheckResult {
+//
+// sameRepoSkips are this repo's own entries from
+// pipelinehistory.MatchPipelines' skipped return (issue #178): surfaced in
+// Facts unconditionally (name + reason per entry), and — only when every
+// other signal here would otherwise produce verified-fail — capping that
+// at not-checkable instead, since a pipeline this collector couldn't
+// fully inspect means "no SAST tool configured" rests on incomplete
+// evidence, not a confirmed absence. Mirrors the identical treatment
+// already shipped for azuredevops/scahistory's checkToolConfigured.
+func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipeline, sameRepoSkips []pipelinehistory.SkippedPipeline, enablement pipelinehistory.RepoEnablementInfo, enablementErr error, prov []model.Provenance) model.CheckResult {
 	const id = idToolConfigured
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
+
+	skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
+	for _, sp := range sameRepoSkips {
+		skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+	}
+	hasSkips := len(sameRepoSkips) > 0
 
 	if !hasAny && enablementErr != nil && !isAdvSecNotFoundErr(enablementErr) {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("no SAST tool detected in any pipeline, and the GHAzDO repo-enablement query itself failed: %s", advSecNotCheckableReason(enablementErr, org, repo)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"skipped_pipelines": skipDetails},
 		}
 	}
 
@@ -127,6 +143,9 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 	case hasAny:
 		status = model.StatusPartial
 		reason = "only a low-confidence (pipeline/step-name-only) match was found — not enough signal alone to confirm a SAST tool is genuinely configured"
+	case hasSkips:
+		status = model.StatusNotCheckable
+		reason = fmt.Sprintf("no matched SAST pipeline evidence and GHAzDO CodeQL default setup is not configured, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(sameRepoSkips))
 	}
 
 	toolNames := make([]string, 0, len(names))
@@ -142,6 +161,7 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 			"tool_names":                  toolNames,
 			"ghazdo_codeql_default_setup": setupConfigured,
 			"low_confidence_match_only":   hasAny && !hasHighOrMedium && !setupConfigured,
+			"skipped_pipelines":           skipDetails,
 		},
 	}
 }
@@ -175,14 +195,60 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 // would read CoverageMissing: this check would otherwise report
 // verified-fail ("no matched SAST run at all") in the same breath
 // checkToolConfigured reports verified-pass for the identical evidence.
-func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, buildsErr error, defaultSetupOnly bool, prov []model.Provenance) model.CheckResult {
+//
+// hasMatchedPipelines/sameRepoSkips are checked next (issue #202's review
+// finding), same reasoning as defaultSetupOnly but a different cause: with
+// zero matched pipelines, every release's coverage reads CoverageMissing
+// regardless of why matched is empty — a genuine absence and an inspection
+// failure look identical to LinkRunsToReleases. If a same-repo skip exists
+// (and default setup isn't already covering the case), that's not a
+// confirmed absence, and reporting verified-fail here would contradict
+// C05.sast.tool-configured's own not-checkable for the identical evidence
+// (two panels of one pack, opposite claims).
+//
+// defaultSetupOnly is checked BEFORE sameRepoSkips, and this precedence is
+// load-bearing, not incidental (pinned by
+// TestCheckRanPerRelease_DefaultSetupOnlyWithSkip_DefaultSetupReasonWins):
+// when defaultSetupOnly is true, checkToolConfigured has already reported
+// verified-pass for the identical evidence ("a SAST tool is configured").
+// The sameRepoSkips branch's own wording — "no matched SAST pipeline
+// evidence... a confirmed absence can't be asserted" — would be actively
+// wrong next to that verified-pass, not merely a worse explanation; it
+// reintroduces the exact cross-check contradiction this whole guard exists
+// to remove. The defaultSetupOnly reason is correct regardless of whether a
+// same-repo skip also happened to exist, so it wins unconditionally when
+// both are true — a same-repo skip's Facts are still attached below so the
+// pack doesn't silently drop the record of an uninspectable pipeline just
+// because default setup explains the status.
+func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, buildsErr error, defaultSetupOnly, hasMatchedPipelines bool, sameRepoSkips []pipelinehistory.SkippedPipeline, prov []model.Provenance) model.CheckResult {
 	const id = idRanPerRelease
 
 	if defaultSetupOnly {
-		return model.CheckResult{
+		result := model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: "a SAST tool is configured via GHAzDO CodeQL default setup, but this collector has no verified way to observe its scan history per release via the Pipelines/Builds APIs it uses — ran-per-release can only be computed from a matched pipeline's own build history",
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+		if len(sameRepoSkips) > 0 {
+			skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
+			for _, sp := range sameRepoSkips {
+				skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+			}
+			result.Facts = map[string]any{"skipped_pipelines": skipDetails}
+		}
+		return result
+	}
+
+	if !hasMatchedPipelines && len(sameRepoSkips) > 0 {
+		skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
+		for _, sp := range sameRepoSkips {
+			skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+		}
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("no matched SAST pipeline evidence, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(sameRepoSkips)),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"skipped_pipelines": skipDetails},
 		}
 	}
 

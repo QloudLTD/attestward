@@ -2,6 +2,7 @@ package runhistory
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	ghgithub "github.com/google/go-github/v75/github"
@@ -40,30 +41,46 @@ func ListWorkflows(ctx context.Context, client *ghcollect.Client, org, repo stri
 	return all, nil, nil
 }
 
+// SkippedWorkflow is one workflow MatchWorkflows could not turn into full
+// evidence — mirrors azuredevops/pipelinehistory.SkippedPipeline and
+// actionssecurity's own skippedWorkflow: a caller consuming this list can
+// avoid asserting a confident verified-fail ("no tool detected") when the
+// evidence it searched was known-incomplete, rather than silently treating
+// an inspection failure as a genuine absence (issue #178).
+type SkippedWorkflow struct {
+	Path   string
+	Reason string
+}
+
 // MatchWorkflows fetches each of the given workflows' content on the
 // default branch and runs it through the #16 matcher, keeping only
 // matches in category. An individual workflow whose content can't be
-// fetched or parsed is skipped rather than failing the whole repo — a
-// listed-but-unreadable workflow file is an edge case (e.g. deleted after
-// being disabled) callers shouldn't treat as a hard error. This function
-// has no knowledge of any category-specific virtual workflow entries (e.g.
+// fetched, decoded, or parsed is recorded in skipped rather than failing
+// the whole repo — a listed-but-unreadable workflow file is an edge case
+// (e.g. deleted after being disabled) callers shouldn't treat as a hard
+// error, but it also isn't silently the same as "read fine, no match in
+// this category" (issue #178) — callers that would otherwise report a
+// confirmed absence should check skipped first. This function has no
+// knowledge of any category-specific virtual workflow entries (e.g.
 // CodeQL's "default setup" dynamic workflow) — callers should filter
 // those out of workflows themselves (via ListWorkflows) and handle them
 // separately, since that's category-specific behavior this shared package
 // has no opinion about.
-func MatchWorkflows(ctx context.Context, client *ghcollect.Client, registry *mapping.ScannerSignatureRegistry, org, repo, defaultBranch string, workflows []*ghgithub.Workflow, category mapping.ScannerCategory) []MatchedWorkflow {
-	var matched []MatchedWorkflow
+func MatchWorkflows(ctx context.Context, client *ghcollect.Client, registry *mapping.ScannerSignatureRegistry, org, repo, defaultBranch string, workflows []*ghgithub.Workflow, category mapping.ScannerCategory) (matched []MatchedWorkflow, skipped []SkippedWorkflow) {
 	for _, wf := range workflows {
 		content, _, _, err := client.REST.Repositories.GetContents(ctx, org, repo, wf.GetPath(), &ghgithub.RepositoryContentGetOptions{Ref: defaultBranch})
 		if err != nil || content == nil {
+			skipped = append(skipped, SkippedWorkflow{Path: wf.GetPath(), Reason: fmt.Sprintf("fetch content failed: %v", err)})
 			continue
 		}
 		raw, err := content.GetContent()
 		if err != nil {
+			skipped = append(skipped, SkippedWorkflow{Path: wf.GetPath(), Reason: fmt.Sprintf("decode content failed: %v", err)})
 			continue
 		}
 		parsed, err := mapping.ParseWorkflowFile([]byte(raw))
 		if err != nil {
+			skipped = append(skipped, SkippedWorkflow{Path: wf.GetPath(), Reason: fmt.Sprintf("parse workflow YAML failed: %v", err)})
 			continue
 		}
 
@@ -77,7 +94,7 @@ func MatchWorkflows(ctx context.Context, client *ghcollect.Client, registry *map
 			matched = append(matched, MatchedWorkflow{WorkflowID: wf.GetID(), Path: wf.GetPath(), Matches: categoryMatches})
 		}
 	}
-	return matched
+	return matched, skipped
 }
 
 // FetchReleases lists every release (all pages) — filtering to the

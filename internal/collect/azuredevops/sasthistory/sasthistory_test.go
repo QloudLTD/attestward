@@ -204,6 +204,48 @@ func TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable(t *testi
 	}
 }
 
+// TestCollect_SameRepoSkip_ToolConfiguredNotCheckableNotFail is the C05
+// twin of azuredevops/scahistory's identically-named test (issue #178):
+// one pipeline in this repo resolves to a YAML pipeline but its
+// yamlFilename is missing (YAMLPathUnknown), producing a SkippedPipeline;
+// with zero matched pipelines and GHAzDO CodeQL default setup off, this
+// must cap at not-checkable, not a confident verified-fail.
+func TestCollect_SameRepoSkip_ToolConfiguredNotCheckableNotFail(t *testing.T) {
+	fx := adofixture.New()
+	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	registerPipelines(fx, map[string]any{"id": 1, "name": "unresolved-pipeline"})
+	registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": ""}, testRepoID, "refs/heads/main")
+	registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+	registerCommitDate(fx, testRepoID, "sha1", time.Now().UTC().AddDate(0, 0, -5))
+	registerEnablement(fx, testRepoID, false)
+
+	c := newCollector(fx)
+	results, err := c.Collect(context.Background(), defaultScope())
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	got := m[idToolConfigured]
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("tool-configured = %q, want not-checkable (a same-repo skip must cap what would otherwise be verified-fail); reason=%q", got.Status, got.Reason)
+	}
+	skipped, ok := got.Facts["skipped_pipelines"].([]map[string]any)
+	if !ok || len(skipped) != 1 || skipped[0]["name"] != "unresolved-pipeline" {
+		t.Errorf("skipped_pipelines facts = %#v, want one entry naming unresolved-pipeline", got.Facts["skipped_pipelines"])
+	}
+
+	// Review finding on #202: this fixture already has a real release
+	// (v1.0.0) in scope, so it also exercises ran-per-release's own
+	// coverage-computation path — previously that read verified-fail ("no
+	// matched SAST build at all") in the same breath tool-configured read
+	// not-checkable for the identical evidence. Both must now agree.
+	ranPerRelease := m[idRanPerRelease]
+	if ranPerRelease.Status != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable (must agree with tool-configured's not-checkable over the identical unresolved-pipeline evidence, not independently assert verified-fail); reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+}
+
 // TestCollect_LowConfidenceOnlyMatch_CapsToolConfiguredAndCadenceAtPartial
 // uses semgrep's workflow_name_patterns-only signal (a pipeline named after
 // semgrep, with no actual run-pattern/ado_task invocation) — the weakest

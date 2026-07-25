@@ -64,10 +64,24 @@ func matchConfidence(matched []runhistory.MatchedWorkflow) (hasAny, hasHighOrMed
 // .github/dependabot.yml existing with at least one update entry) counts
 // as a high-confidence signal on its own, the same way CodeQL default
 // setup does for C05.
-func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, dependabotConfigured bool, dependabotResp *ghgithub.Response, dependabotErr error, prov []model.Provenance) model.CheckResult {
+//
+// skipped is this repo's runhistory.MatchWorkflows skip list (issue #178):
+// surfaced in Facts unconditionally (path + reason per entry), and — only
+// when every other signal here would otherwise produce verified-fail —
+// capping that at not-checkable instead, since a workflow this collector
+// couldn't fully inspect means "no SCA tool configured" rests on
+// incomplete evidence, not a confirmed absence. Mirrors the identical
+// treatment already shipped for azuredevops/scahistory's checkToolConfigured.
+func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, skipped []runhistory.SkippedWorkflow, dependabotConfigured bool, dependabotResp *ghgithub.Response, dependabotErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.tool-configured"
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
+
+	skipDetails := make([]map[string]any, 0, len(skipped))
+	for _, sw := range skipped {
+		skipDetails = append(skipDetails, map[string]any{"path": sw.Path, "reason": sw.Reason})
+	}
+	hasSkips := len(skipped) > 0
 
 	// If there's no workflow-based evidence at all AND the Dependabot
 	// config fetch itself failed, dependabotConfigured reading false is
@@ -82,6 +96,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("no SCA tool detected in any workflow, and the Dependabot config fetch itself failed: %s", notCheckableReason(dependabotResp, dependabotErr, org, repo)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"skipped_workflows": skipDetails},
 		}
 	}
 
@@ -103,6 +118,9 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	case hasAny:
 		status = model.StatusPartial
 		reason = "only a low-confidence (workflow-name-only) match was found — not enough signal alone to confirm an SCA tool is genuinely configured"
+	case hasSkips:
+		status = model.StatusNotCheckable
+		reason = fmt.Sprintf("no matched SCA workflow evidence and no Dependabot config found, but %d workflow(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(skipped))
 	}
 
 	toolNames := make([]string, 0, len(names))
@@ -118,6 +136,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 			"tool_names":                toolNames,
 			"dependabot_configured":     dependabotConfigured,
 			"low_confidence_match_only": hasAny && !hasHighOrMedium && !dependabotConfigured,
+			"skipped_workflows":         skipDetails,
 		},
 	}
 }
@@ -137,7 +156,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 // this check can actually verify. In that case the check is honestly
 // not-checkable, pointing at C06.sca.alerts-triaged as the check that DOES
 // have real Dependabot-sourced evidence (open alert counts/ages).
-func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly, dependabotUnknown bool, relResp *ghgithub.Response, relErr error, prov []model.Provenance) model.CheckResult {
+func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly, dependabotUnknown, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, relResp *ghgithub.Response, relErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.ran-per-release"
 
 	// dependabotUnknown (no workflow-based SCA evidence, and the
@@ -160,6 +179,28 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: "Dependabot has no discrete per-release run history to evaluate — see C06.sca.alerts-triaged for ongoing SCA activity instead",
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+	}
+
+	// A skip-caused false verified-fail (issue #202's review finding):
+	// reaching this point with zero matched workflows means (per
+	// dependabotOnly's own guard above) Dependabot isn't configured either
+	// — genuinely zero SCA evidence from either source, except whatever a
+	// same-repo skip couldn't confirm one way or the other. With zero
+	// matched workflows, every release's coverage reads CoverageMissing
+	// regardless of WHY matched is empty, so asserting verified-fail here
+	// would contradict C06.sca.tool-configured's own not-checkable for the
+	// identical evidence (two panels of one pack, opposite claims).
+	if !hasMatchedWorkflows && len(skipped) > 0 {
+		skipDetails := make([]map[string]any, 0, len(skipped))
+		for _, sw := range skipped {
+			skipDetails = append(skipDetails, map[string]any{"path": sw.Path, "reason": sw.Reason})
+		}
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("no matched SCA workflow evidence and no Dependabot config found, but %d workflow(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(skipped)),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"skipped_workflows": skipDetails},
 		}
 	}
 

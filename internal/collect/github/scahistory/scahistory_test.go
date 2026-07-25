@@ -324,6 +324,131 @@ func TestCollect_DependabotOnly_ToolConfiguredPassesRanPerReleaseNotCheckable(t 
 	}
 }
 
+// TestCollect_OnlyWorkflowUnreadable_ToolConfiguredNotCheckableNotFail is
+// issue #178's regression case, mirrored from C05 sasthistory's identical
+// test: a repo whose only workflow can't be fetched (content 404) and has
+// no Dependabot config must NOT read verified-fail ("no SCA tool
+// detected") — that asserts a confirmed absence when inspection of the
+// one workflow that exists actually failed. It must read not-checkable
+// instead, with the skip surfaced in Facts.
+func TestCollect_OnlyWorkflowUnreadable_ToolConfiguredNotCheckableNotFail(t *testing.T) {
+	org, repo, branch := "attestward-demo", "flaky-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "Mystery", "path": ".github/workflows/mystery.yml", "state": "active"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/mystery.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+	registerNoReleases(t, mux, org, repo)
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	tc := m["C06.sca.tool-configured"]
+	if tc.Status != model.StatusNotCheckable {
+		t.Errorf("tool-configured = %q, want not-checkable (the repo's only workflow couldn't be inspected — not a confirmed absence); reason=%q", tc.Status, tc.Reason)
+	}
+	skipped, ok := tc.Facts["skipped_workflows"].([]map[string]any)
+	if !ok || len(skipped) != 1 || skipped[0]["path"] != ".github/workflows/mystery.yml" || skipped[0]["reason"] == "" {
+		t.Errorf("skipped_workflows facts = %v, want one entry for mystery.yml with a non-empty reason", tc.Facts["skipped_workflows"])
+	}
+}
+
+// TestCollect_OnlyWorkflowUnreadableWithRelease_RanPerReleaseNotCheckableNotFail
+// is the review finding on #202, mirrored from C05 sasthistory's identical
+// test: the test above uses no releases, so it never exercises
+// ran-per-release's own coverage-computation path. With a real release in
+// scope and the repo's only workflow unreadable, ran-per-release previously
+// read verified-fail ("no matched SCA runs at all") in the same breath
+// tool-configured read not-checkable for the identical evidence — two
+// panels of one pack, opposite claims. Both must now agree: not-checkable.
+func TestCollect_OnlyWorkflowUnreadableWithRelease_RanPerReleaseNotCheckableNotFail(t *testing.T) {
+	org, repo, branch := "attestward-demo", "flaky-release-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "Mystery", "path": ".github/workflows/mystery.yml", "state": "active"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/mystery.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+	registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	toolConfigured := m["C06.sca.tool-configured"]
+	if toolConfigured.Status != model.StatusNotCheckable {
+		t.Fatalf("tool-configured = %q, want not-checkable; reason=%q (test fixture no longer matches this test's premise)", toolConfigured.Status, toolConfigured.Reason)
+	}
+	ranPerRelease := m["C06.sca.ran-per-release"]
+	if ranPerRelease.Status != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable (must agree with tool-configured's not-checkable over the identical unreadable-workflow evidence, not independently assert verified-fail); reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+}
+
+// TestCollect_NoSCAToolAtAllWithRelease_RanPerReleaseStillVerifiedFail is the
+// negative counterpart the review round on #202 found missing: the guard
+// added to checkRanPerRelease must be skip-gated, not a blanket "zero
+// matched = not-checkable." A repo with a real release in scope, zero
+// workflows, and no Dependabot config — genuinely no SCA evidence, and no
+// skip explaining the absence — must still read verified-fail. Without this
+// test, widening the guard's condition (e.g. dropping the skip check
+// entirely) would silently turn every real zero-SCA-evidence gap into a
+// false "couldn't check" and nothing in this package would catch it.
+func TestCollect_NoSCAToolAtAllWithRelease_RanPerReleaseStillVerifiedFail(t *testing.T) {
+	org, repo, branch := "attestward-demo", "bare-release-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	registerNoWorkflows(t, mux, org, repo)
+	registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	toolConfigured := m["C06.sca.tool-configured"]
+	if toolConfigured.Status != model.StatusVerifiedFail {
+		t.Fatalf("tool-configured = %q, want verified-fail (test fixture no longer matches this test's premise)", toolConfigured.Status)
+	}
+	ranPerRelease := m["C06.sca.ran-per-release"]
+	if ranPerRelease.Status != model.StatusVerifiedFail {
+		t.Errorf("ran-per-release = %q, want verified-fail (no skip, so this is a confirmed absence, not a gap in inspection); reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+}
+
 func TestCollect_NoSCAToolAtAll_ToolConfiguredFails(t *testing.T) {
 	org, repo, branch := "attestward-demo", "bare-repo", "main"
 	mux := http.NewServeMux()

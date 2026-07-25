@@ -277,8 +277,9 @@ var checkRubrics = map[string]map[model.Status]string{
 			"of this repo's own pipelines could not be fully inspected (a build-definition fetch failure, an " +
 			"unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see " +
 			"Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail " +
-			"— issue #178 tracks fully consuming these skips across every check/platform; this check applies " +
-			"the honest partial fix now rather than asserting a confident absence over incomplete evidence",
+			"— this check applies the honest not-checkable fix rather than asserting a confident absence over " +
+			"incomplete evidence; issue #207 tracks the identical same-repo-skip guard reaching " +
+			"C06.sca.ran-per-release too, which doesn't consume these skips yet",
 	},
 	idRanPerRelease: {
 		model.StatusVerifiedPass: "an SCA pipeline ran successfully (at least one matched build whose " +
@@ -292,7 +293,11 @@ var checkRubrics = map[string]map[model.Status]string{
 			"still succeeded but the exclusion caps the result at partial; or a matched SCA pipeline ran for " +
 			"every evaluated release, but not every build succeeded",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SCA builds " +
-			"at all (not even a failed one)",
+			"at all (not even a failed one) — unlike C05.sast.ran-per-release and this same check's own " +
+			"tool-configured sibling, this check does not yet consume " +
+			"pipelinehistory.MatchPipelines' skipped return, so a same-repo skip (a pipeline this collector " +
+			"couldn't fully inspect) can still produce this status over incomplete evidence — a real, open " +
+			"gap tracked in issue #207, not yet fixed here",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or resolving this repo's release " +
 			"tags failed (403/other API error) — unlike the four other checks in this package, this failure " +
 			"is local to this check alone (see the package doc comment's judgment call 6); or GHAzDO " +

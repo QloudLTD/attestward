@@ -90,13 +90,18 @@ var checkRubrics = map[string]map[model.Status]string{
 			"and Dependabot is not confirmed configured (no config at either accepted path, a config with " +
 			"no usable `updates:` entries, or the config fetch itself failed) — not enough signal alone to " +
 			"confirm an SCA tool is genuinely configured",
-		model.StatusVerifiedFail: "no workflow match of any confidence was found, and the Dependabot " +
+		model.StatusVerifiedFail: "no workflow match of any confidence was found, the Dependabot " +
 			"config fetch succeeded but found either no config at either accepted path " +
 			"(`.github/dependabot.yml` or `.yaml`) or a config with no `updates:` entry setting a " +
-			"non-empty `package-ecosystem`",
+			"non-empty `package-ecosystem`, and every workflow this collector inspected for this repo " +
+			"resolved cleanly (no same-repo skip) — a real absence, not an evidence gap",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no workflow-based " +
 			"evidence at all and the Dependabot config fetch itself failed (permission denied, malformed " +
-			"YAML, or another API error) — an unresolved unknown, not a confirmed absence",
+			"YAML, or another API error) — an unresolved unknown, not a confirmed absence; or one or more " +
+			"of this repo's own workflows could not be fully inspected (a content fetch, decode, or parse " +
+			"failure — see Facts.skipped_workflows) and no Dependabot config was found, and the evidence " +
+			"gathered would otherwise have produced verified-fail — this check applies the honest " +
+			"not-checkable fix rather than asserting a confident absence over incomplete evidence",
 	},
 	"C06.sca.ran-per-release": {
 		model.StatusVerifiedPass: "an SCA tool ran successfully (at least one matched run whose conclusion " +
@@ -108,14 +113,20 @@ var checkRubrics = map[string]map[model.Status]string{
 			"or more matching release tags couldn't be resolved to a commit and were excluded from " +
 			"evaluation",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SCA runs " +
-			"at all (not even a failed one)",
+			"at all (not even a failed one), and — when there are zero matched workflows and no Dependabot " +
+			"config — every workflow this collector inspected for this repo resolved cleanly (no same-repo " +
+			"skip)",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no workflow-based SCA tool was " +
 			"detected and the Dependabot config fetch itself failed — unknown whether Dependabot is this " +
 			"repo's sole SCA tool or absent entirely; or Dependabot is this repo's sole detected SCA tool, " +
 			"which has no per-release run history to evaluate here (see C06.sca.alerts-triaged instead); " +
-			"or the release listing itself failed (403/plan-gated/other API error); or no release tag " +
-			"matches the configured pattern within the lookback window, and none of the tags that did " +
-			"match were dropped as unresolvable either — genuinely nothing to evaluate",
+			"or there are zero matched workflows, no Dependabot config, and one or more of this repo's own " +
+			"workflows could not be fully inspected (see Facts.skipped_workflows) — the same evidence gap " +
+			"C06.sca.tool-configured itself goes not-checkable for, so this check does too rather than " +
+			"asserting a confident absence over it; or the release listing itself failed (403/plan-gated/" +
+			"other API error); or no release tag matches the configured pattern within the lookback window, " +
+			"and none of the tags that did match were dropped as unresolvable either — genuinely nothing to " +
+			"evaluate",
 	},
 	"C06.sca.dependabot-config": {
 		model.StatusVerifiedPass: "a Dependabot config exists and covers every ecosystem detected from the " +
@@ -303,7 +314,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	if err != nil {
 		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
 	}
-	workflowMatches := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategorySCA)
+	workflowMatches, skippedWorkflows := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategorySCA)
 	workflowMatchProv := snapshot()
 
 	now := time.Now().UTC()
@@ -392,12 +403,13 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	// Dependabot config fetch itself failed rather than confirming
 	// absence — see checkRanPerRelease's own doc comment.
 	dependabotUnknown := dependabotErr != nil && len(workflowMatches) == 0
+	hasMatchedWorkflows := len(workflowMatches) > 0
 
 	summary := summarizeAlerts(alerts, now)
 
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, workflowMatches, dependabotConfigured, dependabotResp, dependabotErr, toolConfiguredProv),
-		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, relResp, relErr, ranPerReleaseProv),
+		checkToolConfigured(org, repo, workflowMatches, skippedWorkflows, dependabotConfigured, dependabotResp, dependabotErr, toolConfiguredProv),
+		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, ranPerReleaseProv),
 		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, dependabotConfigProv),
 		checkDependencyReview(org, repo, depReviewFound, depReviewWorkflow, depReviewFetchErr, statusCheckNames, statusErr, dependencyReviewProv),
 		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, alertsProv),
