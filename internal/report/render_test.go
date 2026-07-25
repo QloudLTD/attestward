@@ -71,7 +71,7 @@ func TestRenderMarkdown_RichPackGolden(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestRenderHTML_RichPackGolden(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -97,11 +97,11 @@ func TestRenderMarkdown_Deterministic(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	first, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	first, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown (1): %v", err)
 	}
-	second, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	second, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown (2): %v", err)
 	}
@@ -114,11 +114,11 @@ func TestRenderHTML_Deterministic(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	first, err := RenderHTML(pack, ssdf, cisa, saQuestions)
+	first, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML (1): %v", err)
 	}
-	second, err := RenderHTML(pack, ssdf, cisa, saQuestions)
+	second, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML (2): %v", err)
 	}
@@ -150,7 +150,7 @@ func TestRenderMarkdown_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestRenderHTML_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -201,7 +201,7 @@ func assertNoHostileMarkers(t *testing.T, format string, got []byte) {
 func TestBuildContext_MissingMappingDataDegradesGracefully(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 
-	md, err := RenderMarkdown(pack, nil, nil, nil)
+	md, err := RenderMarkdown(pack, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown with nil mappings: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestBuildContext_MissingMappingDataDegradesGracefully(t *testing.T) {
 		t.Error("RenderMarkdown with nil mappings lost the org name, which doesn't depend on mapping data")
 	}
 
-	html, err := RenderHTML(pack, nil, nil, nil)
+	html, err := RenderHTML(pack, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML with nil mappings: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestRenderHTML_NoExternalReferences(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestRenderHTML_PrintsToUSLetter(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestRenderMarkdown_NewlineDoesNotInjectMarkdownStructure(t *testing.T) {
 	pack.Results[0].Reason = "line one\n\n# INJECTED HEADING MARKER\n\nline two"
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestRenderMarkdown_CodeSpanValuesNotBackslashEscaped(t *testing.T) {
 	pack.Results[0].Scope.Repo = "my_repo"
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -314,11 +314,105 @@ func TestRenderMarkdown_CodeSpanValuesNotBackslashEscaped(t *testing.T) {
 	}
 }
 
+// projectScopedTestResults returns two Azure DevOps project-scoped
+// CheckResults (Scope.Repo empty, Scope.Project set) — one verified-fail
+// (Gaps table), one not-checkable (Not Checkable table) — plus the
+// scopeLevelByCheckID map a caller would build from collect.Registered()
+// for them. Both check IDs are real, mapped C03 env-separation checks
+// (issue #176's own motivating example), not invented ones.
+func projectScopedTestResults() ([]model.CheckResult, map[string]string) {
+	results := []model.CheckResult{
+		{
+			CheckID: "C03.env.exists", Title: "At least one environment exists",
+			Status: model.StatusVerifiedFail, Reason: "no environments found in this project",
+			Scope: model.ScopeRef{Org: "attestward-demo", Project: "my-project", Platform: "azuredevops"},
+		},
+		{
+			CheckID: "C03.env.protection-rules", Title: "Environments have protection rules",
+			Status: model.StatusNotCheckable, Reason: "could not list environments (403)",
+			Scope: model.ScopeRef{Org: "attestward-demo", Project: "my-project", Platform: "azuredevops"},
+		},
+	}
+	scopeLevelByCheckID := map[string]string{
+		"C03.env.exists":           "project",
+		"C03.env.protection-rules": "project",
+	}
+	return results, scopeLevelByCheckID
+}
+
+// assertScopeLabelPrecise fails the test unless text contains want but not
+// wrong — used by both the markdown and html project-scope-labeling tests
+// below to check the exact checkID-cell-then-scope-cell shape, not every
+// line mentioning the check ID (report.md's Cluster Detail section, and
+// report.html's <code> headings, also name these IDs — deliberately
+// untouched by #176 — and would otherwise produce a false failure here).
+func assertScopeLabelPrecise(t *testing.T, text, label, want, wrong string) {
+	t.Helper()
+	if !strings.Contains(text, want) {
+		t.Errorf("%s row for the project-scoped result = missing %q; got:\n%s", label, want, text)
+	}
+	if strings.Contains(text, wrong) {
+		t.Errorf("%s row for the project-scoped result mislabels it org-level", label)
+	}
+}
+
+// TestRenderMarkdown_ProjectScopedResultsNotLabeledOrgLevel is issue #176's
+// regression case: an ADO project-scoped result (Scope.Repo empty,
+// Scope.Project set — e.g. C03 env-separation) must not render as "(org)"
+// in report.md's Gaps or Not Checkable tables — correct only for a
+// genuinely org-level result (e.g. C01/C09, also Scope.Repo empty). Also
+// covers #176's pack-header-shows-Project requirement in the same test,
+// since both exercise the identical ADO-project-scoped-pack scenario.
+func TestRenderMarkdown_ProjectScopedResultsNotLabeledOrgLevel(t *testing.T) {
+	pack := loadTestPack(t, "rich-pack.json")
+	extra, scopeLevelByCheckID := projectScopedTestResults()
+	pack.Results = append(pack.Results, extra...)
+	pack.Scope.Project = "my-project" // also covers issue #176's pack-header requirement below
+	ssdf, cisa, saQuestions := loadRealMappings(t)
+
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+	if err != nil {
+		t.Fatalf("RenderMarkdown: %v", err)
+	}
+	text := string(got)
+
+	if !strings.Contains(text, "**Project:** my-project") {
+		t.Errorf("report.md's Executive Summary doesn't surface Pack.Scope.Project; got:\n%s", text)
+	}
+	assertScopeLabelPrecise(t, text, "Gaps", "`C03.env.exists` | (project: my-project) |", "`C03.env.exists` | (org) |")
+	assertScopeLabelPrecise(t, text, "Not Checkable", "`C03.env.protection-rules` | (project: my-project) |", "`C03.env.protection-rules` | (org) |")
+}
+
+// TestRenderHTML_ProjectScopedResultsNotLabeledOrgLevel is report.html's
+// twin of TestRenderMarkdown_ProjectScopedResultsNotLabeledOrgLevel — the
+// issue calls out "the html template needs the same treatment as the
+// markdown one" explicitly, and report.html carries the identical "(org)"
+// literal. Also covers the pack-header Project row, same rationale.
+func TestRenderHTML_ProjectScopedResultsNotLabeledOrgLevel(t *testing.T) {
+	pack := loadTestPack(t, "rich-pack.json")
+	extra, scopeLevelByCheckID := projectScopedTestResults()
+	pack.Results = append(pack.Results, extra...)
+	pack.Scope.Project = "my-project" // also covers issue #176's pack-header requirement below
+	ssdf, cisa, saQuestions := loadRealMappings(t)
+
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+	if err != nil {
+		t.Fatalf("RenderHTML: %v", err)
+	}
+	text := string(got)
+
+	if !strings.Contains(text, `<th scope="row">Project</th><td>my-project</td>`) {
+		t.Errorf("report.html's scope table doesn't surface Pack.Scope.Project; got:\n%s", text)
+	}
+	assertScopeLabelPrecise(t, text, "Gaps", "<code>C03.env.exists</code></td><td>(project: my-project)</td>", "<code>C03.env.exists</code></td><td>(org)</td>")
+	assertScopeLabelPrecise(t, text, "Not Checkable", "<code>C03.env.protection-rules</code></td><td>(project: my-project)</td>", "<code>C03.env.protection-rules</code></td><td>(org)</td>")
+}
+
 func TestRenderMarkdown_SelfAttestedPairingShowsSideBySide(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}

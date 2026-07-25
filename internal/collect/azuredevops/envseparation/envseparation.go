@@ -234,6 +234,10 @@ func init() {
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
 			FixtureRef:  fixtureRef,
+			// Every C03 check is project-scoped, never org-scoped —
+			// environments are project-level on Azure DevOps (see the
+			// package doc comment). See CheckMeta.ScopeLevel (#176).
+			ScopeLevel: collect.ScopeLevelProject,
 		})
 	}
 }

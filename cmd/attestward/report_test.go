@@ -111,16 +111,24 @@ func TestRunReport_ByteIdenticalToDirectRenderersCall(t *testing.T) {
 	for _, meta := range collect.Registered() {
 		remediationByCheckID[meta.ID] = meta.Remediation
 	}
+	// Built through the SAME per-platform resolution production uses, not by
+	// flat-ranging Registered(). A flat range is last-wins per ID, and 10 of
+	// the 11 project-scoped ADO checks also exist on GitHub with the zero
+	// value — so it would silently agree with production today (Registered()
+	// sorts platform-then-ID, and this fixture pack is GitHub) while losing
+	// the ability to detect a buildScopeLevelByCheckID that ignores platform.
+	// That is precisely the divergence this test is named for.
+	scopeLevelByCheckID := buildScopeLevelByCheckID(pack.Results, collect.LookupPlatform)
 
-	wantMD, err := report.RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	wantMD, err := report.RenderMarkdown(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	wantHTML, err := report.RenderHTML(pack, ssdf, cisa, saQuestions)
+	wantHTML, err := report.RenderHTML(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
-	wantPOAM, err := report.RenderPOAM(pack, ssdf, cisa, remediationByCheckID)
+	wantPOAM, err := report.RenderPOAM(pack, ssdf, cisa, remediationByCheckID, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -392,6 +400,76 @@ func TestReportGo_NoNetworkImports(t *testing.T) {
 		path := strings.Trim(imp.Path.Value, `"`)
 		if forbidden[path] {
 			t.Errorf("report.go imports %q — attestward report must never touch the network", path)
+		}
+	}
+}
+
+// TestRegistry_ProjectScopedADOChecksArePinned pins the CLASSIFICATION, which
+// nothing else does.
+//
+// Issue #176 was that project-scoped Azure DevOps results rendered as
+// org-level. The fix works by tagging checks with CheckMeta.ScopeLevel — but
+// the three renderer tests hand-build their scope map, so they prove the
+// renderer and say nothing about the registry. Measured: deleting
+// `ScopeLevel: collect.ScopeLevelProject` from envseparation's registration,
+// silently un-classifying all four C03 ADO checks, leaves `go test ./...`
+// fully green.
+//
+// That is exactly where the next regression lands. ScopeLevelOrg is the zero
+// value, so a new project-scoped ADO collector whose author omits the field
+// compiles, passes, and ships a wrong "(org)" label into a signed evidence
+// pack — #176 verbatim, in a document a compliance reader acts on.
+//
+// This asserts the EXACT set, both directions: a check that stops being
+// project-scoped fails here too, so the list cannot silently grow or shrink.
+// Adding a genuinely project-scoped check means adding its ID here, on
+// purpose, in the same change.
+func TestRegistry_ProjectScopedADOChecksArePinned(t *testing.T) {
+	// Every Azure DevOps check whose results carry a Project but no Repo.
+	// Derived from each collector's actual model.ScopeRef construction, not
+	// from the registry itself — a test that read the registry to build its
+	// own expectation would pass no matter what the registry said.
+	want := map[string]bool{
+		"C03.env.branch-policy":           true,
+		"C03.env.exists":                  true,
+		"C03.env.protection-rules":        true,
+		"C03.env.required-reviewers":      true,
+		"C04.vars.secret-hygiene":         true,
+		"C08.actions.oidc-vs-secrets":     true,
+		"C08.actions.pinned":              true,
+		"C08.actions.pull-request-target": true,
+		"C08.actions.self-hosted":         true,
+		"C08.actions.token-permissions":   true,
+		"C08.pipelines.fork-protection":   true,
+	}
+
+	got := map[string]bool{}
+	for _, meta := range collect.Registered() {
+		if meta.Platform != "azuredevops" {
+			continue
+		}
+		// "" and ScopeLevelOrg are both org — the field's zero value is the
+		// empty string, not "org", and almost no check sets it explicitly.
+		switch meta.ScopeLevel {
+		case collect.ScopeLevelProject:
+			got[meta.ID] = true
+		case collect.ScopeLevelOrg, "":
+			if want[meta.ID] {
+				t.Errorf("%s is registered org-scoped but its results carry a Project — it will render as \"(org)\" in a signed pack (issue #176)", meta.ID)
+			}
+		default:
+			t.Errorf("%s has unknown ScopeLevel %q", meta.ID, meta.ScopeLevel)
+		}
+	}
+
+	for id := range want {
+		if !got[id] {
+			t.Errorf("%s is no longer registered as project-scoped — either the registration was dropped, or the check genuinely changed scope and this list needs updating deliberately", id)
+		}
+	}
+	for id := range got {
+		if !want[id] {
+			t.Errorf("%s is newly registered as project-scoped and is not in this list — add it here if that is correct, so the set stays reviewed", id)
 		}
 	}
 }

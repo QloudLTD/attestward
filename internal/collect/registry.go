@@ -75,7 +75,43 @@ type CheckMeta struct {
 	// that exercises this check, so a reference reader can see it proven
 	// against a real scenario rather than only described in prose.
 	FixtureRef string
+	// ScopeLevel disambiguates the one case ScopeRef alone can't resolve
+	// (issue #176): a check whose results always have Repo empty could be
+	// genuinely org-scoped (e.g. C01 org-security) or, on Azure DevOps,
+	// project-scoped (e.g. C03 env-separation, C08 pipeline-security) —
+	// and ScopeRef.Project can't disambiguate that either, since the
+	// orchestrator stamps it onto every ADO result regardless of the
+	// check's own scope level (see ScopeRef.Project's doc comment).
+	// Renderers consult this rather than inferring scope level from
+	// (Repo, Project) presence at each call site, which is what let #176
+	// happen. Left unset (ScopeLevelOrg, the zero value) for the large
+	// majority of checks: a non-empty Repo resolves directly, and an
+	// unset value defaults to "org" — correct for GitHub and every
+	// genuinely org-scoped ADO check. Only set ScopeLevelProject for a
+	// check whose Repo is always empty AND whose control is
+	// project-scoped, not org-scoped.
+	ScopeLevel ScopeLevel
 }
+
+// ScopeLevel is CheckMeta.ScopeLevel's type — see that field's doc comment.
+// A plain string type, not exported cross-package to internal/report
+// (ADR-0005): cmd/attestward converts it to a plain string at the package
+// boundary when building the scopeLevelByCheckID map renderers accept.
+type ScopeLevel string
+
+const (
+	// ScopeLevelOrg is the org-scoped value. Leaving the field unset is
+	// equivalent FOR RENDERING — consumers test for ScopeLevelProject and
+	// treat everything else as org — but it is NOT literally the zero value,
+	// which is "". So `meta.ScopeLevel == ScopeLevelOrg` is false for every
+	// check that never sets the field, i.e. almost all of them. Compare
+	// against ScopeLevelProject, or handle "" explicitly.
+	ScopeLevelOrg ScopeLevel = "org"
+	// ScopeLevelProject marks a check whose results are always scoped to
+	// an Azure DevOps project, never the whole org. No GitHub check ever
+	// uses this — GitHub has no project concept.
+	ScopeLevelProject ScopeLevel = "project"
+)
 
 // DefaultPlatform is what an empty platform value means everywhere in this
 // codebase — the only platform this tool supported before the v0.2 Azure

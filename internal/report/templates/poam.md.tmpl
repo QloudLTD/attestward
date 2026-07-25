@@ -11,7 +11,8 @@ narrative context.
 ## Summary
 
 - **Org:** {{.Pack.Scope.Org}}
-- **Scan window:** {{fmtTime .Pack.ScanStartedAt}} – {{fmtTime .Pack.ScanEndedAt}}
+{{if .Pack.Scope.Project}}- **Project:** {{esc .Pack.Scope.Project}}
+{{end}}- **Scan window:** {{fmtTime .Pack.ScanStartedAt}} – {{fmtTime .Pack.ScanEndedAt}}
 - **Total findings:** {{.TotalFindings}} ({{.FailCount}} fail, {{.PartialCount}} partial)
 
 | Cluster | Fail | Partial | Total |
@@ -32,7 +33,7 @@ Findings below aren't cited by any SSDF task, or no CISA form cluster cites the 
 {{end}}{{range .Findings}}
 #### {{.ID}}: {{esc .Result.Title}} (`{{.Result.CheckID}}`) — {{statusBadge .Result.Status}} {{statusLabel .Result.Status}}
 
-- **Repo:** {{if .Result.Scope.Repo}}{{esc .Result.Scope.Repo}}{{else}}(org-level){{end}}
+- **Repo:** {{esc .ScopeLabel}}
 - **Affected SSDF task(s):** {{if .TaskIDs}}{{range $i, $t := .TaskIDs}}{{if $i}}, {{end}}{{$t}}{{end}}{{else}}(none cited){{end}}
 - **CISA form cluster(s):** {{if .ClusterIDs}}{{range $i, $c := .ClusterIDs}}{{if $i}}, {{end}}{{$c}}{{end}}{{else}}(none cited){{end}}
 - **Description:** {{esc .Result.Reason}}

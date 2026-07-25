@@ -5,7 +5,8 @@
 ## Executive Summary
 
 - **Org:** {{.Pack.Scope.Org}}
-- **Repos in scope:** {{range $i, $r := .Pack.Scope.Repos}}{{if $i}}, {{end}}{{esc $r}}{{end}}
+{{if .Pack.Scope.Project}}- **Project:** {{esc .Pack.Scope.Project}}
+{{end}}- **Repos in scope:** {{range $i, $r := .Pack.Scope.Repos}}{{if $i}}, {{end}}{{esc $r}}{{end}}
 - **Scan window:** {{fmtTime .Pack.ScanStartedAt}} – {{fmtTime .Pack.ScanEndedAt}}
 - **Tool version:** {{.Pack.ToolVersion}}
 - **Mapping versions:** SSDF {{.Pack.MappingVersions.SSDF}} · CISA form {{.Pack.MappingVersions.CISAForm}}{{if .Pack.MappingVersions.ScannerSignatures}} · scanner signatures {{.Pack.MappingVersions.ScannerSignatures}}{{end}}{{if .Pack.MappingVersions.SelfAttestation}} · self-attestation {{.Pack.MappingVersions.SelfAttestation}}{{end}}
@@ -62,7 +63,7 @@ Evidence:
 
 | POA&M ID | Check | Repo | Status | Reason |
 |---|---|---|---|---|
-{{range .Gaps}}| {{if .POAMID}}{{.POAMID}}{{else}}—{{end}} | `{{.Result.CheckID}}` | {{if .Result.Scope.Repo}}{{esc .Result.Scope.Repo}}{{else}}(org){{end}} | {{statusBadge .Result.Status}} {{statusLabel .Result.Status}} | {{esc .Result.Reason}} |
+{{range .Gaps}}| {{if .POAMID}}{{.POAMID}}{{else}}—{{end}} | `{{.Result.CheckID}}` | {{esc .ScopeLabel}} | {{statusBadge .Result.Status}} {{statusLabel .Result.Status}} | {{esc .Result.Reason}} |
 {{end}}{{else}}No gaps found — every check that could be verified reported `verified-pass`.
 {{end}}
 ---
@@ -91,7 +92,7 @@ Complements these API-verified checks:
 
 {{if .NotCheckable}}| Check | Repo | Reason |
 |---|---|---|
-{{range .NotCheckable}}| `{{.CheckID}}` | {{if .Scope.Repo}}{{esc .Scope.Repo}}{{else}}(org){{end}} | {{esc .Reason}} |
+{{range .NotCheckable}}| `{{.Result.CheckID}}` | {{esc .ScopeLabel}} | {{esc .Result.Reason}} |
 {{end}}{{else}}None.
 {{end}}
 ---

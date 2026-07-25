@@ -27,7 +27,7 @@ type renderContext struct {
 	Clusters     []clusterView
 	Gaps         []gapView
 	SelfAttested []selfAttestedView
-	NotCheckable []model.CheckResult
+	NotCheckable []notCheckableView
 }
 
 // gapView pairs a verified-fail/partial CheckResult with the POA&M finding
@@ -38,9 +38,21 @@ type renderContext struct {
 // produced no matching entry — not expected in practice (every Gaps entry
 // comes from the same pack.Results assignFindings consumes) but rendered
 // as an em dash rather than a broken reference if it ever happened.
+//
+// ScopeLabel is precomputed by scopeLabel (issue #176) rather than left
+// for the template to infer from (Scope.Repo, Scope.Project) presence —
+// see that function's doc comment for why that inference was wrong.
 type gapView struct {
-	Result model.CheckResult
-	POAMID string
+	Result     model.CheckResult
+	POAMID     string
+	ScopeLabel string
+}
+
+// notCheckableView pairs a not-checkable CheckResult with its precomputed
+// ScopeLabel — see gapView's doc comment.
+type notCheckableView struct {
+	Result     model.CheckResult
+	ScopeLabel string
 }
 
 type clusterView struct {
@@ -79,8 +91,11 @@ type selfAttestedView struct {
 // needed to turn bare IDs into human-readable titles/text. ssdf/cisa/
 // saQuestions may each be nil (a caller that couldn't load one, or
 // doesn't need self-attestation pairing) — every lookup degrades to the
-// bare ID rather than panicking or erroring.
-func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions) renderContext {
+// bare ID rather than panicking or erroring. scopeLevelByCheckID is built
+// by the caller from collect.Registered() (cmd/attestward's
+// buildScopeLevelByCheckID, ADR-0005's seam); nil or incomplete degrades
+// every unresolvable check to the org-level label, same as before #176.
+func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scopeLevelByCheckID map[string]string) renderContext {
 	ctx := renderContext{Pack: pack, StatusCounts: map[model.Status]int{}}
 
 	if ssdf != nil && pack.MappingVersions.SSDF != "" && ssdf.Version != pack.MappingVersions.SSDF {
@@ -102,9 +117,14 @@ func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapp
 
 		switch r.Status {
 		case model.StatusVerifiedFail, model.StatusPartial:
-			ctx.Gaps = append(ctx.Gaps, gapView{Result: r, POAMID: poamIDByCheckRepo[r.CheckID+"\x00"+r.Scope.Repo]})
+			ctx.Gaps = append(ctx.Gaps, gapView{
+				Result: r, POAMID: poamIDByCheckRepo[r.CheckID+"\x00"+r.Scope.Repo],
+				ScopeLabel: scopeLabel(r.Scope, r.CheckID, scopeLevelByCheckID),
+			})
 		case model.StatusNotCheckable:
-			ctx.NotCheckable = append(ctx.NotCheckable, r)
+			ctx.NotCheckable = append(ctx.NotCheckable, notCheckableView{
+				Result: r, ScopeLabel: scopeLabel(r.Scope, r.CheckID, scopeLevelByCheckID),
+			})
 		}
 	}
 	sort.Slice(ctx.Gaps, func(i, j int) bool {
@@ -113,7 +133,12 @@ func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapp
 		}
 		return ctx.Gaps[i].Result.Scope.Repo < ctx.Gaps[j].Result.Scope.Repo
 	})
-	sortResults(ctx.NotCheckable)
+	sort.Slice(ctx.NotCheckable, func(i, j int) bool {
+		if ctx.NotCheckable[i].Result.CheckID != ctx.NotCheckable[j].Result.CheckID {
+			return ctx.NotCheckable[i].Result.CheckID < ctx.NotCheckable[j].Result.CheckID
+		}
+		return ctx.NotCheckable[i].Result.Scope.Repo < ctx.NotCheckable[j].Result.Scope.Repo
+	})
 
 	statusByTask := map[string]model.Status{}
 	hasTaskStatus := map[string]bool{}

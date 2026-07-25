@@ -20,6 +20,18 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **Report/POA&M renderers no longer mislabel Azure DevOps project-scoped results as
+  org-level** (#176). `report.md`/`report.html`'s Gaps and Not Checkable tables, and
+  `poam.md`'s Findings section, rendered every result with an empty `Scope.Repo` as
+  `(org)`/`(org-level)` — correct for a genuinely org-scoped result, factually wrong
+  for an Azure DevOps project-scoped one (e.g. C03 env-separation, C08
+  pipeline-security), which also has `Scope.Repo` empty; `Scope.Project` can't
+  disambiguate the two either, since the orchestrator stamps it onto every result from
+  an ADO scan regardless of the check's own scope level. Scope level is now classified
+  via a new `CheckMeta.ScopeLevel` field, set explicitly only for the checks that are
+  project-scoped, rather than inferred from `(Repo, Project)` presence at each render
+  site. The pack-header scope table and `poam.md`'s Summary now also surface
+  `Scope.Project` when present, which neither did before.
 - **C05 sast-history / C06 sca-history: a workflow/pipeline this tool couldn't fully
   inspect no longer reads as a confirmed absence** (#178). A workflow (GitHub) or
   pipeline (Azure DevOps) that failed to fetch, decode, or parse was silently dropped

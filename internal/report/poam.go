@@ -52,17 +52,21 @@ type poamGroup struct {
 // poamFindingView pairs a Finding with the remediation text looked up for
 // its check — Remediation comes from the caller (see RenderPOAM's doc
 // comment for why it's a plain parameter, not fetched internally).
+// ScopeLabel is precomputed by scopeLabelVerbose (issue #176) — see
+// gapView's identical field in context.go.
 type poamFindingView struct {
 	Finding
 	Remediation string
+	ScopeLabel  string
 }
 
 // buildPOAMContext assembles a poamContext from pack plus the mapping data
 // needed to group findings by cluster and cite their affected SSDF tasks.
 // ssdf/cisa may each be nil — every finding just falls into the "Unmapped"
 // bucket rather than panicking or erroring, matching this package's
-// established nil-tolerant contract.
-func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, remediationByCheckID map[string]string) poamContext {
+// established nil-tolerant contract. scopeLevelByCheckID may be nil — see
+// scopeLabelVerbose's doc comment.
+func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, remediationByCheckID, scopeLevelByCheckID map[string]string) poamContext {
 	ctx := poamContext{Pack: pack}
 
 	if ssdf != nil && pack.MappingVersions.SSDF != "" && ssdf.Version != pack.MappingVersions.SSDF {
@@ -80,7 +84,10 @@ func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *
 	partialByCluster := map[string]int{}
 
 	for _, f := range findings {
-		fv := poamFindingView{Finding: f, Remediation: remediationByCheckID[f.Result.CheckID]}
+		fv := poamFindingView{
+			Finding: f, Remediation: remediationByCheckID[f.Result.CheckID],
+			ScopeLabel: scopeLabelVerbose(f.Result.Scope, f.Result.CheckID, scopeLevelByCheckID),
+		}
 		key := f.PrimaryClusterID
 		findingsByCluster[key] = append(findingsByCluster[key], fv)
 		switch f.Result.Status {
@@ -142,8 +149,12 @@ func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *
 // function of its own inputs, testable without a live collector registry.
 // A missing entry renders as "(none on file for this check)" rather than
 // an empty line.
-func RenderPOAM(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, remediationByCheckID map[string]string) ([]byte, error) {
-	ctx := buildPOAMContext(pack, ssdf, cisa, remediationByCheckID)
+//
+// scopeLevelByCheckID is the same kind of caller-built map, for the same
+// ADR-0005 reason: each finding's registered scope level (see
+// scopeLabelVerbose). May be nil — degrades to the org-level label.
+func RenderPOAM(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, remediationByCheckID, scopeLevelByCheckID map[string]string) ([]byte, error) {
+	ctx := buildPOAMContext(pack, ssdf, cisa, remediationByCheckID, scopeLevelByCheckID)
 
 	tmpl, err := texttemplate.New("poam.md.tmpl").Funcs(texttemplate.FuncMap{
 		"esc":         mdescape.Escape,

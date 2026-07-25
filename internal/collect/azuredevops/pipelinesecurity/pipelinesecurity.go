@@ -345,6 +345,11 @@ func init() {
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
 			FixtureRef:  fixtureRef,
+			// Every C08 check here is project-scoped, never org-scoped —
+			// pipeline settings/service connections/etc. are
+			// project-level (see the package doc comment). See
+			// CheckMeta.ScopeLevel (#176).
+			ScopeLevel: collect.ScopeLevelProject,
 		})
 	}
 }

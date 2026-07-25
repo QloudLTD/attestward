@@ -20,7 +20,7 @@ func TestRenderPOAM_RichPackGolden(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations)
+	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -31,11 +31,11 @@ func TestRenderPOAM_Deterministic(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, _ := loadRealMappings(t)
 
-	first, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations)
+	first, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM (1): %v", err)
 	}
-	second, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations)
+	second, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM (2): %v", err)
 	}
@@ -48,7 +48,7 @@ func TestRenderPOAM_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
 	ssdf, cisa, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, nil)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestRenderPOAM_CleanPackRendersNoFindingsDocument(t *testing.T) {
 	pack := loadTestPack(t, "clean-pack.json")
 	ssdf, cisa, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, nil)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestRenderPOAM_CleanPackRendersNoFindingsDocument(t *testing.T) {
 func TestRenderPOAM_MissingMappingDataDegradesGracefully(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 
-	got, err := RenderPOAM(pack, nil, nil, nil)
+	got, err := RenderPOAM(pack, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM with nil mappings: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestRenderPOAM_RepoNameNotBackslashEscaped(t *testing.T) {
 	pack.Results[1].Scope.Repo = "my_repo" // Results[1] is the verified-fail gap
 	ssdf, cisa, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations)
+	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -139,12 +139,48 @@ func TestRenderPOAM_MissingRemediationRendersPlaceholder(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	ssdf, cisa, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, map[string]string{})
+	got, err := RenderPOAM(pack, ssdf, cisa, map[string]string{}, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
 	if !strings.Contains(string(got), "(none on file for this check)") {
 		t.Error("expected a placeholder for a check missing from remediationByCheckID")
+	}
+}
+
+// TestRenderPOAM_ProjectScopedFindingNotLabeledOrgLevel is issue #176's
+// regression case for poam.md: an ADO project-scoped finding (Scope.Repo
+// empty, Scope.Project set — e.g. C03 env-separation) must not render as
+// "(org-level)" in a Finding's "**Repo:**" line — correct only for a
+// genuinely org-level result (e.g. C01/C09). Also covers #176's
+// pack-header/Summary-shows-Project requirement in the same test, since
+// both exercise the identical ADO-project-scoped-pack scenario.
+func TestRenderPOAM_ProjectScopedFindingNotLabeledOrgLevel(t *testing.T) {
+	pack := loadTestPack(t, "rich-pack.json")
+	extra, scopeLevelByCheckID := projectScopedTestResults()
+	// Only the verified-fail result becomes a Finding (assignFindings'
+	// verified-fail/partial-only contract); the not-checkable one is
+	// exercised by the render_test.go twins instead.
+	pack.Results = append(pack.Results, extra[0])
+	pack.Scope.Project = "my-project" // also covers issue #176's Summary-section requirement below
+	ssdf, cisa, _ := loadRealMappings(t)
+
+	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, scopeLevelByCheckID)
+	if err != nil {
+		t.Fatalf("RenderPOAM: %v", err)
+	}
+	text := string(got)
+
+	if !strings.Contains(text, "**Project:** my-project") {
+		t.Errorf("poam.md's Summary doesn't surface Pack.Scope.Project; got:\n%s", text)
+	}
+	if !strings.Contains(text, "- **Repo:** (project-level: my-project)") {
+		t.Errorf("Finding for the project-scoped result doesn't show the project-level label; got:\n%s", text)
+	}
+	// rich-pack.json's own two findings are both repo-scoped, so
+	// "(org-level)" appearing anywhere here can only be a mislabel.
+	if strings.Contains(text, "(org-level)") {
+		t.Error("the project-scoped finding's Repo line mislabels it org-level")
 	}
 }
 
@@ -169,11 +205,11 @@ func TestRenderPOAM_FindingIDsCrossLinkWithReportGaps(t *testing.T) {
 
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	reportMD, err := RenderMarkdown(pack, ssdf, cisa, saQuestions)
+	reportMD, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	poamMD, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations)
+	poamMD, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}

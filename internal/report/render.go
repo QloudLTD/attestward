@@ -77,6 +77,54 @@ func fmtTime(t time.Time) string {
 	return t.UTC().Format("2006-01-02 15:04:05 UTC")
 }
 
+// scopeLevelProject mirrors collect.ScopeLevelProject's string value —
+// duplicated rather than imported, since internal/report must never
+// import internal/collect (ADR-0005).
+const scopeLevelProject = "project"
+
+// scopeLabel renders scope the way report.md's/report.html's Gaps and
+// Not-Checkable tables display it: the repo name if repo-scoped, or —
+// when Repo is empty — the check's own registered scope level (looked up
+// in scopeLevelByCheckID, built by the caller from collect.Registered();
+// this package never imports internal/collect directly), not an
+// inference from (Repo, Project) presence. That inference is what
+// produced issue #176: an ADO project-scoped check (e.g. C03
+// env-separation) has Repo empty the same way a genuinely org-scoped
+// check does, and Scope.Project can't disambiguate them either — the
+// orchestrator stamps it onto every result from an ADO scan regardless of
+// the check's own scope level. A missing map entry defaults to the
+// org-level label. Returns a plain, unescaped string, same as Scope.Repo
+// itself (report.html auto-escapes; report.md/poam.md wrap it in esc()).
+func scopeLabel(scope model.ScopeRef, checkID string, scopeLevelByCheckID map[string]string) string {
+	if scope.Repo != "" {
+		return scope.Repo
+	}
+	if scopeLevelByCheckID[checkID] == scopeLevelProject {
+		if scope.Project != "" {
+			return "(project: " + scope.Project + ")"
+		}
+		return "(project)"
+	}
+	return "(org)"
+}
+
+// scopeLabelVerbose is scopeLabel's poam.md counterpart: same
+// classification, verbose wording to match poam.md's prose "**Repo:**"
+// line — a separate function, not a shared one with a bool, since the two
+// renderers' wording ("(org)" vs "(org-level)") already differs.
+func scopeLabelVerbose(scope model.ScopeRef, checkID string, scopeLevelByCheckID map[string]string) string {
+	if scope.Repo != "" {
+		return scope.Repo
+	}
+	if scopeLevelByCheckID[checkID] == scopeLevelProject {
+		if scope.Project != "" {
+			return "(project-level: " + scope.Project + ")"
+		}
+		return "(project-level)"
+	}
+	return "(org-level)"
+}
+
 func statusCountRows(counts map[model.Status]int) []statusCount {
 	rows := make([]statusCount, 0, len(statusOrder))
 	for _, s := range statusOrder {
@@ -93,8 +141,10 @@ type statusCount struct {
 // RenderMarkdown renders pack as report.md. ssdf/cisa/saQuestions may be
 // nil — see buildContext's doc comment for how missing mapping data
 // degrades (bare IDs, no version-mismatch detection) rather than failing.
-func RenderMarkdown(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions) ([]byte, error) {
-	ctx := buildContext(pack, ssdf, cisa, saQuestions)
+// scopeLevelByCheckID may be nil (every Repo-empty result degrades to the
+// org-level label) — see buildContext's and scopeLabel's own doc comments.
+func RenderMarkdown(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scopeLevelByCheckID map[string]string) ([]byte, error) {
+	ctx := buildContext(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
 
 	tmpl, err := texttemplate.New("report.md.tmpl").Funcs(texttemplate.FuncMap{
 		"esc":          mdescape.Escape,
@@ -123,8 +173,10 @@ func RenderMarkdown(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *ma
 // auto-escaping (never template.HTML on API-derived content), which is
 // this renderer's actual injection defense — see render_test.go's hostile
 // -strings fixture for the proof.
-func RenderHTML(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions) ([]byte, error) {
-	ctx := buildContext(pack, ssdf, cisa, saQuestions)
+// scopeLevelByCheckID may be nil — see RenderMarkdown's identical doc
+// comment.
+func RenderHTML(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scopeLevelByCheckID map[string]string) ([]byte, error) {
+	ctx := buildContext(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
 
 	tmpl, err := htmltemplate.New("report.html.tmpl").Funcs(htmltemplate.FuncMap{
 		"statusLabel":  statusLabel,

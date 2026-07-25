@@ -121,6 +121,7 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 	}
 
 	remediationByCheckID := buildRemediationByCheckID(pack.Results, collect.LookupPlatform)
+	scopeLevelByCheckID := buildScopeLevelByCheckID(pack.Results, collect.LookupPlatform)
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", outDir, err)
@@ -132,13 +133,13 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 		switch f {
 		case "md":
 			name = "report.md"
-			rendered, err = report.RenderMarkdown(pack, ssdf, cisa, saQuestions)
+			rendered, err = report.RenderMarkdown(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
 		case "html":
 			name = "report.html"
-			rendered, err = report.RenderHTML(pack, ssdf, cisa, saQuestions)
+			rendered, err = report.RenderHTML(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
 		case "poam":
 			name = "poam.md"
-			rendered, err = report.RenderPOAM(pack, ssdf, cisa, remediationByCheckID)
+			rendered, err = report.RenderPOAM(pack, ssdf, cisa, remediationByCheckID, scopeLevelByCheckID)
 		}
 		if err != nil {
 			return fmt.Errorf("render %s: %w", name, err)
@@ -175,6 +176,27 @@ func buildRemediationByCheckID(results []model.CheckResult, lookup func(platform
 		}
 		if meta, ok := lookup(r.Scope.Platform, r.CheckID); ok {
 			m[r.CheckID] = meta.Remediation
+		}
+	}
+	return m
+}
+
+// buildScopeLevelByCheckID mirrors buildRemediationByCheckID exactly, same
+// per-result-Platform lookup and reason (review of #164): the same check
+// ID can register a genuinely different ScopeLevel per platform (e.g.
+// C03.env.exists is repo-scoped on GitHub, project-scoped on Azure
+// DevOps), so ranging over the full registry instead of resolving
+// per-result would risk one platform's classification overwriting the
+// other's. internal/report interprets the plain string value, never
+// collect.ScopeLevel itself (ADR-0005's seam).
+func buildScopeLevelByCheckID(results []model.CheckResult, lookup func(platform, id string) (collect.CheckMeta, bool)) map[string]string {
+	m := map[string]string{}
+	for _, r := range results {
+		if _, ok := m[r.CheckID]; ok {
+			continue
+		}
+		if meta, ok := lookup(r.Scope.Platform, r.CheckID); ok {
+			m[r.CheckID] = string(meta.ScopeLevel)
 		}
 	}
 	return m

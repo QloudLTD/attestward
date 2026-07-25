@@ -243,7 +243,8 @@ func init() {
 	}
 	// idSecretHygiene has no GitHub twin at all, so it's registered
 	// separately from mirroredCheckIDs above — see its own const doc
-	// comment.
+	// comment. It's project-scoped (variable groups, not org-wide) — see
+	// CheckMeta.ScopeLevel (#176).
 	collect.Register(collect.CheckMeta{
 		ID:          idSecretHygiene,
 		Platform:    "azuredevops",
@@ -254,6 +255,7 @@ func init() {
 		Rubric:      checkRubrics[idSecretHygiene],
 		Endpoints:   checkEndpoints[idSecretHygiene],
 		FixtureRef:  fixtureRef,
+		ScopeLevel:  collect.ScopeLevelProject,
 	})
 }
 

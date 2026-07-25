@@ -923,7 +923,8 @@
 <table class="key-value-table">
 <tbody>
 <tr><th scope="row">Org</th><td>{{.Pack.Scope.Org}}</td></tr>
-<tr><th scope="row">Repos in scope</th><td>{{range $i, $r := .Pack.Scope.Repos}}{{if $i}}, {{end}}{{$r}}{{end}}</td></tr>
+{{if .Pack.Scope.Project}}<tr><th scope="row">Project</th><td>{{.Pack.Scope.Project}}</td></tr>
+{{end}}<tr><th scope="row">Repos in scope</th><td>{{range $i, $r := .Pack.Scope.Repos}}{{if $i}}, {{end}}{{$r}}{{end}}</td></tr>
 <tr><th scope="row">Scan window</th><td>{{fmtTime .Pack.ScanStartedAt}} &ndash; {{fmtTime .Pack.ScanEndedAt}}</td></tr>
 <tr><th scope="row">Tool version</th><td>{{.Pack.ToolVersion}}</td></tr>
 <tr><th scope="row">Mapping versions</th><td>SSDF {{.Pack.MappingVersions.SSDF}} &middot; CISA form {{.Pack.MappingVersions.CISAForm}}{{if .Pack.MappingVersions.ScannerSignatures}} &middot; scanner signatures {{.Pack.MappingVersions.ScannerSignatures}}{{end}}{{if .Pack.MappingVersions.SelfAttestation}} &middot; self-attestation {{.Pack.MappingVersions.SelfAttestation}}{{end}}</td></tr>
@@ -1005,7 +1006,7 @@
 <table class="gaps-table">
 <thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
 <tbody>
-{{range .Gaps}}<tr><th scope="row">{{if .POAMID}}{{.POAMID}}{{else}}&mdash;{{end}}</th><td><code>{{.Result.CheckID}}</code></td><td>{{if .Result.Scope.Repo}}{{.Result.Scope.Repo}}{{else}}(org){{end}}</td><td class="status-cell"><span class="badge badge-{{.Result.Status}}">{{statusBadge .Result.Status}}</span> {{statusLabel .Result.Status}}</td><td>{{.Result.Reason}}</td></tr>
+{{range .Gaps}}<tr><th scope="row">{{if .POAMID}}{{.POAMID}}{{else}}&mdash;{{end}}</th><td><code>{{.Result.CheckID}}</code></td><td>{{.ScopeLabel}}</td><td class="status-cell"><span class="badge badge-{{.Result.Status}}">{{statusBadge .Result.Status}}</span> {{statusLabel .Result.Status}}</td><td>{{.Result.Reason}}</td></tr>
 {{end}}
 </tbody>
 </table>
@@ -1040,7 +1041,7 @@ upgrades a CISA form cluster to fully verified.</p>
 <table>
 <thead><tr><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Reason</th></tr></thead>
 <tbody>
-{{range .NotCheckable}}<tr><td><code>{{.CheckID}}</code></td><td>{{if .Scope.Repo}}{{.Scope.Repo}}{{else}}(org){{end}}</td><td>{{.Reason}}</td></tr>
+{{range .NotCheckable}}<tr><td><code>{{.Result.CheckID}}</code></td><td>{{.ScopeLabel}}</td><td>{{.Result.Reason}}</td></tr>
 {{end}}
 </tbody>
 </table>
