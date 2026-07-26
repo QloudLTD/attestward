@@ -572,6 +572,19 @@ func TestCollect_Enablement404_NoOtherEvidence_ToolConfiguredNotCheckable(t *tes
 	if got := m[idRanPerRelease].Status; got != model.StatusNotCheckable {
 		t.Errorf("ran-per-release = %q, want not-checkable (same evidence gap as tool-configured — a 404 means whether default setup covers this repo can't be confirmed, so a confirmed absence can't be asserted either); reason=%q", got, m[idRanPerRelease].Reason)
 	}
+	// Issue #246: before that fix, cadence's own Reason said "no SAST tool
+	// is configured" here — a configuration fact this collector doesn't
+	// actually have when the only evidence is a failed enablement query,
+	// right next to tool-configured's own "the cause is unconfirmed" for
+	// the identical evidence. Status was always correctly not-checkable;
+	// pinned at the full-Collect level too, not just checkCadence's own
+	// unit tests, so a future regression in how Collect wires
+	// enablementErr through would be caught here as well.
+	if got := m[idCadence]; got.Status != model.StatusNotCheckable {
+		t.Errorf("cadence = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	} else if strings.Contains(got.Reason, "no SAST tool is configured") {
+		t.Errorf("cadence reason = %q, must not assert \"no SAST tool is configured\" as fact when the only evidence is a failed enablement query", got.Reason)
+	}
 }
 
 // TestCollect_Enablement403_NoOtherEvidence_ToolConfiguredNotCheckable is

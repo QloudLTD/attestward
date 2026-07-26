@@ -170,15 +170,14 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusPartial: "only a low-confidence (pipeline/step-name-only) match was found in any " +
 			"pipeline, and CodeQL default setup is not confirmed enabled — not enough signal alone to " +
 			"confirm a SAST tool is genuinely configured",
-		model.StatusVerifiedFail: "no pipeline match of any confidence was found, the GHAzDO " +
-			"repo-enablement query itself succeeded (HTTP 200) and its response confirms codeQLEnabled reads " +
-			"false — a directly observed state, not inferred from an error response (issue #226: an earlier " +
-			"version of this check treated a 404 as equivalent to this state by deliberate policy; S9's " +
-			"2026-07-23 live run against dev.azure.com/seciq falsified the premise behind that — an unlicensed " +
-			"org/project actually reads HTTP 200 with every flag false/null, never 404, so a 404 could no " +
-			"longer justify a confirmed-fail verdict and now routes to not-checkable instead, see the next " +
-			"clause) — and every pipeline MatchPipelines inspected for this repo resolved cleanly (no " +
-			"same-repo skip) — a real absence, not an evidence gap",
+		model.StatusVerifiedFail: "no pipeline match of any confidence was found, the GHAzDO repo-enablement " +
+			"query itself succeeded (HTTP 200 — issue #226: an enablement-query failure routes to " +
+			"not-checkable instead, see below) and its response reads codeQLEnabled false — whether the " +
+			"field explicitly reads false, reads null, or codeSecurityFeatures is absent from the response " +
+			"body entirely, all three decode identically via Go's zero-value fallback for a plain bool (see " +
+			"pipelinehistory.repoEnablementRaw's own doc comment) — and every pipeline MatchPipelines " +
+			"inspected for this repo resolved cleanly (no same-repo skip) — a real absence, not an evidence " +
+			"gap",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no pipeline-based " +
 			"evidence at all and the GHAzDO repo-enablement query itself failed, for any reason — a 404 " +
 			"(issue #226: what actually produces one remains genuinely unconfirmed [fixture-verify]; no " +
@@ -236,12 +235,25 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusVerifiedFail: "a SAST tool is configured via a matched pipeline, but zero SAST builds " +
 			"were observed in the lookback window",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no SAST tool is configured at " +
-			"all (no matched pipeline of any confidence, and GHAzDO CodeQL default setup does not read " +
-			"enabled) — nothing to compute cadence for; or a SAST tool is configured ONLY via GHAzDO CodeQL " +
-			"default setup, and this collector has no verified way to observe scan history for that " +
-			"mechanism via the Pipelines/Builds APIs it uses [fixture-verify, issue #34/#155's S9 pass] — " +
-			"see the package doc comment for why this collector doesn't assert a run count it can't verify; " +
-			"or the project's build history itself could not be fetched",
+			"all: no matched pipeline of any confidence, and the GHAzDO repo-enablement query itself " +
+			"succeeded and its response reads codeQLEnabled false — whether the field explicitly " +
+			"reads false, reads null, or codeSecurityFeatures is absent from the response body entirely, " +
+			"all three decode identically via Go's zero-value fallback for a plain bool (see " +
+			"pipelinehistory.repoEnablementRaw's own doc comment) — nothing to compute cadence for; or " +
+			"there is no matched pipeline of any confidence and the GHAzDO repo-enablement query " +
+			"itself failed, for any reason — a DISTINCT case from the one above, not a sub-case of it " +
+			"(issue #246: an earlier version of this check's Reason asserted \"no SAST tool is " +
+			"configured\" as fact even here; issue #254's review: an earlier version of this rubric " +
+			"nested this clause under that heading too, recreating #248's own asymmetry one level " +
+			"down — tool-configured's own rubric never subsumes its identical query-failure case " +
+			"under a confirmed-verdict heading either, and this one shouldn't either), so whether " +
+			"GHAzDO CodeQL default setup covers this repo instead can't be confirmed either — an " +
+			"unresolved unknown, not a confirmed absence; or a SAST tool is configured ONLY via " +
+			"GHAzDO CodeQL default setup, and this collector has no verified way to observe scan " +
+			"history for that mechanism via the " +
+			"Pipelines/Builds APIs it uses [fixture-verify, issue #34/#155's S9 pass] — see the package " +
+			"doc comment for why this collector doesn't assert a run count it can't verify; or the " +
+			"project's build history itself could not be fetched",
 	},
 	idDefaultSetup: {
 		model.StatusVerifiedPass: "the GHAzDO repo-enablement query succeeded and codeSecurityFeatures.codeQLEnabled reads true",

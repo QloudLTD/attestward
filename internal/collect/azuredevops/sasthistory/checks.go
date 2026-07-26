@@ -263,19 +263,29 @@ func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.Rel
 	const id = idRanPerRelease
 
 	if defaultSetupOnly {
-		result := model.CheckResult{
-			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: "a SAST tool is configured via GHAzDO CodeQL default setup, but this collector has no verified way to observe its scan history per release via the Pipelines/Builds APIs it uses — ran-per-release can only be computed from a matched pipeline's own build history",
-			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		}
+		// dropped_tags is included unconditionally, matching the same
+		// convention #250 established for the combined guard below and for
+		// the len(filteredReleases) == 0 branch further down — found in
+		// review of #250 (issue #252): this branch was one of two holdouts
+		// still attaching Facts only when sameRepoSkips was non-empty (the
+		// buildsErr branch further below was the other, found one review
+		// round later — issue #254), so a repo with default setup on AND
+		// dropped-but-undateable release tags lost the dropped-tag record
+		// entirely.
+		facts := map[string]any{"dropped_tags": dropped}
 		if len(sameRepoSkips) > 0 {
 			skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
 			for _, sp := range sameRepoSkips {
 				skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
 			}
-			result.Facts = map[string]any{"skipped_pipelines": skipDetails}
+			facts["skipped_pipelines"] = skipDetails
 		}
-		return result
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: "a SAST tool is configured via GHAzDO CodeQL default setup, but this collector has no verified way to observe its scan history per release via the Pipelines/Builds APIs it uses — ran-per-release can only be computed from a matched pipeline's own build history",
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: facts,
+		}
 	}
 
 	if !hasMatchedPipelines && (enablementErr != nil || len(sameRepoSkips) > 0) {
@@ -329,10 +339,18 @@ func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.Rel
 	}
 
 	if buildsErr != nil {
+		// dropped_tags is included unconditionally, matching every other
+		// return path in this function (issue #252, and this specific
+		// holdout found in review of #254): a repo with a signature-matched
+		// pipeline, one dateable release, one undateable release tag, and a
+		// failed build-history fetch used to return not-checkable with no
+		// Facts at all — losing the dropped-tag record the same way the
+		// defaultSetupOnly and combined-guard branches above used to.
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("could not fetch build history to evaluate release coverage: %v", buildsErr),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"dropped_tags": dropped},
 		}
 	}
 
@@ -389,9 +407,30 @@ func checkCadence(org, repo string, matched []pipelinehistory.MatchedPipeline, e
 	setupConfigured := enablementErr == nil && enablement.CodeQLEnabled
 
 	if !hasAny {
-		reason := "no SAST tool is configured; cadence cannot be computed"
-		if setupConfigured {
+		// enablementErr is checked before falling back to "no SAST tool is
+		// configured" (issue #246, found in review of #245): that wording
+		// asserts a configuration fact the collector doesn't actually have
+		// when the only reason setupConfigured is false is that the
+		// enablement query itself failed — the same inference #226 removed
+		// from checkToolConfigured's status, surviving here in prose only
+		// (this check's own status was already correctly not-checkable
+		// either way). Mirrors checkToolConfigured's identical wording for
+		// its own analogous branch, with one deliberate addition: the other
+		// two cases here both end by naming the consequence for cadence
+		// specifically ("cadence can only be computed from…" / "cadence
+		// cannot be computed") — checkToolConfigured's own sentence has no
+		// such consequence to name, since it IS the tool-configured
+		// question, but copying it verbatim here left this the one branch
+		// that didn't say what the gap means for cadence (found in review
+		// of #254).
+		var reason string
+		switch {
+		case setupConfigured:
 			reason = "a SAST tool is configured via GHAzDO CodeQL default setup, but this collector has no verified way to observe its scan history via the Pipelines/Builds APIs it uses — cadence can only be computed from a matched pipeline's own build history"
+		case enablementErr != nil:
+			reason = fmt.Sprintf("no SAST tool detected in any pipeline, and the GHAzDO repo-enablement query itself failed, so cadence cannot be computed: %s", advSecNotCheckableReason(enablementErr, org, repo))
+		default:
+			reason = "no SAST tool is configured; cadence cannot be computed"
 		}
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,

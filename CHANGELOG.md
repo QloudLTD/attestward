@@ -124,6 +124,45 @@ All notable changes to this project are documented here. Format follows
   the built binary still reports the right commit rather than an empty string (a
   broken `-X` fails silently) by building locally with `$GITHUB_SHA` set the way CI
   sets it.
+- **C05.sast (Azure DevOps): three pre-existing "status correct, prose/Facts wrong"
+  defects, all in `sasthistory`** (#246, #248, #252). Same class as #226/#235/#236/#244
+  — the status logic was already right, but what the code said about itself wasn't:
+  - `checkCadence`'s Reason asserted "no SAST tool is configured" on a failed
+    repo-enablement query, right next to `tool-configured`'s own "the cause is
+    unconfirmed" for the identical evidence gap — the prose analogue of the
+    status-level contradiction #235 fixed. Now reuses `advSecNotCheckableReason`'s
+    existing shape and reserves "no SAST tool is configured" for the case where the
+    query actually succeeded and reported the tool off. Swept the other three checks
+    in the package for the same shape — `checkToolConfigured`, `checkRanPerRelease`,
+    and `checkDefaultSetup` all already gate their prose on `enablementErr` correctly;
+    `checkCadence` was the only holdout (#246).
+  - `tool-configured`'s verified-fail rubric claimed the state was "directly observed,
+    not inferred from an error response" — stronger than the code guarantees: a 200
+    whose body omits `codeQLEnabled` or the whole `codeSecurityFeatures` block decodes
+    to `false` via Go's zero-value fallback, identically to an explicit `false` or
+    `null`, so verified-fail is reachable from a defaulted collapse too. Brought up to
+    the precise wording #251 already gave C06's identical rubric (#248). Folded in while
+    here: `checkCadence`'s own not-checkable rubric had the same "ambiguous whether
+    not-configured includes query-failure" imprecision — recreating, one function over,
+    the exact asymmetry #248 exists to close — so it's brought up to the same wording
+    too, distinguishing a query that succeeded and read `codeQLEnabled` false from one
+    that failed outright. Review found a second round of the same asymmetry in that
+    first fold-in: the query-failure case was nested *underneath* the "no SAST tool is
+    configured at all" heading rather than its own sibling clause, the same subsumption
+    `tool-configured`'s own rubric never does for its identical case — promoted to a
+    top-level "or" instead. Also completed `checkCadence`'s Reason for that same branch,
+    which — unlike its two siblings ("cadence can only be computed from…" / "cadence
+    cannot be computed") — never said what the gap meant for cadence specifically, a
+    side effect of copying `checkToolConfigured`'s own sentence verbatim.
+  - `checkRanPerRelease`'s `defaultSetupOnly` branch attached `Facts` only when
+    `sameRepoSkips` was non-empty, so default setup on plus dropped-but-undateable
+    release tags returned not-checkable with the dropped-tag record silently gone —
+    fixed for that branch, matching the "`dropped_tags` on every return path"
+    convention #250 established (#252). Review found a second, identically-shaped
+    holdout in the same function's `buildsErr` branch — reachable with a
+    signature-matched pipeline, one dateable release, one undateable tag, and a failed
+    build-history fetch — fixed the same way.
+
 - **report.md/poam.md's pack-level scope/version fields are now escaped** (#231). Found
   by the confirmation pass on #222, which fixed the *per-result* instances of this same
   bug — these are the *pack-level* ones, outside that PR's scope: `Pack.Scope.Org`

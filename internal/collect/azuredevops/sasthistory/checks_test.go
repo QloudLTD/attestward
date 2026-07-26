@@ -132,6 +132,29 @@ func TestCheckRanPerRelease_DefaultSetupOnlyWithSkip_DefaultSetupReasonWins(t *t
 	}
 }
 
+// TestCheckRanPerRelease_DefaultSetupOnlyWithDroppedTags_FactsPreserved is
+// issue #252, the last holdout after #250 established the "dropped_tags on
+// every return path" convention (and fixed it for the other two paths):
+// this branch attached Facts only when sameRepoSkips was non-empty, so a
+// repo with GHAzDO CodeQL default setup on AND dropped-but-undateable
+// release tags returned not-checkable with no Facts at all — silently
+// losing the record of an unresolvable tag. Mirrors
+// TestCheckRanPerRelease_EnablementErrWithDroppedTags_FactsPreserved's
+// identical proof for the enablementErr guard.
+func TestCheckRanPerRelease_DefaultSetupOnlyWithDroppedTags_FactsPreserved(t *testing.T) {
+	dropped := []string{"v0.9.0-rc1"}
+
+	got := checkRanPerRelease("attestward-demo", "default-setup-dropped-tags-repo", nil, nil, dropped, nil, nil, true, false, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	droppedFacts, ok := got.Facts["dropped_tags"].([]string)
+	if !ok || len(droppedFacts) != 1 || droppedFacts[0] != "v0.9.0-rc1" {
+		t.Errorf("dropped_tags facts = %#v, want [\"v0.9.0-rc1\"] — the pack must not silently lose the record of an unresolvable tag just because default setup also explains the status", got.Facts["dropped_tags"])
+	}
+}
+
 // TestCheckRanPerRelease_ZeroMatchedWithSkip_NotCheckableNotFail is the
 // review finding on #202: with zero matched pipelines, every release's
 // coverage reads CoverageMissing regardless of WHY matched is empty — a
@@ -277,5 +300,79 @@ func TestCheckRanPerRelease_BuildsErrIsNotCheckable(t *testing.T) {
 	got := checkRanPerRelease("attestward-demo", "repo", filteredReleases, nil, nil, errBoom, nil, false, true, nil, nil)
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+}
+
+// TestCheckRanPerRelease_BuildsErrWithDroppedTags_FactsPreserved is issue
+// #254's own review finding on #252: the buildsErr branch was a second
+// holdout #252 itself missed, reachable with a signature-matched pipeline
+// (hasMatchedPipelines true, so neither the defaultSetupOnly nor the
+// combined guard above fires), one dateable release in the window (so
+// len(filteredReleases) == 0 is skipped too), one pattern-matching tag
+// that couldn't be dated, and a failed build-history fetch — the same
+// dropped-tag loss #252 fixed for the other two branches in this
+// function.
+func TestCheckRanPerRelease_BuildsErrWithDroppedTags_FactsPreserved(t *testing.T) {
+	filteredReleases := []pipelinehistory.ReleaseInfo{{TagName: "v1.0.0"}}
+	dropped := []string{"v0.9.0-rc1"}
+
+	got := checkRanPerRelease("attestward-demo", "builds-err-dropped-tags-repo", filteredReleases, nil, dropped, errBoom, nil, false, true, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	droppedFacts, ok := got.Facts["dropped_tags"].([]string)
+	if !ok || len(droppedFacts) != 1 || droppedFacts[0] != "v0.9.0-rc1" {
+		t.Errorf("dropped_tags facts = %#v, want [\"v0.9.0-rc1\"] — the pack must not silently lose the record of an unresolvable tag just because the build-history fetch also failed", got.Facts["dropped_tags"])
+	}
+}
+
+// TestCheckCadence_EnablementErr_ReasonDoesNotClaimNoToolConfigured is
+// issue #246, found in review of #245: with zero pipeline-based evidence
+// and a failed enablement query, setupConfigured is false for the same
+// reason it would be false if the tool were genuinely off — the two causes
+// were indistinguishable in the old Reason text, which asserted "no SAST
+// tool is configured" as fact even though the query failure means that's
+// genuinely unconfirmed. Status was always correctly not-checkable either
+// way; this pins the Reason text too, since report.md/poam.md render it
+// verbatim and a compliance reader can't tell a worded-as-fact inference
+// from a real finding.
+func TestCheckCadence_EnablementErr_ReasonDoesNotClaimNoToolConfigured(t *testing.T) {
+	enablementErr := &azuredevops.StatusError{StatusCode: http.StatusNotFound}
+
+	got := checkCadence("attestward-demo", "cadence-enablement-404-repo", nil, pipelinehistory.RepoEnablementInfo{}, enablementErr, pipelinehistory.CadenceStats{}, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if strings.Contains(got.Reason, "no SAST tool is configured") {
+		t.Errorf("Reason = %q, must not assert \"no SAST tool is configured\" as fact when the only evidence is a failed enablement query — that's genuinely unconfirmed", got.Reason)
+	}
+	if !strings.Contains(got.Reason, "the GHAzDO repo-enablement query itself failed") {
+		t.Errorf("Reason = %q, want it to name the enablement-query failure as the actual cause", got.Reason)
+	}
+	// Issue #254's review: this branch was the one cadence Reason that
+	// never named the consequence for cadence specifically, unlike its two
+	// siblings ("cadence can only be computed from…" / "cadence cannot be
+	// computed") — a side effect of copying checkToolConfigured's own
+	// sentence, which has no such consequence to name in its own context.
+	if !strings.Contains(got.Reason, "cadence cannot be computed") {
+		t.Errorf("Reason = %q, want it to say what the gap means for cadence, matching its sibling branches", got.Reason)
+	}
+}
+
+// TestCheckCadence_GenuinelyOff_ReasonStillClaimsNoToolConfigured proves
+// the fix is scoped correctly, not a blanket removal: when the enablement
+// query actually succeeded and reported the tool off (no enablementErr),
+// "no SAST tool is configured" is an accurate, directly observed claim and
+// must still be the Reason.
+func TestCheckCadence_GenuinelyOff_ReasonStillClaimsNoToolConfigured(t *testing.T) {
+	got := checkCadence("attestward-demo", "cadence-genuinely-off-repo", nil, pipelinehistory.RepoEnablementInfo{CodeQLEnabled: false}, nil, pipelinehistory.CadenceStats{}, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if got.Reason != "no SAST tool is configured; cadence cannot be computed" {
+		t.Errorf("Reason = %q, want the unchanged genuinely-off wording", got.Reason)
 	}
 }
