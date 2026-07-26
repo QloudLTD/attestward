@@ -272,8 +272,17 @@ jobs:
             if [ "$goos" = "windows" ]; then ext=".exe"; fi
             out="attestward-${goos}-${goarch}${ext}"
             echo "building $out"
+            # Issue #232: $GITHUB_SHA is one of GitHub's own default
+            # environment variables, ambiently exported into every step —
+            # no env: plumbing needed, and unlike ${{ github.sha }} it's a
+            # genuine runtime env var the shell reads, never a context
+            # expression textually substituted into this script before it
+            # runs. Not a live risk either way (github.sha is a GitHub-
+            # generated hex SHA, not attacker-influenceable) but the
+            # rule's whole value is not needing that judgement call per
+            # site.
             GOOS="$goos" GOARCH="$goarch" go build -trimpath \
-              -ldflags "-X main.version=${{ github.sha }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              -ldflags "-X main.version=$GITHUB_SHA -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               -o "$out" ./cmd/attestward
           done
       - name: Verify the darwin/arm64 build runs (matches this runner's own arch)
@@ -334,9 +343,13 @@ jobs:
           # measured ~10x/day (30-day median; 30 on the heaviest day), so
           # even at 1 day this holds ~445 MB standing — most of a 500 MB
           # allowance from this one artifact alone, before attestward-cloud
-          # (~239 MB) and multi-arch-build-sample's 90-day-default uploads
-          # (~128 MB) are counted. This buys time; it is not durable
-          # headroom, and the next fix has to be one of those two.
+          # (~239 MB) is counted. This buys time; it is not durable
+          # headroom. multi-arch-build-sample.yaml's uploads were the other
+          # named consumer and are fixed (#242 — they had no retention-days
+          # at all, so they inherited the 90-day repo default); its 15
+          # pre-existing artifacts still expire 2026-10-17 on their own,
+          # since retention applies at upload time. attestward-cloud is the
+          # remaining one, and it is in a different repo.
           retention-days: 1
       # continue-on-error above is still right — a storage-quota failure
       # must never redden a build whose compile/run proof already passed

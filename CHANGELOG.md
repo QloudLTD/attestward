@@ -96,6 +96,34 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`multi-arch-build-sample.yaml`'s uploads no longer inherit the 90-day retention
+  default** (#242). Its two `upload-artifact` steps set no `retention-days` at all, so
+  both fell back to the repo default of 90 days — 15 live artifacts totalling ~128 MB,
+  expiring 2026-10-17, from a `workflow_dispatch`-only reference pipeline nothing
+  consumes. Under the GB-hours-across-the-month billing #217 documents, that is close
+  to the worst possible shape: small enough not to look alarming in a size listing,
+  long-lived enough to dominate the accrual. Both now set `retention-days: 1`, matching
+  what #241 did for `attestward-builds` — these binaries demonstrate that the pattern
+  still builds, they aren't an input anything downstream reads. Retention applies at
+  upload time, so the 15 existing artifacts are unaffected and still expire on their
+  own; deleting them early is a separate, deliberate decision. With this, no
+  `upload-artifact` step in the repo is left unguarded.
+- **`github.sha` no longer interpolated directly into `run:` blocks** (#232). Three
+  sites — `ci.yaml`'s `build` job and both of `multi-arch-build-sample.yaml`'s legs —
+  used `${{ github.sha }}` straight inside a `run:` script, against this repo's own
+  rule that context expressions route through `env:` instead. Not a live
+  vulnerability (`github.sha` is a GitHub-generated hex SHA, not attacker-influenceable
+  the way `github.event.issue.title` or `head_commit.message` are), but the rule's
+  whole value is that it needs no per-site risk judgement, and three standing
+  exceptions meant a fourth wouldn't have stood out. Fixed with the ambient
+  `$GITHUB_SHA` environment variable at all three sites rather than adding `env:`
+  plumbing — GitHub exports it into every step automatically, it's a genuine runtime
+  variable the shell reads rather than a context expression textually substituted
+  into the script beforehand, and this repo already uses the identical pattern for
+  `$GITHUB_REPOSITORY` (`self-scan.yaml`, `hack/fetch-drift-baseline.sh`). Confirmed
+  the built binary still reports the right commit rather than an empty string (a
+  broken `-X` fails silently) by building locally with `$GITHUB_SHA` set the way CI
+  sets it.
 - **report.md/poam.md's pack-level scope/version fields are now escaped** (#231). Found
   by the confirmation pass on #222, which fixed the *per-result* instances of this same
   bug — these are the *pack-level* ones, outside that PR's scope: `Pack.Scope.Org`
@@ -221,13 +249,20 @@ All notable changes to this project are documented here. Format follows
   *because* the cost is bytes × hours — cutting hours 7× cuts the bill 7×. But this
   buys time rather than fixing the budget: at this repo's measured ~10 merges/day
   (30-day median; 30 on the heaviest day) even 1-day retention leaves ~445 MB standing
-  from this artifact alone, before `attestward-cloud` (~239 MB) and
-  `multi-arch-build-sample.yaml`'s uploads (~128 MB, no `retention-days` set at all so
-  they inherit the 90-day default) are counted. Left as-is here and tracked separately;
-  a ~44 MB bundle of five binaries per `main` push, held a week, was the single largest
+  from this artifact alone, before `attestward-cloud` (~239 MB) is counted. A ~44 MB
+  bundle of five binaries per `main` push, held a week, was the single largest
   contributor and starves `self-scan.yaml`'s evidence-pack upload — the one
   artifact here with real downstream value (#36's drift baseline). Any future increase
   should start from an account-wide measurement, not a per-repo one.
+  `multi-arch-build-sample.yaml`'s two `upload-artifact` steps (#242) had the
+  identical gap and are now the same 1 day: no `retention-days` at all meant the
+  90-day repo default, close to the worst possible shape under the accrual model —
+  128 MB standing for three months from a `workflow_dispatch`-only reference
+  workflow nothing consumes, small enough not to look alarming in a size listing,
+  long enough-lived to dominate the accrual regardless. The 15 existing artifacts this
+  produced (2026-07-19, confirmed still live at 127.9 MB total) aren't deleted by this
+  change — only new uploads get the shorter retention — and deleting them is a
+  decision for the repo owner, not this PR.
 - **C05 sast-history / C06 sca-history: a workflow/pipeline this tool couldn't fully
   inspect no longer reads as a confirmed absence** (#178). A workflow (GitHub) or
   pipeline (Azure DevOps) that failed to fetch, decode, or parse was silently dropped
