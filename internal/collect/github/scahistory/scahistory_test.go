@@ -669,6 +669,62 @@ func TestCollect_DependabotConfigFetchFailureWithRelease_RanPerReleaseNotCheckab
 	}
 }
 
+// TestCollect_LowConfidenceMatchPlusDependabotFetchFails_FactsOmitDependabotFields
+// is the regression test for issue #258: a low-confidence-only workflow
+// match plus a failed (non-normalized) Dependabot config fetch must not
+// silently report Facts["dependabot_configured"]=false or
+// Facts["low_confidence_match_only"]=true — both derive from
+// dependabotConfigured, and fetchDependabotConfig returns exists=false
+// alongside any real fetch error (permission denied, malformed YAML, ...),
+// indistinguishable from a genuine "no config at either path" response.
+// This combination is reachable in production: hasAny=true here bypasses
+// checkToolConfigured's own not-checkable guard, which only fires when
+// hasAny is false — every existing dependabot-fetch-failure test
+// (TestCollect_DependabotConfigFetchFailure_ToolConfiguredAndConfigNotCheckable
+// and its ran-per-release twin) uses registerNoWorkflows, so neither
+// exercises this Facts path. Before this fix, both fields asserted a
+// confirmed value from a fetch that merely failed. The workflow is named
+// "Snyk Scan" — mappings/scanner-signatures.yaml gives snyk a non-empty
+// workflow_name_patterns (unlike, e.g., trivy's empty list, so a
+// trivy-named workflow with no real trivy step wouldn't match at all) —
+// but its content has neither a snyk/actions/* step nor a `snyk test`/
+// `snyk monitor` invocation, so only the name heuristic fires.
+func TestCollect_LowConfidenceMatchPlusDependabotFetchFails_FactsOmitDependabotFields(t *testing.T) {
+	org, repo, branch := "attestward-demo", "snyk-name-only-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	registerWorkflows(t, mux, org, repo, workflowFixture{
+		ID: 1, Path: ".github/workflows/snyk.yml", Name: "Snyk Scan",
+		Content: "name: Snyk Scan\non: [push]\njobs:\n  scan:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n",
+	})
+	registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{})
+	registerNoReleases(t, mux, org, repo)
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/dependabot.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	got := m["C06.sca.tool-configured"]
+	if got.Status != model.StatusPartial {
+		t.Errorf("tool-configured = %q, want partial (unaffected by this fix — only the Facts values change); reason=%q", got.Status, got.Reason)
+	}
+	if v, ok := got.Facts["dependabot_configured"]; ok {
+		t.Errorf("Facts[dependabot_configured] = %v, want the key absent — the Dependabot config fetch failed, so its value can't be reported as a confirmed fact", v)
+	}
+	if v, ok := got.Facts["low_confidence_match_only"]; ok {
+		t.Errorf("Facts[low_confidence_match_only] = %v, want the key absent — its value depends on the same unconfirmed Dependabot fetch", v)
+	}
+}
+
 func TestCollect_DependencyReview_NoWorkflow_VerifiedFail(t *testing.T) {
 	org, repo, branch := "attestward-demo", "no-dep-review-repo", "main"
 	mux := http.NewServeMux()

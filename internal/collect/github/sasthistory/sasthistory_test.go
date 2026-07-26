@@ -350,6 +350,63 @@ func TestCollect_LowConfidenceOnlyMatch_CapsAtPartial(t *testing.T) {
 	}
 }
 
+// TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFields
+// is the regression test for issue #258: a low-confidence-only workflow
+// match plus a failed (non-plan-gated) default-setup query must not
+// silently report Facts["codeql_default_setup"]=false or
+// Facts["low_confidence_match_only"]=true — both derive from
+// defaultSetupConfigured(ds), and GetDefaultSetupConfiguration returns a
+// nil ds on ANY error, indistinguishable from a genuine "not configured"
+// response. This combination is reachable in production: hasAny=true here
+// bypasses checkToolConfigured's own not-checkable guard, which only fires
+// when hasAny is false — TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable
+// covers that same failed-query shape but with a high-confidence match, so
+// status is unaffected and it never exercises either Facts field. Before
+// this fix, both fields asserted a confirmed value from a query that
+// merely failed.
+func TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFields(t *testing.T) {
+	mux := http.NewServeMux()
+	registerRepo(t, mux, "attestward-demo", "iffy-repo-2", "main")
+	mux.HandleFunc("/repos/attestward-demo/iffy-repo-2/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "CodeQL", "path": ".github/workflows/codeql.yml", "state": "active"},
+			},
+		})
+	})
+	// Same low-confidence-only content as
+	// TestCollect_LowConfidenceOnlyMatch_CapsAtPartial: name-based heuristic
+	// only, no real CodeQL action or run-pattern step.
+	mux.HandleFunc("/repos/attestward-demo/iffy-repo-2/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": "name: CodeQL\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n"})
+	})
+	registerNoReleases(t, mux, "attestward-demo", "iffy-repo-2")
+	registerWorkflowRuns(t, mux, "attestward-demo", "iffy-repo-2", 1, []map[string]any{})
+	mux.HandleFunc("/repos/attestward-demo/iffy-repo-2/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"iffy-repo-2"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	got := m["C05.sast.tool-configured"]
+	if got.Status != model.StatusPartial {
+		t.Errorf("tool-configured = %q, want partial (unaffected by this fix — only the Facts values change); reason=%q", got.Status, got.Reason)
+	}
+	if v, ok := got.Facts["codeql_default_setup"]; ok {
+		t.Errorf("Facts[codeql_default_setup] = %v, want the key absent — the default-setup query failed, so its value can't be reported as a confirmed fact", v)
+	}
+	if v, ok := got.Facts["low_confidence_match_only"]; ok {
+		t.Errorf("Facts[low_confidence_match_only] = %v, want the key absent — its value depends on the same unconfirmed default-setup query", v)
+	}
+}
+
 // TestCollect_LowConfidenceOnlyMatchWithRuns_CadenceCapsAtPartial proves
 // checkCadence applies the same confidence cap as checkToolConfigured: a
 // workflow-name-only match that happens to have real run history must not

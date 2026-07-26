@@ -129,15 +129,31 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	}
 	sort.Strings(toolNames)
 
+	// dependabot_configured and low_confidence_match_only both derive from
+	// dependabotConfigured, which silently collapses to false whenever
+	// dependabotErr != nil (fetchDependabotConfig returns exists=false
+	// alongside any real error) — a query failure reads identically to a
+	// genuine, confirmed "no config at either path" response. Asserting
+	// either as a confirmed fact from an unconfirmed fetch is the same
+	// inference C05 sasthistory's identical fix removes (issue #258): a
+	// Facts consumer reading evidence.json directly has no adjacent
+	// not-checkable status to reconcile it against, unlike a report.md
+	// reader. Included only when the fetch actually succeeded, so an
+	// unconfirmed state is honestly absent from the pack rather than
+	// misreported as a confirmed false.
+	facts := map[string]any{
+		"tool_names":        toolNames,
+		"skipped_workflows": skipDetails,
+	}
+	if dependabotErr == nil {
+		facts["dependabot_configured"] = dependabotConfigured
+		facts["low_confidence_match_only"] = hasAny && !hasHighOrMedium && !dependabotConfigured
+	}
+
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{
-			"tool_names":                toolNames,
-			"dependabot_configured":     dependabotConfigured,
-			"low_confidence_match_only": hasAny && !hasHighOrMedium && !dependabotConfigured,
-			"skipped_workflows":         skipDetails,
-		},
+		Facts: facts,
 	}
 }
 

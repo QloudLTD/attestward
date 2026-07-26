@@ -134,6 +134,62 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`checkToolConfigured` Facts no longer assert a confirmed value from a query
+  that merely failed, in the GitHub twins of C05/C06** (#258, follow-up to
+  #266's identical Azure DevOps fix). `github/sasthistory`'s
+  `checkToolConfigured` emitted `Facts["codeql_default_setup"]` from
+  `setupConfigured := defaultSetupConfigured(ds)`, and
+  `GetDefaultSetupConfiguration` returns a nil `ds` on ANY error —
+  indistinguishable from a genuine, observed "not configured" response — the
+  identical conflation #266 fixed on Azure DevOps, expressed here via a nil
+  pointer rather than an explicit `err == nil &&` guard. `github/scahistory`'s
+  `checkToolConfigured` had the same shape: `Facts["dependabot_configured"]`
+  derived from `dependabotConfigured`, false whenever
+  `fetchDependabotConfig` returns a real fetch error (confirmed by reading
+  that function directly: it returns `exists=false` alongside any non-nil
+  `err`, not just the normalized "absent at both `.yml`/`.yaml` paths"
+  outcome). Both reachable whenever any workflow-based evidence already
+  exists — each function's own not-checkable guard only fires when there's
+  zero such evidence, so a low- or high-confidence match plus a failed
+  default-setup/Dependabot query fell straight through to the misstatement.
+
+  Fixed the same way as #266: omit the affected key entirely when the
+  underlying query is unconfirmed, rather than emit a placeholder or third
+  state. `github/sasthistory` needed one extra distinction #266's ADO fix
+  didn't: a *plan-gated* default-setup failure (GHAS genuinely unavailable,
+  e.g. unlicensed) is already treated elsewhere in this same function as a
+  real, confirmed "not configured" fact, not an unknown — so the Facts gate
+  reuses a new `unconfirmedDSFailure` var shared with the existing
+  not-checkable guard (`dsErr != nil && (dsResp == nil ||
+  !ghcollect.IsPlanGated(dsResp.StatusCode))`) rather than a bare
+  `dsErr == nil` check, so a confirmed plan-gated absence still reports
+  normally. Swept each package's own `low_confidence_match_only` (derived
+  from the same `setupConfigured`/`dependabotConfigured`) too — four
+  Facts-map entries across the two functions in total.
+
+  `github/sasthistory`'s `checkRanPerRelease` and `github/scahistory`'s
+  `checkRanPerRelease` were both checked directly, not assumed, and are
+  clean — neither carries a Facts field derived from the respective
+  error-defaulting variable. `github/sasthistory`'s `checkCadence` is a
+  genuine exception, **found but not fixed here**: its own
+  `low_confidence_match_only` derives from `defaultSetupConfigured(ds)` the
+  same way `checkToolConfigured` did, but `checkCadence` never receives
+  `dsErr`/`dsResp` at all — its one call site in `sasthistory.go` only
+  passes `ds` — so fixing it needs threading two new parameters through the
+  function signature and that call site, a real scope expansion left for a
+  separate follow-up rather than folded in silently here.
+
+  Same test shape as #266: each new test derives its "the query genuinely
+  failed" fixture from a live HTTP 403/Forbidden response the collector
+  actually parses (not a synthetic error value), using a low-confidence-only
+  workflow match so the affected fields are actually reachable (every
+  existing failed-query test in both packages registers zero workflow
+  evidence, hitting the not-checkable guard instead — none of them exercised
+  this Facts path before). Asserts the affected keys are *absent* from
+  `Facts`, not merely not-`true`. Mutation-proved both fixes independently:
+  reverted each `checkToolConfigured` to its pre-fix Facts construction in
+  turn, confirmed the corresponding new test (and only that one) reddens
+  with the exact conflated value the fix removes, restored.
 - **`checkToolConfigured` Facts no longer assert a confirmed GHAzDO enablement
   value from a query that merely failed, in both Azure DevOps C05/C06
   collectors** (#258). `azuredevops/sasthistory`'s `checkToolConfigured`

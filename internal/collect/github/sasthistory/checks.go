@@ -94,7 +94,19 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	}
 	hasSkips := len(skipped) > 0
 
-	if !hasAny && dsErr != nil && (dsResp == nil || !ghcollect.IsPlanGated(dsResp.StatusCode)) {
+	// unconfirmedDSFailure is a real default-setup query failure this
+	// collector can't read anything into — as opposed to a plan-gated
+	// failure (GHAS/default-setup genuinely unavailable), which IS a
+	// confirmed "not configured" fact, same distinction the doc comment
+	// above draws. Shared below between the not-checkable guard and the
+	// Facts gate (issue #258): GetDefaultSetupConfiguration returns a nil
+	// ds on ANY error, so defaultSetupConfigured(ds) can't itself
+	// distinguish "confirmed off" from "query failed" — using its bare
+	// value in Facts would assert a fact this collector doesn't actually
+	// have evidence for whenever the failure isn't plan-gated.
+	unconfirmedDSFailure := dsErr != nil && (dsResp == nil || !ghcollect.IsPlanGated(dsResp.StatusCode))
+
+	if !hasAny && unconfirmedDSFailure {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("no SAST tool detected in any workflow, and the CodeQL default-setup query itself failed: %s", notCheckableReason(dsResp, dsErr, org, repo)),
@@ -130,15 +142,25 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	}
 	sort.Strings(toolNames)
 
+	// codeql_default_setup and low_confidence_match_only both derive from
+	// setupConfigured, unreliable under exactly unconfirmedDSFailure — see
+	// its own comment above. Included only when the default-setup query
+	// actually resolved (succeeded, or a confirmed plan-gated absence), so
+	// an unconfirmed state is honestly absent from the pack rather than
+	// misreported as a confirmed false (issue #258).
+	facts := map[string]any{
+		"tool_names":        toolNames,
+		"skipped_workflows": skipDetails,
+	}
+	if !unconfirmedDSFailure {
+		facts["codeql_default_setup"] = setupConfigured
+		facts["low_confidence_match_only"] = hasAny && !hasHighOrMedium && !setupConfigured
+	}
+
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{
-			"tool_names":                toolNames,
-			"codeql_default_setup":      setupConfigured,
-			"low_confidence_match_only": hasAny && !hasHighOrMedium && !setupConfigured,
-			"skipped_workflows":         skipDetails,
-		},
+		Facts: facts,
 	}
 }
 
