@@ -182,9 +182,129 @@ func declaresRubric(fset *token.FileSet, src []byte) (bool, error) {
 	return span.valid(), nil
 }
 
+// funcStatusRef is one function's model.Status* footprint: every status
+// name it references, one entry per occurrence — a multiset, sorted, NOT
+// deduplicated — plus Lines, kept only for reporting once a genuine
+// change is found. Multiset, not a deduplicated set: a set lets a new
+// branch reusing an already-referenced status name go unnoticed (found
+// empirically — see CHANGELOG's #262 entry). sameNames' plain positional
+// comparison of two sorted slices works unmodified as a multiset check.
+type funcStatusRef struct {
+	Names []string
+	Lines []int
+}
+
+// funcStatusRefs walks every top-level function declaration in src (nil
+// Body — an external/assembly declaration — contributes nothing) and
+// returns each one's funcStatusRef, keyed by name (receiver-qualified,
+// e.g. "Foo.Bar", so two same-named methods on different types can't
+// collide — no check function here currently has a receiver, but the key
+// shape shouldn't assume that stays true). A function with no status
+// references is omitted entirely, not present with an empty Names/Lines —
+// "absent from oldFuncs" and "a newly added function" mean the same thing
+// in analyzeFile's comparison below.
+func funcStatusRefs(fset *token.FileSet, src []byte) (map[string]funcStatusRef, error) {
+	f, err := parser.ParseFile(fset, "", src, 0)
+	if err != nil {
+		return nil, err
+	}
+	refs := map[string]funcStatusRef{}
+	for _, decl := range f.Decls {
+		fd, ok := decl.(*ast.FuncDecl)
+		if !ok || fd.Body == nil {
+			continue
+		}
+		key := fd.Name.Name
+		if fd.Recv != nil && len(fd.Recv.List) > 0 {
+			if t := recvTypeName(fd.Recv.List[0].Type); t != "" {
+				key = t + "." + key
+			}
+		}
+		var names []string
+		var lines []int
+		ast.Inspect(fd.Body, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			ident, ok := sel.X.(*ast.Ident)
+			if !ok || ident.Name != "model" {
+				return true
+			}
+			if !strings.HasPrefix(sel.Sel.Name, "Status") || sel.Sel.Name == "Status" {
+				return true
+			}
+			names = append(names, sel.Sel.Name)
+			lines = append(lines, fset.Position(sel.Pos()).Line)
+			return true
+		})
+		if len(names) == 0 {
+			continue
+		}
+		// Sorted independently, not as parallel keys: Names feeds
+		// sameNames' multiset comparison, which only needs Names in some
+		// consistent order, and Lines is collected purely for reporting
+		// (fileFinding.StatusLines, sorted again on its own at the end of
+		// analyzeFile). Sorting each on its own terms means Names[i] and
+		// Lines[i] do NOT correspond to the same occurrence once i > 0.
+		// Harmless today — nothing reads them as a pair — but don't add a
+		// "which line is name X at" feature on top of this without fixing
+		// that first.
+		sort.Strings(names)
+		sort.Ints(lines)
+		refs[key] = funcStatusRef{Names: names, Lines: lines}
+	}
+	return refs, nil
+}
+
+// recvTypeName extracts a method receiver's bare type name (T from "t T"
+// or "t *T") — anything else yields "", and funcStatusRefs falls back to
+// the bare method name as its key.
+//
+// A generic receiver ("t Foo[T]", *ast.IndexExpr, or "t Foo[K, V]",
+// *ast.IndexListExpr) is one such anything-else: it yields "", so two
+// generic methods sharing a bare name would collide on the same
+// unqualified key in funcStatusRefs' map, and the later declaration's
+// funcStatusRef would silently overwrite the earlier one's. That's not a
+// silent miss, though — the overwritten function's lines drop out of
+// inFunc in analyzeFile, so they fall through to the hunk-overlap safety
+// net (scan.go's own comment above that block) instead of being exempted
+// outright. Degrades safely, not fixed, because there are zero generic
+// receivers under internal/collect today (verified directly) — not worth
+// the complexity of a richer key until one exists.
+func recvTypeName(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.StarExpr:
+		return recvTypeName(t.X)
+	default:
+		return ""
+	}
+}
+
+// sameNames reports whether a and b (both already sorted by
+// funcStatusRefs) are the identical multiset of status names — a plain
+// positional comparison of two sorted slices, which is exactly what a
+// multiset equality check is; no separate counting step needed. See
+// funcStatusRef's own doc comment for why this must be occurrence-count-
+// sensitive, not a deduplicated set comparison.
+func sameNames(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // fileFinding is one changed file's contribution to a package's result:
 // whether it touched checkRubrics, and which of its own (new-version)
-// lines gained a status reference outside checkRubrics.
+// lines belong to a function whose model.Status* footprint genuinely
+// changed.
 type fileFinding struct {
 	Path          string
 	RubricTouched bool
@@ -192,9 +312,10 @@ type fileFinding struct {
 }
 
 // analyzeFile computes one changed file's fileFinding. oldSrc is nil for
-// a newly added file (nothing to diff checkRubrics's old span against —
-// correct, since a brand-new file's checkRubrics, if any, is being
-// created in this very diff, which counts as "touched").
+// a newly added file (nothing to diff checkRubrics's old span, or any
+// function's old status set, against — correct, since a brand-new file's
+// content, checkRubrics included, is being created in this very diff,
+// which counts as "touched"/"changed").
 func analyzeFile(fset *token.FileSet, path string, oldSrc, newSrc []byte, hunks []hunk) (fileFinding, error) {
 	ff := fileFinding{Path: path}
 
@@ -216,20 +337,58 @@ func analyzeFile(fset *token.FileSet, path string, oldSrc, newSrc []byte, hunks 
 		}
 	}
 
+	// The position-insensitive comparison (issue #262): a function with an
+	// unchanged multiset is exempt no matter where its status references
+	// now sit. Only a function whose multiset genuinely changed — or
+	// that's new outright — contributes its (new-version) lines.
+	newFuncs, err := funcStatusRefs(fset, newSrc)
+	if err != nil {
+		return ff, err
+	}
+	var oldFuncs map[string]funcStatusRef
+	if oldSrc != nil {
+		oldFuncs, err = funcStatusRefs(fset, oldSrc)
+		if err != nil {
+			return ff, err
+		}
+	}
+	hitSet := map[int]bool{}
+	inFunc := map[int]bool{}
+	for name, nf := range newFuncs {
+		for _, l := range nf.Lines {
+			inFunc[l] = true
+		}
+		if of, existed := oldFuncs[name]; existed && sameNames(of.Names, nf.Names) {
+			continue
+		}
+		for _, l := range nf.Lines {
+			hitSet[l] = true
+		}
+	}
+
+	// Safety net, deliberately untested (this codebase's check-function
+	// convention doesn't produce this shape — verified directly): a
+	// model.Status* reference outside both checkRubrics and every
+	// function has no multiset to compare — fall back to the original
+	// hunk-overlap check rather than silently exempting it.
 	newStatus, err := statusLines(fset, newSrc, newRubric)
 	if err != nil {
 		return ff, err
 	}
-	var hits []int
-	for _, h := range hunks {
-		if !h.New.valid() {
+	for line := range newStatus {
+		if inFunc[line] {
 			continue
 		}
-		for line := range newStatus {
-			if line >= h.New.Start && line <= h.New.End {
-				hits = append(hits, line)
+		for _, h := range hunks {
+			if h.New.valid() && line >= h.New.Start && line <= h.New.End {
+				hitSet[line] = true
 			}
 		}
+	}
+
+	hits := make([]int, 0, len(hitSet))
+	for l := range hitSet {
+		hits = append(hits, l)
 	}
 	sort.Ints(hits)
 	ff.StatusLines = hits

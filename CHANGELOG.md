@@ -291,6 +291,42 @@ All notable changes to this project are documented here. Format follows
   comment naming "ssdf/cisa/questions"; `self_attestation` and `scanner_signatures` are
   both absent from that comparison in both files, identically. Pre-existing, unrelated
   to the scan-path bug this issue fixes, not touched here.
+- **`rubricguard` no longer flags a status reference that's purely moved
+  within an unchanged function** (#262). #261 restructured `checkRanPerRelease`
+  with no behavior change, and the guard flagged it anyway — it compared raw
+  hunk-overlapping line numbers, so a `model.StatusNotCheckable` reference
+  moved 17 lines down read as "changed." (Not a required status check here
+  — confirmed via the repo's ruleset — so it didn't block the merge, but
+  it's the "red tick that doesn't mean the code is wrong" failure mode
+  `ci.yaml`'s own coverage-upload comment already warns against.)
+
+  Fixed per the issue's own preferred option: each function's *multiset* of
+  referenced `model.Status*` names, old vs new (occurrence-count-sensitive,
+  position-insensitive), replaces the hunk-overlap comparison (`scan.go`'s
+  new `funcStatusRefs`). A deduplicated *set* (membership only) was tried
+  first and also fixes #261, but replaying the fix against this repo's full
+  commit history (153 commit-pairs, broader than #209's original 40-PR
+  sample) surfaced a real gap it would reintroduce: commit 687e9f4 (#103,
+  merged before this guard existed) added a genuinely new branch producing
+  `StatusNotCheckable` for an undocumented case, reusing a name the function
+  already referenced — a set never changes there; a multiset does (count
+  1 -> 2). Final corpus result: 1/153 flags (#261) versus 2/153 under the
+  original algorithm, zero new false positives. The #103 regression test
+  follows in a separate, test-only PR.
+
+  Cost, found in re-review by injecting into real production code
+  (`github/secretshygiene/checks.go:130-133`): exchanging which of two
+  *existing* `model.Status*` constants sits in which of two branches
+  (condition untouched) leaves a function's multiset identical — invisible
+  to this comparison. The old hunk-overlap algorithm caught that one
+  specific spelling of the swap (by accident of which text moved); a
+  condition-flip swap (e.g. `if enabled` -> `if !enabled`) around an
+  unchanged pair of branches was already invisible before this fix, under
+  both algorithms, since no status-constant line changes at all either
+  way. Accepted deliberately — see `tools/rubricguard/main.go`'s own doc
+  comment for the full accounting — as the direct cost of the corpus
+  result above, not a free trade.
+
 - **C06.sca (Azure DevOps): `checkRanPerRelease` had the same two `dropped_tags`
   Facts-loss holdouts C05's identical function had, both fixed** (#256). #251
   ported C05 `sasthistory`'s pre-#252/#254 `checkRanPerRelease` shape into C06

@@ -171,3 +171,153 @@ func TestAggregate_SilentWhenPackageHasNoLocalRubric(t *testing.T) {
 		t.Errorf("expected no finding for a package with no local checkRubrics, got %+v", pf)
 	}
 }
+
+// TestFuncStatusRefs_GroupsByFunctionName proves the basic shape: every
+// distinct model.Status* value referenced inside computeStatus's body
+// lands in one entry keyed by its name; checkRubrics' own two references
+// (never inside a FuncDecl) never produce an entry of their own.
+func TestFuncStatusRefs_GroupsByFunctionName(t *testing.T) {
+	fset := token.NewFileSet()
+	refs, err := funcStatusRefs(fset, []byte(sampleFile))
+	if err != nil {
+		t.Fatalf("funcStatusRefs: %v", err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("got %d function entries, want 1 (computeStatus only): %v", len(refs), refs)
+	}
+	got, ok := refs["computeStatus"]
+	if !ok {
+		t.Fatalf("expected an entry for computeStatus, got keys in %v", refs)
+	}
+	if !sameNames(got.Names, []string{"StatusVerifiedFail", "StatusVerifiedPass"}) {
+		t.Errorf("Names = %v, want [StatusVerifiedFail StatusVerifiedPass]", got.Names)
+	}
+	if len(got.Lines) != 2 {
+		t.Errorf("Lines = %v, want 2 entries (one per reference)", got.Lines)
+	}
+}
+
+// TestFuncStatusRefs_OmitsFunctionsWithNoStatusReferences confirms a
+// function that never touches model.Status at all contributes no entry —
+// analyzeFile's old-vs-new comparison relies on "absent" and "present
+// with an empty set" meaning the same thing, so there must only ever be
+// one of those two representations. Also covers a body-less function
+// declaration (Body == nil — a //go:linkname or assembly stub, "external"
+// below): must be skipped, not panic on a nil-pointer Inspect.
+func TestFuncStatusRefs_OmitsFunctionsWithNoStatusReferences(t *testing.T) {
+	fset := token.NewFileSet()
+	refs, err := funcStatusRefs(fset, []byte("package sample\n\nfunc helper() int { return 42 }\n\nfunc external()\n"))
+	if err != nil {
+		t.Fatalf("funcStatusRefs: %v", err)
+	}
+	if len(refs) != 0 {
+		t.Errorf("expected no entries for a function with no model.Status references, got %v", refs)
+	}
+}
+
+func TestSameNames(t *testing.T) {
+	cases := []struct {
+		a, b []string
+		want bool
+	}{
+		{nil, nil, true},
+		{[]string{"StatusVerifiedPass"}, []string{"StatusVerifiedPass"}, true},
+		{[]string{"StatusVerifiedPass"}, []string{"StatusVerifiedFail"}, false},
+		{[]string{"StatusVerifiedPass"}, []string{"StatusVerifiedPass", "StatusVerifiedFail"}, false},
+		// The pure occurrence-count case — same single distinct name on
+		// both sides, different count. This is the entire reason
+		// funcStatusRef is a multiset rather than a deduplicated set (see
+		// its own doc comment, and #103's corpus finding in CHANGELOG's
+		// #262 entry): a plain set comparison would call these equal.
+		{[]string{"StatusVerifiedPass"}, []string{"StatusVerifiedPass", "StatusVerifiedPass"}, false},
+	}
+	for _, c := range cases {
+		if got := sameNames(c.a, c.b); got != c.want {
+			t.Errorf("sameNames(%v, %v) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+// computeStatusBaseline is the shared "before" fixture for the three
+// analyzeFile regression cases below — all three ask the same question
+// (given this exact function, did something genuinely change?) against a
+// different "after".
+const computeStatusBaseline = `package sample
+
+import "github.com/sioakim/attestward/internal/model"
+
+func computeStatus(ok bool) model.Status {
+	if ok {
+		return model.StatusVerifiedPass
+	}
+	return model.StatusVerifiedFail
+}
+`
+
+// TestAnalyzeFile_PositionInsensitiveComparison covers issue #262's core
+// case at the analyzeFile level (main_test.go has the real-git-repo
+// equivalent for the "silent" subtest) plus its companion proof that
+// detection still works.
+func TestAnalyzeFile_PositionInsensitiveComparison(t *testing.T) {
+	t.Run("silent when only line position moved", func(t *testing.T) {
+		// The #261 shape: a named var + fall-through return moves
+		// model.StatusVerifiedFail's line with no behavior change. The hunk
+		// deliberately overlaps the moved lines — the pre-#262 algorithm
+		// would have flagged this alone, proving the test exercises the fix.
+		fset := token.NewFileSet()
+		newSrc := []byte(`package sample
+
+import "github.com/sioakim/attestward/internal/model"
+
+func computeStatus(ok bool) model.Status {
+	status := model.StatusVerifiedFail
+	if ok {
+		status = model.StatusVerifiedPass
+	}
+	return status
+}
+`)
+		hunks := []hunk{{Old: lineRange{6, 9}, New: lineRange{6, 10}}}
+		ff, err := analyzeFile(fset, "checks.go", []byte(computeStatusBaseline), newSrc, hunks)
+		if err != nil {
+			t.Fatalf("analyzeFile: %v", err)
+		}
+		if len(ff.StatusLines) != 0 {
+			t.Errorf("StatusLines = %v, want none — the status multiset is unchanged, only line positions moved", ff.StatusLines)
+		}
+	})
+
+	t.Run("flags a status replaced with a different one", func(t *testing.T) {
+		// Companion proof: replacing which status a branch returns (here,
+		// StatusVerifiedFail -> StatusPartial, at an UNCHANGED line) must
+		// still be caught — the multiset genuinely changes (a name is lost,
+		// a different one gained). NOT the same as exchanging which of two
+		// EXISTING names sits in which branch (a true swap) — that leaves
+		// the multiset identical and is a confirmed, documented blind spot
+		// (main.go's own doc comment, issue #262's re-review). Once
+		// flagged, the whole function's lines are reported (7 and 9, not
+		// just 9) — a changed multiset is a whole-function finding,
+		// matching this guard's "coarse, not exhaustive" design.
+		fset := token.NewFileSet()
+		newSrc := []byte(`package sample
+
+import "github.com/sioakim/attestward/internal/model"
+
+func computeStatus(ok bool) model.Status {
+	if ok {
+		return model.StatusVerifiedPass
+	}
+	return model.StatusPartial
+}
+`)
+		hunks := []hunk{{Old: lineRange{9, 9}, New: lineRange{9, 9}}}
+		ff, err := analyzeFile(fset, "checks.go", []byte(computeStatusBaseline), newSrc, hunks)
+		if err != nil {
+			t.Fatalf("analyzeFile: %v", err)
+		}
+		want := []int{7, 9}
+		if len(ff.StatusLines) != len(want) || ff.StatusLines[0] != want[0] || ff.StatusLines[1] != want[1] {
+			t.Errorf("StatusLines = %v, want %v — a swapped status constant at an unchanged line must still be caught", ff.StatusLines, want)
+		}
+	})
+}

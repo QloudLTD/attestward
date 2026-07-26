@@ -188,16 +188,22 @@ jobs:
   # not). fetch-depth: 0 — the tool needs full history to compute a real
   # merge-base, the same reason goreleaser-dry-run below needs it.
   #
-  # A green run here means "no changed line references a status constant
-  # outside checkRubrics" — it does NOT mean "status behavior is
-  # unchanged". Known, permanent false-negative classes (round 2 review,
-  # not bugs): a condition flipping (`if enabled` -> `if !enabled`)
-  # around unchanged status branches, and a package-wide OR on whether
-  # checkRubrics was touched at all (a real fix to one check's rubric can
-  # mask a missing fix to another check's, in the same package's shared
-  # checkRubrics map) — see tools/rubricguard/main.go's own doc comment
-  # for both in detail. This job existing at all narrows the gap #202 hit
-  # by chance; it doesn't close it.
+  # A green run here means "no function's multiset of referenced status
+  # constants changed outside checkRubrics" (issue #262 — occurrence-count-
+  # sensitive but position-insensitive per function, tools/rubricguard's
+  # own doc comment has the full reasoning) — it does NOT mean "status
+  # behavior is unchanged". Known, permanent false-negative classes (round
+  # 2 review and issue #262's own re-review, not bugs): exchanging which
+  # status a check produces between two branches, whether spelled as a
+  # condition flip (`if enabled` -> `if !enabled`, constants untouched) or
+  # as swapping which constant sits in which branch (condition untouched)
+  # — both leave a function's multiset of status names identical — and a
+  # package-wide OR on whether checkRubrics was touched at all (a real
+  # fix to one check's rubric can mask a missing fix to another check's,
+  # in the same package's shared checkRubrics map) — see
+  # tools/rubricguard/main.go's own doc comment for both in detail. This
+  # job existing at all narrows the gap #202 hit by chance; it doesn't
+  # close it.
   rubric-drift-check:
     runs-on: [self-hosted, macOS]
     steps:

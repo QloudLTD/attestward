@@ -86,6 +86,23 @@ func computeStatus(ok, checkable bool) model.Status {
 }
 `
 
+// exampleChecksV1LineMoved is exampleChecksV1's identical status logic,
+// restructured (a named var + fall-through return) so
+// model.StatusVerifiedFail's line moves — mirroring #261's own false
+// positive. Same outcome for every input: ok=true -> Pass, ok=false -> Fail.
+const exampleChecksV1LineMoved = `package example
+
+import "github.com/sioakim/attestward/internal/model"
+
+func computeStatus(ok bool) model.Status {
+	status := model.StatusVerifiedFail
+	if ok {
+		status = model.StatusVerifiedPass
+	}
+	return status
+}
+`
+
 const exampleChecksTestV1 = `package example
 
 import (
@@ -277,6 +294,29 @@ func TestRun_FlagsStatusChangeWithoutRubricUpdate(t *testing.T) {
 	}
 	if len(findings[0].Files) != 1 || findings[0].Files[0].Path != "internal/collect/github/example/checks.go" {
 		t.Errorf("finding files = %+v", findings[0].Files)
+	}
+}
+
+// TestRun_SilentWhenStatusReferenceOnlyMovedWithinFunction is issue
+// #262's end-to-end regression case (scan_test.go's
+// TestAnalyzeFile_PositionInsensitiveComparison covers it directly): the
+// #261 shape, through a real git repo instead of a hand-built hunk.
+func TestRun_SilentWhenStatusReferenceOnlyMovedWithinFunction(t *testing.T) {
+	dir := newRepo(t)
+	writeFile(t, dir, "internal/collect/github/example/example.go", exampleRubricV1)
+	writeFile(t, dir, "internal/collect/github/example/checks.go", exampleChecksV1)
+	base := commit(t, dir, "base")
+
+	writeFile(t, dir, "internal/collect/github/example/checks.go", exampleChecksV1LineMoved)
+	head := commit(t, dir, "head: restructured, identical status set, rubric untouched")
+
+	chdir(t, dir)
+	findings, err := run(base, head)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected no findings for pure status-reference movement within an unchanged function (issue #262, #261's own false positive), got %s", formatFindings(findings))
 	}
 }
 

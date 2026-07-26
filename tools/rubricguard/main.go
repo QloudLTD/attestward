@@ -8,20 +8,38 @@
 // change in the same diff, prints the offending file(s)/line(s) and
 // exits 1. Exits 0 (silently) when there's nothing to flag.
 //
-// A green run means "no changed line references a status constant
-// outside checkRubrics" — it does NOT mean "status behavior is
-// unchanged". Two known false-negative classes exist and are permanent,
-// not bugs (round 2 review, F1/F2 — see scan.go's aggregate doc comment
-// for the second one in detail):
+// A green run means "no function's multiset of referenced status
+// constants changed outside checkRubrics" (issue #262 — occurrence-count-
+// sensitive but position-insensitive per function, see scan.go's
+// funcStatusRefs) — it does NOT mean "status behavior is unchanged". Two
+// known false-negative classes exist and are permanent, not bugs (round 2
+// review, F1/F2 — see scan.go's aggregate doc comment for the second one
+// in detail):
 //
-//   - Control-flow inversion. Flipping `if enabled {` to `if !enabled {`
-//     around an unchanged pair of `model.Status*` branches swaps which
-//     status a check produces without touching any line that itself
-//     names a status constant — there is no changed status *reference*
-//     for this tool to see, only a changed *condition*. No line/hunk-diff
-//     tool can distinguish "this branch's meaning flipped" from "this
-//     branch is untouched" without a real dataflow analysis, which is out
-//     of scope for a coarse CI guard.
+//   - Branch-swap invisibility, now covering BOTH spellings (issue #262's
+//     re-review, confirmed by injecting into real production code —
+//     github/secretshygiene/checks.go:130-133): exchanging which status a
+//     check produces between two branches leaves a function's multiset
+//     unchanged whichever way it's spelled. Flipping `if enabled {` to
+//     `if !enabled {` around an unchanged pair of `model.Status*`
+//     branches was already invisible before #262 (no status-constant
+//     line changes at all — no line/hunk-diff tool, old or new, can
+//     distinguish "this branch's meaning flipped" from "this branch is
+//     untouched" without real dataflow analysis). What #262 gave up:
+//     exchanging which constant sits in which branch (condition
+//     untouched, e.g. swapping which of two existing StatusVerifiedPass/
+//     StatusVerifiedFail lines returns which) DID change a status-
+//     constant line, and the old hunk-overlap algorithm caught that
+//     spelling — but it's the identical set of names occurring the
+//     identical number of times, so the multiset comparison can't see it
+//     either. Accepted deliberately: the old algorithm only ever covered
+//     one of these two spellings by accident of which text happened to
+//     move, and giving up that accidental half is the direct cost of
+//     eliminating #261's own false positive, which fires on the exact
+//     Facts-population shape this repo is actively producing (see the
+//     #250/#252/#254/#256/#261 sequence) — the corpus replay backs this
+//     as a net-positive trade (CHANGELOG's #262 entry has the numbers),
+//     not a free one.
 //   - A package-wide OR on whether checkRubrics was touched (see
 //     aggregate in scan.go). A genuine new status case in one check, with
 //     no rubric update, next to an unrelated one-character rubric-string
@@ -33,11 +51,13 @@
 // for the false-positive tradeoffs this accepts and why. It exists so a
 // reviewer is *pointed at* the question "does the rubric still describe
 // what this code does", not so the answer is computed for them; a
-// flagged PR may turn out to need no rubric change at all (e.g. a pure
-// refactor that moved a `model.Status` reference to a different line
-// without changing when it's assigned), and that's an acceptable false
-// positive per issue #209's own bar ("a lint rule with false positives a
-// reviewer can wave off is fine") — silence is what isn't.
+// flagged PR may turn out to need no rubric change at all (e.g. a
+// function renamed with its status logic otherwise untouched), and
+// that's an acceptable false positive per issue #209's own bar ("a lint
+// rule with false positives a reviewer can wave off is fine") — silence
+// is what isn't. #261's own shape (a status reference purely relocated
+// within its function) used to be exactly that kind of waveable false
+// positive; issue #262 removed it as a false positive entirely.
 package main
 
 import (
@@ -304,10 +324,10 @@ func reportFindings(findings []*packageFinding) {
 		fmt.Fprintf(os.Stderr, "    checkRubrics in this package was not touched in the same diff.\n\n")
 	}
 	fmt.Fprintln(os.Stderr, "This may be a genuine rubric gap (a check can now produce a status its "+
-		"rubric doesn't describe — see issue #209's own #202 example) or a false positive (e.g. a pure "+
-		"refactor that moved an existing status reference without changing when it's assigned). Check "+
-		"docs/checks-reference.md's entry for the check(s) involved against what the changed code now does; "+
-		"update checkRubrics if it no longer matches.")
+		"rubric doesn't describe — see issue #209's own #202 example) or a false positive (e.g. a "+
+		"function renamed with its status logic otherwise untouched). Check docs/checks-reference.md's "+
+		"entry for the check(s) involved against what the changed code now does; update checkRubrics if "+
+		"it no longer matches.")
 }
 
 func gitOutput(args ...string) (string, error) {
