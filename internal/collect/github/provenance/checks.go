@@ -300,7 +300,21 @@ func checkSignatures(org, repo string, filteredReleases []runhistory.ReleaseInfo
 // confidence-capping rule as C05/C06: a low-confidence-only match (a
 // workflow merely named "SLSA" with no matched action) can never alone
 // justify verified-pass.
-func checkProvenanceWorkflow(org, repo string, matched []runhistory.MatchedWorkflow, prov []model.Provenance) model.CheckResult {
+//
+// skipped is this repo's runhistory.MatchWorkflows skip list (issue #207 —
+// the last of this codebase's tool-configured-shaped checks to consume it;
+// C05/C06 on both platforms and this package's own ADO twin already do):
+// surfaced in Facts unconditionally (path + reason per entry), and — only
+// when every other signal here would otherwise produce verified-fail —
+// capping that at not-checkable instead, since a workflow this collector
+// couldn't fully inspect means "no provenance tool configured" rests on
+// incomplete evidence, not a confirmed absence. Unlike C05, there is no
+// enablement-style OR condition here at all (no GitHub-native attestation
+// default-setup feature exists), so this guard has no precedence question
+// to resolve — contrast azuredevops/scahistory's checkRanPerRelease, whose
+// injectionOnly guard has to win over an identical skip guard for exactly
+// that reason.
+func checkProvenanceWorkflow(org, repo string, matched []runhistory.MatchedWorkflow, skipped []runhistory.SkippedWorkflow, prov []model.Provenance) model.CheckResult {
 	const id = "C07.provenance.workflow"
 
 	hasAny, hasHighOrMedium := false, false
@@ -315,6 +329,12 @@ func checkProvenanceWorkflow(org, repo string, matched []runhistory.MatchedWorkf
 		}
 	}
 
+	skipDetails := make([]map[string]any, 0, len(skipped))
+	for _, sw := range skipped {
+		skipDetails = append(skipDetails, map[string]any{"path": sw.Path, "reason": sw.Reason})
+	}
+	hasSkips := len(skipped) > 0
+
 	status, reason := model.StatusVerifiedFail, "no provenance-generating tool (Sigstore/cosign, SLSA generator, or GitHub Attestations) detected in any workflow"
 	switch {
 	case hasHighOrMedium:
@@ -323,6 +343,9 @@ func checkProvenanceWorkflow(org, repo string, matched []runhistory.MatchedWorkf
 	case hasAny:
 		status = model.StatusPartial
 		reason = "only a low-confidence (workflow-name-only) match was found — not enough signal alone to confirm a provenance tool is genuinely configured"
+	case hasSkips:
+		status = model.StatusNotCheckable
+		reason = fmt.Sprintf("no matched provenance-tool workflow evidence, but %d workflow(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(skipped))
 	}
 
 	toolNames := make([]string, 0, len(names))
@@ -337,6 +360,7 @@ func checkProvenanceWorkflow(org, repo string, matched []runhistory.MatchedWorkf
 		Facts: map[string]any{
 			"tool_names":                toolNames,
 			"low_confidence_match_only": hasAny && !hasHighOrMedium,
+			"skipped_workflows":         skipDetails,
 		},
 	}
 }

@@ -81,8 +81,8 @@ All notable changes to this project are documented here. Format follows
   the two checks previously disagreed with each other over the identical evidence.
   Every affected check's status rubric (and the generated `docs/checks-reference.md`)
   is updated to describe the new not-checkable case. GitHub C07 provenance and three
-  other `ran-per-release`-style checks have the identical, pre-existing gap and remain
-  open, tracked in #207.
+  other `ran-per-release`-style checks had the identical, pre-existing gap, out of
+  scope for this fix — see #207.
 - **C05 sast-history (Azure DevOps): `ran-per-release` no longer contradicts
   `tool-configured` for default-setup-only repos** (#184). A repo whose only SAST
   mechanism is GHAzDO CodeQL default setup (zero signature-matched pipelines) got
@@ -91,6 +91,20 @@ All notable changes to this project are documented here. Format follows
   through the Pipelines/Builds APIs this collector uses. `ran-per-release` now reads
   `not-checkable` in that case, mirroring the identical fix already shipped for C06
   sca-history's `injectionOnly` guard.
+- **GitHub C07 provenance / Azure DevOps C06 sca-history: two more
+  `ran-per-release`-style checks no longer read a confirmed absence over an inspection
+  failure** (#207), completing #178's own scope. `github/provenance`'s
+  `checkProvenanceWorkflow` (C07.provenance.workflow) was the one tool-configured-shaped
+  check on either platform that still discarded its skip list entirely;
+  `azuredevops/scahistory`'s `checkRanPerRelease` (C06.sca.ran-per-release) had the
+  identical gap #178 already fixed for its sibling checks. Both now surface same-repo
+  skips in Facts and cap at `not-checkable` instead of `verified-fail`. #207 also listed
+  `azuredevops/provenance`'s and `github/provenance`'s own `checkCommitLinkage` as having
+  the same gap — verified false: both fetch every build/run in the repo unfiltered by
+  pipeline/workflow identity (they ask "did ANY build run on this commit", not "did a
+  category-matched pipeline"), so a same-repo skip has no bearing on their evidence — no
+  fix needed there, and a stale forward-reference in `azuredevops/provenance`'s own
+  rubric claiming otherwise is corrected.
 
 ### Changed
 

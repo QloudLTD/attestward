@@ -128,8 +128,13 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusPartial: "only a low-confidence (workflow-name-only) match was found — not enough " +
 			"signal alone to confirm a provenance tool is genuinely configured",
 		model.StatusVerifiedFail: "no provenance-generating tool of any confidence was detected in any " +
-			"workflow",
-		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric,
+			"workflow, and every workflow runhistory.MatchWorkflows inspected for this repo resolved " +
+			"cleanly (no same-repo skip) — a real absence, not an evidence gap",
+		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or one or more of this repo's own " +
+			"workflows could not be fully inspected (a content-fetch failure, a decode failure, or a YAML " +
+			"parse failure — see Facts.skipped_workflows) and the evidence gathered would otherwise have " +
+			"produced verified-fail — this check applies the honest not-checkable fix rather than asserting " +
+			"a confident absence over incomplete evidence",
 	},
 	"C07.provenance.commit-linkage": {
 		model.StatusVerifiedPass: "every release in the lookback window has at least one workflow run " +
@@ -275,12 +280,11 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	if err != nil {
 		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
 	}
-	// The skipped return is discarded here — C07's own not-checkable/
-	// verified-fail distinction for provenance evidence isn't in scope for
-	// issue #178 (which covers C05 sast-history and C06 sca-history only);
-	// see those packages' checkToolConfigured for the pattern this would
-	// follow if C07 ever needs it.
-	provWorkflowMatches, _ := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategoryProvenance)
+	// The skipped return now feeds checkProvenanceWorkflow directly (issue
+	// #207 — this was the one tool-configured-shaped check on either
+	// platform never brought up to the pattern C05/C06 established for
+	// issue #178).
+	provWorkflowMatches, provSkippedWorkflows := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategoryProvenance)
 	workflowMatchProv := snapshot()
 
 	now := time.Now().UTC()
@@ -347,7 +351,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 		checkTagsSigned(org, repo, resolved, concatProv(releaseListProv, tagSignatureProv)),
 		checkChecksums(org, repo, filteredReleases, rawByTag, releaseListProv),
 		checkSignatures(org, repo, filteredReleases, sigEvidence, concatProv(releaseListProv, signaturesProv)),
-		checkProvenanceWorkflow(org, repo, provWorkflowMatches, workflowMatchProv),
+		checkProvenanceWorkflow(org, repo, provWorkflowMatches, provSkippedWorkflows, workflowMatchProv),
 		checkCommitLinkage(org, repo, linkageResults, concatProv(releaseListProv, tagSignatureProv, commitLinkageProv)),
 	}
 }

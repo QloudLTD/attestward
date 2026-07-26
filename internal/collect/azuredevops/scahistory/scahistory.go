@@ -109,23 +109,22 @@
 //     org — or, worse, a garbage response silently decoding to zero
 //     alerts and a false verified-pass.
 //
-//  5. Consuming pipelinehistory.MatchPipelines' skipped list from the
-//     start (issue #178, filed as a cross-platform completion item after
-//     C05 shipped without ever reading it): tool-configured filters
-//     skippedAll down to this repo's own entries (by RepositoryID, the
-//     same field MatchedPipeline carries) and surfaces them in Facts
-//     (skipped_pipelines: name + reason, per entry) unconditionally. When
-//     the check's OTHER evidence would otherwise produce verified-fail (no
-//     matched pipeline, no GHAzDO signal), a same-repo skip caps that at
+//  5. Consuming pipelinehistory.MatchPipelines' skipped list (originally
+//     issue #178, filed as a cross-platform completion item after C05
+//     shipped without ever reading it; extended to this package's own
+//     ran-per-release by issue #207 once #178 closed): tool-configured
+//     and ran-per-release both filter skippedAll down to this repo's own
+//     entries (by RepositoryID, the same field MatchedPipeline carries)
+//     and surface them in Facts (skipped_pipelines: name + reason, per
+//     entry) unconditionally. When a check's OTHER evidence would
+//     otherwise produce verified-fail (no matched pipeline, no GHAzDO
+//     signal for tool-configured; zero matched builds for ran-per-release
+//     with zero matched pipelines overall), a same-repo skip caps that at
 //     not-checkable instead: a pipeline this collector couldn't fully
 //     inspect (a build-definition fetch failure, an unresolved YAML path,
 //     a YAML fetch/parse failure, or an unresolved template reference)
-//     means the "no SCA tool configured" conclusion rests on incomplete
-//     evidence, not a confirmed absence. This is a narrower fix than issue
-//     #178 itself calls for (it doesn't touch ran-per-release's own
-//     skip-blindness, nor C05's identical gap, nor the GitHub-side twins)
-//     — it only ensures this new check doesn't ship with the SAME gap on
-//     day one, per explicit review guidance.
+//     means the "no SCA tool configured"/"no matched build" conclusion
+//     rests on incomplete evidence, not a confirmed absence.
 //
 //  6. The shared-vs-local upstream-failure boundary follows the GitHub
 //     twin's OWN explicit precedent, not C05's: GitHub's scahistory
@@ -156,8 +155,14 @@
 //     for the identical evidence. ran-per-release now reports
 //     not-checkable instead, with a reason mirroring C05's own
 //     cadence-style wording for its own analogous
-//     codeQL-default-setup-only gap. C05's identical gap (its own cadence
-//     check has no such guard against its OWN codeQL-default-setup-only
+//     codeQL-default-setup-only gap. injectionOnly and a same-repo skip
+//     (judgment call 5) can both be true at once — injectionOnly wins
+//     unconditionally (see checkRanPerRelease's own doc comment for why
+//     the skip's wording would otherwise contradict tool-configured's
+//     verified-pass for the identical evidence), with the skip's Facts
+//     still attached so the pack doesn't lose the record of an
+//     uninspectable pipeline. C05's identical gap (its own cadence check
+//     has no such guard against its OWN codeQL-default-setup-only
 //     composition) is being filed as its own issue, not fixed here — out
 //     of scope for this package's own review round.
 //
@@ -278,8 +283,7 @@ var checkRubrics = map[string]map[model.Status]string{
 			"unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see " +
 			"Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail " +
 			"— this check applies the honest not-checkable fix rather than asserting a confident absence over " +
-			"incomplete evidence; issue #207 tracks the identical same-repo-skip guard reaching " +
-			"C06.sca.ran-per-release too, which doesn't consume these skips yet",
+			"incomplete evidence",
 	},
 	idRanPerRelease: {
 		model.StatusVerifiedPass: "an SCA pipeline ran successfully (at least one matched build whose " +
@@ -293,20 +297,24 @@ var checkRubrics = map[string]map[model.Status]string{
 			"still succeeded but the exclusion caps the result at partial; or a matched SCA pipeline ran for " +
 			"every evaluated release, but not every build succeeded",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SCA builds " +
-			"at all (not even a failed one) — unlike C05.sast.ran-per-release and this same check's own " +
-			"tool-configured sibling, this check does not yet consume " +
-			"pipelinehistory.MatchPipelines' skipped return, so a same-repo skip (a pipeline this collector " +
-			"couldn't fully inspect) can still produce this status over incomplete evidence — a real, open " +
-			"gap tracked in issue #207, not yet fixed here",
+			"at all (not even a failed one), and — when there are zero matched pipelines overall — every " +
+			"pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo skip)",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or resolving this repo's release " +
 			"tags failed (403/other API error) — unlike the four other checks in this package, this failure " +
 			"is local to this check alone (see the package doc comment's judgment call 6); or GHAzDO " +
 			"dependency scanning injection is this repo's ONLY SCA evidence (no signature-matched pipeline " +
 			"at all) — injected scanning runs invisibly to this collector's own build-matching, so this check " +
 			"has no verified way to observe it per release (see the package doc comment's judgment call 7); " +
-			"or no release tag matches the configured pattern within the lookback window, and none of the " +
-			"tags that did match were dropped as unresolvable either — genuinely nothing to evaluate; or the " +
-			"project's build history itself could not be fetched",
+			"or there are zero matched pipelines and one or more of this repo's own pipelines could not be " +
+			"fully inspected (see Facts.skipped_pipelines) — the same evidence gap C06.sca.tool-configured " +
+			"itself goes not-checkable for, so this check does too rather than asserting a confident absence " +
+			"over it — when dependency scanning injection is ALSO the sole evidence, that cause wins and is " +
+			"what this Reason names (the skip is still recorded in Facts, just not the stated cause), since " +
+			"the skip wording would otherwise contradict tool-configured's verified-pass for the identical " +
+			"evidence (see the package doc comment's judgment call 7); or no release tag matches the " +
+			"configured pattern within the lookback window, and none of the tags that did match were dropped " +
+			"as unresolvable either — genuinely nothing to evaluate; or the project's build history itself " +
+			"could not be fetched",
 	},
 	idDependabotConfig: {
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or (the common case) Azure DevOps " +
@@ -542,8 +550,18 @@ func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoNa
 	// ran-per-release must not independently conclude verified-fail from
 	// the resulting zero matched builds — see checkRanPerRelease's own doc
 	// comment.
+	//
+	// hasMatchedPipelines is deliberately derived from the same hasAny
+	// matchConfidence already computed, not a second len(matched) > 0
+	// check (mirrors sasthistory's identical choice) — the two are
+	// equivalent only because pipelinehistory.MatchPipelines appends a
+	// MatchedPipeline solely when len(categoryMatches) > 0, an invariant
+	// that lives in another package; two independently-written predicates
+	// for the same concept would silently disagree if that invariant ever
+	// broke.
 	hasAny, _ := matchConfidence(matched)
 	injectionOnly := !hasAny && enablementErr == nil && enablement.DependencyScanningInjectionEnabled
+	hasMatchedPipelines := hasAny
 
 	alertsStart := len(c.client.Provenance())
 	criticalAlerts, alertsErr := fetchActiveCriticalDependencyAlerts(ctx, c.client, scope.Project, repo.ID)
@@ -552,7 +570,7 @@ func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoNa
 
 	return []model.CheckResult{
 		checkToolConfigured(scope.Org, repoName, matched, sameRepoSkips, enablement, enablementErr, toolConfiguredProv),
-		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, relErr, buildsErr, injectionOnly, sharedProv),
+		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, relErr, buildsErr, injectionOnly, hasMatchedPipelines, sameRepoSkips, sharedProv),
 		checkDependabotConfig(scope.Org, repoName),
 		checkDependencyReview(scope.Org, repoName),
 		checkAlertsTriaged(scope.Org, repoName, criticalCount, oldestAgeDays, oldestAgeKnown, alertsErr, alertsProv),

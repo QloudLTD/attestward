@@ -71,7 +71,15 @@
 // runs slice this function is handed IS still time-bounded, by
 // FetchBuilds' own minTime (see commitLinkageBuildGraceWindow in
 // checks.go and collectRepo below): "no window" describes the matching
-// function alone, not the overall check.
+// function alone, not the overall check. This same unfiltered-by-pipeline
+// design is exactly why issue #207's same-repo-skip guard (added to
+// checkProvenanceWorkflow above, and to the ran-per-release-style checks
+// elsewhere in this epic) does NOT extend to commit-linkage: a pipeline
+// pipelinehistory.MatchPipelines couldn't fully inspect for CATEGORY
+// matching has no bearing here, since commit-linkage never consults
+// matched/skipped pipeline evidence at all — a same-repo-skip guard here
+// would be structurally pointless, not merely redundant, since this
+// check's own logic never reads that evidence in the first place.
 //
 // dropped-tag semantics (pipelinehistory.ResolveReleases' unconditional
 // dropped list) are applied to commit-linkage exactly the way sasthistory's
@@ -207,8 +215,7 @@ var checkRubrics = map[string]map[model.Status]string{
 			"path, a YAML fetch/parse failure, or an unresolved template reference — see " +
 			"Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail " +
 			"— this check applies the honest not-checkable fix rather than asserting a confident absence over " +
-			"incomplete evidence; issue #207 tracks the identical same-repo-skip guard reaching " +
-			"C07.provenance.commit-linkage too, which doesn't consume these skips yet",
+			"incomplete evidence",
 	},
 	idCommitLinkage: {
 		model.StatusVerifiedPass: "every release in the lookback window has at least one build whose " +

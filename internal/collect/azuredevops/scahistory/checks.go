@@ -150,7 +150,7 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 		reason = "only a low-confidence (pipeline/step-name-only) match was found — not enough signal alone to confirm an SCA tool is genuinely configured"
 	case hasSkips:
 		status = model.StatusNotCheckable
-		reason = fmt.Sprintf("no matched SCA pipeline evidence and dependency scanning injection is not configured, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence (issue #207 tracks this check's own ran-per-release consuming the same skips)", len(sameRepoSkips))
+		reason = fmt.Sprintf("no matched SCA pipeline evidence and dependency scanning injection is not configured, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(sameRepoSkips))
 	}
 
 	toolNames := make([]string, 0, len(names))
@@ -191,10 +191,32 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 // so every release reads CoverageMissing and this check would otherwise
 // report verified-fail ("zero matched SCA builds") in the same breath
 // checkToolConfigured reports verified-pass for the identical evidence.
-// Mirrors C05's cadence-style reasoning for its own analogous
-// codeQL-default-setup gap (that gap is being filed as its own issue for
-// C05 — not fixed here, per explicit review scope).
-func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, relErr, buildsErr error, injectionOnly bool, prov []model.Provenance) model.CheckResult {
+//
+// hasMatchedPipelines/sameRepoSkips (issue #207) are checked next, same
+// reasoning as injectionOnly but a different cause: with zero matched
+// pipelines, every release's coverage reads CoverageMissing regardless of
+// why matched is empty — a genuine absence and an inspection failure look
+// identical to LinkRunsToReleases. If a same-repo skip exists (and
+// injection-only isn't already covering the case), that's not a confirmed
+// absence, and reporting verified-fail here would contradict
+// C06.sca.tool-configured's own not-checkable for the identical evidence
+// (two panels of one pack, opposite claims).
+//
+// injectionOnly is checked BEFORE sameRepoSkips, and this precedence is
+// load-bearing, not incidental (pinned by
+// TestCheckRanPerRelease_InjectionOnlyWithSkip_InjectionOnlyReasonWins):
+// when injectionOnly is true, checkToolConfigured has already reported
+// verified-pass for the identical evidence ("an SCA tool is configured").
+// The sameRepoSkips branch's own wording — "no matched SCA pipeline
+// evidence... a confirmed absence can't be asserted" — would be actively
+// wrong next to that verified-pass, not merely a worse explanation; it
+// reintroduces the exact cross-check contradiction this whole guard exists
+// to remove. The injectionOnly reason is correct regardless of whether a
+// same-repo skip also happened to exist, so it wins unconditionally when
+// both are true — a same-repo skip's Facts are still attached below so the
+// pack doesn't silently drop the record of an uninspectable pipeline just
+// because injection-only explains the status.
+func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, relErr, buildsErr error, injectionOnly, hasMatchedPipelines bool, sameRepoSkips []pipelinehistory.SkippedPipeline, prov []model.Provenance) model.CheckResult {
 	const id = idRanPerRelease
 
 	if relErr != nil {
@@ -206,10 +228,31 @@ func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.Rel
 	}
 
 	if injectionOnly {
-		return model.CheckResult{
+		result := model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: "an SCA tool is configured via GHAzDO dependency scanning injection, but this collector has no verified way to observe its scan history per release via the Pipelines/Builds APIs it uses — ran-per-release can only be computed from a matched pipeline's own build history",
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+		if len(sameRepoSkips) > 0 {
+			skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
+			for _, sp := range sameRepoSkips {
+				skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+			}
+			result.Facts = map[string]any{"skipped_pipelines": skipDetails}
+		}
+		return result
+	}
+
+	if !hasMatchedPipelines && len(sameRepoSkips) > 0 {
+		skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
+		for _, sp := range sameRepoSkips {
+			skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+		}
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("no matched SCA pipeline evidence, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(sameRepoSkips)),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"skipped_pipelines": skipDetails},
 		}
 	}
 

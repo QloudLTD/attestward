@@ -77,7 +77,7 @@ func checkProvenanceWorkflow(org, repo string, matched []pipelinehistory.Matched
 		reason = "only a low-confidence (pipeline/step-name-only) match was found — not enough signal alone to confirm a provenance tool is genuinely configured"
 	case hasSkips:
 		status = model.StatusNotCheckable
-		reason = fmt.Sprintf("no matched provenance-tool pipeline evidence, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence (issue #207 tracks this check's own commit-linkage consuming the same skips)", len(sameRepoSkips))
+		reason = fmt.Sprintf("no matched provenance-tool pipeline evidence, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(sameRepoSkips))
 	}
 
 	toolNames := make([]string, 0, len(names))
