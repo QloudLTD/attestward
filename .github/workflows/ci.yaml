@@ -279,9 +279,8 @@ jobs:
       - name: Verify the darwin/arm64 build runs (matches this runner's own arch)
         run: ./attestward-darwin-arm64 version
       # Issue #217: this upload was the dominant driver of the artifact
-      # storage quota exhausting outright (5.13 of 5.14 GB remaining after
-      # deleting 5.69 GB of pre-rename debris) — five ~18 MB binaries
-      # every time this job ran, and `pull_request` re-triggers it on
+      # storage quota exhausting outright — five binaries every time this
+      # job ran, and `pull_request` re-triggers it on
       # every push to a PR branch, not just once per PR. The cross-compile
       # and "Verify it runs" steps above are unconditional and still run
       # on every PR — that's the actual proof this job exists for. Only
@@ -300,7 +299,6 @@ jobs:
       #     this workflow specifically to obtain cross-compiled binaries with
       #     no binaries and no explanation — the warn step below deliberately
       #     does not fire on `skipped`, only on `failure`.
-      # a shell `run:` block regardless, matching this repo's own rule.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         id: upload-builds
         if: github.event_name != 'pull_request'
@@ -308,7 +306,38 @@ jobs:
         with:
           name: attestward-builds
           path: attestward-*
-          retention-days: 7
+          # 1 day, not the 7 this used to be. The quota is billed against
+          # the whole ACCOUNT (500 MB on Free, 1 GB on Pro — the plan
+          # itself is not verifiable from CI), not per repo, so #217's
+          # original per-repo cleanups could never have fixed it.
+          #
+          # The mechanism is accrual, not a byte cap: GitHub meters
+          # artifact storage in GB-HOURS across the billing month, and
+          # deleting artifacts does not un-accrue hours already billed.
+          # The evidence is a cutover, not a slope — uploads succeeded
+          # while the account held 10.82 GB and then stopped dead on
+          # 2026-07-24 (last success 13:51:11Z). An instantaneous byte cap
+          # would have blocked long before 10.82 GB accumulated, so it
+          # isn't one. This also explains why deleting 5.69 GB, then
+          # another 10 GB, then 801 MB more each changed nothing, and why
+          # the error's own "recalculated every 6-12 hours" never came
+          # true. Under this reading the cycle's allowance is spent and
+          # uploads stay blocked until it resets, regardless of further
+          # cleanup. Unconfirmed: the test is whether uploads resume at
+          # the cycle boundary with no further deletion.
+          #
+          # Retention is still the right lever precisely BECAUSE the cost
+          # is bytes x hours — cutting hours 7x cuts the bill 7x. These
+          # five binaries are ~44 MB per run TOTAL as one bundled artifact,
+          # not each ("~18 MB binaries" above is uncompressed size; ~48%
+          # deflate). But do not read this as solved: this repo merges a
+          # measured ~10x/day (30-day median; 30 on the heaviest day), so
+          # even at 1 day this holds ~445 MB standing — most of a 500 MB
+          # allowance from this one artifact alone, before attestward-cloud
+          # (~239 MB) and multi-arch-build-sample's 90-day-default uploads
+          # (~128 MB) are counted. This buys time; it is not durable
+          # headroom, and the next fix has to be one of those two.
+          retention-days: 1
       # continue-on-error above is still right — a storage-quota failure
       # must never redden a build whose compile/run proof already passed
       # (#206, #210) — but it also means the failure is otherwise

@@ -135,6 +135,31 @@ All notable changes to this project are documented here. Format follows
   silently: on a release run, a quota-exhausted upload means `attach-to-release` has
   nothing to download, same outcome as #211's own original defect, arrived at from a
   different direction.
+  Deleting that 10.82 GB did *not* restore capacity, and neither did deleting a further
+  801 MB two days later (account down to ~428 MB) — the error's own "usage is
+  recalculated every 6-12 hours" never came true across either. Two facts explain why.
+  The quota is billed against the whole **account** (500 MB on Free, 1 GB on Pro; the
+  plan isn't verifiable from CI), not per repo, so every per-repo cleanup was aimed at
+  the wrong denominator. And the meter is **accrual, not a byte cap**: GitHub bills
+  artifact storage in GB-*hours* accumulated across the billing month, and deleting
+  bytes does not un-accrue hours already charged. The tell is that this was a cutover
+  rather than a slope — uploads were succeeding while the account held 10.82 GB and
+  stopped dead on 2026-07-24 (last success 13:51:11Z), which an instantaneous 500 MB cap
+  could never have allowed. On that reading the cycle's allowance is simply spent and
+  uploads stay blocked until it resets, no matter how much more is deleted. Recorded as
+  **unconfirmed**: the test is whether uploads resume at the cycle boundary with no
+  further cleanup.
+  `retention-days` on that upload drops 7 → 1, which is the right lever precisely
+  *because* the cost is bytes × hours — cutting hours 7× cuts the bill 7×. But this
+  buys time rather than fixing the budget: at this repo's measured ~10 merges/day
+  (30-day median; 30 on the heaviest day) even 1-day retention leaves ~445 MB standing
+  from this artifact alone, before `attestward-cloud` (~239 MB) and
+  `multi-arch-build-sample.yaml`'s uploads (~128 MB, no `retention-days` set at all so
+  they inherit the 90-day default) are counted. Left as-is here and tracked separately;
+  a ~44 MB bundle of five binaries per `main` push, held a week, was the single largest
+  contributor and starves `self-scan.yaml`'s evidence-pack upload — the one
+  artifact here with real downstream value (#36's drift baseline). Any future increase
+  should start from an account-wide measurement, not a per-repo one.
 - **C05 sast-history / C06 sca-history: a workflow/pipeline this tool couldn't fully
   inspect no longer reads as a confirmed absence** (#178). A workflow (GitHub) or
   pipeline (Azure DevOps) that failed to fetch, decode, or parse was silently dropped
