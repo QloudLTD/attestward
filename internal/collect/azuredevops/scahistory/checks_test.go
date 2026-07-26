@@ -272,6 +272,47 @@ func TestCheckRanPerRelease_EnablementErrWithDroppedTags_FactsPreserved(t *testi
 	}
 }
 
+// TestCheckRanPerRelease_InjectionOnlyWithDroppedTags_FactsPreserved is
+// issue #256, mirroring #252's identical fix (and identical proof) in C05
+// sasthistory's defaultSetupOnly branch: this branch attached Facts only
+// when sameRepoSkips was non-empty, so a repo with GHAzDO dependency
+// scanning injection on AND dropped-but-undateable release tags returned
+// not-checkable with no Facts at all — silently losing the record of an
+// unresolvable tag.
+func TestCheckRanPerRelease_InjectionOnlyWithDroppedTags_FactsPreserved(t *testing.T) {
+	dropped := []string{"v0.9.0-rc1"}
+
+	got := checkRanPerRelease("attestward-demo", "injection-only-dropped-tags-repo", nil, nil, dropped, nil, nil, nil, true, false, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	droppedFacts, ok := got.Facts["dropped_tags"].([]string)
+	if !ok || len(droppedFacts) != 1 || droppedFacts[0] != "v0.9.0-rc1" {
+		t.Errorf("dropped_tags facts = %#v, want [\"v0.9.0-rc1\"] — the pack must not silently lose the record of an unresolvable tag just because dependency scanning injection also explains the status", got.Facts["dropped_tags"])
+	}
+}
+
+// TestCheckRanPerRelease_BuildsErrWithDroppedTags_FactsPreserved is issue
+// #256's own second holdout — found by checking for the same shape #254
+// found in C05 one review round after #252, not assumed absent here:
+// reachable with a signature-matched pipeline, one dateable release, one
+// undateable release tag, and a failed build-history fetch.
+func TestCheckRanPerRelease_BuildsErrWithDroppedTags_FactsPreserved(t *testing.T) {
+	filteredReleases := []pipelinehistory.ReleaseInfo{{TagName: "v1.0.0"}}
+	dropped := []string{"v0.9.0-rc1"}
+
+	got := checkRanPerRelease("attestward-demo", "builds-err-dropped-tags-repo", filteredReleases, nil, dropped, nil, errBoom, nil, false, true, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	droppedFacts, ok := got.Facts["dropped_tags"].([]string)
+	if !ok || len(droppedFacts) != 1 || droppedFacts[0] != "v0.9.0-rc1" {
+		t.Errorf("dropped_tags facts = %#v, want [\"v0.9.0-rc1\"] — the pack must not silently lose the record of an unresolvable tag just because the build-history fetch also failed", got.Facts["dropped_tags"])
+	}
+}
+
 // TestCheckToolConfigured_SameRepoSkipCapsWouldBeFailToNotCheckable is the
 // acceptance test for issue #178's "build it in from the start" fix (see
 // the package doc comment's judgment call 5): with zero matched pipelines

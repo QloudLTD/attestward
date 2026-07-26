@@ -134,6 +134,24 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **C06.sca (Azure DevOps): `checkRanPerRelease` had the same two `dropped_tags`
+  Facts-loss holdouts C05's identical function had, both fixed** (#256). #251
+  ported C05 `sasthistory`'s pre-#252/#254 `checkRanPerRelease` shape into C06
+  `scahistory` unchanged, carrying both holdouts across: the `injectionOnly`
+  branch and the `buildsErr` branch each attached `Facts` only when
+  `sameRepoSkips` was non-empty (or not at all, for `buildsErr`), so a repo with
+  dependency scanning injection on — or a signature-matched pipeline whose
+  build-history fetch failed — plus dropped-but-undateable release tags returned
+  `not-checkable` with the dropped-tag record silently gone. Counted the holdouts
+  explicitly rather than fixing only the one #256 named as filed: #254's own
+  review found C05 had two, not the one originally claimed, so this PR checked
+  for and confirmed the same shape here before writing the CHANGELOG line, not
+  after. Both fixed identically to their C05 counterparts (`fix/246-248-252-
+  sasthistory-claims`, post-#254): `dropped_tags` unconditional, `skipped_pipelines`
+  still attached only where it already was (the `injectionOnly` branch) —
+  confirmed unchanged and not inverted on every other return path in the
+  function, none of which have ever carried `skipped_pipelines` (pre-existing,
+  reachable only when `hasMatchedPipelines` is true).
 - **`go.mod` is now tidy, a CI guard keeps it that way, and goreleaser no longer
   mutates it during release** (#249). Surfaced while verifying #247: `cmd/attestward/
   scan.go` imports `github.com/spf13/pflag` directly, but `go.mod` listed it

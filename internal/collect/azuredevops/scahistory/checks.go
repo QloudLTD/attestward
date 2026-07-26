@@ -312,19 +312,29 @@ func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.Rel
 	}
 
 	if injectionOnly {
-		result := model.CheckResult{
-			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: "an SCA tool is configured via GHAzDO dependency scanning injection, but this collector has no verified way to observe its scan history per release via the Pipelines/Builds APIs it uses — ran-per-release can only be computed from a matched pipeline's own build history",
-			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		}
+		// dropped_tags is included unconditionally, matching the same
+		// convention #250 established for the combined guard below and for
+		// the len(filteredReleases) == 0 branch further down — found in
+		// review of #252's identical fix in sasthistory (issue #256): this
+		// branch was one of two holdouts still attaching Facts only when
+		// sameRepoSkips was non-empty (the buildsErr branch further below
+		// was the other), so a repo with dependency scanning injection on
+		// AND dropped-but-undateable release tags lost the dropped-tag
+		// record entirely.
+		facts := map[string]any{"dropped_tags": dropped}
 		if len(sameRepoSkips) > 0 {
 			skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
 			for _, sp := range sameRepoSkips {
 				skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
 			}
-			result.Facts = map[string]any{"skipped_pipelines": skipDetails}
+			facts["skipped_pipelines"] = skipDetails
 		}
-		return result
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: "an SCA tool is configured via GHAzDO dependency scanning injection, but this collector has no verified way to observe its scan history per release via the Pipelines/Builds APIs it uses — ran-per-release can only be computed from a matched pipeline's own build history",
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: facts,
+		}
 	}
 
 	if !hasMatchedPipelines && (enablementErr != nil || len(sameRepoSkips) > 0) {
@@ -375,10 +385,19 @@ func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.Rel
 	}
 
 	if buildsErr != nil {
+		// dropped_tags is included unconditionally, matching every other
+		// return path in this function (issue #256, mirroring #252's
+		// identical fix in sasthistory and the second holdout #254 found
+		// there one review round later): a repo with a signature-matched
+		// pipeline, one dateable release, one undateable release tag, and a
+		// failed build-history fetch used to return not-checkable with no
+		// Facts at all — losing the dropped-tag record the same way the
+		// injectionOnly and combined-guard branches above used to.
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("could not fetch build history to evaluate release coverage: %v", buildsErr),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"dropped_tags": dropped},
 		}
 	}
 
