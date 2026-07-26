@@ -67,6 +67,25 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **C05.sast.tool-configured (Azure DevOps): stop letting an unconfirmed 404 justify a
+  verified-fail** (#226). A repo-enablement 404 with
+  no other pipeline evidence used to fall through to the same pass/fail logic as a real
+  success, treating "the query failed with a 404" as equivalent to "the query
+  succeeded and confirmed the tool is off" — grounded in the belief that 404 meant
+  GHAzDO wasn't licensed, which #190's S9 live run falsified: an unlicensed org/project
+  reads HTTP 200 with every flag false/null, never 404. #225 honestly downgraded the
+  doc comment to call this "a deliberate policy choice, not a confirmed fact", but left
+  the verdict resting on it — a licensed org with CodeQL default setup genuinely on
+  could get a false `verified-fail` ("no SAST tool detected") the moment this
+  endpoint's pinned `api-version=7.2-preview.3` is retired or returns a 404 for any
+  other reason, in a signed pack backing an SSDA form. Fixed by narrowing
+  `verified-fail` to the one directly observable, structured signal — the enablement
+  query succeeded (no error) and its response itself says `codeQLEnabled: false` — and
+  routing every enablement error, 404 included, to `not-checkable`, matching sibling
+  `C05.sast.default-setup`'s existing any-error-is-not-checkable treatment exactly. No
+  signal is lost for a genuinely-off org: that state was always observable as this same
+  HTTP-200-false response, proven by a pre-existing test unaffected by this change. The
+  now-unused `isAdvSecNotFoundErr` predicate is removed rather than left orphaned.
 - **Report/POA&M renderers no longer mislabel Azure DevOps project-scoped results as
   org-level** (#176). `report.md`/`report.html`'s Gaps and Not Checkable tables, and
   `poam.md`'s Findings section, rendered every result with an empty `Scope.Repo` as

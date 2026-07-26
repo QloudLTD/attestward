@@ -523,12 +523,22 @@ func TestCollect_CleanRunsCappedByOneDroppedTag_RanPerReleasePartial(t *testing.
 
 // --- GHAzDO repo-enablement gating ---
 
-// TestCollect_Enablement404_ToolConfiguredStaysFail proves a 404 (treated
-// as equivalent to "every enablement flag off" by deliberate policy, not
-// because it's a confirmed fact about what causes it — see
-// isAdvSecNotFoundErr's doc comment) still produces a real "not configured"
-// verdict when there's no other evidence.
-func TestCollect_Enablement404_ToolConfiguredStaysFail(t *testing.T) {
+// TestCollect_Enablement404_NoOtherEvidence_ToolConfiguredNotCheckable is
+// the regression test for issue #226: a 404 used to produce a confirmed
+// verified-fail here (treated as equivalent to "every enablement flag
+// off" by deliberate policy) — this asserted more than the evidence
+// supported. S9's live run (issue #190) established an unlicensed
+// org/project reads HTTP 200 with every flag false/null, never 404, so a
+// 404 no longer has any confirmed meaning here at all. A licensed org
+// with CodeQL default setup genuinely ON, scanned when this endpoint's
+// pinned preview API version (api-version=7.2-preview.3) is eventually
+// retired or returns a 404 for any other reason, must never read as a
+// confirmed fail just because this collector can't see the real state —
+// a 404 now goes not-checkable, exactly like a 403 already did (see
+// TestCollect_Enablement403_NoOtherEvidence_ToolConfiguredNotCheckable
+// below) and exactly like default-setup's own sibling result already does
+// for any enablement error.
+func TestCollect_Enablement404_NoOtherEvidence_ToolConfiguredNotCheckable(t *testing.T) {
 	fx := adofixture.New()
 	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
 	registerPipelines(fx)
@@ -545,11 +555,11 @@ func TestCollect_Enablement404_ToolConfiguredStaysFail(t *testing.T) {
 	}
 	m := byID(results)
 
-	if got := m[idToolConfigured].Status; got != model.StatusVerifiedFail {
-		t.Errorf("tool-configured = %q, want verified-fail (a 404 is a confirmed \"not configured\" fact); reason=%q", got, m[idToolConfigured].Reason)
+	if got := m[idToolConfigured].Status; got != model.StatusNotCheckable {
+		t.Errorf("tool-configured = %q, want not-checkable (a 404's cause is genuinely unconfirmed — must never read as a confirmed fail); reason=%q", got, m[idToolConfigured].Reason)
 	}
 	if got := m[idDefaultSetup].Status; got != model.StatusNotCheckable {
-		t.Errorf("default-setup = %q, want not-checkable (unlike tool-configured, default-setup's OWN result always goes not-checkable on any enablement error)", got)
+		t.Errorf("default-setup = %q, want not-checkable (default-setup's OWN result always goes not-checkable on any enablement error)", got)
 	}
 }
 
@@ -559,11 +569,14 @@ func TestCollect_Enablement404_ToolConfiguredStaysFail(t *testing.T) {
 // permission causes can't be excluded from the response alone (see
 // sharedAdvSecGatedRubric) — a licensed org with default setup genuinely
 // ON, scanned by a scope-less PAT, must never read as a confirmed fail
-// here just because this collector can't see the real state. Only a 404
-// is treated as equivalent to "off" (see TestCollect_Enablement404_...
-// above); a 403 with no other evidence must go not-checkable instead,
-// exactly like default-setup's own sibling result for the identical
-// response.
+// here just because this collector can't see the real state. Since issue
+// #226, no enablement error is treated as equivalent to "off" — the only
+// state that IS is a genuinely observed HTTP 200 with codeQLEnabled false
+// (see TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable
+// and TestCollect_Enablement404_NoOtherEvidence_ToolConfiguredNotCheckable
+// above, the latter for 404's identical treatment); a 403 with no other
+// evidence must go not-checkable instead, exactly like default-setup's
+// own sibling result for the identical response.
 func TestCollect_Enablement403_NoOtherEvidence_ToolConfiguredNotCheckable(t *testing.T) {
 	fx := adofixture.New()
 	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})

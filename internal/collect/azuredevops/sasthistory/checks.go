@@ -26,10 +26,13 @@ import (
 // permission causes (tenant conditional access, an IP allow-list,
 // project-level denial, an org policy restricting PAT access) can't be
 // excluded from the response alone. What actually produces a 404 remains
-// genuinely unconfirmed (S9 recorded no such response either) — see
-// isAdvSecNotFoundErr's own doc comment for why 404 specifically still gets
-// excluded from checkToolConfigured's own not-checkable guard regardless of
-// what causes it. The Reason strings below stay citation-free on purpose:
+// genuinely unconfirmed (S9 recorded no such response either) — and unlike
+// an earlier version of this package (fixed in issue #226), a 404 is no
+// longer treated as equivalent to "confirmed off" anywhere: every
+// enablement error, 404 included, routes checkToolConfigured to
+// not-checkable when there's no other evidence, the same as checkDefaultSetup
+// already did for every error. The Reason strings below stay citation-free
+// on purpose:
 // they land in a specific customer's own evidence.json/report.md, and
 // naming a third party's org/date there would be confusing at best,
 // leaking at worst — the citation belongs here and in the generated
@@ -53,36 +56,6 @@ func advSecNotCheckableReason(err error, org, repo string) string {
 		}
 	}
 	return fmt.Sprintf("could not query GHAzDO repo enablement for %s/%s: %v", org, repo, err)
-}
-
-// isAdvSecNotFoundErr reports whether err is a *azuredevops.StatusError
-// with status 404 specifically — the one code among
-// azuredevops.IsAdvSecGated's two (403, 404) this collector treats as
-// equivalent to "every enablement flag reads off" in checkToolConfigured's
-// fall-through, letting the normal pass/fail logic run rather than
-// reporting not-checkable. A 403 is deliberately excluded from that
-// treatment (found in review): it most likely means this token lacks the
-// vso.advsec scope on an org where GHAzDO genuinely IS licensed and
-// default setup IS enabled — NOT "every enablement flag reads off"
-// reached through a 403, which S9's live run settled reads HTTP 200
-// instead, never 403 (see advSecNotCheckableReason above; that reading
-// was corrected here in review, since this doc comment previously
-// repeated it). Asserting verified-fail for a missing-scope 403 would be
-// a false negative any scope-less PAT could trigger against a
-// perfectly-configured repo, while checkDefaultSetup (which never
-// distinguishes gated-vs-not) would honestly report not-checkable for the
-// identical response. Other permission causes besides a missing scope
-// can't be excluded from the response alone either. What actually
-// produces a 404 here remains genuinely unconfirmed (issue #190): S9's live
-// run (2026-07-23, dev.azure.com/seciq) settled that an unlicensed
-// org/project is NOT the cause — that case reads HTTP 200 with every flag
-// false/null instead (see advSecNotCheckableReason above) — so this
-// predicate's "treat as off" behavior rests on a deliberate policy choice,
-// not on a confirmed fact about what a 404 itself means [fixture-verify:
-// no recorded response covers that].
-func isAdvSecNotFoundErr(err error) bool {
-	var se *azuredevops.StatusError
-	return errors.As(err, &se) && se.StatusCode == http.StatusNotFound
 }
 
 // matchConfidence reports whether matched contains any SAST match at all
@@ -112,21 +85,37 @@ func matchConfidence(matched []pipelinehistory.MatchedPipeline) (hasAny, hasHigh
 // repo-enablement query can fail for reasons that don't mean "not
 // enabled" (a genuine API error, not a confirmed absence). If there's no
 // pipeline-based evidence at all (hasAny false) and the enablement query
-// itself failed with anything other than a 404, asserting verified-fail
+// itself failed — for ANY reason, no exceptions — asserting verified-fail
 // would claim a fact this collector doesn't actually have evidence for —
-// this check goes not-checkable instead. Only a 404 is excluded from this
-// guard — not because it's a confirmed "not provisioned" fact (what a 404
-// actually means here remains genuinely unconfirmed; see
-// isAdvSecNotFoundErr's own doc comment), but because this collector
-// treats it as equivalent to "off" as a deliberate policy choice,
-// mirroring the GitHub twin's plan-gated exclusion. A 403 is deliberately
-// NOT excluded (found in review): it most likely means the token lacks
-// the vso.advsec scope, though other permission causes can't be excluded
-// from the response alone (licensing itself IS ruled out as the cause —
-// see advSecNotCheckableReason above), and treating it as a confirmed
-// fail would produce a false verified-fail on a licensed org + enabled
-// default setup + a scope-less PAT, while the sibling checkDefaultSetup
-// honestly reports not-checkable for that identical response.
+// this check goes not-checkable instead.
+//
+// Every enablement error is treated identically here now (issue #226,
+// fixing a real defect #225's review surfaced but didn't fix): a previous
+// version special-cased a 404 as "confirmed off" and let it fall through
+// to the normal pass/fail logic — grounded in the belief that 404 meant
+// "GHAzDO isn't licensed," which S9's live run falsified (issue #190): an
+// unlicensed org/project reads HTTP 200 with every flag false/null, never
+// 404. That left a signed verified-fail resting on an inference the
+// evidence no longer supports: if this endpoint's pinned preview API
+// version (`api-version=7.2-preview.3`) is ever retired, or any other
+// cause produces a 404, a licensed org with CodeQL default setup
+// genuinely ON would get a false "no SAST tool detected" verdict. Fixed
+// by narrowing verified-fail to the one state that's actually
+// observable and structured — enablementErr == nil (the query
+// succeeded) AND enablement.CodeQLEnabled == false (the response itself
+// says off, not an inference from a status code) — and routing every
+// error, 404 included, to not-checkable, matching sibling
+// checkDefaultSetup's own always-not-checkable-on-any-error treatment
+// exactly. No signal is lost for a genuinely-off org: that state was
+// always observable as this same HTTP-200-false response (proven by
+// TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable,
+// unaffected by this change since it involves no enablement error at
+// all) — only the false confirmation inferred from an unconfirmed 404 is
+// gone. A 403 was already routed here before this change (most likely a
+// missing vso.advsec scope; licensing itself IS ruled out as the cause —
+// see advSecNotCheckableReason above; other permission causes can't be
+// excluded from the response alone) — that part is unchanged, only 404
+// now joins it instead of being treated as equivalent to "off".
 //
 // sameRepoSkips are this repo's own entries from
 // pipelinehistory.MatchPipelines' skipped return (issue #178): surfaced in
@@ -147,7 +136,7 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 	}
 	hasSkips := len(sameRepoSkips) > 0
 
-	if !hasAny && enablementErr != nil && !isAdvSecNotFoundErr(enablementErr) {
+	if !hasAny && enablementErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("no SAST tool detected in any pipeline, and the GHAzDO repo-enablement query itself failed: %s", advSecNotCheckableReason(enablementErr, org, repo)),
