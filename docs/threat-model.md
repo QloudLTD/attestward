@@ -392,9 +392,10 @@ diagram doesn't redraw per platform.
     doesn't touch `~/go/pkg/mod`, `~/Library/Caches/go-build`, or a runner's Go
     toolcache, all of which persist across every job/workflow sharing one physical
     machine. That's `spyros-mac-mini-ssdf` (every macOS-labeled job in this repo:
-    `lint`, `test`, `checks-docs-drift`, `build` (cross-compiles every target platform —
-    see `ci.yaml`'s own comment for why this replaced four separate per-arch runners),
-    `goreleaser-dry-run`, the `release.yaml` `goreleaser` job, `integration-scan`,
+    `lint`, `test`, `checks-docs-drift`, `examples-drift` (added with issue #228's
+    drift guard), `build` (cross-compiles every target platform — see `ci.yaml`'s own
+    comment for why this replaced four separate per-arch runners), `goreleaser-dry-run`,
+    the `release.yaml` `goreleaser` job, `integration-scan`,
     `integration-scan-ado` (added with issue #155's S9 harness),
     `sign-verify`, `self-scan`, and the aorus `keepalive` job), `spyros-ionos-ssdf`
     (`test-linux`), `spyros-parallels-ssdf`, and `spyros-aorus-ssdf` — four machines, not

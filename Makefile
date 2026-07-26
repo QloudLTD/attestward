@@ -4,7 +4,7 @@ COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
-.PHONY: build test lint tidy checks-docs checks-docs-check
+.PHONY: build test lint tidy checks-docs checks-docs-check examples examples-check
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/attestward
@@ -23,3 +23,9 @@ checks-docs:
 
 checks-docs-check:
 	go run ./cmd/attestward checks docs --check
+
+examples:
+	go run ./cmd/attestward report examples/demo-org-pack/evidence.json --out examples/demo-org-pack
+
+examples-check:
+	./hack/check-examples-drift.sh

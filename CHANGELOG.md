@@ -8,6 +8,39 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **`make examples`/`make examples-check` guard `examples/demo-org-pack` against
+  renderer drift** (#228). Nothing regenerated or checked the pack's rendered
+  `report.md`/`report.html`/`poam.md` against its own `evidence.json` — it drifted
+  silently for two releases (`report.html` still read `size: auto;` after #200 changed
+  the template to `size: Letter;`) — undetected because nothing in the repo's own
+  tooling checked it, and it mattered more than ordinary stale-sample drift would
+  because `README.md` points cold visitors at this exact pack, the one rendered
+  artifact in the repo. Mirrors
+  `checks-docs`/`checks-docs-check`'s existing shape: `make examples` re-renders in
+  place, `make examples-check` (`hack/check-examples-drift.sh`) regenerates into a
+  scratch directory and diffs, wired into CI as `examples-drift` alongside
+  `checks-docs-drift`. Confirmed empirically before building this — not assumed — that
+  re-rendering the same `evidence.json` is byte-stable (three independent renders
+  produced identical SHA-256 sums for all three files), so a plain diff is sound with no
+  deterministic-render mode needed. This change's own regeneration closes the current
+  `size: auto;` drift as a side effect of proving the guard works.
+
+  Review found the render-diff alone covers only one of three ways this pack can go
+  stale, so three more checks were added, each running before the render-diff and each
+  with its own message (a generic "run `make examples`" would be actively wrong for the
+  first two): **mapping-version currency** — a `mappings/*.yaml` version bump since the
+  pack was captured makes re-rendering bake a mapping-version-mismatch banner into all
+  three files instead of fixing anything, since that needs a live re-scan, not a
+  re-render; **check-ID coverage** — a check added to the registry doesn't change
+  rendered output at all if `evidence.json` never gained a result for it, so the
+  render-diff alone would stay green while the showcase silently under-reports what
+  attestward actually checks (the pack's 52 check IDs matching the current registry's
+  full GitHub + self-attestation set exactly was a one-time manual check, now enforced
+  every run); and **sidecar presence** — a missing `evidence.json.sha256` passes the
+  render-diff silently while breaking the `attestward verify` walkthrough
+  `examples/README.md` documents. The render-diff itself also moved from a hardcoded
+  `report.md`/`report.html`/`poam.md` loop to `diff -r` excluding `evidence.json*`, so a
+  future output format isn't silently ignored the same way `report.html` itself was.
 - **`model.Scrub` redacts Azure DevOps PAT-shaped secrets** (#192): the defense-in-depth
   secret scrubber previously covered GitHub token prefixes, AWS access keys, and PEM
   blocks only. It now also matches the documented Azure DevOps PAT shape (84 characters
