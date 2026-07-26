@@ -31,7 +31,7 @@ narrative context.
 
 #### POAM-001: Branch protection exists (`C02.branch.protection-exists`) — [FAIL] Verified Fail
 
-- **Repo:** bad-repo
+- **Scope:** bad-repo
 - **Affected SSDF task(s):** PS.1.1
 - **CISA form cluster(s):** 2, 4
 - **Description:** no branch protection configured on main
@@ -45,7 +45,7 @@ narrative context.
 
 #### POAM-002: Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
 
-- **Repo:** good-repo
+- **Scope:** good-repo
 - **Affected SSDF task(s):** PW.4.1
 - **CISA form cluster(s):** 2, 3
 - **Description:** every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA

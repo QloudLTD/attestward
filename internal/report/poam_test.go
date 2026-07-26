@@ -48,7 +48,7 @@ func TestRenderPOAM_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
 	ssdf, cisa, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, hostileScopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -56,6 +56,10 @@ func TestRenderPOAM_HostileStringsRenderInert(t *testing.T) {
 	if bytes.Contains(got, []byte("[click here](javascript:")) || bytes.Contains(got, []byte("[bomb](javascript:")) || bytes.Contains(got, []byte("[click](javascript:")) {
 		t.Error("poam.md contains a live, unescaped markdown link to a javascript: URL")
 	}
+	// poam.md's Findings section uses scopeLabelVerbose, not scopeLabel —
+	// "(project-level: " wording, not report.md's "(project: " — see
+	// scopeLabelVerbose's own doc comment.
+	assertHostileProjectValuesEscapedForMarkdown(t, "poam.md", "(project-level: ", got)
 }
 
 // TestRenderPOAM_CleanPackRendersNoFindingsDocument locks in issue #26's
@@ -151,7 +155,7 @@ func TestRenderPOAM_MissingRemediationRendersPlaceholder(t *testing.T) {
 // TestRenderPOAM_ProjectScopedFindingNotLabeledOrgLevel is issue #176's
 // regression case for poam.md: an ADO project-scoped finding (Scope.Repo
 // empty, Scope.Project set — e.g. C03 env-separation) must not render as
-// "(org-level)" in a Finding's "**Repo:**" line — correct only for a
+// "(org-level)" in a Finding's "**Scope:**" line — correct only for a
 // genuinely org-level result (e.g. C01/C09). Also covers #176's
 // pack-header/Summary-shows-Project requirement in the same test, since
 // both exercise the identical ADO-project-scoped-pack scenario.
@@ -174,13 +178,13 @@ func TestRenderPOAM_ProjectScopedFindingNotLabeledOrgLevel(t *testing.T) {
 	if !strings.Contains(text, "**Project:** my-project") {
 		t.Errorf("poam.md's Summary doesn't surface Pack.Scope.Project; got:\n%s", text)
 	}
-	if !strings.Contains(text, "- **Repo:** (project-level: my-project)") {
+	if !strings.Contains(text, "- **Scope:** (project-level: my-project)") {
 		t.Errorf("Finding for the project-scoped result doesn't show the project-level label; got:\n%s", text)
 	}
 	// rich-pack.json's own two findings are both repo-scoped, so
 	// "(org-level)" appearing anywhere here can only be a mislabel.
 	if strings.Contains(text, "(org-level)") {
-		t.Error("the project-scoped finding's Repo line mislabels it org-level")
+		t.Error("the project-scoped finding's Scope line mislabels it org-level")
 	}
 }
 
@@ -220,7 +224,7 @@ func TestRenderPOAM_FindingIDsCrossLinkWithReportGaps(t *testing.T) {
 		t.Fatal("report.md's Gaps table has no POAM rows — is rich-pack.json still gap-free?")
 	}
 
-	findingBlock := regexp.MustCompile("(?s)#### (POAM-\\d{3}): .*?\\(`([^`]+)`\\).*?- \\*\\*Repo:\\*\\* (\\S+)")
+	findingBlock := regexp.MustCompile("(?s)#### (POAM-\\d{3}): .*?\\(`([^`]+)`\\).*?- \\*\\*Scope:\\*\\* (\\S+)")
 	poamByID := map[string][2]string{}
 	for _, b := range findingBlock.FindAllStringSubmatch(string(poamMD), -1) {
 		poamByID[b[1]] = [2]string{b[2], b[3]}

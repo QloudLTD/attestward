@@ -1477,7 +1477,7 @@
 <p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
 <div class="table-wrap">
 <table class="gaps-table">
-<thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
+<thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
 <tbody>
 <tr><th scope="row">POAM-001</th><td><code>C02.branch.protection-exists</code></td><td>bad-repo</td><td class="status-cell"><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>no branch protection configured on main</td></tr>
 <tr><th scope="row">POAM-002</th><td><code>C08.actions.pinned</code></td><td>good-repo</td><td class="status-cell"><span class="badge badge-partial">[PARTIAL]</span> Partial</td><td>every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA</td></tr>
@@ -1513,7 +1513,7 @@ upgrades a CISA form cluster to fully verified.</p>
 <h3>Not Checkable</h3>
 <div class="table-wrap">
 <table>
-<thead><tr><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Reason</th></tr></thead>
+<thead><tr><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Reason</th></tr></thead>
 <tbody>
 <tr><td><code>C09.audit.org-log-available</code></td><td>(org)</td><td>GET /orgs/{org}/audit-log returned 404 — either the org&#39;s plan doesn&#39;t include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope</td></tr>
 

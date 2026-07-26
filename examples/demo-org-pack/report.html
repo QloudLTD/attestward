@@ -761,7 +761,8 @@
     }
 
     @page {
-      size: auto;
+       
+      size: Letter;
       margin: 15mm 14mm 17mm;
     }
 
@@ -4091,7 +4092,7 @@
 <p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
 <div class="table-wrap">
 <table class="gaps-table">
-<thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
+<thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
 <tbody>
 <tr><th scope="row">POAM-001</th><td><code>C01.org.2fa-required</code></td><td>(org)</td><td class="status-cell"><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>org does not require two-factor authentication for members</td></tr>
 <tr><th scope="row">POAM-005</th><td><code>C01.org.members-can-create-public</code></td><td>(org)</td><td class="status-cell"><span class="badge badge-verified-fail">[FAIL]</span> Verified Fail</td><td>members can create public repositories (potential leak vector)</td></tr>
@@ -4128,7 +4129,7 @@ upgrades a CISA form cluster to fully verified.</p>
 <h3>Not Checkable</h3>
 <div class="table-wrap">
 <table>
-<thead><tr><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Reason</th></tr></thead>
+<thead><tr><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Reason</th></tr></thead>
 <tbody>
 <tr><td><code>C04.secrets.advanced-security</code></td><td>demo-good</td><td>not applicable to public repositories (GHAS licensing only gates private-repo features)</td></tr>
 <tr><td><code>C05.sast.cadence</code></td><td>demo-good</td><td>no SAST tool is configured; cadence cannot be computed</td></tr>

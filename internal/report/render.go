@@ -116,7 +116,7 @@ func scopeLabel(scope model.ScopeRef, checkID string, scopeLevelByCheckID map[st
 }
 
 // scopeLabelVerbose is scopeLabel's poam.md counterpart: same
-// classification, verbose wording to match poam.md's prose "**Repo:**"
+// classification, verbose wording to match poam.md's prose "**Scope:**"
 // line — a separate function, not a shared one with a bool, since the two
 // renderers' wording ("(org)" vs "(org-level)") already differs.
 func scopeLabelVerbose(scope model.ScopeRef, checkID string, scopeLevelByCheckID map[string]string) string {

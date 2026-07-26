@@ -29,7 +29,7 @@ narrative context.
 
 #### POAM-001: Org requires two-factor authentication (`C01.org.2fa-required`) — [FAIL] Verified Fail
 
-- **Repo:** (org-level)
+- **Scope:** (org-level)
 - **Affected SSDF task(s):** PO.5.1
 - **CISA form cluster(s):** 1, 2, 3
 - **Description:** org does not require two-factor authentication for members
@@ -43,7 +43,7 @@ narrative context.
 
 #### POAM-002: Org enables secret/dependency security features by default for new repos (`C04.org.security-defaults`) — [FAIL] Verified Fail
 
-- **Repo:** (org-level)
+- **Scope:** (org-level)
 - **Affected SSDF task(s):** PO.5.1
 - **CISA form cluster(s):** 1, 2, 3
 - **Description:** not every security feature is enabled by default for new repositories
@@ -57,7 +57,7 @@ narrative context.
 
 #### POAM-003: Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PO.5.1, PW.6.2
 - **CISA form cluster(s):** 1, 2, 3, 4
 - **Description:** 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
@@ -71,7 +71,7 @@ narrative context.
 
 #### POAM-004: A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PO.5.1
 - **CISA form cluster(s):** 1, 2, 3
 - **Description:** no active webhook subscribes to push, release, or deployment events
@@ -89,7 +89,7 @@ narrative context.
 
 #### POAM-005: Whether members can create public repositories (`C01.org.members-can-create-public`) — [FAIL] Verified Fail
 
-- **Repo:** (org-level)
+- **Scope:** (org-level)
 - **Affected SSDF task(s):** PS.1.1
 - **CISA form cluster(s):** 2, 4
 - **Description:** members can create public repositories (potential leak vector)
@@ -103,7 +103,7 @@ narrative context.
 
 #### POAM-006: CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.7.1, RV.1.2
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** CodeQL default setup is "not-configured"
@@ -117,7 +117,7 @@ narrative context.
 
 #### POAM-007: A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.7.1, RV.1.2
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** no SAST tool detected in any workflow, and CodeQL default setup is not configured
@@ -131,7 +131,7 @@ narrative context.
 
 #### POAM-008: Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** no Dependabot config found; 1 detected ecosystem(s) are uncovered
@@ -145,7 +145,7 @@ narrative context.
 
 #### POAM-009: Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** no dependency-review-action (or equivalent) workflow detected
@@ -159,7 +159,7 @@ narrative context.
 
 #### POAM-010: An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4, RV.1.2
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** at least one release in the lookback window has no matched SCA run at all
@@ -173,7 +173,7 @@ narrative context.
 
 #### POAM-011: An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4, RV.1.2
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** no SCA tool detected in any workflow, and no Dependabot config found
@@ -187,7 +187,7 @@ narrative context.
 
 #### POAM-012: Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.1
 - **CISA form cluster(s):** 2, 3
 - **Description:** every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
@@ -201,7 +201,7 @@ narrative context.
 
 #### POAM-013: SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** RV.1.1, RV.1.3
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** no SECURITY.md exists to advertise an intake channel
@@ -215,7 +215,7 @@ narrative context.
 
 #### POAM-014: GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** RV.1.1
 - **CISA form cluster(s):** 2, 3, 4
 - **Description:** private vulnerability reporting is not enabled
@@ -233,7 +233,7 @@ narrative context.
 
 #### POAM-015: A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** PW.7.2, RV.1.2
 - **CISA form cluster(s):** 3, 4
 - **Description:** at least one release in the lookback window has no matched SAST run at all
@@ -251,7 +251,7 @@ narrative context.
 
 #### POAM-016: A SECURITY.md resolves for this repo (`C10.vdp.security-md`) — [FAIL] Verified Fail
 
-- **Repo:** demo-good
+- **Scope:** demo-good
 - **Affected SSDF task(s):** RV.1.3
 - **CISA form cluster(s):** 4
 - **Description:** no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo

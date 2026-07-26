@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"html"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,10 +134,36 @@ func TestRenderHTML_Deterministic(t *testing.T) {
 // "fixture pack with hostile strings (<script>, markdown link bombs)
 // renders inert". None of these must ever appear un-neutralized in
 // either renderer's output.
+//
+// Found in review of #222: this claim was FALSE for years without any test
+// catching it. hostile-pack.json's main result originally used a made-up
+// check_id ("C99.hostile.check") cited by no real SSDF task, and
+// context.go's Cluster Detail block (report.md/html's Scope.Repo/
+// Provenance/Facts rendering — the only place most of these markers could
+// ever appear) is driven off task.Checks: an unmapped result never reaches
+// it, only the Gaps table. 3 of these 12 markers (scalar/list1/table) were
+// therefore never emitted in ANY format, and the whole Facts-escaping path
+// passed vacuously — undetected until report.md.tmpl's own Scope.Repo/
+// Provenance lines turned out to be genuinely unescaped (see
+// TestRenderMarkdown_ProvenanceAndRepoEscapedNotCodeSpan). Fixed for those
+// three by giving the main hostile result a real, SSDF-cited check_id
+// (C02.branch.protection-exists) so every field it plants actually reaches
+// the Cluster Detail block this test relies on.
+//
+// A 4th marker, sa-answer, is NOT fixed by that and never will be by a
+// check_id change alone (found in round 2 of the same review): it lives
+// on a separate result (SA.hostile-question, self-attested, its own
+// check_id still made up) whose Facts.answer field plants it. Both
+// report.md.tmpl's and report.html.tmpl's Self-Attested block render only
+// CheckID/Status/Title/Reason/Paired for a self-attested entry — never
+// Facts, at all, for any check_id — so sa-answer is structurally
+// unreachable through either renderer as they exist today, not merely
+// unexercised by this fixture. A real fix would need a template change,
+// not a fixture one; out of scope here.
 var hostileMarkers = []string{
 	"<script>alert('repo')</script>",
 	"<script>alert('title')</script>",
-	"<script>alert('reason2')</script>",
+	"<img src=x onerror=alert('reason2')>",
 	"<script>alert('scope-repo')</script>",
 	"<script>alert('endpoint')</script>",
 	"<script>alert('scalar')</script>",
@@ -144,13 +171,52 @@ var hostileMarkers = []string{
 	"<script>alert('table')</script>",
 	"<script>alert('sa-reason')</script>",
 	"<script>alert('sa-answer')</script>",
+	hostilePackProjectValue,
+	hostileScopeProjectValue,
+}
+
+// hostilePackProjectValue/hostileScopeProjectValue are hostile-pack.json's
+// two Project values, decoded — issue #216: before this, hostile-pack.json
+// had no "project" key at all, so neither the three Pack.Scope.Project
+// header rows (report.md/report.html/poam.md each show one) nor the
+// "(project: " + Project + ")" concatenation in scopeLabel/scopeLabelVerbose
+// were exercised by the hostile-strings regression tests. Each value packs
+// five different threats into one string, since md/html/poam.md escape
+// them differently and each needs to hold independently: a quote plus an
+// HTML-attribute-breakout attempt (" onmouseover="alert(...) — harmless
+// here because Pack.Scope.Project/ScopeLabel are always interpolated in a
+// text node, never inside a tag attribute, but only html/template's
+// auto-escaping guarantees that, not this codebase's own code); a
+// Markdown table-breaking pipe; a backtick (breaks a code span, and — with
+// the pipe — could otherwise splice a fake table cell); and a real
+// newline (schema places no restriction on it — could otherwise forge a
+// new table/list row if mdescape didn't flatten it). hostilePackProjectValue
+// is hostile-pack.json's top-level scope.project (the three header rows);
+// hostileScopeProjectValue is C99.hostile.project-scope's per-result
+// scope.project (the scopeLabel/scopeLabelVerbose concatenation) — distinct
+// strings so a test failure names which of the two broke.
+const (
+	hostilePackProjectValue  = "pack-project\" onmouseover=\"alert('pack-project')|`code-span-break`\nsecond-line-pack-project"
+	hostileScopeProjectValue = "scope-project\" onmouseover=\"alert('scope-project')|`code-span-break`\nsecond-line-scope-project"
+)
+
+// hostileScopeLevelByCheckID classifies C99.hostile.project-scope (the
+// result carrying hostileScopeProjectValue) as project-scoped — passing
+// nil here, as the rest of this file's hostile-string tests otherwise
+// would, leaves every Repo-empty result classified org-scoped by default
+// (scopeLabel's own zero-value behavior), which never reaches the
+// "(project: " + Project + ")" concatenation at all. See CheckMeta.ScopeLevel
+// (#176) for why a real pack needs the registry for this and a synthetic
+// fixture like this one can just hand-build the map.
+var hostileScopeLevelByCheckID = map[string]string{
+	"C99.hostile.project-scope": scopeLevelProject,
 }
 
 func TestRenderMarkdown_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, hostileScopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -162,13 +228,14 @@ func TestRenderMarkdown_HostileStringsRenderInert(t *testing.T) {
 	if bytes.Contains(got, []byte("[click here](javascript:")) || bytes.Contains(got, []byte("[bomb](javascript:")) || bytes.Contains(got, []byte("[click](javascript:")) {
 		t.Error("report.md contains a live, unescaped markdown link to a javascript: URL")
 	}
+	assertHostileProjectValuesEscapedForMarkdown(t, "report.md", "(project: ", got)
 }
 
 func TestRenderHTML_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, hostileScopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -182,6 +249,82 @@ func TestRenderHTML_HostileStringsRenderInert(t *testing.T) {
 	}
 	if bytes.Contains(got, []byte(`href="javascript:`)) {
 		t.Error("report.html contains a live javascript: href")
+	}
+	assertHostileProjectValuesEscapedForHTML(t, "report.html", got)
+}
+
+// hostilePackProjectValueEscaped/hostileScopeProjectValueEscaped are
+// hostilePackProjectValue/hostileScopeProjectValue's expected mdescape.Escape
+// output, HAND-WRITTEN rather than computed by calling Escape on the raw
+// value — issue #222's review finding: computing "expected" via the same
+// function under test is self-referential and structurally can't fail the
+// way its own doc comment claimed. Proven by mutation: deleting the pipe
+// rule from escaper left ./internal/report/... green with the
+// self-referential version; deleting the backtick rule left the ENTIRE
+// repo test suite green (nothing else in this codebase pins mdescape's
+// per-rule behavior — see internal/mdescape/mdescape_test.go, added in the
+// same review round, which independently confirms these two literals).
+// Kept as package-level consts, not recomputed per test, so both
+// assertHostileProjectValuesEscapedForMarkdown call sites (report.md and
+// poam.md) check against the identical hand-written string.
+const (
+	hostilePackProjectValueEscaped  = "pack-project\" onmouseover=\"alert('pack-project')\\|\\`code-span-break\\` second-line-pack-project"
+	hostileScopeProjectValueEscaped = "scope-project\" onmouseover=\"alert('scope-project')\\|\\`code-span-break\\` second-line-scope-project"
+)
+
+// assertHostileProjectValuesEscapedForMarkdown proves the "esc" template
+// func report.md/poam.md both use (mdescape.Escape) actually neutralizes
+// EVERY threat class hostilePackProjectValue/hostileScopeProjectValue pack
+// in — not just that hostileMarkers' whole-string check finds the combined
+// value altered somewhere, which a bug in only one of the five escapes
+// (e.g. pipe) could still pass if another one (e.g. backtick) still
+// changed. scopeLabelPrefix is "(project: " (report.md's scopeLabel) or
+// "(project-level: " (poam.md's scopeLabelVerbose) — the two renderers'
+// wording already differs (see scopeLabelVerbose's own doc comment), so
+// the caller says which shape applies.
+func assertHostileProjectValuesEscapedForMarkdown(t *testing.T, format, scopeLabelPrefix string, got []byte) {
+	t.Helper()
+	// "- **Project:** " + escaped value, not wrapped in parens — that shape
+	// is scopeLabel's, not the header row's — so the raw escaped substring
+	// is what to look for here.
+	if !bytes.Contains(got, []byte(hostilePackProjectValueEscaped)) {
+		t.Errorf("%s: expected the Project header row to contain the escaped pack project value; want %q", format, hostilePackProjectValueEscaped)
+	}
+	wantScope := scopeLabelPrefix + hostileScopeProjectValueEscaped + ")"
+	if !bytes.Contains(got, []byte(wantScope)) {
+		t.Errorf("%s: expected a scope-label cell reading %q — table integrity around the raw pipe/backtick/newline may have broken", format, wantScope)
+	}
+}
+
+// assertHostileProjectValuesEscapedForHTML is the HTML twin: html/template
+// auto-escapes {{.Pack.Scope.Project}}/{{.ScopeLabel}} because both are
+// always interpolated in a text node in report.html.tmpl, never inside a
+// tag attribute — confirm the attribute-breakout attempt specifically
+// never produces a live attribute (the raw `" onmouseover="` sequence must
+// not survive), independent of the whole-string hostileMarkers check.
+//
+// The backtick/pipe/newline in hostilePackProjectValue/hostileScopeProjectValue
+// are deliberately NOT checked here: unlike Markdown, HTML attributes no
+// special meaning to any of the three in a text node, so html/template
+// leaves them raw (confirmed empirically) — correct, not a gap. Only `<`,
+// `>`, `&`, `'`, `"` matter for HTML, which is why this fixture's HTML
+// coverage rests on the quote-based attribute-breakout attempt specifically.
+//
+// wantScopeSubstring proves the scope-label concatenation was actually
+// exercised (not skipped, e.g. because scopeLevelByCheckID was nil/wrong,
+// which would render "(org)" and never touch hostileScopeProjectValue at
+// all — a gap the whole-string hostileMarkers check alone can't catch,
+// since "value absent because the check was misclassified org-scoped"
+// and "value absent because it was escaped away" both look like
+// "marker not found").
+func assertHostileProjectValuesEscapedForHTML(t *testing.T, format string, got []byte) {
+	t.Helper()
+	if bytes.Contains(got, []byte(`" onmouseover="alert(`)) {
+		t.Errorf("%s contains a live, unescaped onmouseover attribute breakout from a hostile Project value", format)
+	}
+	wantScopeSubstring := "(project: " + html.EscapeString("scope-project\" onmouseover=\"alert('scope-project')") + "|`code-span-break`"
+	if !bytes.Contains(got, []byte(wantScopeSubstring)) {
+		t.Errorf("%s: expected a scope-label cell containing %q — the project-scope concatenation may not have been exercised at all", format, wantScopeSubstring)
 	}
 }
 
@@ -290,27 +433,62 @@ func TestRenderMarkdown_NewlineDoesNotInjectMarkdownStructure(t *testing.T) {
 	}
 }
 
-// TestRenderMarkdown_CodeSpanValuesNotBackslashEscaped locks in that values
-// already wrapped in backticks (Repo, CheckID, Method, Endpoint,
-// ResponseSHA256) are NOT also passed through esc — CommonMark doesn't
-// process backslash escapes inside code spans, so escaping there is both
-// unnecessary (the backticks already make the content literal) and
-// actively wrong: it leaves a visible, spurious backslash in front of any
-// escapable character. Repo/org names commonly contain underscores.
-func TestRenderMarkdown_CodeSpanValuesNotBackslashEscaped(t *testing.T) {
+// TestRenderMarkdown_ProvenanceAndRepoEscapedNotCodeSpan is issue #222's
+// own review finding: the Cluster Detail block's inline "Repo: ..." mention
+// and its Evidence line (Method/Endpoint/ResponseSHA256) reached output
+// completely unescaped and NOT inside a code span either — a real
+// injection hole (poam.md already escaped the identical fields; report.md
+// didn't, an oversight, not a design choice). The fix mirrors poam.md's own
+// established pattern exactly (see TestRenderPOAM_RepoNameNotBackslashEscaped):
+// escaped plain text, no surrounding backticks — CommonMark doesn't process
+// backslash escapes inside a code span, so escaping AND keeping backticks
+// would produce a visible, spurious backslash instead of neutralizing
+// anything. CheckID, on the same block's heading line, is deliberately
+// left as-is (still a raw, unescaped code span): unlike Repo/Method/
+// Endpoint/ResponseSHA256, it's never attacker-influenced — every real
+// value is a Go source string literal a collector registers (see
+// collect.CheckMeta.ID), never derived from scanned repo/org data, so
+// there's no hole there to fix, and no natural test for it either — real
+// check IDs never contain a character esc would touch (dot/hyphen-
+// separated only, by this project's own naming convention).
+//
+// The framing that matters, because the earlier version of this test got it
+// wrong and pinned the wrong behaviour as intentional: the choice was never
+// "escape or don't". It was "code span or escaped plain text". A code span is
+// a security boundary only if the value cannot contain a backtick — and a
+// repo or Azure DevOps project name can, so it never was one. Escaping
+// inside the span was rejected for a real reason (CommonMark does not process
+// backslash escapes there, so it shows a spurious backslash), but the
+// conclusion drawn from that — drop the escaping, keep the span — traded an
+// injection hole for cosmetics. Plain escaped text satisfies both.
+func TestRenderMarkdown_ProvenanceAndRepoEscapedNotCodeSpan(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	pack.Results[0].Scope.Repo = "my_repo"
+	pack.Results[0].Provenance = []model.Provenance{
+		{Endpoint: "/repos/attestward-demo/my_repo/rulesets", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
+	}
 	ssdf, cisa, saQuestions := loadRealMappings(t)
 
 	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	if strings.Contains(string(got), "`my\\_repo`") {
-		t.Error("repo name inside a markdown code span was corrupted by backslash-escaping")
+	text := string(got)
+
+	if strings.Contains(text, "`my_repo`") {
+		t.Error("Repo is still rendered inside a raw, unescaped code span — the injection hole issue #222's review found is still open")
 	}
-	if !strings.Contains(string(got), "`my_repo`") {
-		t.Error("expected an unescaped `my_repo` code span in report.md")
+	if strings.Contains(text, "Repo: my_repo.") {
+		t.Error("Repo reached output completely unescaped (not even backslash-escaped) — an underscore alone wouldn't prove this, but a hostile marker would; this asserts the literal raw form never appears")
+	}
+	if !strings.Contains(text, "Repo: my\\_repo.") {
+		t.Errorf("expected the repo name escaped as plain text (my\\_repo, no surrounding backticks); got:\n%s", text)
+	}
+	if strings.Contains(text, "`GET /repos/attestward-demo/my_repo/rulesets`") {
+		t.Error("Evidence line's Method/Endpoint are still rendered inside a raw, unescaped code span")
+	}
+	if !strings.Contains(text, "GET /repos/attestward-demo/my\\_repo/rulesets at") {
+		t.Errorf("expected the Evidence line's Method/Endpoint escaped as plain text, no surrounding backticks; got:\n%s", text)
 	}
 }
 

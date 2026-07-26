@@ -4,13 +4,14 @@
   "mapping_versions": { "ssdf": "TEST-1.0.0", "cisa_form": "TEST-1.0.0" },
   "scope": {
     "org": "attestward-demo",
-    "repos": ["<script>alert('repo')</script>"]
+    "repos": ["<script>alert('repo')</script>"],
+    "project": "pack-project\" onmouseover=\"alert('pack-project')|`code-span-break`\nsecond-line-pack-project"
   },
   "scan_started_at": "2026-07-13T12:00:00Z",
   "scan_ended_at": "2026-07-13T12:00:05Z",
   "results": [
     {
-      "check_id": "C99.hostile.check",
+      "check_id": "C02.branch.protection-exists",
       "title": "<script>alert('title')</script>",
       "status": "verified-fail",
       "reason": "found [click here](javascript:alert('reason')) and <img src=x onerror=alert('reason2')> in a file",
@@ -43,6 +44,18 @@
         "answer": "<script>alert('sa-answer')</script>",
         "evidence_ref": "javascript:alert('sa-evidence')"
       }
+    },
+    {
+      "check_id": "C99.hostile.project-scope",
+      "title": "hostile project-scope check",
+      "status": "verified-fail",
+      "reason": "exercises the \"(project: \" + Project + \")\" concatenation in scopeLabel/scopeLabelVerbose with a hostile Project value — no repo, so the label is computed, not a literal Scope.Repo passthrough",
+      "scope": {
+        "org": "attestward-demo",
+        "platform": "azuredevops",
+        "project": "scope-project\" onmouseover=\"alert('scope-project')|`code-span-break`\nsecond-line-scope-project"
+      },
+      "provenance": []
     }
   ]
 }

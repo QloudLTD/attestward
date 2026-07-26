@@ -296,10 +296,10 @@ func TestRunReport_ADOWebhooksRendersAsProjectScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read poam.md: %v", err)
 	}
-	if !bytes.Contains(poam, []byte("- **Repo:** (project-level: billing)")) {
+	if !bytes.Contains(poam, []byte("- **Scope:** (project-level: billing)")) {
 		t.Errorf("poam.md doesn't label %s (project-level: billing); got:\n%s", checkID, poam)
 	}
-	if bytes.Contains(poam, []byte("- **Repo:** (org-level)")) {
+	if bytes.Contains(poam, []byte("- **Scope:** (org-level)")) {
 		t.Errorf("poam.md still labels %s org-level (issue #214)", checkID)
 	}
 }

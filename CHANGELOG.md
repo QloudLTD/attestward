@@ -105,6 +105,26 @@ All notable changes to this project are documented here. Format follows
   category-matched pipeline"), so a same-repo skip has no bearing on their evidence — no
   fix needed there, and a stale forward-reference in `azuredevops/provenance`'s own
   rubric claiming otherwise is corrected.
+- **Report/POA&M `Repo` column/field renamed to `Scope`** (#215). After #176's fix, the
+  column could hold three different kinds of thing (an actual repo name, `(org)`, or
+  `(project: payments)`) — the header was wrong for two of the three cases it rendered.
+  Renamed across `report.md`, `report.html`, and `poam.md`'s `- **Repo:**` line; the
+  inline `Repo: ` reason prefix's own label (both renderers) is untouched by this
+  rename, since it's only ever shown when the value genuinely is a repo — "Repo:" was
+  never the wrong word there, only the standalone column/field header was. Also
+  (#216): the hostile-strings escaping regression tests gained a hostile
+  `Scope.Project` value, previously untested. Review of that fix (#222) found two real
+  escaping holes in `report.md`'s Cluster Detail block — that same inline `Repo:`
+  prefix's *value*, plus its Evidence line's (Method/Endpoint/ResponseSHA256) — reached
+  output completely unescaped and not inside a code span either, unlike `poam.md`'s
+  identical fields — undetected because the hostile fixture's main result used a check
+  ID cited by no SSDF task, so it never reached the block those two lines live in; the
+  whole Facts-escaping path had been passing vacuously as a result. Fixed by escaping
+  both as plain text (no surrounding backticks — CommonMark doesn't process backslash
+  escapes inside a code span, so escaping the value while keeping the code-span
+  notation would have produced a visible, spurious backslash instead), and
+  `internal/mdescape` (the shared markdown escaper every renderer's `esc` template func
+  calls) gained its own test file — it previously had none.
 - **Azure DevOps packs no longer stamp `scope.project` onto genuinely org-scoped
   results** (#221). `stampResultsWithPlatform` set every result's `Scope.Project` to
   the scan's project unconditionally, so a signed `evidence.json` recorded a project

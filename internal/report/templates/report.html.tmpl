@@ -1004,7 +1004,7 @@
 {{if .Gaps}}<p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
 <div class="table-wrap">
 <table class="gaps-table">
-<thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
+<thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
 <tbody>
 {{range .Gaps}}<tr><th scope="row">{{if .POAMID}}{{.POAMID}}{{else}}&mdash;{{end}}</th><td><code>{{.Result.CheckID}}</code></td><td>{{.ScopeLabel}}</td><td class="status-cell"><span class="badge badge-{{.Result.Status}}">{{statusBadge .Result.Status}}</span> {{statusLabel .Result.Status}}</td><td>{{.Result.Reason}}</td></tr>
 {{end}}
@@ -1039,7 +1039,7 @@ upgrades a CISA form cluster to fully verified.</p>
 <h3>Not Checkable</h3>
 {{if .NotCheckable}}<div class="table-wrap">
 <table>
-<thead><tr><th scope="col">Check</th><th scope="col">Repo</th><th scope="col">Reason</th></tr></thead>
+<thead><tr><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Reason</th></tr></thead>
 <tbody>
 {{range .NotCheckable}}<tr><td><code>{{.Result.CheckID}}</code></td><td>{{.ScopeLabel}}</td><td>{{.Result.Reason}}</td></tr>
 {{end}}

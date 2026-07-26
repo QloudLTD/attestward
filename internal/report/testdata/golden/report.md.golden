@@ -54,7 +54,7 @@ Separate and protect each environment involved in software development.
 GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
 
 Evidence:
-- `GET /orgs/attestward-demo/audit-log` at 2026-07-13 12:00:04 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /orgs/attestward-demo/audit-log at 2026-07-13 12:00:04 UTC (HTTP 404, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - org\_plan: free
 
@@ -102,7 +102,7 @@ Separate and protect each environment involved in software development.
 GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
 
 Evidence:
-- `GET /orgs/attestward-demo/audit-log` at 2026-07-13 12:00:04 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /orgs/attestward-demo/audit-log at 2026-07-13 12:00:04 UTC (HTTP 404, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - org\_plan: free
 
@@ -130,18 +130,18 @@ Store all forms of code – including source code, executable code, and configur
 
 ##### Branch protection exists (`C02.branch.protection-exists`) — [FAIL] Verified Fail
 
-Repo: `bad-repo`. no branch protection configured on main
+Repo: bad-repo. no branch protection configured on main
 
 Evidence:
-- `GET /repos/attestward-demo/bad-repo/branches/main/protection` at 2026-07-13 12:00:02 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /repos/attestward-demo/bad-repo/branches/main/protection at 2026-07-13 12:00:02 UTC (HTTP 404, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 
 ##### Branch protection requires reviews (`C02.branch.required-reviews`) — [PASS] Verified Pass
 
-Repo: `good-repo`. main requires 1 approving review and passing status checks
+Repo: good-repo. main requires 1 approving review and passing status checks
 
 Evidence:
-- `GET /repos/attestward-demo/good-repo/rulesets` at 2026-07-13 12:00:01 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /repos/attestward-demo/good-repo/rulesets at 2026-07-13 12:00:01 UTC (HTTP 200, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - required\_approving\_review\_count: 1
 
@@ -160,10 +160,10 @@ Acquire and maintain well-secured software components (e.g., software libraries,
 
 ##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
 
-Repo: `good-repo`. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
+Repo: good-repo. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
 
 Evidence:
-- `GET /repos/attestward-demo/good-repo/contents/.github/workflows/release.yaml` at 2026-07-13 12:00:03 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /repos/attestward-demo/good-repo/contents/.github/workflows/release.yaml at 2026-07-13 12:00:03 UTC (HTTP 200, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - third\_party\_unpinned: (none)
 
@@ -212,7 +212,7 @@ Separate and protect each environment involved in software development.
 GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
 
 Evidence:
-- `GET /orgs/attestward-demo/audit-log` at 2026-07-13 12:00:04 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /orgs/attestward-demo/audit-log at 2026-07-13 12:00:04 UTC (HTTP 404, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - org\_plan: free
 
@@ -248,10 +248,10 @@ Acquire and maintain well-secured software components (e.g., software libraries,
 
 ##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
 
-Repo: `good-repo`. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
+Repo: good-repo. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
 
 Evidence:
-- `GET /repos/attestward-demo/good-repo/contents/.github/workflows/release.yaml` at 2026-07-13 12:00:03 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /repos/attestward-demo/good-repo/contents/.github/workflows/release.yaml at 2026-07-13 12:00:03 UTC (HTTP 200, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - third\_party\_unpinned: (none)
 
@@ -293,18 +293,18 @@ Store all forms of code – including source code, executable code, and configur
 
 ##### Branch protection exists (`C02.branch.protection-exists`) — [FAIL] Verified Fail
 
-Repo: `bad-repo`. no branch protection configured on main
+Repo: bad-repo. no branch protection configured on main
 
 Evidence:
-- `GET /repos/attestward-demo/bad-repo/branches/main/protection` at 2026-07-13 12:00:02 UTC (HTTP 404, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /repos/attestward-demo/bad-repo/branches/main/protection at 2026-07-13 12:00:02 UTC (HTTP 404, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 
 ##### Branch protection requires reviews (`C02.branch.required-reviews`) — [PASS] Verified Pass
 
-Repo: `good-repo`. main requires 1 approving review and passing status checks
+Repo: good-repo. main requires 1 approving review and passing status checks
 
 Evidence:
-- `GET /repos/attestward-demo/good-repo/rulesets` at 2026-07-13 12:00:01 UTC (HTTP 200, digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- GET /repos/attestward-demo/good-repo/rulesets at 2026-07-13 12:00:01 UTC (HTTP 200, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - required\_approving\_review\_count: 1
 
@@ -380,7 +380,7 @@ Review the software for similar vulnerabilities to eradicate a class of vulnerab
 
 Every `verified-fail` or `partial` result, in one place. See poam.md for remediation tracking.
 
-| POA&M ID | Check | Repo | Status | Reason |
+| POA&M ID | Check | Scope | Status | Reason |
 |---|---|---|---|---|
 | POAM-001 | `C02.branch.protection-exists` | bad-repo | [FAIL] Verified Fail | no branch protection configured on main |
 | POAM-002 | `C08.actions.pinned` | good-repo | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
@@ -408,7 +408,7 @@ Complements these API-verified checks:
 
 ### Not Checkable
 
-| Check | Repo | Reason |
+| Check | Scope | Reason |
 |---|---|---|
 | `C09.audit.org-log-available` | (org) | GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope |
 

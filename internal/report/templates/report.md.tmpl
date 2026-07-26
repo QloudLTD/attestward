@@ -38,10 +38,10 @@
 {{end}}{{range .Checks}}
 ##### {{esc .Title}} (`{{.CheckID}}`) — {{statusBadge .Status}} {{statusLabel .Status}}
 
-{{if .Scope.Repo}}Repo: `{{.Scope.Repo}}`. {{end}}{{esc .Reason}}
+{{if .Scope.Repo}}Repo: {{esc .Scope.Repo}}. {{end}}{{esc .Reason}}
 {{if .Provenance}}
 Evidence:
-{{range .Provenance}}- `{{.Method}} {{.Endpoint}}` at {{fmtTime .Timestamp}} (HTTP {{.HTTPStatus}}, digest `{{.ResponseSHA256}}`)
+{{range .Provenance}}- {{esc .Method}} {{esc .Endpoint}} at {{fmtTime .Timestamp}} (HTTP {{.HTTPStatus}}, digest {{esc .ResponseSHA256}})
 {{end}}{{end}}{{if .Facts}}{{$fv := facts .Facts}}{{range $fv.Scalars}}
 - {{esc .Key}}: {{esc (fmtVal .Value)}}
 {{end}}{{range $fv.Lists}}
@@ -61,7 +61,7 @@ Evidence:
 
 {{if .Gaps}}Every `verified-fail` or `partial` result, in one place. See poam.md for remediation tracking.
 
-| POA&M ID | Check | Repo | Status | Reason |
+| POA&M ID | Check | Scope | Status | Reason |
 |---|---|---|---|---|
 {{range .Gaps}}| {{if .POAMID}}{{.POAMID}}{{else}}—{{end}} | `{{.Result.CheckID}}` | {{esc .ScopeLabel}} | {{statusBadge .Result.Status}} {{statusLabel .Result.Status}} | {{esc .Result.Reason}} |
 {{end}}{{else}}No gaps found — every check that could be verified reported `verified-pass`.
@@ -90,7 +90,7 @@ Complements these API-verified checks:
 {{end}}
 ### Not Checkable
 
-{{if .NotCheckable}}| Check | Repo | Reason |
+{{if .NotCheckable}}| Check | Scope | Reason |
 |---|---|---|
 {{range .NotCheckable}}| `{{.Result.CheckID}}` | {{esc .ScopeLabel}} | {{esc .Result.Reason}} |
 {{end}}{{else}}None.
