@@ -159,15 +159,47 @@ jobs:
 
           echo "no undocumented gaps — every verified-fail/partial result (if any) is on the documented exception list, and $pass_count check(s) genuinely verified-pass"
 
+      # THIS ARTIFACT IS THE DRIFT BASELINE'S SOLE SOURCE. Do not delete this
+      # step or shorten its retention without reading the chain: attach-to-release
+      # (below) downloads it on release events and attaches evidence.json to the
+      # release, and the drift check at the top of this job fetches the baseline
+      # from exactly that release asset. Break the upload and every later run
+      # logs "no evidence.json on the latest release — drift detection skipped"
+      # and stays GREEN, so posture drift goes unnoticed behind a passing badge.
+      # Drift is enforced by the action's fail-on-drift above, not by the
+      # gap-check step — but it is the same class of failure the pass_count
+      # floor below exists to catch: a green run that verified less than it
+      # appears to. #211 tracks making a missing baseline distinguishable from
+      # a genuine first run instead of failing open.
+      #
+      # continue-on-error is still right, with an honest scope. On schedule and
+      # workflow_dispatch runs — the large majority — attach-to-release is
+      # skipped by its own `if:`, nothing consumes the artifact, and this stops a
+      # storage-quota failure from reddening a badge-visible run whose scan
+      # actually succeeded. On RELEASE runs it does not save the badge: the
+      # download in attach-to-release fails instead and the run still goes red.
+      # It fails loudly in the one case where the artifact genuinely matters,
+      # which is the correct trade, not an oversight.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
+        continue-on-error: true
         with:
           name: self-scan-evidence
           path: evidence/
-          # Explicit, not the repo default: this artifact is small
-          # (a JSON pack + one HTML file) and is meant to be inspectable
-          # for a reasonable stretch between releases, not indefinitely.
-          retention-days: 90
+          # 7 days, down from 90, matching ci.yaml for consistency. Be honest
+          # about the size of that win: this is a JSON pack plus one HTML file,
+          # zipped, so 90->7 frees on the order of ~5 MB of standing storage.
+          # The real pressure is ci.yaml's attestward-builds — see below. This
+          # change is right because two artifacts with the same lifetime are
+          # easier to reason about, not because it materially eased the quota.
+          #
+          # If the quota bites again, the place to look is ci.yaml's
+          # attestward-builds upload: 5 binaries on every PR and every push to
+          # main. multi-arch-build-sample.yaml also uploads binaries and inherits
+          # the 90-day default, but it is workflow_dispatch-only and has run once
+          # ever, so its standing cost is a rounding error despite the long
+          # retention. Recurrence beats per-artifact size here.
+          retention-days: 7
 
   # The one write in this workflow, isolated in its own job so the scan
   # job's permissions stay read-only (ADR-0007): on release events, the

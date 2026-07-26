@@ -76,7 +76,11 @@ jobs:
       - name: Verify it runs
         shell: bash
         run: ./"$BIN" version
+      # Archival only: "Verify it runs" above has already proven this binary
+      # compiles and executes on its target. A storage-quota failure on the
+      # upload must not retract that proof by reddening the job.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        continue-on-error: true
         with:
           name: attestward-${{ matrix.goos }}-${{ matrix.goarch }}
           path: attestward-${{ matrix.goos }}-${{ matrix.goarch }}*
@@ -137,7 +141,11 @@ jobs:
       - name: Verify it runs
         shell: bash
         run: ./attestward-windows-amd64.exe version
+      # Archival only: "Verify it runs" above has already proven this binary
+      # compiles and executes on its target. A storage-quota failure on the
+      # upload must not retract that proof by reddening the job.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        continue-on-error: true
         with:
           name: attestward-windows-amd64
           path: attestward-windows-amd64.exe
