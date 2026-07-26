@@ -2109,7 +2109,7 @@ None.
 - **[SELF-ATTESTED] Self-Attested** — no API call can verify this control; the answer comes from the producer's own self-attestation questionnaire, not platform evidence.
 - **[NOT CHECKABLE] Not Checkable** — the tool could not determine an answer at all (plan-gated, insufficient token permission, or an unanswered self-attestation question). An honest "unknown", never inferred as a pass or a fail.
 
-**Lookback window:** 5 releases / 12 months, release tag pattern `v*`.
+**Lookback window:** 5 releases / 12 months, release tag pattern v\*.
 
 **What this tool does NOT verify:** developer security training, threat-modeling practice
 in depth, documented triage/remediation SLAs beyond what a self-attestation records,

@@ -10,7 +10,7 @@ narrative context.
 
 ## Summary
 
-- **Org:** {{.Pack.Scope.Org}}
+- **Org:** {{esc .Pack.Scope.Org}}
 {{if .Pack.Scope.Project}}- **Project:** {{esc .Pack.Scope.Project}}
 {{end}}- **Scan window:** {{fmtTime .Pack.ScanStartedAt}} – {{fmtTime .Pack.ScanEndedAt}}
 - **Total findings:** {{.TotalFindings}} ({{.FailCount}} fail, {{.PartialCount}} partial)

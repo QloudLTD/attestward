@@ -97,6 +97,18 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 	// "Pack SHA-256" line always describes the file a reader actually has
 	// in front of them, byte for byte, independent of the sidecar/tamper
 	// check below.
+	//
+	// This line is also load-bearing for injection safety, which is not
+	// obvious from where it sits (issue #231's review): report.md.tmpl
+	// renders Integrity.SHA256 inside an unescaped code span, and that is
+	// only safe because this overwrite guarantees the value is a
+	// freshly-computed hex digest rather than whatever string the pack
+	// carried. The schema permits any string there, and `attestward report`
+	// renders third-party packs by design (see this command's own --help),
+	// so moving, conditionalizing, or removing this assignment silently
+	// reopens a markdown-injection hole in a document compliance readers
+	// are expected to read literally. Escape at the template instead if
+	// this ever needs to become conditional.
 	pack.Integrity = &model.Integrity{SHA256: integrity.Hash(data)}
 
 	tampered, err := checkPackIntegrity(inputPath)

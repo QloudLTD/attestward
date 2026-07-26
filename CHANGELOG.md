@@ -67,6 +67,27 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **report.md/poam.md's pack-level scope/version fields are now escaped** (#231). Found
+  by the confirmation pass on #222, which fixed the *per-result* instances of this same
+  bug — these are the *pack-level* ones, outside that PR's scope: `Pack.Scope.Org`
+  (report.md.tmpl and poam.md.tmpl), `Pack.ToolVersion`/`Pack.MappingVersions.*`
+  (report.md.tmpl's Summary line), and the release-tag-pattern line, which was inside an
+  unescaped **code span** — the same trap #222 hit: CommonMark doesn't process backslash
+  escapes inside a code span, so the fix drops the span and escapes as plain text instead
+  of escaping inside it, matching poam.md.tmpl's already-correct digest-line shape. All
+  four are reachable because `docs/schema/evidence-pack.v1.schema.json` declares them as
+  unconstrained strings and `attestward report` renders third-party packs
+  (`--help`: "rendering a pack received from someone else") without calling
+  `EvidencePack.ValidateAgainstSchema`. `hostile-pack.json` now plants a marker on all
+  four; report.html was never affected (`html/template` auto-escapes structurally).
+  Swept both markdown templates for every remaining `{{` interpolation while here: two
+  further gaps of the same shape were found and are tracked as follow-ups rather than
+  folded into this fix, since both reshape rendering logic rather than adding an `esc`
+  call — an unmapped result's `check_id` reaching an unescaped code span (Gaps,
+  Self-Attested, Not-Checkable, and poam.md's equivalents), and an out-of-enum `status`
+  value reaching `statusBadge`/`statusLabel`'s unescaped fallback branch (`Status.Valid`
+  is defined but never called on the `attestward report` path either). See
+  `docs/threat-model.md`'s injection-mitigation row for the full account.
 - **C05.sast.tool-configured (Azure DevOps): stop letting an unconfirmed 404 justify a
   verified-fail** (#226). A repo-enablement 404 with
   no other pipeline evidence used to fall through to the same pass/fail logic as a real

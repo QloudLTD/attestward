@@ -160,6 +160,16 @@ func TestRenderHTML_Deterministic(t *testing.T) {
 // unreachable through either renderer as they exist today, not merely
 // unexercised by this fixture. A real fix would need a template change,
 // not a fixture one; out of scope here.
+//
+// Issue #231 added the seven pack-level (header-block) markers below —
+// tool-version/ssdfversion/cisaversion/scannerversion/selfattestversion/org/
+// releasetag. Unlike every marker above (which lives on a per-result field,
+// reached only through the Cluster Detail/Gaps/Self-Attested machinery
+// #222 fixed), these reach report.md/poam.md's Summary section directly
+// from Pack itself — a separate render path this list previously had zero
+// coverage of, which is exactly how report.md.tmpl:7/poam.md.tmpl:13's Org
+// interpolation and report.md.tmpl:110's release-tag-pattern code span
+// went unescaped for as long as they did.
 var hostileMarkers = []string{
 	"<script>alert('repo')</script>",
 	"<script>alert('title')</script>",
@@ -171,6 +181,13 @@ var hostileMarkers = []string{
 	"<script>alert('table')</script>",
 	"<script>alert('sa-reason')</script>",
 	"<script>alert('sa-answer')</script>",
+	"<script>alert('toolversion')</script>",
+	"<script>alert('ssdfversion')</script>",
+	"<script>alert('cisaversion')</script>",
+	"<script>alert('scannerversion')</script>",
+	"<script>alert('selfattestversion')</script>",
+	"<script>alert('org')</script>",
+	"<script>alert('releasetag')</script>",
 	hostilePackProjectValue,
 	hostileScopeProjectValue,
 }

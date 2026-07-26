@@ -1,11 +1,17 @@
 {
   "schema_version": 1,
-  "tool_version": "0.0.0-test",
-  "mapping_versions": { "ssdf": "TEST-1.0.0", "cisa_form": "TEST-1.0.0" },
+  "tool_version": "<script>alert('toolversion')</script>",
+  "mapping_versions": {
+    "ssdf": "<script>alert('ssdfversion')</script>",
+    "cisa_form": "<script>alert('cisaversion')</script>",
+    "scanner_signatures": "<script>alert('scannerversion')</script>",
+    "self_attestation": "<script>alert('selfattestversion')</script>"
+  },
   "scope": {
-    "org": "attestward-demo",
+    "org": "<script>alert('org')</script>",
     "repos": ["<script>alert('repo')</script>"],
-    "project": "pack-project\" onmouseover=\"alert('pack-project')|`code-span-break`\nsecond-line-pack-project"
+    "project": "pack-project\" onmouseover=\"alert('pack-project')|`code-span-break`\nsecond-line-pack-project",
+    "release_tag_pattern": "<script>alert('releasetag')</script>"
   },
   "scan_started_at": "2026-07-13T12:00:00Z",
   "scan_ended_at": "2026-07-13T12:00:05Z",
