@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -219,6 +220,59 @@ func TestRunScan_EndToEndWithFakeCollectorsAndRealMappings(t *testing.T) {
 	}
 	if result.pack.ScanEndedAt.Before(result.pack.ScanStartedAt) {
 		t.Error("ScanEndedAt is before ScanStartedAt")
+	}
+}
+
+// TestRunScan_MappingVersionsEveryFieldPopulated is issue #255's own guard:
+// MappingVersions' doc comment claims it "records the version field of
+// every mappings/*.yaml file consulted during a scan" — a claim that was
+// false for ScannerSignatures from the field's introduction until this
+// issue, with nothing catching it. Rather than hand-listing each field
+// name (the same staleness risk any manually-maintained list has — see
+// docs/threat-model.md's own persistent-runner-state paragraph, found
+// stale for the identical reason during #257's review), this walks every
+// string field on model.MappingVersions via reflection and asserts it's
+// non-empty, so a future field added to the struct without also being
+// wired into runScan's pack construction fails this test automatically
+// rather than needing a second manual addition here to catch it.
+func TestRunScan_MappingVersionsEveryFieldPopulated(t *testing.T) {
+	collectors := []collect.Collector{
+		fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
+			{CheckID: "DEMO.pass", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo", Repo: "good-repo"}},
+		}},
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo"}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+
+	v := reflect.ValueOf(result.pack.MappingVersions)
+	tp := v.Type()
+	// Issue #263's own review: without this, an emptied MappingVersions
+	// struct (every field removed) would make the loop below iterate zero
+	// times and pass vacuously — the exact silent-pass failure mode this
+	// test exists to prevent, just one level up. Reaching that state today
+	// is a compile error in four places (this file's own call sites), so
+	// the risk is low, but the whole point of this test is to not depend
+	// on someone noticing.
+	if v.NumField() == 0 {
+		t.Fatal("model.MappingVersions has no fields — this test would pass vacuously; something is very wrong")
+	}
+	for i := 0; i < v.NumField(); i++ {
+		field := tp.Field(i)
+		if field.Type.Kind() != reflect.String {
+			t.Fatalf("MappingVersions.%s is not a string field — this test assumes every field is a version string; update the test if that's no longer true", field.Name)
+		}
+		if v.Field(i).String() == "" {
+			t.Errorf("MappingVersions.%s is empty — its own doc comment claims every field \"records the version field of every mappings/*.yaml file consulted during a scan\"; wire it up in runScan's pack construction", field.Name)
+		}
 	}
 }
 

@@ -87,7 +87,10 @@ var checkRemediations = map[string]string{
 const sharedUpstreamFetchFailureRubric = "the repo fetch, the workflow listing, or the release listing " +
 	"failed (403/plan-gated/other API error) — collectRepo returns not-checkable for every check on the " +
 	"first such failure, since none of them can be computed without this shared evidence; or the embedded " +
-	"scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo)"
+	"scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned " +
+	"repo — since issue #255, this fallback is no longer reachable via `attestward scan`: the " +
+	"orchestrator's own load of the same embedded file now aborts the whole scan first if it fails; kept " +
+	"as defense in depth for any caller that doesn't go through scan.go's own pre-load)"
 
 // checkRubrics gives each check's own concrete meaning for every status it
 // can actually produce — see checks.go for the pass/fail/partial logic

@@ -134,6 +134,48 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`mapping_versions.scanner_signatures` is now populated on every scan** (#255).
+  Declared on `model.MappingVersions`, in `docs/schema/evidence-pack.v1.schema.json`,
+  and rendered by both `report.md.tmpl` and `report.html.tmpl` — but the scan path
+  never assigned it, so every pack has omitted it since the field was introduced.
+  `MappingVersions`' own doc comment claims it "records the version field of every
+  `mappings/*.yaml` file consulted during a scan," which was false for this field the
+  whole time: `scanner-signatures.yaml` moved 1.0.0 → 1.4.0 across five PRs (#59, #63,
+  #165, #170, #234), gaining syft and SonarCloud's ADO tasks along the way, and no pack
+  recorded which version classified its own SAST/SCA/provenance findings — a repo
+  scanned before and after any of those could flip
+  statuses with zero configuration change and no record of why. Fixed by loading the
+  registry once more in `cmd/attestward/scan.go`'s own scan path (every collector
+  already loads its own copy internally to actually match signatures; this is a second,
+  cheap load purely to read `Version` for the pack header, not threaded into the
+  collectors themselves). `self_attestation` does **not** have the same problem —
+  checked rather than assumed, and it was already correctly populated from
+  `saQuestions.Version`.
+
+  New guard, `TestRunScan_MappingVersionsEveryFieldPopulated`: rather than hand-listing
+  each `MappingVersions` field name (the same staleness risk any manually-maintained
+  list carries — see `docs/threat-model.md`'s own persistent-runner-state paragraph,
+  found stale for the identical reason during #257's review), walks every string field
+  via reflection and asserts it's non-empty on a real scan-produced pack, so a future
+  field added to the struct without also being wired into `runScan` fails automatically.
+
+  Checked, not assumed, whether populating this field would break
+  `hack/check-examples-drift.sh`'s mapping-version-currency guard: it wouldn't, because
+  that check only ever compared `ssdf`/`cisa_form`/`self_attestation` — it has no
+  `scanner_signatures` logic to trip, and `examples/demo-org-pack/evidence.json` is a
+  frozen capture that doesn't gain the new field just because the scan code changed
+  (confirmed: `examples-check` still passes clean). Extending that guard to cover
+  `scanner_signatures` too is deliberately **not** done here: since the captured demo
+  pack predates this fix, that field is absent from it and would never match the
+  registry's current version, permanently failing the currency check until the demo org
+  is genuinely re-scanned live — turning `make examples` into a re-scan requirement
+  rather than a re-render. Left for a separate, deliberate decision. Also found while
+  checking the render path: `internal/report/context.go`'s and `poam.go`'s own
+  `MappingVersionMismatch` detection — a different mechanism from the currency
+  guard above — only ever compares `ssdf`/`cisa_form`, despite `context.go`'s own doc
+  comment naming "ssdf/cisa/questions"; `self_attestation` and `scanner_signatures` are
+  both absent from that comparison in both files, identically. Pre-existing, unrelated
+  to the scan-path bug this issue fixes, not touched here.
 - **C06.sca (Azure DevOps): `checkRanPerRelease` had the same two `dropped_tags`
   Facts-loss holdouts C05's identical function had, both fixed** (#256). #251
   ported C05 `sasthistory`'s pre-#252/#254 `checkRanPerRelease` shape into C06

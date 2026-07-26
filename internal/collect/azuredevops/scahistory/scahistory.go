@@ -277,7 +277,10 @@ var checkRemediations = map[string]string{
 const sharedUpstreamFetchFailureRubric = "the project's repositories or pipelines couldn't be read " +
 	"(403/other API error), or the named repository wasn't found in the project — collectRepo returns " +
 	"not-checkable for every check on the first such failure; or the embedded scanner-signature registry " +
-	"itself failed to load (a binary-level failure, independent of the scanned repo)"
+	"itself failed to load (a binary-level failure, independent of the scanned repo — since issue #255, " +
+	"this fallback is no longer reachable via `attestward scan`: the orchestrator's own load of the same " +
+	"embedded file now aborts the whole scan first if it fails; kept as defense in depth for any caller " +
+	"that doesn't go through scan.go's own pre-load)"
 
 // checkRubrics gives each check's own concrete meaning for every status it
 // can actually produce — see checks.go for the pass/fail/partial logic each

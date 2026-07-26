@@ -456,6 +456,20 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 	if err != nil {
 		return scanResult{}, fmt.Errorf("load self-attestation questions: %w", err)
 	}
+
+	// Issue #255: every collector above already loaded its own copy of
+	// this same embedded file internally (to actually match signatures
+	// against), but none of them propagated its Version back up here —
+	// mapping_versions.scanner_signatures was declared, schema'd, and
+	// rendered, but never populated. Loaded again here, cheaply (an
+	// embedded-FS read + YAML parse of a modest file, the same cost every
+	// collector above already paid once each), purely to read Version for
+	// the pack header — not threaded into the collectors themselves, which
+	// would be a larger plumbing change out of this issue's scope.
+	scannerSignatures, err := mapping.LoadScannerSignaturesFS(mappings.FS, "scanner-signatures.yaml")
+	if err != nil {
+		return scanResult{}, fmt.Errorf("load scanner-signatures mapping: %w", err)
+	}
 	var saAnswers *mapping.SelfAttestationAnswers
 	if cfg.SelfAttestationFile != "" {
 		saAnswers, err = mapping.LoadSelfAttestationAnswers(cfg.SelfAttestationFile, saQuestions)
@@ -496,9 +510,10 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   version,
 		MappingVersions: model.MappingVersions{
-			SSDF:            ssdf.Version,
-			CISAForm:        cisa.Version,
-			SelfAttestation: saQuestions.Version,
+			SSDF:              ssdf.Version,
+			CISAForm:          cisa.Version,
+			ScannerSignatures: scannerSignatures.Version,
+			SelfAttestation:   saQuestions.Version,
 		},
 		// Built field-by-field, not a model.ScanScope(scope) conversion:
 		// collect.Scope carries AccountType (issue #102), which the
