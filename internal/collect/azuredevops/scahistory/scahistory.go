@@ -65,10 +65,17 @@
 //     GitHub twin's checkAlertsTriaged does. Facts here carry only
 //     open_critical_count/oldest_critical_age_days, not the GitHub twin's
 //     full high/medium/low/total breakdown — a deliberate, narrower scope
-//     following the story's specified query, not an oversight. The
-//     404-confirmed/403-ambiguous split mirrors C05's
-//     (isAdvSecNotFoundErr/advSecNotCheckableReason, duplicated here
-//     rather than shared — see judgment call 6 below). A confirmed 404
+//     following the story's specified query, not an oversight. This
+//     check's own 404-vs-403 message split (isAdvSecNotFoundErr picks a
+//     more specific not-checkable Reason for a 404 than the
+//     advSecNotCheckableReason fallback; both already return
+//     not-checkable regardless) no longer mirrors anything in C05 — issue
+//     #226 (PR #233) removed C05's own checkToolConfigured guard that used
+//     to have a comparable split, since that guard's version let a 404
+//     change the STATUS it returned, which this check's version never did.
+//     advSecNotCheckableReason itself (not isAdvSecNotFoundErr) remains
+//     duplicated from C05's own copy rather than shared — see judgment
+//     call 6 below. A confirmed 404
 //     stays NOT-CHECKABLE (found in review, correcting this check's
 //     original design: "GHAzDO isn't licensed" was only ever a likely
 //     reading of 404, and the GitHub twin's own doc comment for its
@@ -177,14 +184,21 @@
 //     "well within the triage window" for a genuinely unknown age, a
 //     false verified-pass). See checkAlertsTriaged's own doc comment.
 //
-// isAdvSecNotFoundErr/advSecNotCheckableReason are duplicated from C05's
-// sasthistory package (not exported/shared) rather than hoisted into
-// pipelinehistory or the azuredevops package — mirrors this epic's own
-// established precedent for near-identical per-package logic with no
-// single obvious shared caller yet (see e.g. sasthistory's own
-// matchConfidence doc comment: "not shared across packages since... no
-// shared caller to justify hoisting"). A future third advsec-backed
-// collector needing the identical split would be the point to reconsider
+// advSecNotCheckableReason is duplicated from C05's sasthistory package
+// (not exported/shared) rather than hoisted into pipelinehistory or the
+// azuredevops package — mirrors this epic's own established precedent for
+// near-identical per-package logic with no single obvious shared caller
+// yet (see e.g. sasthistory's own matchConfidence doc comment: "not
+// shared across packages since... no shared caller to justify hoisting").
+// isAdvSecNotFoundErr is NOT a C05 duplicate anymore (issue #236): C05's
+// own copy was deleted in issue #226, since its only use there — a
+// checkToolConfigured guard letting a 404 change that check's STATUS —
+// was the unsound inference #226 fixed. This package's own copy survives
+// for a narrower, still-sound purpose: checkAlertsTriaged's own
+// isAdvSecNotFoundErr call (see its doc comment) only picks which
+// not-checkable Reason text to write, never the status itself. A future
+// third advsec-backed collector needing the identical split would be the
+// point to reconsider
 // this.
 package scahistory
 
@@ -276,15 +290,22 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusPartial: "only a low-confidence (pipeline/step-name-only) match was found in any " +
 			"pipeline, and dependency scanning injection is not confirmed enabled — not enough signal alone " +
 			"to confirm an SCA tool is genuinely configured",
-		model.StatusVerifiedFail: "no pipeline match of any confidence was found, dependency scanning " +
-			"injection is not confirmed enabled, and every pipeline MatchPipelines inspected for this repo " +
-			"resolved cleanly (no same-repo skip) — a real absence, not an evidence gap",
+		model.StatusVerifiedFail: "no pipeline match of any confidence was found, the GHAzDO repo-enablement " +
+			"query itself succeeded (HTTP 200 — issue #236: an enablement-query failure routes to " +
+			"not-checkable instead, see below) and its response reads dependencyScanningInjectionEnabled " +
+			"false — whether the field explicitly reads false, reads null, or codeSecurityFeatures is " +
+			"absent from the response body entirely, all three decode identically via Go's zero-value " +
+			"fallback for a plain bool (see pipelinehistory.repoEnablementRaw's own doc comment) — and " +
+			"every pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo skip) — " +
+			"a real absence, not an evidence gap",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no pipeline-based " +
-			"evidence at all and the GHAzDO repo-enablement query itself failed with anything other than a " +
-			"404 — including a 403 (most likely the token lacks the vso.advsec scope; licensing is ruled " +
+			"evidence at all and the GHAzDO repo-enablement query itself failed, for any reason — a 404 " +
+			"(issue #236: what actually produces one remains genuinely unconfirmed [fixture-verify]; no " +
+			"longer treated as equivalent to confirmed-off, unlike an earlier version of this check) or a " +
+			"403 (most likely the token lacks the vso.advsec scope; licensing is ruled " +
 			"out as the cause — observed 2026-07-23 against dev.azure.com/seciq: an unlicensed org/project's " +
 			"enablement endpoint reads HTTP 200, not 403 — but other permission causes can't be excluded " +
-			"from the response alone) " +
+			"from the response alone) or any other API error " +
 			"— an unresolved unknown, not a confirmed absence; or one or more " +
 			"of this repo's own pipelines could not be fully inspected (a build-definition fetch failure, an " +
 			"unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see " +
@@ -304,24 +325,28 @@ var checkRubrics = map[string]map[model.Status]string{
 			"still succeeded but the exclusion caps the result at partial; or a matched SCA pipeline ran for " +
 			"every evaluated release, but not every build succeeded",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SCA builds " +
-			"at all (not even a failed one), and — when there are zero matched pipelines overall — every " +
-			"pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo skip)",
+			"at all (not even a failed one), and — when there are zero matched pipelines overall — the " +
+			"GHAzDO repo-enablement query itself succeeded (issue #244: an enablement-query failure routes " +
+			"to not-checkable instead, see below) and every pipeline MatchPipelines inspected for this " +
+			"repo resolved cleanly (no same-repo skip)",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or resolving this repo's release " +
 			"tags failed (403/other API error) — unlike the four other checks in this package, this failure " +
 			"is local to this check alone (see the package doc comment's judgment call 6); or GHAzDO " +
 			"dependency scanning injection is this repo's ONLY SCA evidence (no signature-matched pipeline " +
 			"at all) — injected scanning runs invisibly to this collector's own build-matching, so this check " +
 			"has no verified way to observe it per release (see the package doc comment's judgment call 7); " +
-			"or there are zero matched pipelines and one or more of this repo's own pipelines could not be " +
-			"fully inspected (see Facts.skipped_pipelines) — the same evidence gap C06.sca.tool-configured " +
-			"itself goes not-checkable for, so this check does too rather than asserting a confident absence " +
-			"over it — when dependency scanning injection is ALSO the sole evidence, that cause wins and is " +
-			"what this Reason names (the skip is still recorded in Facts, just not the stated cause), since " +
-			"the skip wording would otherwise contradict tool-configured's verified-pass for the identical " +
-			"evidence (see the package doc comment's judgment call 7); or no release tag matches the " +
-			"configured pattern within the lookback window, and none of the tags that did match were dropped " +
-			"as unresolvable either — genuinely nothing to evaluate; or the project's build history itself " +
-			"could not be fetched",
+			"or there are zero matched pipelines and either the GHAzDO repo-enablement query itself failed " +
+			"(issue #244: whether dependency scanning injection covers this repo instead can't be confirmed " +
+			"either, the same evidence gap C06.sca.tool-configured itself goes not-checkable for since issue " +
+			"#236) or one or more of this repo's own pipelines could not be fully inspected (see " +
+			"Facts.skipped_pipelines) — this check goes not-checkable rather than asserting a confident " +
+			"absence over either gap — when dependency scanning injection is ALSO the sole evidence, that " +
+			"cause wins and is what this Reason names (a same-repo skip is still recorded in Facts, just not " +
+			"the stated cause when injection explains the status), since the skip/enablement-failure wording " +
+			"would otherwise contradict tool-configured's verified-pass for the identical evidence (see the " +
+			"package doc comment's judgment call 7); or no release tag matches the configured pattern within " +
+			"the lookback window, and none of the tags that did match were dropped as unresolvable either " +
+			"— genuinely nothing to evaluate; or the project's build history itself could not be fetched",
 	},
 	idDependabotConfig: {
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or (the common case) Azure DevOps " +
@@ -584,7 +609,7 @@ func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoNa
 
 	return []model.CheckResult{
 		checkToolConfigured(scope.Org, repoName, matched, sameRepoSkips, enablement, enablementErr, toolConfiguredProv),
-		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, relErr, buildsErr, injectionOnly, hasMatchedPipelines, sameRepoSkips, sharedProv),
+		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, relErr, buildsErr, enablementErr, injectionOnly, hasMatchedPipelines, sameRepoSkips, sharedProv),
 		checkDependabotConfig(scope.Org, repoName),
 		checkDependencyReview(scope.Org, repoName),
 		checkAlertsTriaged(scope.Org, repoName, criticalCount, oldestAgeDays, oldestAgeKnown, alertsErr, alertsProv),

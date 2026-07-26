@@ -164,6 +164,22 @@ All notable changes to this project are documented here. Format follows
   signal is lost for a genuinely-off org: that state was always observable as this same
   HTTP-200-false response, proven by a pre-existing test unaffected by this change. The
   now-unused `isAdvSecNotFoundErr` predicate is removed rather than left orphaned.
+- **C06.sca.tool-configured and C06.sca.ran-per-release (Azure DevOps): stop letting an
+  unconfirmed 404 justify a verified-fail** (#236, #244). The same defect #226 fixed in
+  C05 existed twice over in C06: `tool-configured` special-cased a 404 as confirmed-off
+  and fell through to normal pass/fail logic, and `ran-per-release`'s own
+  zero-matched-pipelines guard checked only `len(sameRepoSkips) > 0`, never the
+  repo-enablement query's own error — so a 404 with zero matched pipelines and no
+  same-repo skip still reached the same confirmed-verdict logic as a real absence.
+  Fixing only one of the two (as an earlier version of this change did, in the PR that
+  became this one and #235) left C06 internally contradictory in exactly the way this
+  fix exists to prevent: `tool-configured` reading not-checkable next to
+  `ran-per-release` reading verified-fail for the identical evidence gap. Both checks
+  now require the enablement query to have succeeded before asserting any confirmed
+  pass/fail, routing every enablement error — 404 included — to not-checkable, mirroring
+  #226/#235's identical fix in C05 exactly. `ran-per-release`'s combined guard also
+  preserves `Facts.dropped_tags` unconditionally rather than only when a same-repo skip
+  is also present, closing a Facts-loss gap review found in this same guard shape in C05.
 - **C05.sast.ran-per-release: the sibling gap #226 didn't reach** (#235). #226 fixed
   `C05.sast.tool-configured` to go `not-checkable` on any repo-enablement error, but
   never touched `checkRanPerRelease`, which reads the identical enablement result via

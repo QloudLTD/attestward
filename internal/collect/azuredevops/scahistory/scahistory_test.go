@@ -440,6 +440,58 @@ func TestCollect_SameRepoSkip_ToolConfiguredNotCheckableNotFail(t *testing.T) {
 	}
 }
 
+// --- issues #236/#244: GHAzDO repo-enablement gating ---
+
+// TestCollect_Enablement404_NoOtherEvidence_ToolConfiguredNotCheckable is
+// the regression test for issue #236, C06's twin of issue #226: a 404 used
+// to produce a confirmed verified-fail here (treated as equivalent to
+// "dependency scanning injection off" by deliberate policy) — this
+// asserted more than the evidence supported. S9's live run (issue #190)
+// established an unlicensed org/project reads HTTP 200 with every flag
+// false/null, never 404, so a 404 no longer has any confirmed meaning
+// here at all. A licensed org with GHAzDO dependency scanning injection
+// genuinely ON, scanned when this endpoint's pinned preview API version
+// is eventually retired or returns a 404 for any other reason, must never
+// read as a confirmed fail just because this collector can't see the real
+// state — a 404 now goes not-checkable, exactly like a 403 already did
+// (see TestCollect_AlertsQuery403_AlertsTriagedNotCheckable for the
+// analogous alerts-triaged case) and exactly like every other error this
+// check's own guard already handled.
+//
+// C06.sca.ran-per-release had the identical sibling gap #235 fixed for C05
+// (its own injectionOnly guard also required enablementErr == nil) —
+// originally out of scope for #236 (tool-configured-only), but folded in
+// here as #244 once independent review of the combined #235/#236 PR found
+// that deferring it would ship exactly the "two panels of one pack,
+// opposite claims" contradiction #236 exists to remove, one collector
+// over. Asserted below alongside tool-configured, proving the two checks
+// no longer disagree for the identical scenario.
+func TestCollect_Enablement404_NoOtherEvidence_ToolConfiguredNotCheckable(t *testing.T) {
+	fx := adofixture.New()
+	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	registerPipelines(fx)
+	registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+	registerCommitDate(fx, testRepoID, "sha1", time.Now().UTC().AddDate(0, 0, -5))
+	fx.Set("GET", azuredevops.HostAdvSec, enablementPath(testRepoID), adofixture.Response{
+		Status: http.StatusNotFound, Body: map[string]any{"message": "not licensed"},
+	})
+	registerAlerts(fx, testRepoID)
+
+	c := newCollector(fx)
+	results, err := c.Collect(context.Background(), defaultScope())
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m[idToolConfigured].Status; got != model.StatusNotCheckable {
+		t.Errorf("tool-configured = %q, want not-checkable (a 404's cause is genuinely unconfirmed — must never read as a confirmed fail); reason=%q", got, m[idToolConfigured].Reason)
+	}
+	if got := m[idRanPerRelease].Status; got != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable (same evidence gap as tool-configured — a 404 means whether dependency scanning injection covers this repo can't be confirmed, so a confirmed absence can't be asserted either); reason=%q", got, m[idRanPerRelease].Reason)
+	}
+}
+
 // --- alerts-triaged ---
 
 func TestCollect_NoOpenCriticalAlerts_AlertsTriagedVerifiedPass(t *testing.T) {

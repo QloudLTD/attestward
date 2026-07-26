@@ -80,15 +80,29 @@ func advSecNotCheckableReason(err error, org, repo, what string) string {
 }
 
 // isAdvSecNotFoundErr reports whether err is a *azuredevops.StatusError
-// with status 404 specifically — duplicated from C05 sasthistory's
-// identical predicate (see this package's doc comment's judgment call 6
-// for why). A 403 is deliberately excluded from "confirmed absence"
-// treatment wherever this is checked: it most likely means this token
-// lacks the vso.advsec scope on an org where GHAzDO genuinely IS licensed
-// and configured, though other permission causes can't be excluded from
-// the response alone — see advSecNotCheckableReason's own doc comment for
-// why licensing itself is ruled out as the cause, and why that's a
-// narrower claim than it first looks.
+// with status 404 specifically.
+//
+// C05 sasthistory had an identical predicate; issue #226 deleted it
+// there, since its only use was a checkToolConfigured guard that used
+// isAdvSecNotFoundErr to LET a 404 fall through to confirmed pass/fail
+// logic instead of going not-checkable — the exact inference issue #226
+// found unsound (a 404's cause is genuinely unconfirmed, so it can't
+// justify a confirmed verdict either way). checkToolConfigured here had
+// the byte-identical guard and got the byte-identical fix (issue #236):
+// this predicate is no longer consulted there, and does NOT gate any
+// status decision anymore.
+//
+// Its one remaining call site is checkAlertsTriaged's error-handling
+// chain (below), and that usage is NOT the same class of inference —
+// assessed on its own merits, not deleted reflexively just because C05
+// could delete its copy (found in review of #236). Every branch
+// checkAlertsTriaged's err != nil handling can reach already returns
+// StatusNotCheckable; isAdvSecNotFoundErr only selects WHICH not-checkable
+// Reason text to write (a 404-specific explanation vs. the generic
+// advSecNotCheckableReason fallback) — it never upgrades or downgrades
+// the status itself, so there's no confirmed-absence claim resting on an
+// unconfirmed 404 here to fix. Both the 404-specific and the fallback
+// Reason text already say the cause is unconfirmed.
 func isAdvSecNotFoundErr(err error) bool {
 	var se *azuredevops.StatusError
 	return errors.As(err, &se) && se.StatusCode == http.StatusNotFound
@@ -120,17 +134,33 @@ func matchConfidence(matched []pipelinehistory.MatchedPipeline) (hasAny, hasHigh
 // GHAzDO signal this check treats as equivalent evidence to a real pipeline
 // match.
 //
-// It also guards against a subtler failure mode, mirroring C05's identical
-// guard: if there's no pipeline-based evidence at all (hasAny false) and
-// the GHAzDO repo-enablement query itself failed with anything other than
-// a 404, asserting verified-fail would claim a fact this collector doesn't
-// actually have evidence for — this check goes not-checkable instead. Only
-// a 404 is excluded from this guard — not because it's a confirmed "not
-// provisioned" fact (what a 404 actually means here remains genuinely
-// unconfirmed; see isAdvSecNotFoundErr's own doc comment) but because this
-// collector treats it as equivalent to "off" as a deliberate policy
-// choice — a 403 is deliberately NOT excluded, for the same reason C05's
-// identical guard excludes it (see isAdvSecNotFoundErr's own doc comment).
+// It also guards against a subtler failure mode: if there's no
+// pipeline-based evidence at all (hasAny false) and the GHAzDO
+// repo-enablement query itself failed, for ANY reason, no exceptions,
+// asserting verified-fail would claim a fact this collector doesn't
+// actually have evidence for — this check goes not-checkable instead.
+//
+// Every enablement error is treated identically here (issue #236,
+// mirroring C05's identical fix in issue #226): an earlier version
+// special-cased a 404 as "confirmed off" and let it fall through to the
+// normal pass/fail logic, on the belief that 404 meant "GHAzDO isn't
+// licensed" — S9's live run falsified that (issue #190): an unlicensed
+// org/project reads HTTP 200 with every flag false/null, never 404. That
+// left a signed verified-fail resting on an inference the evidence no
+// longer supports. Fixed by narrowing verified-fail to the one state
+// that's actually observable — enablementErr == nil (the query
+// succeeded) AND the response itself says dependencyScanningInjectionEnabled
+// == false, not inferred from a status code — and routing every error,
+// 404 included, to not-checkable. No signal is lost for a genuinely-off
+// org: that state was always observable as this same HTTP-200-false
+// response — only the false confirmation inferred from an unconfirmed
+// 404 is gone. A 403 was already routed here before this change (most
+// likely a missing vso.advsec scope; licensing itself IS ruled out as
+// the cause — see advSecNotCheckableReason above; other permission
+// causes can't be excluded from the response alone) — that part is
+// unchanged, only 404 now joins it instead of being treated as
+// equivalent to "off". isAdvSecNotFoundErr is no longer consulted here —
+// see its own doc comment for its one remaining use.
 //
 // sameRepoSkips are this repo's own entries from
 // pipelinehistory.MatchPipelines' skipped return (issue #178 — see the
@@ -156,7 +186,7 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 	}
 	hasSkips := len(sameRepoSkips) > 0
 
-	if !hasAny && enablementErr != nil && !isAdvSecNotFoundErr(enablementErr) {
+	if !hasAny && enablementErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("no SCA tool detected in any pipeline, and the GHAzDO repo-enablement query itself failed: %s", advSecNotCheckableReason(enablementErr, org, repo, "repo-enablement")),
@@ -237,21 +267,40 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 // C06.sca.tool-configured's own not-checkable for the identical evidence
 // (two panels of one pack, opposite claims).
 //
-// injectionOnly is checked BEFORE sameRepoSkips, and this precedence is
-// load-bearing, not incidental (pinned by
+// enablementErr joins that same guard as a third cause (issue #244,
+// mirroring C05 sasthistory's identical fix in issue #235): issue #236
+// narrowed checkToolConfigured's own verified-fail to require a genuinely
+// observed enablement response, routing every enablement error — 404
+// included — to not-checkable instead. That fix only touched
+// checkToolConfigured. This check reads the identical enablement result
+// but never gated on enablementErr at all, so the exact scenario #236
+// fixed for tool-configured — no matched pipelines, the enablement query
+// failed, so whether dependency scanning injection covers this repo can't
+// be confirmed — left ran-per-release falling through to the normal
+// coverage computation, which for zero matched pipelines always reads
+// CoverageMissing and reports verified-fail. That reintroduced the
+// identical "two panels of one pack, opposite claims" contradiction this
+// guard already exists to prevent, just reached through enablementErr
+// instead of sameRepoSkips. enablementErr can never be non-nil at the same
+// time injectionOnly is true — injectionOnly's own formula requires
+// enablementErr == nil — so this addition can't disturb the
+// injectionOnly-wins precedence discussed below.
+//
+// injectionOnly is checked BEFORE this combined guard, and that
+// precedence is load-bearing, not incidental (pinned by
 // TestCheckRanPerRelease_InjectionOnlyWithSkip_InjectionOnlyReasonWins):
 // when injectionOnly is true, checkToolConfigured has already reported
 // verified-pass for the identical evidence ("an SCA tool is configured").
-// The sameRepoSkips branch's own wording — "no matched SCA pipeline
-// evidence... a confirmed absence can't be asserted" — would be actively
-// wrong next to that verified-pass, not merely a worse explanation; it
-// reintroduces the exact cross-check contradiction this whole guard exists
-// to remove. The injectionOnly reason is correct regardless of whether a
-// same-repo skip also happened to exist, so it wins unconditionally when
-// both are true — a same-repo skip's Facts are still attached below so the
-// pack doesn't silently drop the record of an uninspectable pipeline just
-// because injection-only explains the status.
-func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, relErr, buildsErr error, injectionOnly, hasMatchedPipelines bool, sameRepoSkips []pipelinehistory.SkippedPipeline, prov []model.Provenance) model.CheckResult {
+// The combined guard's own wording — "no matched SCA pipeline evidence...
+// a confirmed absence can't be asserted" — would be actively wrong next to
+// that verified-pass, not merely a worse explanation; it reintroduces the
+// exact cross-check contradiction this whole guard exists to remove. The
+// injectionOnly reason is correct regardless of whether a same-repo skip
+// or an enablement error also happened to exist, so it wins
+// unconditionally when both are true — a same-repo skip's Facts are still
+// attached below so the pack doesn't silently drop the record of an
+// uninspectable pipeline just because injection-only explains the status.
+func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, relErr, buildsErr, enablementErr error, injectionOnly, hasMatchedPipelines bool, sameRepoSkips []pipelinehistory.SkippedPipeline, prov []model.Provenance) model.CheckResult {
 	const id = idRanPerRelease
 
 	if relErr != nil {
@@ -278,16 +327,37 @@ func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.Rel
 		return result
 	}
 
-	if !hasMatchedPipelines && len(sameRepoSkips) > 0 {
-		skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
-		for _, sp := range sameRepoSkips {
-			skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+	if !hasMatchedPipelines && (enablementErr != nil || len(sameRepoSkips) > 0) {
+		reason := "no matched SCA pipeline evidence"
+		switch {
+		case enablementErr != nil && len(sameRepoSkips) > 0:
+			reason += fmt.Sprintf(", the GHAzDO repo-enablement query itself failed (%s) so whether GHAzDO dependency scanning injection covers this repo instead can't be confirmed either, and %d pipeline(s) in this repo could not be fully inspected", advSecNotCheckableReason(enablementErr, org, repo, "repo-enablement"), len(sameRepoSkips))
+		case enablementErr != nil:
+			reason += fmt.Sprintf(", and the GHAzDO repo-enablement query itself failed, so whether GHAzDO dependency scanning injection covers this repo instead can't be confirmed either: %s", advSecNotCheckableReason(enablementErr, org, repo, "repo-enablement"))
+		default:
+			reason += fmt.Sprintf(", but %d pipeline(s) in this repo could not be fully inspected", len(sameRepoSkips))
+		}
+		reason += " — a confirmed absence can't be asserted over incomplete evidence"
+
+		// dropped_tags is included unconditionally, matching the later
+		// len(filteredReleases) == 0 branch's own convention (found in
+		// review of #245/#235's identical fix in sasthistory: an earlier
+		// version of that fix only ever set Facts when sameRepoSkips was
+		// non-empty, so a repo with dropped-but-undateable tags AND an
+		// enablement-query failure lost the dropped-tag record entirely).
+		facts := map[string]any{"dropped_tags": dropped}
+		if len(sameRepoSkips) > 0 {
+			skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
+			for _, sp := range sameRepoSkips {
+				skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+			}
+			facts["skipped_pipelines"] = skipDetails
 		}
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("no matched SCA pipeline evidence, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(sameRepoSkips)),
+			Reason: reason,
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-			Facts: map[string]any{"skipped_pipelines": skipDetails},
+			Facts: facts,
 		}
 	}
 

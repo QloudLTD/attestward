@@ -28,11 +28,17 @@ import "net/http"
 // project-level denial, an org policy restricting PAT access) can't be
 // excluded from the response alone. What actually produces a 404 for an
 // advsec endpoint remains genuinely unconfirmed [fixture-verify: no
-// recorded response covers it]. Every
-// advsec-backed check in this epic still treats a gated response as an
-// honest not-checkable rather than guessing further, so this predicate's
-// mechanical behavior (covering both codes) is unchanged — only the story
-// it told about what causes them has been corrected (issue #190).
+// recorded response covers it]. Every advsec-backed check in this epic NOW
+// treats a gated response as an honest not-checkable rather than guessing
+// further — this was not always true, and got there one collector at a
+// time: #226 (C05.sast.tool-configured), #235 (C05.sast.ran-per-release),
+// #236 (C06.sca.tool-configured), and #244 (C06.sca.ran-per-release) each
+// closed a case where a gated response used to fall through to a
+// confirmed verified-pass/verified-fail instead. This predicate's own
+// mechanical behavior (covering both codes) never changed across any of
+// that — only the story it told about what causes them has been corrected
+// (issue #190), and, separately, what every caller now does with that
+// story.
 func IsAdvSecGated(statusCode int) bool {
 	return statusCode == http.StatusForbidden || statusCode == http.StatusNotFound
 }
