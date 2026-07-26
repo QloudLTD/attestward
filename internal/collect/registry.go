@@ -79,17 +79,23 @@ type CheckMeta struct {
 	// (issue #176): a check whose results always have Repo empty could be
 	// genuinely org-scoped (e.g. C01 org-security) or, on Azure DevOps,
 	// project-scoped (e.g. C03 env-separation, C08 pipeline-security) —
-	// and ScopeRef.Project can't disambiguate that either, since the
-	// orchestrator stamps it onto every ADO result regardless of the
-	// check's own scope level (see ScopeRef.Project's doc comment).
-	// Renderers consult this rather than inferring scope level from
-	// (Repo, Project) presence at each call site, which is what let #176
-	// happen. Left unset (ScopeLevelOrg, the zero value) for the large
-	// majority of checks: a non-empty Repo resolves directly, and an
+	// and, for a Repo-empty result specifically, ScopeRef.Project can't be
+	// used to derive it either, because it's the other way around: the
+	// orchestrator populates ScopeRef.Project FROM this field for a
+	// Repo-empty result (issue #221; a Repo-non-empty result gets it too,
+	// but from Repo's presence, not from ScopeLevel — see ScopeRef.Project's
+	// own doc comment for the full rule), so inferring scope level from
+	// Project's presence would just be reading back what this field already
+	// determined for the one case that matters here. Renderers consult this
+	// rather than inferring scope level from (Repo, Project) presence at
+	// each call site, which is what let #176 happen. Left unset for the
+	// large majority of checks: a non-empty Repo resolves directly, and an
 	// unset value defaults to "org" — correct for GitHub and every
-	// genuinely org-scoped ADO check. Only set ScopeLevelProject for a
-	// check whose Repo is always empty AND whose control is
-	// project-scoped, not org-scoped.
+	// genuinely org-scoped ADO check. (Unset is NOT literally ScopeLevelOrg
+	// — that's a real, distinct value; see ScopeLevelOrg's own doc comment
+	// for why the two must be compared differently.) Only set
+	// ScopeLevelProject for a check whose Repo is always empty AND whose
+	// control is project-scoped, not org-scoped.
 	ScopeLevel ScopeLevel
 }
 

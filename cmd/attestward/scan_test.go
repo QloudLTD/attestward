@@ -537,6 +537,83 @@ func TestRunScan_BackfillsScopePlatformOntoEveryResult(t *testing.T) {
 	}
 }
 
+// TestRunScan_ProjectStampedWhenGenuinelyTrueOfTheResult pins issue #221:
+// stampResultsWithPlatform used to set Scope.Project on every result
+// unconditionally, so a signed Azure DevOps pack recorded a project scope
+// on org-wide findings too — e.g. C01.org.2fa-required, whose verdict has
+// nothing to do with any one project. Project is now kept for a result
+// whenever it's actually true of that result: a check registered
+// ScopeLevelProject (C03.env.exists), OR any result that carries a Repo
+// (C02.branch.protection-exists — an ADO repo genuinely lives inside a
+// project, so Project is real context there too, not a guess) — and
+// cleared only for a genuinely org-scoped result with neither
+// (C01.org.2fa-required). Deliberately uses three REAL registered check
+// IDs rather than fake ones, so the assertion exercises the real
+// collect.LookupPlatform/CheckMeta.ScopeLevel path stampResultsWithPlatform
+// now depends on — a synthetic, unregistered ID would take the
+// "not project-scoped" branch regardless of whether the lookup logic is
+// even correct, and prove nothing.
+//
+// The C01 fake result deliberately sets Scope.Project to "wrong-project"
+// rather than leaving it empty (found in review of #229): no real ADO
+// collector ever sets Project on an org-scoped result today, so leaving
+// it unset here would make this test pass identically whether
+// stampResultsWithPlatform actually clears the field or just trusts
+// whatever a collector already put there — the "orchestrator overwrites,
+// never preserves" property the doc comment on stampResultsWithPlatform
+// spends several lines asserting would be completely unpinned. Deleting
+// the function's `else { Scope.Project = "" }` branch entirely must fail
+// this test; it silently didn't before this fix.
+func TestRunScan_ProjectStampedWhenGenuinelyTrueOfTheResult(t *testing.T) {
+	collectors := []collect.Collector{
+		fakeScanCollector{id: "fake.mixed-scope", results: []model.CheckResult{
+			{CheckID: "C01.org.2fa-required", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo", Project: "wrong-project"}},
+			{CheckID: "C03.env.exists", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo", Project: "my-project"}},
+			{CheckID: "C02.branch.protection-exists", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo", Repo: "good-repo", Project: "my-project"}},
+		}},
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Platform: "azuredevops", Project: "my-project"}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+
+	byID := map[string]model.CheckResult{}
+	for _, r := range result.pack.Results {
+		byID[r.CheckID] = r
+	}
+
+	orgResult, ok := byID["C01.org.2fa-required"]
+	if !ok {
+		t.Fatal("C01.org.2fa-required missing from pack results")
+	}
+	if orgResult.Scope.Project != "" {
+		t.Errorf("C01.org.2fa-required (org-scoped, ScopeLevel unset, no Repo) Scope.Project = %q, want empty — an org-wide finding must not claim a project scope in the signed pack", orgResult.Scope.Project)
+	}
+
+	projResult, ok := byID["C03.env.exists"]
+	if !ok {
+		t.Fatal("C03.env.exists missing from pack results")
+	}
+	if projResult.Scope.Project != "my-project" {
+		t.Errorf("C03.env.exists (registered ScopeLevelProject) Scope.Project = %q, want my-project", projResult.Scope.Project)
+	}
+
+	repoResult, ok := byID["C02.branch.protection-exists"]
+	if !ok {
+		t.Fatal("C02.branch.protection-exists missing from pack results")
+	}
+	if repoResult.Scope.Project != "my-project" {
+		t.Errorf("C02.branch.protection-exists (repo-scoped, ScopeLevel unset, but has a Repo) Scope.Project = %q, want my-project — a repo genuinely lives inside a project, so this isn't a false claim", repoResult.Scope.Project)
+	}
+}
+
 // TestResolveScanToken_GitHub / TestResolveScanToken_AzureDevOps* pin issue
 // #148's token-sourcing branch: github reads GITHUB_TOKEN (unchanged from
 // before this issue), azuredevops reads AZURE_DEVOPS_EXT_PAT and never

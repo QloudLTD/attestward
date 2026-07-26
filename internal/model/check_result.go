@@ -27,12 +27,24 @@ type ScopeRef struct {
 	// set this field, and that must keep meaning exactly what it always
 	// meant now that a second platform exists, not become ambiguous.
 	Platform string `json:"platform,omitempty"`
-	// Project is the project scope of the scan that produced this result —
-	// stamped by the orchestrator from the scan's own config (cmd/attestward's
-	// runScan), not derived per-check. An org-level check has no project of
-	// its own, but still carries this to describe which scan produced it,
-	// same as every other result from that scan. Empty for GitHub checks,
-	// which have no project concept at this level.
+	// Project is the Azure DevOps project this result is genuinely within —
+	// stamped by the orchestrator (cmd/attestward's runScan) whenever it's
+	// actually true of the result: a check registered CheckMeta.ScopeLevel
+	// == ScopeLevelProject (the result has no repo of its own, only a
+	// project), or any result that has a Repo (an Azure DevOps repo lives
+	// inside a project — dev.azure.com/{org}/{project}/_apis/git/
+	// repositories/{repo} — so Project is real context for a repo-scoped
+	// result too, not a guess — this covers every GitHub repo-scoped check
+	// as well as every ADO one; it reads empty on GitHub only because
+	// cmd/attestward's scanConfig validation guarantees the scan's own
+	// project is always "" outside --platform azuredevops, not because
+	// GitHub results take a different branch here). Empty otherwise: a
+	// genuinely org-scoped result — no repo of its own, and not registered
+	// project-scoped. A signed pack asserting a project scope for a
+	// finding whose verdict isn't actually about one project would be a
+	// factual inaccuracy (issue #221) — the rule isn't "minimize how often
+	// this appears", it's
+	// "record it exactly where it's true".
 	Project string `json:"project,omitempty"`
 }
 

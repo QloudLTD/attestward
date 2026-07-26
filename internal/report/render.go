@@ -90,11 +90,18 @@ const scopeLevelProject = "project"
 // inference from (Repo, Project) presence. That inference is what
 // produced issue #176: an ADO project-scoped check (e.g. C03
 // env-separation) has Repo empty the same way a genuinely org-scoped
-// check does, and Scope.Project can't disambiguate them either — the
-// orchestrator stamps it onto every result from an ADO scan regardless of
-// the check's own scope level. A missing map entry defaults to the
-// org-level label. Returns a plain, unescaped string, same as Scope.Repo
-// itself (report.html auto-escapes; report.md/poam.md wrap it in esc()).
+// check does, and — for this Repo-empty case specifically — Scope.Project
+// can't be used to disambiguate them either: since issue #221, the
+// orchestrator derives a Repo-empty result's Scope.Project FROM this
+// exact scope-level registration (only ScopeLevelProject checks get one;
+// a Repo-non-empty result also keeps Project, but from Repo's presence,
+// not from this — see model.ScopeRef.Project's own doc comment for the
+// full rule, which doesn't matter here since this function already
+// returned scope.Repo for that case), so reading Project's presence here
+// would just be reading back what scopeLevelByCheckID already determined.
+// A missing map entry defaults to the org-level label. Returns a plain,
+// unescaped string, same as Scope.Repo itself (report.html auto-escapes;
+// report.md/poam.md wrap it in esc()).
 func scopeLabel(scope model.ScopeRef, checkID string, scopeLevelByCheckID map[string]string) string {
 	if scope.Repo != "" {
 		return scope.Repo

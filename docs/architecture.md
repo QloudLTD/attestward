@@ -155,13 +155,20 @@ Every `CheckResult` stores:
 
 `CheckResult.Scope` (`model.ScopeRef`) and `EvidencePack.Scope` (`model.ScanScope`) both
 additionally carry `Platform` (`"github"` or `"azuredevops"`) and `Project` (the Azure
-DevOps project name a scan is scoped to; always empty for a GitHub scan, which has no
-equivalent concept) — additive/optional fields (the v0.2 Azure DevOps epic, issue #34)
-requiring no `SchemaVersion` bump per the versioning policy below. The scan orchestrator, not each
-collector, stamps both fields from the scan's own resolved config, so every result from
-one scan — including the not-checkable ones the orchestrator synthesizes itself — is
-attributed consistently rather than trusting N collector implementations across two
-platforms to each remember to set them.
+DevOps project name; always empty for a GitHub scan, which has no equivalent concept) —
+additive/optional fields (the v0.2 Azure DevOps epic, issue #34) requiring no
+`SchemaVersion` bump per the versioning policy below. The scan orchestrator, not each
+collector, is authoritative for both — no collector's own value is trusted. `Platform`
+is stamped onto every result unconditionally, including the not-checkable ones the
+orchestrator synthesizes itself. `Project`, on `CheckResult.Scope` specifically, is
+stamped onto a result whenever it's genuinely true of that result: the check is
+registered project-scoped (`CheckMeta.ScopeLevel == ScopeLevelProject`, issue #176), or
+the result carries a `Repo` (an Azure DevOps repo lives inside a project, so `Project`
+is real context there too) — a genuinely org-scoped result (no repo of its own, not
+registered project-scoped) has it cleared instead: a signed pack asserting a project
+scope for a finding that isn't actually about one project would itself be a factual
+inaccuracy (issue #221). `EvidencePack.Scope.Project`, the pack-level field, is
+unaffected by this and still always records the scan's own `--project` value.
 
 Tokens are never stored. Anything secret-shaped is scrubbed defensively before persistence.
 

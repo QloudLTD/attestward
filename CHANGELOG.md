@@ -105,6 +105,21 @@ All notable changes to this project are documented here. Format follows
   category-matched pipeline"), so a same-repo skip has no bearing on their evidence — no
   fix needed there, and a stale forward-reference in `azuredevops/provenance`'s own
   rubric claiming otherwise is corrected.
+- **Azure DevOps packs no longer stamp `scope.project` onto genuinely org-scoped
+  results** (#221). `stampResultsWithPlatform` set every result's `Scope.Project` to
+  the scan's project unconditionally, so a signed `evidence.json` recorded a project
+  scope on org-wide findings too — e.g. `C01.org.2fa-required`, the org-level C09
+  audit-logging checks. Reports rendered correctly regardless (labelling keys off
+  `CheckMeta.ScopeLevel`, not `Scope.Project`'s presence — see #176), which is why this
+  went unnoticed: only the pack itself, the artifact that gets checksummed and
+  cosign-signed, carried the wrong claim. `Scope.Project` is now cleared only for a
+  result that's genuinely org-scoped (no repo of its own, and its check isn't
+  registered `ScopeLevelProject`); it's kept for project-scoped checks as before, and
+  now also for every repo-scoped result, since an Azure DevOps repo genuinely lives
+  inside a project — clearing it there would have removed accurate context, not a false
+  claim. No schema change and nothing to migrate: existing packs aren't rewritten, and
+  no downstream consumer reads `scope.project` on a per-result basis (`internal/report`'s
+  own renderers do, but only for the checks that keep it, so they're unaffected).
 
 ### Changed
 

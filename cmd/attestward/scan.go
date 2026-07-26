@@ -541,14 +541,82 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 	return scanResult{pack: pack, exitCode: computeExitCode(results)}, nil
 }
 
-// stampResultsWithPlatform sets every result's Scope.Platform/Project to
-// the scan's own platform/project, in place, overwriting whatever (if
-// anything) a collector already set — the orchestrator is authoritative
-// here, not each collector; see runScan's call site for why.
+// stampResultsWithPlatform sets every result's Scope.Platform to the scan's
+// own platform, in place, overwriting whatever (if anything) a collector
+// already set — the orchestrator is authoritative here, not each collector;
+// see runScan's call site for why.
+//
+// Scope.Project gets the same overwrite treatment, but only where it's
+// actually true of the result: for a check registered ScopeLevelProject
+// (its result has no repo of its own, only a project), or for any result
+// that has a Repo (an Azure DevOps repo genuinely lives inside a project —
+// dev.azure.com/{org}/{project}/_apis/git/repositories/{repo} — so Project
+// is real context there too, not a guess). Every other result — org-scoped
+// checks with no repo of their own, and any check with no registered
+// CheckMeta at all (self-attestation's SA.* results never register one) —
+// has Scope.Project cleared to "" here regardless of what a collector may
+// have set, so a signed pack never claims a project scope for a finding
+// whose verdict isn't actually about one (issue #221: previously every
+// result got the scan's project unconditionally, so e.g. an Azure DevOps
+// C01.org.2fa-required result — an org-wide finding — carried
+// scope.project as if it meant something).
+//
+// The two conditions aren't symmetric with each other on purpose: the
+// point was never "minimize how often Project appears", it's "never assert
+// a project scope the evidence doesn't support" — so the rule is Project
+// is recorded when the result is genuinely within one, empty when it
+// isn't. Don't collapse this back to a single ScopeLevelProject check: that
+// reads cleaner but clears Project from every repo-scoped result too,
+// which isn't a false claim to begin with, only stricter than the defect
+// required (found in review of #221).
+//
+// Lookup failure (ok == false) takes the same "not project-scoped" branch
+// as an explicit collect.ScopeLevelOrg when Repo is also empty:
+// CheckMeta.ScopeLevel's own doc comment is explicit that "" (unset) and
+// "org" both mean org-scoped, and treating a lookup miss identically to
+// "org" is the same convention buildScopeLevelByCheckID
+// (cmd/attestward/report.go) already applies for rendering.
+//
+// Re-derives Project from this function's own project parameter rather
+// than preserving whatever value a result's Scope.Project already carries:
+// every azuredevops collector reads project from collect.Scope.Project at
+// Collect time (not a constructor argument — see e.g. auditlogging's own
+// package doc comment), and runScan builds that Scope with the exact same
+// cfg.Project this function is called with (both trace back to the one
+// cfg.Project above), so for any real collector the two can never
+// disagree — re-deriving costs nothing extra today. It buys something for
+// tomorrow: a future collector that forgets to set Project (or sets it
+// wrong) still produces a correct pack, because the orchestrator doesn't
+// trust each collector to get this right any more than it already does
+// for Platform.
+//
+// One trade-off worth naming rather than leaving implicit (found in
+// review of #229): re-deriving means every Repo-carrying result gets
+// stamped with the scan's own scanned project unconditionally, on the
+// assumption that a result's Repo always belongs to that project. Every
+// ADO repo-listing route this tool calls today (repoprotection.go,
+// pipelinehistory.FetchRepositories, vdp/resolve.go) is itself
+// project-scoped, and every collector's repo set is scope.Repos filtered
+// against that one project's own list — so the assumption holds for
+// everything reachable today. If a future ADO collector legitimately
+// named a repo living in a DIFFERENT project (a cross-project pipeline
+// resource reference is the plausible shape), re-deriving would silently
+// stamp the wrong project onto that one result — reintroducing #221's
+// exact defect class under a different trigger. Preserving the
+// collector's own Project would be more robust against that specific,
+// currently-unreachable case; re-deriving was chosen anyway because it's
+// strictly safer against every case that's reachable today. Seen, not
+// missed — reconsider if a collector like that ever lands.
 func stampResultsWithPlatform(results []model.CheckResult, platform, project string) {
 	for i := range results {
 		results[i].Scope.Platform = platform
-		results[i].Scope.Project = project
+		meta, ok := collect.LookupPlatform(platform, results[i].CheckID)
+		isProjectScopedCheck := ok && meta.ScopeLevel == collect.ScopeLevelProject
+		if isProjectScopedCheck || results[i].Scope.Repo != "" {
+			results[i].Scope.Project = project
+		} else {
+			results[i].Scope.Project = ""
+		}
 	}
 }
 
