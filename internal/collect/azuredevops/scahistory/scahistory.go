@@ -68,18 +68,22 @@
 //     following the story's specified query, not an oversight. The
 //     404-confirmed/403-ambiguous split mirrors C05's
 //     (isAdvSecNotFoundErr/advSecNotCheckableReason, duplicated here
-//     rather than shared — see judgment call 6 below), but a confirmed 404
-//     maps to NOT-CHECKABLE here, not verified-fail (found in review,
-//     correcting this check's original design): "GHAzDO isn't licensed"
-//     is only a likely reading of 404, still [fixture-verify] like every
-//     other advsec-backed check in this epic, and the GitHub twin's own
-//     doc comment for its analogous check records this exact style of
-//     assumption failing once already for a different endpoint. This is a
-//     deliberate, temporary conservatism — issue #34/#155's S9 is the
-//     named point to revisit and likely upgrade this to verified-fail once
-//     the evidence bar is actually met (see checkAlertsTriaged's own doc
-//     comment). A 403 stays ambiguous/not-checkable regardless, same as
-//     every other advsec-backed check in this epic.
+//     rather than shared — see judgment call 6 below). A confirmed 404
+//     stays NOT-CHECKABLE (found in review, correcting this check's
+//     original design: "GHAzDO isn't licensed" was only ever a likely
+//     reading of 404, and the GitHub twin's own doc comment for its
+//     analogous check records this exact style of assumption failing once
+//     already for a different endpoint) — deliberately conservative rather
+//     than a guess. S9's live run (2026-07-23, dev.azure.com/seciq)
+//     resolved which guess was right: the confirmed-not-enabled signal
+//     turned out to be neither 404 nor 403 at all, but HTTP 400 with
+//     typeKey AdvSecNotEnabledException — issue #190 added
+//     isAdvSecNotEnabledErr to match it and graduated THAT case to
+//     verified-fail (mirroring the GitHub twin's own confirmed-disabled ->
+//     verified-fail treatment), while 404 stays not-checkable since S9
+//     recorded no response for it specifically — see checkAlertsTriaged's
+//     own doc comment. A 403 stays ambiguous/not-checkable regardless,
+//     same as every other advsec-backed check in this epic.
 //
 //     Also found in review: a repo whose active criticals ALL have an
 //     unparseable firstSeenDate must not read as verified-pass over
@@ -277,8 +281,11 @@ var checkRubrics = map[string]map[model.Status]string{
 			"resolved cleanly (no same-repo skip) — a real absence, not an evidence gap",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no pipeline-based " +
 			"evidence at all and the GHAzDO repo-enablement query itself failed with anything other than a " +
-			"404 — including a 403, ambiguous between a missing vso.advsec scope and an unlicensed " +
-			"org/project [fixture-verify] — an unresolved unknown, not a confirmed absence; or one or more " +
+			"404 — including a 403 (most likely the token lacks the vso.advsec scope; licensing is ruled " +
+			"out as the cause — observed 2026-07-23 against dev.azure.com/seciq: an unlicensed org/project's " +
+			"enablement endpoint reads HTTP 200, not 403 — but other permission causes can't be excluded " +
+			"from the response alone) " +
+			"— an unresolved unknown, not a confirmed absence; or one or more " +
 			"of this repo's own pipelines could not be fully inspected (a build-definition fetch failure, an " +
 			"unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see " +
 			"Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail " +
@@ -336,12 +343,19 @@ var checkRubrics = map[string]map[model.Status]string{
 			"and the oldest has been open longer than the %.0f-day triage window; or one or more active "+
 			"critical alerts were found but none of their firstSeenDate values could be parsed, so their "+
 			"age relative to the %.0f-day window is genuinely unknown", criticalTriageThresholdDays, criticalTriageThresholdDays),
+		model.StatusVerifiedFail: "the alerts query failed with HTTP 400 and typeKey AdvSecNotEnabledException " +
+			"— a confirmed signal GHAzDO dependency-scanning alerts are not enabled for this repository " +
+			"(observed 2026-07-23 against dev.azure.com/seciq), a real compliance gap rather than an " +
+			"unresolved unknown; matches the GitHub twin's identical treatment of its own confirmed-disabled " +
+			"signal",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or the alerts query returned 404 — " +
-			"likely means GHAzDO isn't licensed for this org/project, but that reading is unconfirmed " +
-			"[fixture-verify, issue #34/#155's S9 pass — see checkAlertsTriaged's own doc comment for why " +
-			"this stays not-checkable, not verified-fail, until then]; or the alerts query failed with a " +
-			"403 (ambiguous between a missing vso.advsec scope and an unlicensed org/project [fixture-verify]) " +
-			"or another API error",
+			"the cause is unconfirmed: S9's 2026-07-23 live run against dev.azure.com/seciq settled the " +
+			"confirmed-not-enabled signal as HTTP 400 with typeKey AdvSecNotEnabledException (see the " +
+			"verified-fail row above), not 404, so licensing/not-enabled is no longer a plausible " +
+			"explanation for a 404 here [fixture-verify: no recorded response covers what actually produces " +
+			"one]; or the alerts query failed with a 403 (ambiguous: either a missing vso.advsec scope or " +
+			"some other cause this collector can't distinguish from the response alone [fixture-verify: no " +
+			"recorded response covers a 403 from this endpoint]) or another API error",
 	},
 }
 

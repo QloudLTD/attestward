@@ -47,14 +47,23 @@
 // auditlogging's consumerInputs omission and C09's serviceHookSubscriptionRaw
 // already established for this epic.
 //
-// advsec-unavailable (GHAzDO not licensed for this org/project) is reported
-// via azuredevops.IsAdvSecGated, the same [fixture-verify] 403-vs-404 hedge
-// every other advsec-backed check in this epic carries — Microsoft's own
-// REST reference never states which status an unlicensed org/project
-// returns here, so this collector never asserts a confirmed "disabled"
-// state from an ambiguous gated response, mirroring the honest hedging
-// internal/collect/github/vdp's own C10.vdp.private-reporting rubric
-// established for GitHub's own similarly-undocumented plan-gate behavior.
+// C04.org.security-defaults' own advsec-unavailable path (a 403/404 from
+// the org-level enablement query) is reported via azuredevops.IsAdvSecGated
+// — but "GHAzDO not licensed for this org/project" is no longer the
+// premise behind that path (issue #190): S9's live run (2026-07-23,
+// dev.azure.com/seciq, GHAzDO-unlicensed) found the org-level enablement
+// query returns HTTP 200 with every enablementOnCreateSettings field false
+// for an unlicensed org, not a 403/404 — checkOrgSecurityDefaults correctly
+// reads that as a real, verifiable verified-fail, not the ambiguous gated
+// path at all. A 403/404 that DOES reach IsAdvSecGated is a genuinely
+// different situation now that licensing is ruled out as the cause — see
+// IsAdvSecGated's own doc comment and advSecGatedReason below for the
+// distinction between what's ruled out (licensing) and what's only the
+// most likely remaining explanation, not an observed fact (403: the token
+// probably lacks the vso.advsec scope — S9's own scan PAT already carried
+// it, so a missing-scope 403 was never actually reachable in that run
+// either) versus what remains [fixture-verify] (404: no recorded response
+// covers it).
 package secretshygiene
 
 import (
@@ -136,12 +145,26 @@ const sharedRepoFetchFailedRubric = "the repo enablement fetch itself failed wit
 	"advsec-unavailable case specifically)"
 
 // sharedAdvSecGatedRubric is shared by every advsec-backed check (all five
-// mirrored checks) — see the package doc comment for the full
-// [fixture-verify] hedge this text summarizes.
-const sharedAdvSecGatedRubric = "the call failed with a response azuredevops.IsAdvSecGated treats as " +
-	"GHAzDO not being licensed/enabled for this org/project (403 or 404) — Microsoft's own REST reference " +
-	"never states which of the two an unlicensed org/project actually returns here [fixture-verify], so this " +
-	"is never asserted as a confirmed \"disabled\" state, only an honest unknown"
+// mirrored checks) — see advSecGatedReason's own doc comment for the full
+// story this summarizes (issue #190, updated by issue #225's review): GHAzDO
+// not being licensed/enabled is RULED OUT as the cause of a 403/404 reaching
+// azuredevops.IsAdvSecGated (observed 2026-07-23 against dev.azure.com/seciq
+// — an unlicensed org/project's enablement endpoints read HTTP 200 with
+// every flag false/null instead), not an open question the way this text
+// used to read. A 403 most likely means the token lacks the vso.advsec
+// scope, but that's the most likely remaining explanation, not an observed
+// fact — S9's own scan PAT already carried that scope, so a missing-scope
+// 403 was never actually reachable in that run; other permission causes
+// can't be excluded from the response alone. What actually produces a 404
+// remains genuinely unconfirmed [fixture-verify].
+const sharedAdvSecGatedRubric = "the call failed with a response azuredevops.IsAdvSecGated treats specially " +
+	"(403 or 404) — GHAzDO not being licensed/enabled for this org/project is ruled out as the cause " +
+	"(observed 2026-07-23 against dev.azure.com/seciq: an unlicensed org/project's enablement endpoints " +
+	"read HTTP 200 with every flag false/null instead, not 403/404 at all); a 403 most likely means the " +
+	"token lacks the vso.advsec scope, though other permission causes (tenant conditional access, an IP " +
+	"allow-list, project-level denial, an org policy restricting PAT access) can't be excluded from the " +
+	"response alone; what actually produces a 404 remains genuinely unconfirmed [fixture-verify] — neither " +
+	"is asserted as more than that"
 
 // checkRubrics gives each check's own concrete meaning for every status it
 // can actually produce. Like the GitHub twin, no check in this package can
@@ -673,18 +696,45 @@ func isAdvSecGated(err error) bool {
 	return errors.As(err, &se) && azuredevops.IsAdvSecGated(se.StatusCode)
 }
 
-// advSecGatedReason names the exact honest hedge the package doc comment
-// describes, rather than asserting a confirmed "disabled" state.
+// advSecGatedReason names what a 403/404 from an org- or repo-level
+// enablement query means now that S9's live run settled the licensing
+// question (issue #190): observed 2026-07-23 against dev.azure.com/seciq
+// (GHAzDO-unlicensed), both the org-level (management/enablement) and
+// repo-level (management/repositories/{repo}/enablement) endpoints
+// returned HTTP 200 with every enablement flag false/null, NOT a 403/404 —
+// see checkOrgSecurityDefaults and collectRepo, both of which report that
+// case as a real verified-fail rather than routing through this function
+// at all. So a 403/404 that DOES reach here is no longer read as "maybe
+// unlicensed" — but that's narrower than it first looks (issue #225
+// review): S9's own scan PAT already carried vso.advsec, so a
+// missing-scope 403 was never actually reachable in that run either. What's
+// confirmed is only that licensing ISN'T the cause; "the token lacks the
+// vso.advsec scope" is the most likely remaining explanation for a 403, not
+// an observed fact — other permission causes (tenant conditional access, an
+// IP allow-list, project-level denial, an org policy restricting PAT
+// access) can't be excluded from the response alone. 404 remains genuinely
+// unconfirmed. The returned strings below stay citation-free on purpose:
+// they land in a specific customer's own Reason (evidence.json/report.md),
+// and naming a third party's org/date there would be confusing at best,
+// leaking at worst — the citation belongs here and in the generated
+// rubric (sharedAdvSecGatedRubric), not in a customer's signed pack.
 func advSecGatedReason(err error, what string) string {
 	var se *azuredevops.StatusError
-	statusCode := 0
 	if errors.As(err, &se) {
-		statusCode = se.StatusCode
+		switch se.StatusCode {
+		case http.StatusForbidden:
+			return fmt.Sprintf("most likely the token lacks the vso.advsec scope needed to read %s's GHAzDO "+
+				"enablement (403) — licensing is ruled out as the cause (an unlicensed org/project's "+
+				"enablement endpoint reads HTTP 200, not 403); other permission causes can't be excluded "+
+				"from the response alone", what)
+		case http.StatusNotFound:
+			return fmt.Sprintf("GHAzDO enablement query for %s returned 404 — the cause is unconfirmed: "+
+				"an unlicensed org/project reads HTTP 200 with every flag false instead, so licensing is "+
+				"not a likely explanation for a 404 here — what actually produces one remains open "+
+				"[fixture-verify]", what)
+		}
 	}
-	return fmt.Sprintf("GHAzDO (GitHub Advanced Security for Azure DevOps) doesn't appear to be licensed "+
-		"or enabled for %s (status %d) — Microsoft's own REST reference doesn't document whether an "+
-		"unlicensed org/project returns 403 or 404 here, so this can't be confirmed as \"disabled\" with "+
-		"full confidence [fixture-verify]", what, statusCode)
+	return fmt.Sprintf("GHAzDO enablement query for %s failed: %v", what, err)
 }
 
 // apiErrorReason turns a non-advsec-gated failure into a Reason string,

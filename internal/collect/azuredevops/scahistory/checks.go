@@ -18,33 +18,62 @@ import (
 // a judgment.
 const criticalTriageThresholdDays = 30.0
 
-// advSecNotCheckableReason distinguishes a 404 (a confirmed "GHAzDO isn't
-// licensed for this org/project" fact) from a 403 (genuinely ambiguous: a
-// missing vso.advsec scope reads identically to an unlicensed
-// org/project), falling back to a generic message otherwise. what names
-// which GHAzDO query failed ("repo-enablement" or "dependency-alerts") so
-// the same helper serves both call sites in this package. Duplicated from
-// C05 sasthistory's identical-shaped helper — see the package doc
-// comment's judgment call 6 for why this isn't hoisted into a shared
-// location yet. Both gated cases remain [fixture-verify]: which of 403/404
-// (or both) a real unlicensed-org response actually returns is unconfirmed
-// until issue #34/#155's S9 empirical pass.
+// advSecNotCheckableReason distinguishes a 404 from a 403, falling back to
+// a generic message otherwise. what names which GHAzDO query failed
+// ("repo-enablement" or "dependency-alerts") so the same helper serves both
+// call sites in this package, but only "repo-enablement" carries a direct
+// empirical citation (issue #190): S9's live run (2026-07-23,
+// dev.azure.com/seciq, GHAzDO-unlicensed) observed the repo-enablement
+// endpoint returning HTTP 200 with every flag false/null, never 403/404 —
+// see pipelinehistory.FetchRepoEnablement's own doc comment for the same
+// finding. That's narrower than it first looks (issue #225 review): S9's
+// own scan PAT already carried vso.advsec, so a missing-scope 403 was
+// never actually reachable in that run either — what's confirmed is only
+// that licensing ISN'T the cause of a 403/404 reaching this function for
+// the repo-enablement endpoint. "The token lacks the vso.advsec scope" is
+// the most likely remaining explanation for a 403 there, not an observed
+// fact; other permission causes can't be excluded from the response alone.
+// The dependency-alerts endpoint's own not-enabled signal is a confirmed
+// HTTP 400 with typeKey AdvSecNotEnabledException (see
+// isAdvSecNotEnabledErr, matched before this fallback is ever reached for
+// that call site), but S9 recorded nothing about what a 403/404 from THAT
+// specific endpoint means, so its hedge stays [fixture-verify] rather than
+// borrowing the repo-enablement endpoint's answer for an endpoint that was
+// never tested. The Reason strings below stay citation-free on purpose:
+// they land in a specific customer's own evidence.json/report.md, and
+// naming a third party's org/date there would be confusing at best,
+// leaking at worst — the citation belongs here and in the generated
+// rubric, not in a customer's signed pack. Duplicated from C05
+// sasthistory's identical-shaped helper — see the package doc comment's
+// judgment call 6 for why this isn't hoisted into a shared location yet.
 func advSecNotCheckableReason(err error, org, repo, what string) string {
 	var se *azuredevops.StatusError
 	if errors.As(err, &se) {
+		enablementConfirmed := what == "repo-enablement"
 		switch se.StatusCode {
 		case http.StatusNotFound:
+			if enablementConfirmed {
+				return fmt.Sprintf(
+					"GHAzDO %s query returned 404 for %s/%s — the cause is unconfirmed: an unlicensed "+
+						"org/project reads HTTP 200 with every flag false/null instead, so licensing is "+
+						"not a likely explanation for a 404 here — what actually produces one remains "+
+						"open [fixture-verify]", what, org, repo)
+			}
 			return fmt.Sprintf(
-				"GHAzDO %s query returned 404 for %s/%s — GHAzDO (GitHub Advanced Security for Azure DevOps) "+
-					"isn't licensed for this org/project [fixture-verify: whether 404 always means specifically "+
-					"this, rather than some other absence, is unconfirmed until issue #34/#155's S9 empirical "+
-					"pass]", what, org, repo)
+				"GHAzDO %s query returned 404 for %s/%s — the cause is unconfirmed [fixture-verify: no "+
+					"recorded response covers what a 404 from this endpoint specifically means]", what, org, repo)
 		case http.StatusForbidden:
+			if enablementConfirmed {
+				return fmt.Sprintf(
+					"GHAzDO %s query returned 403 for %s/%s — most likely the token lacks the vso.advsec "+
+						"scope (licensing is ruled out as the cause: an unlicensed org/project's enablement "+
+						"endpoint reads HTTP 200, not 403); other permission causes can't be excluded from "+
+						"the response alone", what, org, repo)
+			}
 			return fmt.Sprintf(
 				"GHAzDO %s query returned 403 for %s/%s — ambiguous: either the token lacks the vso.advsec "+
-					"scope, or the org/project isn't licensed for GHAzDO; Azure DevOps returns the same status "+
-					"for both, so this can't be told apart from the response alone [fixture-verify, issue "+
-					"#34/#155's S9 pass]", what, org, repo)
+					"scope, or some other cause this collector can't distinguish from the response alone "+
+					"[fixture-verify: no recorded response covers a 403 from this specific endpoint]", what, org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query GHAzDO %s for %s/%s: %v", what, org, repo, err)
@@ -54,9 +83,12 @@ func advSecNotCheckableReason(err error, org, repo, what string) string {
 // with status 404 specifically — duplicated from C05 sasthistory's
 // identical predicate (see this package's doc comment's judgment call 6
 // for why). A 403 is deliberately excluded from "confirmed absence"
-// treatment wherever this is checked: it can mean either genuine
-// unlicensing OR simply that this token lacks the vso.advsec scope on an
-// org where GHAzDO genuinely IS licensed and configured.
+// treatment wherever this is checked: it most likely means this token
+// lacks the vso.advsec scope on an org where GHAzDO genuinely IS licensed
+// and configured, though other permission causes can't be excluded from
+// the response alone — see advSecNotCheckableReason's own doc comment for
+// why licensing itself is ruled out as the cause, and why that's a
+// narrower claim than it first looks.
 func isAdvSecNotFoundErr(err error) bool {
 	var se *azuredevops.StatusError
 	return errors.As(err, &se) && se.StatusCode == http.StatusNotFound
@@ -93,9 +125,12 @@ func matchConfidence(matched []pipelinehistory.MatchedPipeline) (hasAny, hasHigh
 // the GHAzDO repo-enablement query itself failed with anything other than
 // a 404, asserting verified-fail would claim a fact this collector doesn't
 // actually have evidence for — this check goes not-checkable instead. Only
-// a 404 is excluded from this guard (a confirmed "not provisioned" fact) —
-// a 403 is deliberately NOT excluded, for the same reason C05's identical
-// guard excludes it (see isAdvSecNotFoundErr's own doc comment).
+// a 404 is excluded from this guard — not because it's a confirmed "not
+// provisioned" fact (what a 404 actually means here remains genuinely
+// unconfirmed; see isAdvSecNotFoundErr's own doc comment) but because this
+// collector treats it as equivalent to "off" as a deliberate policy
+// choice — a 403 is deliberately NOT excluded, for the same reason C05's
+// identical guard excludes it (see isAdvSecNotFoundErr's own doc comment).
 //
 // sameRepoSkips are this repo's own entries from
 // pipelinehistory.MatchPipelines' skipped return (issue #178 — see the
@@ -335,37 +370,86 @@ func checkDependencyReview(org, repo string) model.CheckResult {
 	}
 }
 
+// isAdvSecNotEnabledErr reports whether err is a *azuredevops.StatusError
+// whose body carries typeKey "AdvSecNotEnabledException" — the confirmed
+// signal GHAzDO dependency-scanning alerts are not enabled for a repo,
+// empirically settled by S9's live run (2026-07-23, dev.azure.com/seciq,
+// GHAzDO-unlicensed): GET .../alerts responded HTTP 400 with message
+// "VS2150009: Advanced Security is not enabled for this repository." and
+// this exact typeKey — the third answer nobody guessed (the [fixture-verify]
+// hedge this predicate retires only ever considered 403/404). Matching the
+// typeKey rather than the status code alone (400 is far too generic to
+// treat as confirmed on its own) or the message text (GitHub's own
+// alertsDisabledMessageSubstring shows free-text matching is the more
+// fragile choice when a structured field is available) is deliberate.
+func isAdvSecNotEnabledErr(err error) bool {
+	var se *azuredevops.StatusError
+	return errors.As(err, &se) && se.StatusCode == http.StatusBadRequest && se.TypeKey == "AdvSecNotEnabledException"
+}
+
 // checkAlertsTriaged reports active-critical dependency-scanning alert
 // counts/ages as facts — never a judgment beyond the single documented
-// threshold (criticalTriageThresholdDays) and the not-checkable gates
-// below.
+// threshold (criticalTriageThresholdDays) and the not-checkable/
+// verified-fail gates below.
 //
-// A confirmed 404 maps to not-checkable, not verified-fail (found in
-// review, correcting this check's original design): "GHAzDO isn't
-// licensed for this org/project" is only a LIKELY reading of 404 here —
-// the same [fixture-verify] hedge every other advsec-backed check in this
-// epic already carries — and the GitHub twin's own doc comment for its
-// analogous check (alertsDisabledMessageSubstring) records this exact
-// style of assumption failing once already: an earlier version of that
-// check copied a 404-means-disabled pattern from an unrelated endpoint
-// without verifying it held for GitHub's real Dependabot-alerts response,
-// and it didn't (GitHub's actual disabled-repo response is a 403 with a
-// specific message, not a 404 at all). Reporting a confident verified-fail
-// here would repeat that same mistake for THIS endpoint before issue
-// #34/#155's S9 empirical pass has confirmed anything about it. This is a
-// deliberate, temporary conservatism, not a claim that verified-fail is
-// the wrong end state — S9 is the named point to revisit and likely
-// upgrade this to verified-fail, once the evidence bar this collector
-// holds itself to is actually met. A 403 stays ambiguous/not-checkable
-// regardless, same as every other advsec-backed check in this epic.
+// A confirmed AdvSecNotEnabledException (see isAdvSecNotEnabledErr) maps to
+// verified-fail, not not-checkable (issue #190, graduating the deliberate
+// conservatism below once S9 supplied the missing evidence): the GitHub
+// twin treats its own confirmed-disabled signal identically
+// (alertsDisabledMessageSubstring -> verified-fail, "Dependabot alerts are
+// not enabled for this repository") — a repo with GHAzDO dependency
+// scanning alerts confirmed off is a real, meaningful compliance gap, not
+// an unresolved unknown, the same reasoning that check's own doc comment
+// gives. The stronger argument, found in review of #225: this codebase had
+// already decided the opposite for the identical org state before this
+// change. fixtures-ado.yaml recorded C04.deps.dependabot-alerts,
+// C04.secrets.*, and C05.sast.default-setup as verified-fail for the same
+// unlicensed seciq org (codeSecurityEnabled/etc. reading false is a real,
+// verifiable "off" — see checkOrgSecurityDefaults) while this check alone
+// read not-checkable for "triage the alerts that dependency scanning would
+// produce" against the identical org — a real absence upstream and an
+// unresolved unknown downstream of it. That mismatch, not merely the S9
+// citation on its own, is what settles this: it was the anomaly, and this
+// change removes it rather than creates one.
+//
+// A confirmed 404, by contrast, stays not-checkable (found in review,
+// correcting this check's original design): "GHAzDO isn't licensed for
+// this org/project" was only ever a LIKELY reading of 404 here, and S9's
+// empirical pass, now complete, settled the confirmed-not-enabled signal as
+// HTTP 400 + this typeKey — NOT 404 at all, so licensing is no longer a
+// plausible explanation for a 404 reaching this check. What actually
+// produces one remains genuinely unconfirmed [fixture-verify: no S9
+// recorded response covers a 404 from this endpoint]. The GitHub twin's own
+// doc comment for its analogous check records this exact style of
+// assumption failing once already: an earlier version of that check copied
+// a 404-means-disabled pattern from an unrelated endpoint without verifying
+// it held for GitHub's real Dependabot-alerts response, and it didn't
+// (GitHub's actual disabled-repo response is a 403 with a specific message,
+// not a 404 at all) — the same caution that kept this check's own 404 case
+// honest rather than guessing again now that the real signal turned out to
+// be something else entirely. A 403 stays ambiguous/not-checkable
+// regardless, same as every other advsec-backed check in this epic — S9
+// recorded no response for a 403 from this specific endpoint. The Reason
+// strings below stay citation-free on purpose (issue #225 review): they
+// land in a specific customer's own evidence.json/report.md, and naming a
+// third party's org/date there would be confusing at best, leaking at
+// worst — the citation belongs here and in the generated rubric, not in a
+// customer's signed pack.
 func checkAlertsTriaged(org, repo string, criticalCount int, oldestAgeDays float64, oldestAgeKnown bool, err error, prov []model.Provenance) model.CheckResult {
 	const id = idAlertsTriaged
 
 	if err != nil {
+		if isAdvSecNotEnabledErr(err) {
+			return model.CheckResult{
+				CheckID: id, Title: checkTitles[id], Status: model.StatusVerifiedFail,
+				Reason: "GHAzDO dependency-scanning alerts are not enabled for this repository",
+				Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			}
+		}
 		if isAdvSecNotFoundErr(err) {
 			return model.CheckResult{
 				CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-				Reason: fmt.Sprintf("GHAzDO dependency-scanning alerts query returned 404 for %s/%s — likely means GHAzDO isn't licensed for this org/project, but that reading is unconfirmed [fixture-verify, issue #34/#155's S9 pass — see this check's own doc comment for why this stays not-checkable rather than verified-fail until then]", org, repo),
+				Reason: fmt.Sprintf("GHAzDO dependency-scanning alerts query returned 404 for %s/%s — the cause is unconfirmed; a confirmed-not-enabled state for this endpoint reads HTTP 400 with typeKey AdvSecNotEnabledException instead, so licensing/not-enabled is not a likely explanation for a 404 here [fixture-verify: no recorded response covers what actually produces one]", org, repo),
 				Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 			}
 		}

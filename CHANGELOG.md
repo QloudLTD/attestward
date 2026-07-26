@@ -119,6 +119,27 @@ All notable changes to this project are documented here. Format follows
   category-matched pipeline"), so a same-repo skip has no bearing on their evidence — no
   fix needed there, and a stale forward-reference in `azuredevops/provenance`'s own
   rubric claiming otherwise is corrected.
+- **`C06.sca.alerts-triaged` (Azure DevOps): a confirmed "alerts not enabled" state now
+  reads `verified-fail`, not `not-checkable`** (#190). GHAzDO's actual "not enabled"
+  signal for the Alerts - List endpoint turned out to be HTTP 400 with typeKey
+  `AdvSecNotEnabledException` — neither of the two codes (403/404) this check's own
+  hedge previously considered. This codebase had already decided the opposite for the
+  identical org state: the same unlicensed org read `verified-fail` for "dependency
+  scanning is off" (`C04.deps.dependabot-alerts`, `C04.secrets.*`,
+  `C05.sast.default-setup`) and `not-checkable` for "triage the alerts it would
+  produce" — that mismatch is resolved, not introduced, by this change, which mirrors
+  the GitHub twin's identical treatment of its own confirmed-disabled signal. Several
+  other `[fixture-verify]` hedges this same live run settled are also retired: an
+  unlicensed org/project's GHAzDO enablement endpoints read HTTP 200 with every flag
+  false/null, never a 403/404 gate as previously guessed, and
+  `codeQLEnabled`/`dependencyScanningInjectionEnabled`/`dependabotEnabled`/
+  `autofixEnabled` are genuinely null (not merely undocumented-but-never-null) when
+  `codeSecurityEnabled` is false, contradicting Microsoft's own "Null is never
+  explicitly set" reference claim. A 403 reaching any of these checks is now
+  understood as most likely a missing `vso.advsec` token scope (licensing is ruled
+  out as the cause), though other permission causes can't be excluded from the
+  response alone — this project's own scan PAT already carried that scope, so a
+  missing-scope 403 was never actually observed, only inferred by elimination.
 - **Report/POA&M `Repo` column/field renamed to `Scope`** (#215). After #176's fix, the
   column could hold three different kinds of thing (an actual repo name, `(org)`, or
   `(project: payments)`) — the header was wrong for two of the three cases it rendered.

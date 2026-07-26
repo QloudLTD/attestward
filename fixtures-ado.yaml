@@ -233,8 +233,8 @@ repo_checks:
         without ever counting as a SAST tool here. No SAST-category
         signature is configured anywhere in this pipeline.
     - check_id: C06.sca.alerts-triaged
-      status: not-checkable
-      note: "Environment-sensitive: the Alerts - List call failed with HTTP 400 AdvSecNotEnabledException (the org is GHAzDO-unlicensed) — folds into this check's generic \"another API error\" not-checkable case."
+      status: verified-fail
+      note: "Environment-sensitive: the Alerts - List call fails with HTTP 400, typeKey AdvSecNotEnabledException (the org is GHAzDO-unlicensed) — issue #190 made this check match that typed error directly, graduating it from a generic not-checkable to a confirmed verified-fail (mirroring the GitHub twin's identical treatment of its own confirmed-disabled signal)."
     - check_id: C06.sca.dependabot-config
       status: not-checkable
       note: >-
@@ -335,8 +335,8 @@ repo_checks:
       status: verified-fail
       note: "demo-bad has no pipeline at all — a real, deliberate absence, not an evidence gap."
     - check_id: C06.sca.alerts-triaged
-      status: not-checkable
-      note: "Environment-sensitive: the Alerts - List call failed with HTTP 400 AdvSecNotEnabledException (the org is GHAzDO-unlicensed) — folds into this check's generic \"another API error\" not-checkable case."
+      status: verified-fail
+      note: "Environment-sensitive: the Alerts - List call fails with HTTP 400, typeKey AdvSecNotEnabledException (the org is GHAzDO-unlicensed) — issue #190 made this check match that typed error directly, graduating it from a generic not-checkable to a confirmed verified-fail (mirroring the GitHub twin's identical treatment of its own confirmed-disabled signal)."
     - check_id: C06.sca.dependabot-config
       status: not-checkable
       note: >-

@@ -171,18 +171,23 @@ var checkRubrics = map[string]map[model.Status]string{
 			"pipeline, and CodeQL default setup is not confirmed enabled — not enough signal alone to " +
 			"confirm a SAST tool is genuinely configured",
 		model.StatusVerifiedFail: "no pipeline match of any confidence was found, the GHAzDO " +
-			"repo-enablement query confirms codeQLEnabled reads false — including a 404 response (GHAzDO " +
-			"isn't licensed for this org/project, a real \"not available\" fact [fixture-verify]) but " +
-			"deliberately NOT a 403 (ambiguous between a missing vso.advsec scope and an unlicensed " +
-			"org/project — that response alone routes to not-checkable instead, see the next clause; found " +
-			"in review: an earlier version of this check treated any gated response, 403 included, as a " +
-			"confirmed fail, which could false-negative a licensed org whose token merely lacked the scope) " +
-			"— and every pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo " +
-			"skip) — a real absence, not an evidence gap",
+			"repo-enablement query confirms codeQLEnabled reads false — including a 404 response, which this " +
+			"check treats as equivalent to \"every enablement flag off\" by deliberate policy (see " +
+			"isAdvSecNotFoundErr's own doc comment), not because a 404 is a confirmed \"not available\" fact: " +
+			"S9's 2026-07-23 live run against dev.azure.com/seciq showed an unlicensed org/project's " +
+			"enablement endpoint reads HTTP 200 with every flag false/null instead, so what actually produces " +
+			"a 404 here remains genuinely unconfirmed [fixture-verify] — but deliberately NOT a 403 (most " +
+			"likely the token lacks the vso.advsec scope — that response alone routes to not-checkable " +
+			"instead, see the next clause; found in review: an earlier version of this check treated any " +
+			"gated response, 403 included, as a confirmed fail, which could false-negative a licensed org " +
+			"whose token merely lacked the scope) — and every pipeline MatchPipelines inspected for this " +
+			"repo resolved cleanly (no same-repo skip) — a real absence, not an evidence gap",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or there is no pipeline-based " +
 			"evidence at all and the GHAzDO repo-enablement query itself failed with anything other than a " +
-			"404 — including a 403, ambiguous between a missing vso.advsec scope and an unlicensed " +
-			"org/project [fixture-verify] — an unresolved unknown, not a confirmed absence; or one or more " +
+			"404 — including a 403 (most likely the token lacks the vso.advsec scope; licensing is ruled " +
+			"out as the cause — observed 2026-07-23 against dev.azure.com/seciq: an unlicensed org/project's " +
+			"enablement endpoint reads HTTP 200, not 403 — but other permission causes can't be excluded " +
+			"from the response alone) — an unresolved unknown, not a confirmed absence; or one or more " +
 			"of this repo's own pipelines could not be fully inspected (a build-definition fetch failure, " +
 			"an unresolved YAML path, a YAML fetch/parse failure, or an unresolved template reference — see " +
 			"Facts.skipped_pipelines) and the evidence gathered would otherwise have produced verified-fail " +
@@ -249,9 +254,11 @@ var checkRubrics = map[string]map[model.Status]string{
 		// not-checkable if it fails" shape the GitHub twin's own
 		// sharedUpstreamFetchFailureRubric documents).
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or the GHAzDO repo-enablement query " +
-			"itself failed — a 404 (org/project not licensed for GHAzDO [fixture-verify]), a 403 (ambiguous " +
-			"between a missing vso.advsec scope and an unlicensed org/project [fixture-verify], see " +
-			"azuredevops.IsAdvSecGated's own doc comment), or another API error",
+			"itself failed — a 404 (cause unconfirmed: observed 2026-07-23 against dev.azure.com/seciq that " +
+			"an unlicensed org/project reads HTTP 200 instead, ruling out licensing as the explanation " +
+			"[fixture-verify]), a 403 (most likely the token lacks the vso.advsec scope — that same " +
+			"observation rules out licensing as the cause, but other permission causes can't be excluded " +
+			"from the response alone; see azuredevops.IsAdvSecGated's own doc comment), or another API error",
 	},
 }
 

@@ -168,6 +168,17 @@ type StatusError struct {
 	// a bounded, rune-safe preview of the raw response bytes. Never a
 	// request header, so a PAT can never reach this error's text.
 	Body string
+	// TypeKey is the envelope's "typeKey" field (Azure DevOps's own
+	// exception-class name, e.g. "AdvSecNotEnabledException") when the body
+	// parses as adoErrorEnvelope — empty otherwise. Added for issue #190:
+	// S9's live run (2026-07-23, dev.azure.com/seciq) found the GHAzDO
+	// Alerts - List not-enabled response identifiable ONLY by this field
+	// (HTTP 400, message "VS2150009: Advanced Security is not enabled for
+	// this repository") — a status code alone (400) is too generic to
+	// safely treat as a confirmed signal on its own, unlike a named
+	// exception class, so collectors that need to match it should compare
+	// TypeKey, not Body's message text.
+	TypeKey string
 }
 
 func (e *StatusError) Error() string {
@@ -175,18 +186,28 @@ func (e *StatusError) Error() string {
 }
 
 // adoErrorEnvelope is Azure DevOps's typical JSON error response shape: a
-// human-readable "message" alongside implementation details (typeKey,
-// errorCode, ...) this project has no use for.
+// human-readable "message" plus typeKey (the exception class name — see
+// StatusError.TypeKey's own doc comment for why issue #190 added this).
+// errorCode and the rest of the envelope remain unused — this project still
+// has no caller that would need them.
 type adoErrorEnvelope struct {
 	Message string `json:"message"`
+	TypeKey string `json:"typeKey"`
 }
 
 // newStatusError prefers Azure DevOps's own parsed error message over the
-// raw response body — see StatusError.Body's doc comment for why.
+// raw response body — see StatusError.Body's doc comment for why. TypeKey
+// is populated whenever the envelope parses, independent of whether Message
+// itself was present, so a caller can still match on it even in the
+// (unobserved so far) case of a response carrying typeKey but an empty
+// message.
 func newStatusError(method, endpoint string, statusCode int, body []byte) *StatusError {
 	var env adoErrorEnvelope
-	if err := json.Unmarshal(body, &env); err == nil && env.Message != "" {
-		return &StatusError{Method: method, Endpoint: endpoint, StatusCode: statusCode, Body: env.Message}
+	if err := json.Unmarshal(body, &env); err == nil {
+		if env.Message != "" {
+			return &StatusError{Method: method, Endpoint: endpoint, StatusCode: statusCode, Body: env.Message, TypeKey: env.TypeKey}
+		}
+		return &StatusError{Method: method, Endpoint: endpoint, StatusCode: statusCode, Body: previewBody(body), TypeKey: env.TypeKey}
 	}
 	return &StatusError{Method: method, Endpoint: endpoint, StatusCode: statusCode, Body: previewBody(body)}
 }

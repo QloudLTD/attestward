@@ -12,30 +12,44 @@ import (
 	"github.com/sioakim/attestward/internal/model"
 )
 
-// advSecNotCheckableReason distinguishes a 404 (this collector's own
-// confirmed-absence signal — see isAdvSecNotFoundErr's own doc comment for
-// why only this code, not every azuredevops.IsAdvSecGated code, earns that
-// treatment) from a 403 (genuinely ambiguous: a missing vso.advsec scope
-// reads identically to an unlicensed org/project), falling back to a
-// generic message otherwise. Both gated cases are still [fixture-verify]:
-// which of 403/404 (or both) a real unlicensed-org response actually
-// returns is unconfirmed until issue #34/#151's S5 empirical pass.
+// advSecNotCheckableReason distinguishes a 404 from a 403, falling back to
+// a generic message otherwise — both now empirically settled (issue #190):
+// S9's live run (2026-07-23, dev.azure.com/seciq, GHAzDO-unlicensed)
+// observed the repo-enablement endpoint returning HTTP 200 with every flag
+// false/null, never 403/404 — see pipelinehistory.FetchRepoEnablement's own
+// doc comment for the same finding. That's narrower than it first looks
+// (issue #225 review): S9's own scan PAT already carried vso.advsec, so a
+// missing-scope 403 was never actually reachable in that run either —
+// what's confirmed is only that licensing ISN'T the cause of a 403/404
+// reaching this function. "The token lacks the vso.advsec scope" is the
+// most likely remaining explanation for a 403, not an observed fact; other
+// permission causes (tenant conditional access, an IP allow-list,
+// project-level denial, an org policy restricting PAT access) can't be
+// excluded from the response alone. What actually produces a 404 remains
+// genuinely unconfirmed (S9 recorded no such response either) — see
+// isAdvSecNotFoundErr's own doc comment for why 404 specifically still gets
+// excluded from checkToolConfigured's own not-checkable guard regardless of
+// what causes it. The Reason strings below stay citation-free on purpose:
+// they land in a specific customer's own evidence.json/report.md, and
+// naming a third party's org/date there would be confusing at best,
+// leaking at worst — the citation belongs here and in the generated
+// rubric, not in a customer's signed pack.
 func advSecNotCheckableReason(err error, org, repo string) string {
 	var se *azuredevops.StatusError
 	if errors.As(err, &se) {
 		switch se.StatusCode {
 		case http.StatusNotFound:
 			return fmt.Sprintf(
-				"GHAzDO repo-enablement query returned 404 for %s/%s — GHAzDO (GitHub Advanced Security for "+
-					"Azure DevOps) isn't licensed for this org/project [fixture-verify: whether 404 always "+
-					"means specifically this, rather than some other absence, is unconfirmed until issue "+
-					"#34/#151's S5 empirical pass]", org, repo)
+				"GHAzDO repo-enablement query returned 404 for %s/%s — the cause is unconfirmed: an "+
+					"unlicensed org/project reads HTTP 200 with every flag false/null instead, so licensing "+
+					"is not a likely explanation for a 404 here — what actually produces one remains open "+
+					"[fixture-verify]", org, repo)
 		case http.StatusForbidden:
 			return fmt.Sprintf(
-				"GHAzDO repo-enablement query returned 403 for %s/%s — ambiguous: either the token lacks the "+
-					"vso.advsec scope, or the org/project isn't licensed for GHAzDO; Azure DevOps returns the "+
-					"same status for both, so this can't be told apart from the response alone [fixture-verify, "+
-					"issue #34/#151's S5 pass]", org, repo)
+				"GHAzDO repo-enablement query returned 403 for %s/%s — most likely the token lacks the "+
+					"vso.advsec scope (licensing is ruled out as the cause: an unlicensed org/project's "+
+					"enablement endpoint reads HTTP 200, not 403); other permission causes can't be "+
+					"excluded from the response alone", org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query GHAzDO repo enablement for %s/%s: %v", org, repo, err)
@@ -43,18 +57,29 @@ func advSecNotCheckableReason(err error, org, repo string) string {
 
 // isAdvSecNotFoundErr reports whether err is a *azuredevops.StatusError
 // with status 404 specifically — the one code among
-// azuredevops.IsAdvSecGated's two (403, 404) this collector treats as a
-// confirmed "GHAzDO isn't provisioned for this org/project" fact in
-// checkToolConfigured's fall-through. A 403 is deliberately excluded from
-// that treatment (found in review): it can mean either that same absence,
-// OR simply that this token lacks the vso.advsec scope on an org where
-// GHAzDO genuinely IS licensed and default setup IS enabled — asserting
-// verified-fail for that second case would be a false negative any
-// scope-less PAT could trigger against a perfectly-configured repo, while
-// checkDefaultSetup (which never distinguishes gated-vs-not) would
-// honestly report not-checkable for the identical response. Whether a
-// real unlicensed org's response is 403, 404, or both is unconfirmed
-// [fixture-verify] until issue #34/#151's S5 empirical pass.
+// azuredevops.IsAdvSecGated's two (403, 404) this collector treats as
+// equivalent to "every enablement flag reads off" in checkToolConfigured's
+// fall-through, letting the normal pass/fail logic run rather than
+// reporting not-checkable. A 403 is deliberately excluded from that
+// treatment (found in review): it most likely means this token lacks the
+// vso.advsec scope on an org where GHAzDO genuinely IS licensed and
+// default setup IS enabled — NOT "every enablement flag reads off"
+// reached through a 403, which S9's live run settled reads HTTP 200
+// instead, never 403 (see advSecNotCheckableReason above; that reading
+// was corrected here in review, since this doc comment previously
+// repeated it). Asserting verified-fail for a missing-scope 403 would be
+// a false negative any scope-less PAT could trigger against a
+// perfectly-configured repo, while checkDefaultSetup (which never
+// distinguishes gated-vs-not) would honestly report not-checkable for the
+// identical response. Other permission causes besides a missing scope
+// can't be excluded from the response alone either. What actually
+// produces a 404 here remains genuinely unconfirmed (issue #190): S9's live
+// run (2026-07-23, dev.azure.com/seciq) settled that an unlicensed
+// org/project is NOT the cause — that case reads HTTP 200 with every flag
+// false/null instead (see advSecNotCheckableReason above) — so this
+// predicate's "treat as off" behavior rests on a deliberate policy choice,
+// not on a confirmed fact about what a 404 itself means [fixture-verify:
+// no recorded response covers that].
 func isAdvSecNotFoundErr(err error) bool {
 	var se *azuredevops.StatusError
 	return errors.As(err, &se) && se.StatusCode == http.StatusNotFound
@@ -90,13 +115,18 @@ func matchConfidence(matched []pipelinehistory.MatchedPipeline) (hasAny, hasHigh
 // itself failed with anything other than a 404, asserting verified-fail
 // would claim a fact this collector doesn't actually have evidence for —
 // this check goes not-checkable instead. Only a 404 is excluded from this
-// guard (a confirmed "not provisioned" fact, mirroring the GitHub twin's
-// plan-gated exclusion) — a 403 is deliberately NOT excluded (found in
-// review): it's ambiguous between "not licensed" and "token lacks
-// vso.advsec", and treating it as a confirmed fail would produce a false
-// verified-fail on a licensed org + enabled default setup + a scope-less
-// PAT, while the sibling checkDefaultSetup honestly reports not-checkable
-// for that identical response — see isAdvSecNotFoundErr's own doc comment.
+// guard — not because it's a confirmed "not provisioned" fact (what a 404
+// actually means here remains genuinely unconfirmed; see
+// isAdvSecNotFoundErr's own doc comment), but because this collector
+// treats it as equivalent to "off" as a deliberate policy choice,
+// mirroring the GitHub twin's plan-gated exclusion. A 403 is deliberately
+// NOT excluded (found in review): it most likely means the token lacks
+// the vso.advsec scope, though other permission causes can't be excluded
+// from the response alone (licensing itself IS ruled out as the cause —
+// see advSecNotCheckableReason above), and treating it as a confirmed
+// fail would produce a false verified-fail on a licensed org + enabled
+// default setup + a scope-less PAT, while the sibling checkDefaultSetup
+// honestly reports not-checkable for that identical response.
 //
 // sameRepoSkips are this repo's own entries from
 // pipelinehistory.MatchPipelines' skipped return (issue #178): surfaced in

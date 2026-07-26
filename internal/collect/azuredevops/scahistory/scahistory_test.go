@@ -543,14 +543,83 @@ func TestCollect_FreshCriticalAlert_AlertsTriagedVerifiedPass(t *testing.T) {
 	}
 }
 
+// TestCollect_AlertsQuery400AdvSecNotEnabled_AlertsTriagedVerifiedFail is
+// issue #190's own acceptance test: S9's live run (2026-07-23,
+// dev.azure.com/seciq) recorded GHAzDO's actual "alerts not enabled"
+// signal as HTTP 400 with typeKey AdvSecNotEnabledException — neither of
+// the two codes (403/404) this check's own [fixture-verify] hedge
+// previously considered. That response must now graduate to a confirmed
+// verified-fail (a real compliance gap, mirroring the GitHub twin's
+// identical treatment of its own confirmed-disabled signal), not fold
+// into the generic "another API error" not-checkable case the way it did
+// before this fix.
+func TestCollect_AlertsQuery400AdvSecNotEnabled_AlertsTriagedVerifiedFail(t *testing.T) {
+	fx := adofixture.New()
+	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	registerPipelines(fx)
+	registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+	registerCommitDate(fx, testRepoID, "sha1", time.Now().UTC().AddDate(0, 0, -5))
+	registerEnablement(fx, testRepoID, false, false)
+	fx.Set("GET", azuredevops.HostAdvSec, alertsPath(testRepoID), adofixture.Response{
+		Status: http.StatusBadRequest,
+		Body: map[string]any{
+			"message": "VS2150009: Advanced Security is not enabled for this repository.",
+			"typeKey": "AdvSecNotEnabledException",
+		},
+	})
+
+	c := newCollector(fx)
+	results, err := c.Collect(context.Background(), defaultScope())
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+	got := m[idAlertsTriaged]
+	if got.Status != model.StatusVerifiedFail {
+		t.Errorf("alerts-triaged = %q, want verified-fail (confirmed AdvSecNotEnabledException); reason=%q", got.Status, got.Reason)
+	}
+}
+
+// TestCollect_AlertsQuery400OtherTypeKey_AlertsTriagedNotCheckable proves
+// the typeKey match is exact, not "any HTTP 400" — a 400 with a different
+// (or absent) typeKey must not be mistaken for the confirmed-not-enabled
+// signal; it falls into the generic not-checkable case like any other
+// unrecognized error.
+func TestCollect_AlertsQuery400OtherTypeKey_AlertsTriagedNotCheckable(t *testing.T) {
+	fx := adofixture.New()
+	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	registerPipelines(fx)
+	registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+	registerCommitDate(fx, testRepoID, "sha1", time.Now().UTC().AddDate(0, 0, -5))
+	registerEnablement(fx, testRepoID, false, false)
+	fx.Set("GET", azuredevops.HostAdvSec, alertsPath(testRepoID), adofixture.Response{
+		Status: http.StatusBadRequest,
+		Body:   map[string]any{"message": "some other bad request", "typeKey": "SomeOtherException"},
+	})
+
+	c := newCollector(fx)
+	results, err := c.Collect(context.Background(), defaultScope())
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+	if got := m[idAlertsTriaged].Status; got != model.StatusNotCheckable {
+		t.Errorf("alerts-triaged = %q, want not-checkable (a 400 with an unrecognized typeKey is not the confirmed signal); reason=%q", got, m[idAlertsTriaged].Reason)
+	}
+}
+
 // TestCollect_AlertsQuery404_AlertsTriagedNotCheckable proves a 404 stays
-// not-checkable (found in review, correcting this check's original
-// design): "GHAzDO isn't licensed" is only a likely reading of 404 here,
-// unconfirmed until issue #34/#155's S9 — reporting a confident
-// verified-fail before then would repeat the exact mistake the GitHub
-// twin's own doc comment records for a different endpoint. See
-// checkAlertsTriaged's own doc comment for the deliberate-upgrade-later
-// framing.
+// not-checkable even after issue #190's graduation of the CONFIRMED
+// not-enabled signal (HTTP 400 + typeKey AdvSecNotEnabledException, see
+// TestCollect_AlertsQuery400AdvSecNotEnabled_AlertsTriagedVerifiedFail) to
+// verified-fail: no recorded response covers a 404 from this endpoint, so
+// it stays an honest unknown rather than borrowing the 400 case's answer —
+// see checkAlertsTriaged's own doc comment. The Reason itself must stay
+// citation-free (issue #225 review): it lands in a customer's own
+// evidence.json/report.md, and naming the S9 org/date there would leak an
+// unrelated third party's org into a customer's signed pack — that
+// citation belongs in the doc comment and generated rubric only, so this
+// test asserts its ABSENCE from the Reason, not its presence.
 func TestCollect_AlertsQuery404_AlertsTriagedNotCheckable(t *testing.T) {
 	fx := adofixture.New()
 	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
@@ -570,10 +639,13 @@ func TestCollect_AlertsQuery404_AlertsTriagedNotCheckable(t *testing.T) {
 	m := byID(results)
 	got := m[idAlertsTriaged]
 	if got.Status != model.StatusNotCheckable {
-		t.Errorf("alerts-triaged = %q, want not-checkable (a 404 is only a LIKELY \"not licensed\" reading, unconfirmed until S9); reason=%q", got.Status, got.Reason)
+		t.Errorf("alerts-triaged = %q, want not-checkable (a 404 is only a LIKELY \"not licensed\" reading, unconfirmed); reason=%q", got.Status, got.Reason)
 	}
-	if !strings.Contains(got.Reason, "S9") {
-		t.Errorf("Reason = %q, want it to name S9 as the deliberate upgrade point", got.Reason)
+	if !strings.Contains(got.Reason, "AdvSecNotEnabledException") {
+		t.Errorf("Reason = %q, want it to distinguish this 404 from the confirmed AdvSecNotEnabledException signal", got.Reason)
+	}
+	if strings.Contains(got.Reason, "dev.azure.com") || strings.Contains(got.Reason, "seciq") {
+		t.Errorf("Reason = %q, must not leak the S9 recording org/date into a customer-facing Reason string", got.Reason)
 	}
 }
 
@@ -727,7 +799,7 @@ var checkWantStatuses = map[string][]model.Status{
 	idRanPerRelease:    {model.StatusVerifiedPass, model.StatusPartial, model.StatusVerifiedFail, model.StatusNotCheckable},
 	idDependabotConfig: {model.StatusNotCheckable},
 	idDependencyReview: {model.StatusNotCheckable},
-	idAlertsTriaged:    {model.StatusVerifiedPass, model.StatusPartial, model.StatusNotCheckable},
+	idAlertsTriaged:    {model.StatusVerifiedPass, model.StatusPartial, model.StatusVerifiedFail, model.StatusNotCheckable},
 }
 
 var endpointVerbRE = regexp.MustCompile(`^(GET|HEAD) (dev\.azure\.com|advsec\.dev\.azure\.com)/`)

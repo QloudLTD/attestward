@@ -523,10 +523,11 @@ func TestCollect_CleanRunsCappedByOneDroppedTag_RanPerReleasePartial(t *testing.
 
 // --- GHAzDO repo-enablement gating ---
 
-// TestCollect_Enablement404_ToolConfiguredStaysFail proves a 404 (this
-// collector's own confirmed-absence signal — see isAdvSecNotFoundErr's
-// doc comment) is still treated as a real "not configured" fact when
-// there's no other evidence.
+// TestCollect_Enablement404_ToolConfiguredStaysFail proves a 404 (treated
+// as equivalent to "every enablement flag off" by deliberate policy, not
+// because it's a confirmed fact about what causes it — see
+// isAdvSecNotFoundErr's doc comment) still produces a real "not configured"
+// verdict when there's no other evidence.
 func TestCollect_Enablement404_ToolConfiguredStaysFail(t *testing.T) {
 	fx := adofixture.New()
 	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
@@ -554,10 +555,12 @@ func TestCollect_Enablement404_ToolConfiguredStaysFail(t *testing.T) {
 
 // TestCollect_Enablement403_NoOtherEvidence_ToolConfiguredNotCheckable is
 // the regression test for the false-verified-fail bug found in review: a
-// 403 is ambiguous between "token lacks vso.advsec" and "org/project not
-// licensed" — a licensed org with default setup genuinely ON, scanned by
-// a scope-less PAT, must never read as a confirmed fail here. Only a 404
-// is treated as confirmed absence (see TestCollect_Enablement404_...
+// 403 most likely means the token lacks the vso.advsec scope, though other
+// permission causes can't be excluded from the response alone (see
+// sharedAdvSecGatedRubric) — a licensed org with default setup genuinely
+// ON, scanned by a scope-less PAT, must never read as a confirmed fail
+// here just because this collector can't see the real state. Only a 404
+// is treated as equivalent to "off" (see TestCollect_Enablement404_...
 // above); a 403 with no other evidence must go not-checkable instead,
 // exactly like default-setup's own sibling result for the identical
 // response.
@@ -579,7 +582,7 @@ func TestCollect_Enablement403_NoOtherEvidence_ToolConfiguredNotCheckable(t *tes
 	m := byID(results)
 
 	if got := m[idToolConfigured].Status; got != model.StatusNotCheckable {
-		t.Errorf("tool-configured = %q, want not-checkable (a 403 is ambiguous between a missing scope and an unlicensed org — must never read as a confirmed fail); reason=%q", got, m[idToolConfigured].Reason)
+		t.Errorf("tool-configured = %q, want not-checkable (a 403 most likely means a missing token scope, but that can't be confirmed from the response alone — must never read as a confirmed fail); reason=%q", got, m[idToolConfigured].Reason)
 	}
 	if got := m[idDefaultSetup].Status; got != model.StatusNotCheckable {
 		t.Errorf("default-setup = %q, want not-checkable", got)
