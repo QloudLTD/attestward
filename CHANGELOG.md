@@ -17,6 +17,20 @@ All notable changes to this project are documented here. Format follows
   an open residual risk; the exact character alphabet of the non-signature portion
   remains unverified without a real token sample, so the risk entry is updated, not
   removed.
+- **CI guard: `tools/rubricguard` catches a status-assignment change with an untouched
+  `checkRubrics` entry** (#209). `make checks-docs-check` only compares
+  `docs/checks-reference.md` against its rubric *source*; it has no opinion on whether a
+  rubric matches the collector's own status-assignment logic, so a check could start
+  producing a status its published rubric never describes and nothing would catch it —
+  exactly what #202's review round 1 found by chance, and #203 (same batch, same class
+  of change) avoided only because it happened to update its rubric in the same commit.
+  `rubric-drift-check` (wired into `ci.yaml`, same PRs `checks-docs-drift` already
+  gates) AST-parses each internal/collect/** package touched by a diff and flags one
+  whose non-test `.go` files gained a changed `model.Status*` value reference while its
+  `checkRubrics` var went untouched in the same diff — deliberately coarse (a reviewer
+  can wave off a false positive; silence is what #202 hit), verified against this
+  repo's own history: correctly silent across 40 real merged PRs, and correctly flags
+  #202's actual pre-fix commit (all three collectors it originally missed).
 
 ### Fixed
 

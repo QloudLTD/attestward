@@ -111,6 +111,107 @@ jobs:
           go-version-file: go.mod
       - run: make checks-docs-check
 
+  # Issue #209: checks-docs-drift above only compares the generated doc
+  # against the rubric *source* (mappings/*.yaml + the collector
+  # registry) — it has no opinion on whether a collector's checkRubrics
+  # entries still match what the collector's own status-assignment code
+  # does. #202's review round 1 found exactly that gap by chance: a
+  # status-capping change landed across three collectors with
+  # checkRubrics byte-identical to main, and nothing in CI could tell
+  # #202 (initially silent on it) apart from #203 (updated its rubric in
+  # the same commit) beforehand. tools/rubricguard flags a package whose
+  # non-test .go files gained a changed `model.Status*` value reference
+  # while its own checkRubrics went untouched in the same diff — see that
+  # package's own doc comments for the precision/false-positive
+  # reasoning (issue #209 explicitly accepts a coarse heuristic; a
+  # reviewer waving off an occasional false positive is fine, silence is
+  # not). fetch-depth: 0 — the tool needs full history to compute a real
+  # merge-base, the same reason goreleaser-dry-run below needs it.
+  #
+  # A green run here means "no changed line references a status constant
+  # outside checkRubrics" — it does NOT mean "status behavior is
+  # unchanged". Known, permanent false-negative classes (round 2 review,
+  # not bugs): a condition flipping (`if enabled` -> `if !enabled`)
+  # around unchanged status branches, and a package-wide OR on whether
+  # checkRubrics was touched at all (a real fix to one check's rubric can
+  # mask a missing fix to another check's, in the same package's shared
+  # checkRubrics map) — see tools/rubricguard/main.go's own doc comment
+  # for both in detail. This job existing at all narrows the gap #202 hit
+  # by chance; it doesn't close it.
+  rubric-drift-check:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # Determines what to diff for this event, entirely in `if:`/`env:`
+      # — pull_request's base/head SHAs and push's before/after are all
+      # commit SHAs GitHub itself sets (not attacker-influenceable free
+      # text), but they still go through env: rather than direct `${{ }}`
+      # interpolation into the run: block below, matching this repo's
+      # own rule regardless.
+      - name: Determine the diff range for this event
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+          pull_request)
+            echo "base=$PR_BASE_SHA" >>"$GITHUB_OUTPUT"
+            echo "head=$PR_HEAD_SHA" >>"$GITHUB_OUTPUT"
+            ;;
+          push)
+            # The all-zero SHA is git's/GitHub's own sentinel for "no
+            # previous commit" — a brand-new branch or a force-push
+            # that discarded history. Nothing to diff against; skip
+            # rather than erroring on an unresolvable range.
+            if [ -z "$PUSH_BEFORE_SHA" ] || [ "$PUSH_BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              echo "no previous commit on this push (new branch or force-push) — nothing to diff"
+              echo "skip=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "base=$PUSH_BEFORE_SHA" >>"$GITHUB_OUTPUT"
+              echo "head=$PUSH_HEAD_SHA" >>"$GITHUB_OUTPUT"
+            fi
+            ;;
+          *)
+            echo "not a pull_request or push event — nothing to diff"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            ;;
+          esac
+      # continue-on-error only on push: this step re-runs on push to main
+      # over before..after, which for a squash merge is the identical
+      # diff the PR itself was already flagged (or correctly waived) on —
+      # a reviewer who waived a false positive on the PR would otherwise
+      # get an unexplained red run on main afterwards, with no PR context
+      # left to waive it in again. On pull_request it stays a hard
+      # check — that's the one place a reviewer can actually act on a
+      # finding, matching the enforcement issue #209 asks for.
+      - name: Check for rubric drift
+        id: rubric-check
+        if: steps.range.outputs.skip != 'true'
+        continue-on-error: ${{ github.event_name == 'push' }}
+        env:
+          BASE: ${{ steps.range.outputs.base }}
+          HEAD: ${{ steps.range.outputs.head }}
+        run: go run ./tools/rubricguard "$BASE" "$HEAD"
+      # Same outcome-vs-conclusion mechanism #219 established in this
+      # same file: outcome reflects the step's real result before
+      # continue-on-error masks it into "success" for the job's own
+      # conclusion, so a push-triggered finding is still visible — just
+      # not fatal to an already-merged main's badge.
+      - name: Warn if rubric drift was found on a push to main
+        if: github.event_name == 'push' && steps.rubric-check.outcome == 'failure'
+        run: |
+          echo "::warning::possible rubric drift found on this push to main (issue #209) — see the 'Check for rubric drift' step's own output above; this doesn't fail the build here since there's no PR context left to review or waive it in, but it's worth a look"
+
   # Cross-compiles every target platform from spyros-mac-mini-ssdf in one job,
   # instead of round-tripping through 4 different self-hosted runners
   # (previously: ionos for linux/amd64, parallels for linux/arm64, mac-mini
