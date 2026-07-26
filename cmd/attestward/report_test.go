@@ -229,6 +229,81 @@ func TestBuildRemediationByCheckID_ResolvesPerResultsOwnPlatform(t *testing.T) {
 	}
 }
 
+// TestRunReport_ADOWebhooksRendersAsProjectScope is issue #214's end-to-end
+// proof: C09.repo.webhooks (Azure DevOps) now registers ScopeLevelProject
+// (see internal/collect/azuredevops/auditlogging), so a result for it must
+// render "(project: X)"/"(project-level: X)" — never "(org)"/"(org-level)" —
+// in all three renderers. Goes through the real collect.Registered()/
+// LookupPlatform (via buildScopeLevelByCheckID) and the real
+// attestward-report pipeline (runReport), not a hand-built scope map or a
+// direct RenderX call: a synthetic map would prove the renderers work
+// without proving this specific check is actually wired into the registry
+// correctly.
+func TestRunReport_ADOWebhooksRendersAsProjectScope(t *testing.T) {
+	const checkID = "C09.repo.webhooks"
+	pack := model.EvidencePack{
+		SchemaVersion: model.SchemaVersion,
+		ToolVersion:   "test",
+		Scope:         model.ScanScope{Org: "contoso", Repos: []string{}, Platform: "azuredevops", Project: "billing"},
+		Results: []model.CheckResult{
+			{
+				CheckID: checkID,
+				Title:   "A service hook subscription exports push/build events",
+				Status:  model.StatusVerifiedFail,
+				Reason:  "no enabled service-hook subscription with eventType git.push or build.complete is scoped to this project (or to all projects)",
+				Scope:   model.ScopeRef{Org: "contoso", Project: "billing", Platform: "azuredevops"},
+				Provenance: []model.Provenance{
+					{Endpoint: "GET dev.azure.com/{org}/_apis/hooks/subscriptions", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("c", 64)},
+				},
+			},
+		},
+	}
+
+	dir := t.TempDir()
+	if _, err := writeEvidencePack(pack, dir); err != nil {
+		t.Fatalf("writeEvidencePack: %v", err)
+	}
+	path := filepath.Join(dir, "evidence.json")
+
+	outDir := t.TempDir()
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, outDir, []string{"md", "html", "poam"}, false); err != nil {
+		t.Fatalf("runReport: %v", err)
+	}
+
+	md, err := os.ReadFile(filepath.Join(outDir, "report.md"))
+	if err != nil {
+		t.Fatalf("read report.md: %v", err)
+	}
+	if !bytes.Contains(md, []byte("`"+checkID+"` | (project: billing) |")) {
+		t.Errorf("report.md doesn't label %s (project: billing); got:\n%s", checkID, md)
+	}
+	if bytes.Contains(md, []byte("`"+checkID+"` | (org) |")) {
+		t.Errorf("report.md still labels %s org-level (issue #214)", checkID)
+	}
+
+	html, err := os.ReadFile(filepath.Join(outDir, "report.html"))
+	if err != nil {
+		t.Fatalf("read report.html: %v", err)
+	}
+	if !bytes.Contains(html, []byte("<code>"+checkID+"</code></td><td>(project: billing)</td>")) {
+		t.Errorf("report.html doesn't label %s (project: billing); got:\n%s", checkID, html)
+	}
+	if bytes.Contains(html, []byte("<code>"+checkID+"</code></td><td>(org)</td>")) {
+		t.Errorf("report.html still labels %s org-level (issue #214)", checkID)
+	}
+
+	poam, err := os.ReadFile(filepath.Join(outDir, "poam.md"))
+	if err != nil {
+		t.Fatalf("read poam.md: %v", err)
+	}
+	if !bytes.Contains(poam, []byte("- **Repo:** (project-level: billing)")) {
+		t.Errorf("poam.md doesn't label %s (project-level: billing); got:\n%s", checkID, poam)
+	}
+	if bytes.Contains(poam, []byte("- **Repo:** (org-level)")) {
+		t.Errorf("poam.md still labels %s org-level (issue #214)", checkID)
+	}
+}
+
 func TestRunReport_DefaultOutDirIsAlongsideInput(t *testing.T) {
 	dir := t.TempDir()
 	path, _ := writeReportFixture(t, dir, false)
@@ -441,6 +516,7 @@ func TestRegistry_ProjectScopedADOChecksArePinned(t *testing.T) {
 		"C08.actions.self-hosted":         true,
 		"C08.actions.token-permissions":   true,
 		"C08.pipelines.fork-protection":   true,
+		"C09.repo.webhooks":               true,
 	}
 
 	got := map[string]bool{}

@@ -23,10 +23,24 @@
 // retention), citing Azure DevOps's documented 90-day window instead of
 // GitHub's 180 and pointing at log-streaming as the documented way past it.
 //
-// C09.repo.webhooks becomes an org-level service-hook-subscription check:
-// Azure DevOps has no per-repo webhook concept the way GitHub does: service
-// hook subscriptions are always org-scoped, optionally narrowed to one
-// project via publisherInputs.projectId.
+// C09.repo.webhooks becomes a service-hook-subscription check: Azure DevOps
+// has no per-repo webhook concept the way GitHub does, so it lists
+// subscriptions via the org-wide Subscriptions - List call (no per-project
+// filter on that endpoint either). But the API call being org-wide doesn't
+// make the *verdict* org-wide: this check resolves the scanned project to
+// its GUID and only counts a subscription whose publisherInputs.projectId
+// matches that GUID or is empty/absent (an all-projects subscription) — see
+// checkRepoWebhooks. Issue #214: an earlier version of this check registered
+// ScopeLevelOrg (see CheckMeta.ScopeLevel) on the reasoning that the API
+// surface is org-level, which conflated "the call is org-wide" with "the
+// result is org-wide" — those differ here, and the mismatch let a
+// single-project gap (e.g. only project "payments" lacks a hook, while
+// "billing" has one) render as an org-wide finding, misleading a compliance
+// reader into opening an org-wide remediation for what only affects one
+// project. This check now registers ScopeLevelProject and stamps
+// Scope.Project on every result it produces, same as this project's other
+// genuinely project-scoped ADO checks (C03, C08, and C04.vars.secret-hygiene —
+// the rest of C04 is repo- or org-scoped, so naming C04 wholesale was loose).
 //
 // CRITICAL security note: both the Streams - List and Subscriptions - List
 // APIs carry live secrets in an object field named consumerInputs —
@@ -238,6 +252,11 @@ func init() {
 		Rubric:      checkRubrics[webhooksID],
 		Endpoints:   checkEndpoints[webhooksID],
 		FixtureRef:  fixtureRef,
+		// Its API call is org-wide, but its verdict is project-conditioned
+		// (matched against the scanned project's GUID) — see
+		// checkRepoWebhooks and the package doc comment's issue #214 note.
+		// See CheckMeta.ScopeLevel (#176).
+		ScopeLevel: collect.ScopeLevelProject,
 	})
 }
 
@@ -262,10 +281,14 @@ func New(client *azuredevops.Client) *Collector {
 // ID implements collect.Collector.
 func (c *Collector) ID() string { return collectorID }
 
-// Collect implements collect.Collector. Every check here is org-scoped —
-// unlike the GitHub twin, C09.repo.webhooks is also an org-level check on
-// Azure DevOps (service hook subscriptions have no per-repo concept), so
-// Collect never fans out per-repo and scope.Repos is never consulted.
+// Collect implements collect.Collector. None of the four checks here ever
+// fan out per-repo — Azure DevOps service hook subscriptions have no
+// per-repo concept, so scope.Repos is never consulted by any of them. Three
+// of the four (org-log-available, log-streaming, retention-awareness) are
+// genuinely org-scoped. C09.repo.webhooks is not: its API call is org-wide,
+// but its verdict is project-conditioned — see checkRepoWebhooks and the
+// package doc comment's issue #214 note — and it registers ScopeLevelProject
+// accordingly.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	return []model.CheckResult{
 		c.checkOrgLogAvailable(ctx, scope.Org),
@@ -581,12 +604,16 @@ func isSubscriptionActive(status string) bool {
 	return status == "" || strings.EqualFold(status, "enabled")
 }
 
-// checkRepoWebhooks resolves project to its GUID (Azure DevOps has no
-// per-repo webhook concept, so this is genuinely org-scoped, not
-// per-repo — see the package doc comment), then lists org-level service
-// hook subscriptions and looks for at least one enabled git.push or
+// checkRepoWebhooks resolves project to its GUID, then lists service hook
+// subscriptions via the org-wide Subscriptions - List call (Azure DevOps has
+// no per-repo, or even per-project, listing endpoint for these — see the
+// package doc comment) and looks for at least one enabled git.push or
 // build.complete subscription whose publisherInputs.projectId matches that
-// GUID or is empty/absent (an all-projects subscription).
+// GUID or is empty/absent (an all-projects subscription). The call is
+// org-wide, but the match is against ONE project's GUID, so the verdict this
+// check reports is project-conditioned, not org-wide — issue #214: every
+// result carries Scope.Project (unlike the package's other three, genuinely
+// org-scoped checks), matching this check's ScopeLevelProject registration.
 func (c *Collector) checkRepoWebhooks(ctx context.Context, org, project string) model.CheckResult {
 	const id = webhooksID
 	start := len(c.client.Provenance())
@@ -597,7 +624,7 @@ func (c *Collector) checkRepoWebhooks(ctx context.Context, org, project string) 
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason:     projectResolutionNotCheckableReason(project, err),
-			Scope:      model.ScopeRef{Org: org},
+			Scope:      model.ScopeRef{Org: org, Project: project},
 			Provenance: prov,
 		}
 	}
@@ -610,7 +637,7 @@ func (c *Collector) checkRepoWebhooks(ctx context.Context, org, project string) 
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason:     webhooksNotCheckableReason(err),
-			Scope:      model.ScopeRef{Org: org},
+			Scope:      model.ScopeRef{Org: org, Project: project},
 			Provenance: prov,
 		}
 	}
@@ -642,7 +669,7 @@ func (c *Collector) checkRepoWebhooks(ctx context.Context, org, project string) 
 	}
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
-		Scope:      model.ScopeRef{Org: org},
+		Scope:      model.ScopeRef{Org: org, Project: project},
 		Provenance: prov,
 		Facts:      map[string]any{"matching_subscriptions": matches},
 	}

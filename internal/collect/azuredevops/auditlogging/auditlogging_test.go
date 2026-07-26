@@ -616,6 +616,71 @@ func TestCollect_Webhooks_ProvenanceCoversBothCalls(t *testing.T) {
 	}
 }
 
+// TestCollect_Webhooks_ScopeCarriesProject is issue #214's own regression
+// case: this check's API call is org-wide, but its verdict is
+// project-conditioned (matched against the scanned project's resolved
+// GUID — see checkRepoWebhooks' own doc comment), so every result it
+// produces must carry Scope.Project, never leave it empty the way the
+// package's three genuinely org-scoped checks do. Covers all three of
+// checkRepoWebhooks' return paths — the happy path plus both
+// not-checkable early returns — since a partial fix that only set Project
+// on the final result would still under-report scope for the two error
+// paths, and Scope.Repo must stay empty throughout (this check is never
+// repo-scoped, per the package doc comment).
+func TestCollect_Webhooks_ScopeCarriesProject(t *testing.T) {
+	cases := []struct {
+		name  string
+		fx    *adofixture.Transport
+		which string // "happy", "project-resolution-fails", or "subscriptions-list-fails"
+	}{
+		{name: "happy path", fx: happyPathFixture(), which: "happy"},
+		{
+			name: "project resolution fails",
+			fx: func() *adofixture.Transport {
+				fx := happyPathFixture()
+				fx.Set("GET", azuredevops.HostCore, projectPath(testProject), adofixture.Response{
+					Status: http.StatusNotFound,
+					Body:   map[string]any{"message": "project not found"},
+				})
+				return fx
+			}(),
+			which: "project-resolution-fails",
+		},
+		{
+			name: "subscriptions list fails",
+			fx: func() *adofixture.Transport {
+				fx := happyPathFixture()
+				fx.Set("GET", azuredevops.HostCore, subscriptionsPath(), adofixture.Response{
+					Status: http.StatusForbidden,
+					Body:   map[string]any{"message": "forbidden"},
+				})
+				return fx
+			}(),
+			which: "subscriptions-list-fails",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCollector(tc.fx)
+			results, err := c.Collect(context.Background(), collect.Scope{Org: testOrg, Project: testProject})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+			got := byID(results)[webhooksID]
+			if got.Scope.Project != testProject {
+				t.Errorf("Scope.Project = %q, want %q", got.Scope.Project, testProject)
+			}
+			if got.Scope.Repo != "" {
+				t.Errorf("Scope.Repo = %q, want empty — this check is never repo-scoped", got.Scope.Repo)
+			}
+			if got.Scope.Org != testOrg {
+				t.Errorf("Scope.Org = %q, want %q", got.Scope.Org, testOrg)
+			}
+		})
+	}
+}
+
 // --- full-Collect wiring / registry completeness ---
 
 func TestCollect_AllFourChecksReturned(t *testing.T) {
