@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/sioakim/attestward/internal/model"
 )
 
 // richPackRemediations is the remediation text for the two checks
@@ -18,9 +20,9 @@ var richPackRemediations = map[string]string{
 
 func TestRenderPOAM_RichPackGolden(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -29,13 +31,13 @@ func TestRenderPOAM_RichPackGolden(t *testing.T) {
 
 func TestRenderPOAM_Deterministic(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
-	first, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
+	first, err := RenderPOAM(pack, ssdf, cisa, nil, nil, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM (1): %v", err)
 	}
-	second, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
+	second, err := RenderPOAM(pack, ssdf, cisa, nil, nil, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM (2): %v", err)
 	}
@@ -46,9 +48,9 @@ func TestRenderPOAM_Deterministic(t *testing.T) {
 
 func TestRenderPOAM_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, nil, hostileScopeLevelByCheckID)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil, nil, hostileScopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -68,9 +70,9 @@ func TestRenderPOAM_HostileStringsRenderInert(t *testing.T) {
 // not-checkable result — zero verified-fail/partial.
 func TestRenderPOAM_CleanPackRendersNoFindingsDocument(t *testing.T) {
 	pack := loadTestPack(t, "clean-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -91,10 +93,38 @@ func TestRenderPOAM_CleanPackRendersNoFindingsDocument(t *testing.T) {
 	}
 }
 
+// TestRenderPOAM_MappingVersionMismatchBanner_SelfAttestationOnly is
+// TestRenderMarkdown_MappingVersionMismatchBanner_SelfAttestationOnly's
+// poam.md twin — the other call site #265's review found untested: every
+// RenderPOAM call in this file passes nil, nil for saQuestions/
+// scannerSignatures, so poam.go's two new parameters were exercised by no
+// test at all before this one, and read as removable dead params to a
+// future cleanup. Passing the real loaded values here, with only
+// self_attestation drifted, proves buildPOAMContext's wiring — not just
+// mappingVersionMismatch in isolation — actually reacts to it.
+func TestRenderPOAM_MappingVersionMismatchBanner_SelfAttestationOnly(t *testing.T) {
+	pack := loadTestPack(t, "rich-pack.json")
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
+	pack.MappingVersions = model.MappingVersions{
+		SSDF:              ssdf.Version,
+		CISAForm:          cisa.Version,
+		ScannerSignatures: scannerSignatures.Version,
+		SelfAttestation:   saQuestions.Version + "-drifted",
+	}
+
+	got, err := RenderPOAM(pack, ssdf, cisa, saQuestions, scannerSignatures, richPackRemediations, nil)
+	if err != nil {
+		t.Fatalf("RenderPOAM: %v", err)
+	}
+	if !strings.Contains(string(got), "this pack's mapping versions do not match") {
+		t.Error("poam.md doesn't show the mapping-version-mismatch banner for a pack whose self_attestation alone has drifted from what's loaded")
+	}
+}
+
 func TestRenderPOAM_MissingMappingDataDegradesGracefully(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 
-	got, err := RenderPOAM(pack, nil, nil, nil, nil)
+	got, err := RenderPOAM(pack, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM with nil mappings: %v", err)
 	}
@@ -125,9 +155,9 @@ func TestRenderPOAM_MissingMappingDataDegradesGracefully(t *testing.T) {
 func TestRenderPOAM_RepoNameNotBackslashEscaped(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	pack.Results[1].Scope.Repo = "my_repo" // Results[1] is the verified-fail gap
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -141,9 +171,9 @@ func TestRenderPOAM_RepoNameNotBackslashEscaped(t *testing.T) {
 
 func TestRenderPOAM_MissingRemediationRendersPlaceholder(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, map[string]string{}, nil)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil, map[string]string{}, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -167,9 +197,9 @@ func TestRenderPOAM_ProjectScopedFindingNotLabeledOrgLevel(t *testing.T) {
 	// exercised by the render_test.go twins instead.
 	pack.Results = append(pack.Results, extra[0])
 	pack.Scope.Project = "my-project" // also covers issue #176's Summary-section requirement below
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
-	got, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, scopeLevelByCheckID)
+	got, err := RenderPOAM(pack, ssdf, cisa, nil, nil, richPackRemediations, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
@@ -207,13 +237,13 @@ func TestRenderPOAM_FindingIDsCrossLinkWithReportGaps(t *testing.T) {
 	dup.Scope.Repo = "bad-repo-2"
 	pack.Results = append(pack.Results, dup)
 
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	reportMD, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	reportMD, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	poamMD, err := RenderPOAM(pack, ssdf, cisa, richPackRemediations, nil)
+	poamMD, err := RenderPOAM(pack, ssdf, cisa, nil, nil, richPackRemediations, nil)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}

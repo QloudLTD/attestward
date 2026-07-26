@@ -33,7 +33,7 @@ func loadTestPack(t *testing.T, name string) model.EvidencePack {
 // loadRealMappings loads the actual embedded mappings — used so tests
 // exercise the exact same task/cluster titles a real report would show,
 // not a synthetic stand-in that could drift from the real files.
-func loadRealMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMapping, *mapping.SelfAttestationQuestions) {
+func loadRealMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMapping, *mapping.SelfAttestationQuestions, *mapping.ScannerSignatureRegistry) {
 	t.Helper()
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
@@ -47,7 +47,11 @@ func loadRealMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMapping,
 	if err != nil {
 		t.Fatalf("LoadSelfAttestationQuestionsFS: %v", err)
 	}
-	return ssdf, cisa, saQuestions
+	scannerSignatures, err := mapping.LoadScannerSignaturesFS(mappings.FS, "scanner-signatures.yaml")
+	if err != nil {
+		t.Fatalf("LoadScannerSignaturesFS: %v", err)
+	}
+	return ssdf, cisa, saQuestions, scannerSignatures
 }
 
 func compareOrUpdateGolden(t *testing.T, name string, got []byte) {
@@ -70,9 +74,9 @@ func compareOrUpdateGolden(t *testing.T, name string, got []byte) {
 
 func TestRenderMarkdown_RichPackGolden(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -81,9 +85,9 @@ func TestRenderMarkdown_RichPackGolden(t *testing.T) {
 
 func TestRenderHTML_RichPackGolden(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -96,13 +100,13 @@ func TestRenderHTML_RichPackGolden(t *testing.T) {
 // this project's established determinism discipline (issue #24).
 func TestRenderMarkdown_Deterministic(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	first, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	first, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown (1): %v", err)
 	}
-	second, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	second, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown (2): %v", err)
 	}
@@ -113,13 +117,13 @@ func TestRenderMarkdown_Deterministic(t *testing.T) {
 
 func TestRenderHTML_Deterministic(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	first, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
+	first, err := RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML (1): %v", err)
 	}
-	second, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
+	second, err := RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML (2): %v", err)
 	}
@@ -231,9 +235,9 @@ var hostileScopeLevelByCheckID = map[string]string{
 
 func TestRenderMarkdown_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, hostileScopeLevelByCheckID)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, hostileScopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -250,9 +254,9 @@ func TestRenderMarkdown_HostileStringsRenderInert(t *testing.T) {
 
 func TestRenderHTML_HostileStringsRenderInert(t *testing.T) {
 	pack := loadTestPack(t, "hostile-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, hostileScopeLevelByCheckID)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, hostileScopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -361,7 +365,7 @@ func assertNoHostileMarkers(t *testing.T, format string, got []byte) {
 func TestBuildContext_MissingMappingDataDegradesGracefully(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 
-	md, err := RenderMarkdown(pack, nil, nil, nil, nil)
+	md, err := RenderMarkdown(pack, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown with nil mappings: %v", err)
 	}
@@ -372,7 +376,7 @@ func TestBuildContext_MissingMappingDataDegradesGracefully(t *testing.T) {
 		t.Error("RenderMarkdown with nil mappings lost the org name, which doesn't depend on mapping data")
 	}
 
-	html, err := RenderHTML(pack, nil, nil, nil, nil)
+	html, err := RenderHTML(pack, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML with nil mappings: %v", err)
 	}
@@ -389,9 +393,9 @@ func TestBuildContext_MissingMappingDataDegradesGracefully(t *testing.T) {
 // a network dependency, and must not be flagged.
 func TestRenderHTML_NoExternalReferences(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -410,9 +414,9 @@ func TestRenderHTML_NoExternalReferences(t *testing.T) {
 // golden file (which would catch the change but not explain why it matters).
 func TestRenderHTML_PrintsToUSLetter(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -436,9 +440,9 @@ func TestRenderHTML_PrintsToUSLetter(t *testing.T) {
 func TestRenderMarkdown_NewlineDoesNotInjectMarkdownStructure(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
 	pack.Results[0].Reason = "line one\n\n# INJECTED HEADING MARKER\n\nline two"
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -484,9 +488,9 @@ func TestRenderMarkdown_ProvenanceAndRepoEscapedNotCodeSpan(t *testing.T) {
 	pack.Results[0].Provenance = []model.Provenance{
 		{Endpoint: "/repos/attestward-demo/my_repo/rulesets", Method: "GET", HTTPStatus: 200, ResponseSHA256: strings.Repeat("a", 64)},
 	}
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -563,9 +567,9 @@ func TestRenderMarkdown_ProjectScopedResultsNotLabeledOrgLevel(t *testing.T) {
 	extra, scopeLevelByCheckID := projectScopedTestResults()
 	pack.Results = append(pack.Results, extra...)
 	pack.Scope.Project = "my-project" // also covers issue #176's pack-header requirement below
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
@@ -588,9 +592,9 @@ func TestRenderHTML_ProjectScopedResultsNotLabeledOrgLevel(t *testing.T) {
 	extra, scopeLevelByCheckID := projectScopedTestResults()
 	pack.Results = append(pack.Results, extra...)
 	pack.Scope.Project = "my-project" // also covers issue #176's pack-header requirement below
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+	got, err := RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
@@ -603,11 +607,42 @@ func TestRenderHTML_ProjectScopedResultsNotLabeledOrgLevel(t *testing.T) {
 	assertScopeLabelPrecise(t, text, "Not Checkable", "<code>C03.env.protection-rules</code></td><td>(project: my-project)</td>", "<code>C03.env.protection-rules</code></td><td>(org)</td>")
 }
 
+// TestRenderMarkdown_MappingVersionMismatchBanner_SelfAttestationOnly proves
+// buildContext's self_attestation/scanner_signatures wiring is genuinely
+// exercised through RenderMarkdown end-to-end, not just by
+// mappingVersionMismatch in isolation (#265's review: mutating both call
+// sites to mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, nil, nil)
+// — a full revert of #264's user-visible behavior — left go test green,
+// because every existing fixture already mismatches on ssdf, so the banner
+// already fired for an unrelated reason and masked whether the new
+// parameters do anything). rich-pack.json's own ssdf/cisa_form/
+// scanner_signatures are overridden here to match what's actually loaded;
+// only self_attestation is drifted, isolating the one field the old,
+// two-field-only comparison could never catch.
+func TestRenderMarkdown_MappingVersionMismatchBanner_SelfAttestationOnly(t *testing.T) {
+	pack := loadTestPack(t, "rich-pack.json")
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
+	pack.MappingVersions = model.MappingVersions{
+		SSDF:              ssdf.Version,
+		CISAForm:          cisa.Version,
+		ScannerSignatures: scannerSignatures.Version,
+		SelfAttestation:   saQuestions.Version + "-drifted",
+	}
+
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
+	if err != nil {
+		t.Fatalf("RenderMarkdown: %v", err)
+	}
+	if !strings.Contains(string(got), "this pack's mapping versions do not match") {
+		t.Error("report.md doesn't show the mapping-version-mismatch banner for a pack whose self_attestation alone has drifted from what's loaded")
+	}
+}
+
 func TestRenderMarkdown_SelfAttestedPairingShowsSideBySide(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, saQuestions := loadRealMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 
-	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, nil)
+	got, err := RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, nil)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}

@@ -145,13 +145,14 @@ type statusCount struct {
 	Count  int
 }
 
-// RenderMarkdown renders pack as report.md. ssdf/cisa/saQuestions may be
-// nil — see buildContext's doc comment for how missing mapping data
-// degrades (bare IDs, no version-mismatch detection) rather than failing.
-// scopeLevelByCheckID may be nil (every Repo-empty result degrades to the
-// org-level label) — see buildContext's and scopeLabel's own doc comments.
-func RenderMarkdown(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scopeLevelByCheckID map[string]string) ([]byte, error) {
-	ctx := buildContext(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+// RenderMarkdown renders pack as report.md. ssdf/cisa/saQuestions/
+// scannerSignatures may be nil — see buildContext's doc comment for how
+// missing mapping data degrades (bare IDs, no version-mismatch detection)
+// rather than failing. scopeLevelByCheckID may be nil (every Repo-empty
+// result degrades to the org-level label) — see buildContext's and
+// scopeLabel's own doc comments.
+func RenderMarkdown(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, scopeLevelByCheckID map[string]string) ([]byte, error) {
+	ctx := buildContext(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 
 	tmpl, err := texttemplate.New("report.md.tmpl").Funcs(texttemplate.FuncMap{
 		"esc":          mdescape.Escape,
@@ -182,8 +183,8 @@ func RenderMarkdown(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *ma
 // -strings fixture for the proof.
 // scopeLevelByCheckID may be nil — see RenderMarkdown's identical doc
 // comment.
-func RenderHTML(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scopeLevelByCheckID map[string]string) ([]byte, error) {
-	ctx := buildContext(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+func RenderHTML(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, scopeLevelByCheckID map[string]string) ([]byte, error) {
+	ctx := buildContext(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 
 	tmpl, err := htmltemplate.New("report.html.tmpl").Funcs(htmltemplate.FuncMap{
 		"statusLabel":  statusLabel,

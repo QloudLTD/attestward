@@ -66,15 +66,10 @@ type poamFindingView struct {
 // bucket rather than panicking or erroring, matching this package's
 // established nil-tolerant contract. scopeLevelByCheckID may be nil — see
 // scopeLabelVerbose's doc comment.
-func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, remediationByCheckID, scopeLevelByCheckID map[string]string) poamContext {
+func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, remediationByCheckID, scopeLevelByCheckID map[string]string) poamContext {
 	ctx := poamContext{Pack: pack}
 
-	if ssdf != nil && pack.MappingVersions.SSDF != "" && ssdf.Version != pack.MappingVersions.SSDF {
-		ctx.MappingVersionMismatch = true
-	}
-	if cisa != nil && pack.MappingVersions.CISAForm != "" && cisa.Version != pack.MappingVersions.CISAForm {
-		ctx.MappingVersionMismatch = true
-	}
+	ctx.MappingVersionMismatch = mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, saQuestions, scannerSignatures)
 
 	findings := assignFindings(pack, ssdf, cisa)
 	ctx.TotalFindings = len(findings)
@@ -153,8 +148,13 @@ func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *
 // scopeLevelByCheckID is the same kind of caller-built map, for the same
 // ADR-0005 reason: each finding's registered scope level (see
 // scopeLabelVerbose). May be nil — degrades to the org-level label.
-func RenderPOAM(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, remediationByCheckID, scopeLevelByCheckID map[string]string) ([]byte, error) {
-	ctx := buildPOAMContext(pack, ssdf, cisa, remediationByCheckID, scopeLevelByCheckID)
+//
+// saQuestions/scannerSignatures (issue #264) are consulted only for
+// MappingVersionMismatch — poam.md itself has no self-attestation
+// pairing or scanner-signature content of its own to render, unlike
+// report.md/report.html — so both may be nil with no other effect.
+func RenderPOAM(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, remediationByCheckID, scopeLevelByCheckID map[string]string) ([]byte, error) {
+	ctx := buildPOAMContext(pack, ssdf, cisa, saQuestions, scannerSignatures, remediationByCheckID, scopeLevelByCheckID)
 
 	tmpl, err := texttemplate.New("poam.md.tmpl").Funcs(texttemplate.FuncMap{
 		"esc":         mdescape.Escape,

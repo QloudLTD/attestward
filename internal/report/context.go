@@ -15,12 +15,14 @@ import (
 type renderContext struct {
 	Pack model.EvidencePack
 
-	// MappingVersionMismatch is set when the loaded ssdf/cisa/questions
-	// mapping's own Version doesn't match what pack.MappingVersions
-	// records — e.g. rendering an old saved pack with a newer binary.
-	// Rendering still proceeds (IDs without a matching title/text just
-	// render bare), but the report surfaces this rather than silently
-	// mixing eras of mapping text.
+	// MappingVersionMismatch is set when any loaded mapping's own Version
+	// doesn't match what pack.MappingVersions recorded for it — e.g.
+	// rendering an old saved pack with a newer binary. All four mapping
+	// files are compared (ssdf, cisa_form, self_attestation,
+	// scanner_signatures — see mappingVersionMismatch). Rendering still
+	// proceeds (IDs without a matching title/text just render bare), but
+	// the report surfaces this rather than silently mixing eras of
+	// mapping text.
 	MappingVersionMismatch bool
 
 	StatusCounts map[model.Status]int
@@ -87,23 +89,67 @@ type selfAttestedView struct {
 	Paired []model.CheckResult
 }
 
+// mappingVersionMismatch reports whether any loaded mapping's own Version
+// differs from what pack itself recorded for it. A nil loaded mapping (a
+// caller that couldn't load one, or doesn't need it), or an empty
+// recorded pack version (an older pack that predates that field being
+// populated — see issue #255 for scanner_signatures' own history of
+// exactly that), skips that one comparison rather than asserting a
+// mismatch it has no actual evidence for — confirmed directly, not
+// assumed, by TestMappingVersionMismatch_OlderPackMissingScannerSignaturesVersion_NoFalsePositive:
+// this is what makes it safe to ship this comparison when not every pack
+// carries scanner_signatures. #255's fix (PR #263) started populating it,
+// so packs scanned from that point on have it — but packs captured before
+// it, including examples/demo-org-pack's own, still lack the field
+// entirely and must not spuriously trigger this banner.
+//
+// One shared implementation rather than duplicated inline comparisons in
+// buildContext and buildPOAMContext (issue #264, found while working on
+// #263): the two copies had drifted to compare only ssdf/cisa_form, never
+// self_attestation or scanner_signatures — identically in both files,
+// exactly the failure mode one shared function removes. The
+// de-duplication alone doesn't prevent a FIFTH mapping file from being
+// silently missed the same way, though (#265's review: adding one more
+// string field to model.MappingVersions leaves this function's own
+// comparisons — and a hand-listed table test of them — green forever,
+// with no compile error or test failure to catch it). What closes that
+// gap is TestMappingVersionMismatch_EveryFieldDriftsIndependently in
+// context_test.go: it reflects over model.MappingVersions itself (one
+// struct, one uniform predicate — the same shape #263's own guard uses),
+// not over the four differently-typed *ssdf/*cisa/... parameters here,
+// so a future field is discovered and drifted automatically rather than
+// needing a new hand-written case. A fifth mapping file still needs a
+// comparison line added here, but only once (not once per caller), and
+// the test above will say so by name if that line is ever missed.
+func mappingVersionMismatch(pack model.MappingVersions, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry) bool {
+	if ssdf != nil && pack.SSDF != "" && ssdf.Version != pack.SSDF {
+		return true
+	}
+	if cisa != nil && pack.CISAForm != "" && cisa.Version != pack.CISAForm {
+		return true
+	}
+	if saQuestions != nil && pack.SelfAttestation != "" && saQuestions.Version != pack.SelfAttestation {
+		return true
+	}
+	if scannerSignatures != nil && pack.ScannerSignatures != "" && scannerSignatures.Version != pack.ScannerSignatures {
+		return true
+	}
+	return false
+}
+
 // buildContext assembles a renderContext from pack plus the mapping data
 // needed to turn bare IDs into human-readable titles/text. ssdf/cisa/
-// saQuestions may each be nil (a caller that couldn't load one, or
-// doesn't need self-attestation pairing) — every lookup degrades to the
-// bare ID rather than panicking or erroring. scopeLevelByCheckID is built
-// by the caller from collect.Registered() (cmd/attestward's
-// buildScopeLevelByCheckID, ADR-0005's seam); nil or incomplete degrades
-// every unresolvable check to the org-level label, same as before #176.
-func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scopeLevelByCheckID map[string]string) renderContext {
+// saQuestions/scannerSignatures may each be nil (a caller that couldn't
+// load one, or doesn't need self-attestation pairing) — every lookup
+// degrades to the bare ID rather than panicking or erroring.
+// scopeLevelByCheckID is built by the caller from collect.Registered()
+// (cmd/attestward's buildScopeLevelByCheckID, ADR-0005's seam); nil or
+// incomplete degrades every unresolvable check to the org-level label,
+// same as before #176.
+func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, scopeLevelByCheckID map[string]string) renderContext {
 	ctx := renderContext{Pack: pack, StatusCounts: map[model.Status]int{}}
 
-	if ssdf != nil && pack.MappingVersions.SSDF != "" && ssdf.Version != pack.MappingVersions.SSDF {
-		ctx.MappingVersionMismatch = true
-	}
-	if cisa != nil && pack.MappingVersions.CISAForm != "" && cisa.Version != pack.MappingVersions.CISAForm {
-		ctx.MappingVersionMismatch = true
-	}
+	ctx.MappingVersionMismatch = mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, saQuestions, scannerSignatures)
 
 	poamIDByCheckRepo := map[string]string{}
 	for _, f := range assignFindings(pack, ssdf, cisa) {

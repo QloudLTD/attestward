@@ -74,7 +74,7 @@ func writeReportFixture(t *testing.T, dir string, withSidecar bool) (path, hash 
 	return path, hash
 }
 
-func loadReportMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMapping, *mapping.SelfAttestationQuestions) {
+func loadReportMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMapping, *mapping.SelfAttestationQuestions, *mapping.ScannerSignatureRegistry) {
 	t.Helper()
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
@@ -88,7 +88,11 @@ func loadReportMappings(t *testing.T) (*mapping.SSDFMapping, *mapping.CISAMappin
 	if err != nil {
 		t.Fatalf("load self-attestation questions: %v", err)
 	}
-	return ssdf, cisa, saQuestions
+	scannerSignatures, err := mapping.LoadScannerSignaturesFS(mappings.FS, "scanner-signatures.yaml")
+	if err != nil {
+		t.Fatalf("load scanner-signatures mapping: %v", err)
+	}
+	return ssdf, cisa, saQuestions, scannerSignatures
 }
 
 // TestRunReport_ByteIdenticalToDirectRenderersCall is issue #28's own named
@@ -106,7 +110,7 @@ func TestRunReport_ByteIdenticalToDirectRenderersCall(t *testing.T) {
 	// a field runReport populates that a bare in-memory pack never would.
 	pack.Integrity = &model.Integrity{SHA256: hash}
 
-	ssdf, cisa, saQuestions := loadReportMappings(t)
+	ssdf, cisa, saQuestions, scannerSignatures := loadReportMappings(t)
 	remediationByCheckID := map[string]string{}
 	for _, meta := range collect.Registered() {
 		remediationByCheckID[meta.ID] = meta.Remediation
@@ -120,15 +124,15 @@ func TestRunReport_ByteIdenticalToDirectRenderersCall(t *testing.T) {
 	// That is precisely the divergence this test is named for.
 	scopeLevelByCheckID := buildScopeLevelByCheckID(pack.Results, collect.LookupPlatform)
 
-	wantMD, err := report.RenderMarkdown(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+	wantMD, err := report.RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	wantHTML, err := report.RenderHTML(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+	wantHTML, err := report.RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderHTML: %v", err)
 	}
-	wantPOAM, err := report.RenderPOAM(pack, ssdf, cisa, remediationByCheckID, scopeLevelByCheckID)
+	wantPOAM, err := report.RenderPOAM(pack, ssdf, cisa, saQuestions, scannerSignatures, remediationByCheckID, scopeLevelByCheckID)
 	if err != nil {
 		t.Fatalf("RenderPOAM: %v", err)
 	}

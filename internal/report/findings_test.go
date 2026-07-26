@@ -8,7 +8,7 @@ import (
 
 func TestAssignFindings_OrdersByClusterThenCheckIDThenRepo(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
 	findings := assignFindings(pack, ssdf, cisa)
 	if len(findings) != 2 {
@@ -30,7 +30,7 @@ func TestAssignFindings_OrdersByClusterThenCheckIDThenRepo(t *testing.T) {
 
 func TestAssignFindings_ExcludesNonGapStatuses(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
 	findings := assignFindings(pack, ssdf, cisa)
 	for _, f := range findings {
@@ -42,7 +42,7 @@ func TestAssignFindings_ExcludesNonGapStatuses(t *testing.T) {
 
 func TestAssignFindings_UnmappedSortsLast(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
 	// C00.unmapped.check isn't cited by any real SSDF task, so it can
 	// never resolve to a cluster. Deliberately named to sort FIRST
@@ -94,7 +94,7 @@ func TestAssignFindings_NilMappingsAllUnmappedNoPanic(t *testing.T) {
 
 func TestAssignFindings_Deterministic(t *testing.T) {
 	pack := loadTestPack(t, "rich-pack.json")
-	ssdf, cisa, _ := loadRealMappings(t)
+	ssdf, cisa, _, _ := loadRealMappings(t)
 
 	first := assignFindings(pack, ssdf, cisa)
 	second := assignFindings(pack, ssdf, cisa)

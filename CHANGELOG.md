@@ -241,6 +241,84 @@ All notable changes to this project are documented here. Format follows
   state" paragraph — the exact property this guard's hermeticity argument
   leans on — didn't list this new job (or two other pre-existing omissions,
   `rubric-drift-check` and `semgrep.yaml`'s own job); added all three.
+- **`MappingVersionMismatch` now compares all four mapping files, not two** (#264).
+  `internal/report/context.go` and `poam.go` each independently compared only `ssdf`
+  and `cisa_form` — `self_attestation` and `scanner_signatures` were absent from both,
+  identically, despite `context.go`'s own doc comment naming "ssdf/cisa/questions"
+  (i.e. including `self_attestation`) since before `scanner_signatures` even existed.
+  This banner is the mechanism that stops a reader trusting a rendered report whose
+  mapping data has moved since the scan — for two of four files it silently never
+  fired. `self_attestation` was already populated on every pack, so this wasn't
+  theoretical: a genuine drift produced no banner, and a reader could see
+  self-attestation answers rendered against question text whose meaning had changed
+  underneath them. `scanner_signatures` was a different story at the time this fix
+  was written: #255/#263 (both open then) were what would populate
+  `MappingVersions.ScannerSignatures` in the first place, so the `scanner_signatures`
+  comparison shipped inert on every pack produced up to that point. #263 has since
+  merged — scan.go now populates the field on every new scan, the same way it already
+  did for the other three, so the comparison this PR added is live rather than
+  waiting on a still-open dependency. A pack scanned before #263 still lacks the
+  field, same as any older pack missing a field added after it was captured; the
+  existing `pack.X != ""` guard already covers that case, not a new addition.
+
+  Also generalized the banner text itself (`report.md.tmpl`, `report.html.tmpl`,
+  `poam.md.tmpl`): it used to say mapping drift meant "SSDF task/CISA cluster titles
+  ... may be missing or reflect a different revision", accurate when only
+  `ssdf`/`cisa_form` drift could trigger it. It's reachable now by `self_attestation`/
+  `scanner_signatures` drift too, and neither of those is an SSDF task or CISA cluster
+  title, so the wording no longer names a specific cause — just "content below may be
+  missing, reflect a different revision, or no longer match what the current mapping
+  data would produce."
+
+  Extracted the two files' duplicated comparison logic into one shared
+  `mappingVersionMismatch` helper rather than extending both copies separately — the
+  duplication is exactly why this drifted in the first place, and a future fifth
+  mapping file now needs a comparison line added once, not twice. That de-duplication
+  alone doesn't stop a fifth field from being silently missed the same way, though: a
+  hand-listed table test of `mappingVersionMismatch`'s four known fields stays green
+  forever if a fifth string field is added to `model.MappingVersions` with no matching
+  comparison — not a compile error, not a test failure, still a silent miss (this PR's
+  own review round caught exactly that in its first draft). What actually closes that
+  gap, replacing the table test, is
+  `TestMappingVersionMismatch_EveryFieldDriftsIndependently`: it reflects over
+  `model.MappingVersions` itself — one struct, one uniform "does drifting this field
+  alone flip the result" predicate, the same shape #263's own guard uses — so a future
+  field is discovered and drifted automatically, with no test-file change required, and
+  fails naming exactly which field has no comparison wired up for it. (An earlier draft
+  of this PR considered and rejected reflecting over the four *loaded* mapping
+  parameters instead — those are four different types, which would need a common
+  interface or a name-keyed lookup to reflect over cleanly. That rejection was correct
+  but beside the point: it argued against a design nobody had actually proposed.
+  Reflecting over `model.MappingVersions`, the one uniform struct, needed none of that.)
+
+  Threading the two previously-missing loaded mappings (`saQuestions`,
+  `scannerSignatures`) through to both comparison sites required extending
+  `RenderMarkdown`/`RenderHTML`/`RenderPOAM`'s own exported signatures (`RenderPOAM`
+  gains both; the other two already took `saQuestions`, gaining only
+  `scannerSignatures`) and their one caller, `cmd/attestward/report.go`, which now
+  loads the scanner-signature registry too — `scan.go` doesn't load it yet (that's
+  #255/#263, still open), so this load only benefits a pack some future or hand-built
+  producer already populates `ScannerSignatures` on.
+
+  Confirmed, not assumed, that the existing `pack.X != "" && loaded.Version != pack.X`
+  guard shape degrades gracefully on a field an older pack never populated — a
+  dedicated test loads the real, current `scannerSignatures` registry (via this
+  package's existing `loadRealMappings` helper, not a hand-typed version string)
+  against a pack whose own `ScannerSignatures` is empty and asserts no mismatch
+  fires — since that's what makes it safe to ship this comparison before every pack
+  carries the field (`examples/demo-org-pack`'s own frozen capture doesn't have it
+  yet, for instance).
+
+  The wiring itself — not just `mappingVersionMismatch` in isolation — is covered too:
+  every existing fixture pack already mismatches on `ssdf`, which masked whether
+  `buildContext`/`buildPOAMContext` actually pass `saQuestions`/`scannerSignatures`
+  through (a mutation reverting both call sites to
+  `mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, nil, nil)` — a full revert
+  of this issue's own fix — left every existing test green). Two new tests, one per
+  `Render*` entry point, use a pack whose `ssdf`/`cisa_form`/`scanner_signatures` all
+  match what's loaded but whose `self_attestation` alone drifts, and assert the banner
+  appears in the rendered output; the same mutation now fails exactly those two tests
+  and nothing else.
 - **`multi-arch-build-sample.yaml`'s uploads no longer inherit the 90-day retention
   default** (#242). Its two `upload-artifact` steps set no `retention-days` at all, so
   both fell back to the repo default of 90 days — 15 live artifacts totalling ~128 MB,

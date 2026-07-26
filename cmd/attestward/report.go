@@ -131,6 +131,19 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 	if err != nil {
 		return fmt.Errorf("load self-attestation questions: %w", err)
 	}
+	// Issue #264: loaded here too now, so RenderMarkdown/RenderHTML/
+	// RenderPOAM can compare it against pack.MappingVersions.ScannerSignatures
+	// the same way they already do for ssdf/cisa/self-attestation. #263
+	// (merged) is what made this comparison live: scan.go now populates
+	// ScannerSignatures on every new pack, the same way it already did for
+	// the other three fields — a pack scanned before that PR still lacks
+	// the field, and the pack.X != "" guard in mappingVersionMismatch
+	// skips the comparison for exactly those, rather than asserting a
+	// mismatch it has no evidence for.
+	scannerSignatures, err := mapping.LoadScannerSignaturesFS(mappings.FS, "scanner-signatures.yaml")
+	if err != nil {
+		return fmt.Errorf("load scanner-signatures mapping: %w", err)
+	}
 
 	remediationByCheckID := buildRemediationByCheckID(pack.Results, collect.LookupPlatform)
 	scopeLevelByCheckID := buildScopeLevelByCheckID(pack.Results, collect.LookupPlatform)
@@ -145,13 +158,13 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 		switch f {
 		case "md":
 			name = "report.md"
-			rendered, err = report.RenderMarkdown(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+			rendered, err = report.RenderMarkdown(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 		case "html":
 			name = "report.html"
-			rendered, err = report.RenderHTML(pack, ssdf, cisa, saQuestions, scopeLevelByCheckID)
+			rendered, err = report.RenderHTML(pack, ssdf, cisa, saQuestions, scannerSignatures, scopeLevelByCheckID)
 		case "poam":
 			name = "poam.md"
-			rendered, err = report.RenderPOAM(pack, ssdf, cisa, remediationByCheckID, scopeLevelByCheckID)
+			rendered, err = report.RenderPOAM(pack, ssdf, cisa, saQuestions, scannerSignatures, remediationByCheckID, scopeLevelByCheckID)
 		}
 		if err != nil {
 			return fmt.Errorf("render %s: %w", name, err)
