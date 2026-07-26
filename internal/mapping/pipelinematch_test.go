@@ -544,16 +544,17 @@ func TestAdoTaskMajorSegment(t *testing.T) {
 // scannermatch_test.go's fixtureExpectations: for every ado_tasks-detectable
 // signature (codeql, ghazdo-dependency-scanning, snyk, sonarqube — the
 // latter with two fixtures, one per distinct task family it detects, see
-// sonarcloud.yaml below), plus the CLI-driven tools whose existing
-// run_patterns are exercised only via an ADO script/bash/pwsh/powershell
-// step since this registry has no ado_tasks entry for them (cosign and
-// osv-scanner genuinely have no Azure Pipelines marketplace task to
-// register; trivy is different — Aqua Security publishes one,
-// AquaSecurityOfficial.trivy-official (`- task: trivy@2`, `trivy@1`
-// legacy), but this registry has no ado_tasks entry for it yet, a real,
-// known zero-detection gap tracked as issue #238, not fixed here; syft has
-// no marketplace task either, same as cosign/osv-scanner), its fixture
-// pipeline file and the confidence its detect block should match at.
+// sonarcloud.yaml below; trivy, since issue #238, with two fixtures of its
+// own — trivy.yaml exercises the pre-existing run_patterns/CLI path,
+// trivy-task.yaml the new ado_tasks/marketplace-task path, both still
+// legitimately real-world usage, same shape as sonarqube/sonarcloud having
+// two fixtures for one signature ID), plus the CLI-driven tools whose
+// existing run_patterns are exercised only via an ADO script/bash/pwsh/
+// powershell step since this registry has no ado_tasks entry for them at
+// all (cosign, osv-scanner, and syft — see each entry's own no_ado_task in
+// mappings/scanner-signatures.yaml for why, established checked negatives
+// as of issue #243's audit), its fixture pipeline file and the confidence
+// its detect block should match at.
 var pipelineFixtureExpectations = []struct {
 	fixture         string
 	wantSignatureID string
@@ -568,6 +569,10 @@ var pipelineFixtureExpectations = []struct {
 	// (issue #167) — its own fixture, same "sonarqube" signature ID.
 	{"sonarcloud.yaml", "sonarqube", ConfidenceHigh},
 	{"trivy.yaml", "trivy", ConfidenceMedium},
+	// Issue #238: the official AquaSecurityOfficial.trivy-official task
+	// (`- task: trivy@2`), a genuinely different real-world usage pattern
+	// from trivy.yaml's CLI-script path above, same "trivy" signature ID.
+	{"trivy-task.yaml", "trivy", ConfidenceHigh},
 	{"cosign.yaml", "cosign", ConfidenceMedium},
 	{"osv-scanner.yaml", "osv-scanner", ConfidenceMedium},
 	{"syft.yaml", "syft", ConfidenceMedium},

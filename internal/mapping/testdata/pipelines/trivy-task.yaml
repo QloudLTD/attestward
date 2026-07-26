@@ -1,0 +1,13 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: trivy@2
+    inputs:
+      type: 'filesystem'
+      target: '.'
+      scanners: 'vuln,misconfig,secret'
+    displayName: 'Run Trivy filesystem scan'

@@ -39,6 +39,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/ado_task_matcher" }
         },
+        "no_ado_task": { "type": "string", "minLength": 1, "pattern": "\\S" },
         "run_patterns": {
           "type": "array",
           "items": { "type": "string" }

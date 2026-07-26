@@ -8,6 +8,44 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **`trivy` gains Azure Pipelines `ado_tasks` detection, and every other signature now
+  records an explicit ADO-task decision** (#238, #243). #238: trivy had no `ado_tasks`
+  entry at all despite Aqua Security publishing an official marketplace task
+  (`AquaSecurityOfficial.trivy-official`, `- task: trivy@2`/legacy `trivy@1`) — an ADO
+  pipeline using it as a task rather than a script step matched nothing, a false-negative
+  SCA finding in a signed evidence pack. Fixed with a new `ado_tasks` entry (major left
+  unpinned, matching `sonarqube`'s own multi-concurrent-majors precedent — both `@1` and
+  `@2` remain in real-world use) and a new fixture, `trivy-task.yaml`, alongside the
+  existing CLI-script fixture. #243: auditing why trivy was missed found it wasn't
+  isolated — only 4 of the registry's 14 signatures carried any ADO detection at all
+  (5 and 9, respectively, after this PR — none with neither). Every other signature now
+  carries an explicit `no_ado_task` reason: structural absences
+  (`dependency-review-action`, `dependabot`, `slsa-generator`, `attest-build-provenance`
+  — GitHub-native by construction, no ADO equivalent mechanism exists to register a task
+  against) and dated checked negatives (`semgrep`, `grype`, `osv-scanner`, `cosign`,
+  `syft` — the Marketplace was searched and nothing found). `grype`'s investigation
+  started from a real lead noted during #234's review (Anchore's own
+  `AnchoreInc.anchore-scan-task`) that turned out not to apply on inspection: it wraps
+  the deprecated Anchore Engine, not Grype, and has since been unpublished from the
+  Marketplace entirely — a proof case for why every `ado_tasks` entry in this registry
+  stays vendor-published-only: a third-party/deprecated wrapper can be unpublished
+  outright, leaving a signature pinned to it as dead weight inside signed packs.
+  `semgrep`'s own gap is partial, not total like trivy's: a third-party task exists
+  (an unrelated individual's, not Semgrep Inc.'s, so it doesn't meet the
+  vendor-published bar above) but a step invoking it still matches at low confidence
+  via `workflow_name_patterns`' `displayName:` fallback whenever that displayName
+  mentions "semgrep" — trivy had no such fallback (`workflow_name_patterns: []`),
+  which is exactly what made its own gap total and #238 urgent. A new registry-level
+  test, `TestEveryScannerSignatureHasADOTasksOrAnExplicitAbsenceMarker`, asserts every
+  signature has either `ado_tasks` or a non-empty `no_ado_task` reason that also isn't
+  itself a YAML 1.1 boolean (`true`/`false`/`yes`/`no`/`on`/`off`/`y`/`n`/`1`/`0`,
+  case-insensitive) — `yaml.v3` decodes an untagged `no_ado_task: true` into the Go
+  string `"true"` regardless of the scalar's own semantic type (only
+  `true`/`false`/`True`/... actually resolve as `!!bool`; the rest resolve as `!!str`
+  or `!!int`), which a bare non-empty check alone would have accepted as a real
+  decision (found in review) — so a future signature can't silently ship GitHub-only
+  again the way this whole class of gap arose in the first place.
+
 - **`syft` (SBOM generation) added to the scanner-signature registry, in a new `sbom`
   category** (#166). Epic #34/story #149's own text assumed syft already had an entry
   among the CLI-driven tools (trivy/cosign/syft/osv-scanner) — it never did; the only

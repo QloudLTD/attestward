@@ -92,9 +92,33 @@ type ADOTaskMatcher struct {
 // `powershell:` text and WorkflowNamePatterns matches the pipeline's own
 // `name:` plus each step's `displayName:`. ADOTasks has no GitHub
 // equivalent — it's the ADO-only high-confidence tier, alongside Actions.
+//
+// NoADOTask is the deliberate-absence counterpart to ADOTasks (issue
+// #243): a non-empty, human-written reason recording that this
+// signature's tool genuinely has no Azure Pipelines marketplace task —
+// either structurally (the tool's own mechanism has no ADO equivalent to
+// register a task against, e.g. dependabot's config-file-presence
+// detection) or as a checked negative (the Marketplace was searched and
+// nothing was found, dated so the claim doesn't silently go stale as new
+// tasks get published). Exactly one of ADOTasks/NoADOTask must be
+// non-empty for every signature — enforced by
+// TestEveryScannerSignatureHasADOTasksOrAnExplicitAbsenceMarker, not by
+// this loader, so a registry missing both still loads (a hard load-time
+// failure would take down `attestward scan` itself on a gap that's a
+// documentation debt, not a correctness bug) but fails CI. This being a
+// Go string field is not, by itself, enough to stop a placeholder value
+// from passing (issue #253's own review): yaml.v3 decodes an untagged
+// scalar into a string field by its raw text, not its semantic YAML
+// type, so `no_ado_task: true` lands here as the Go string "true" —
+// non-empty, and indistinguishable from a real reason by a bare
+// non-empty check alone. TestEveryScannerSignatureHasADOTasksOrAn...'s
+// own hasExplicitADODecision helper additionally rejects the full YAML 1.1
+// boolean vocabulary (true/false/yes/no/on/off/y/n/1/0, case-insensitive)
+// precisely to close that gap.
 type ScannerSignatureDetect struct {
 	Actions              []ActionMatcher  `yaml:"actions"`
 	ADOTasks             []ADOTaskMatcher `yaml:"ado_tasks,omitempty"`
+	NoADOTask            string           `yaml:"no_ado_task,omitempty"`
 	RunPatterns          []string         `yaml:"run_patterns"`
 	WorkflowNamePatterns []string         `yaml:"workflow_name_patterns"`
 }

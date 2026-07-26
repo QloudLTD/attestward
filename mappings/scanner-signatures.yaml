@@ -77,6 +77,37 @@
 # unpinned for both SonarQube Server and SonarQube Cloud, whose ADO
 # extensions have each shipped several concurrently-supported majors).
 #
+# #238 found that trivy — a signature that predates #149's whole ADO
+# dimension — had never been given an `ado_tasks` entry despite Aqua
+# Security publishing an official one (AquaSecurityOfficial.trivy-official,
+# `- task: trivy@2`/legacy `trivy@1`), a real zero-detection gap on Azure
+# Pipelines fixed below. #243's own audit of the registry's other nine
+# non-`ado_tasks` signatures (excluding trivy, #238's own fix) found it
+# wasn't isolated: only 4 of the registry's 14 signatures carried any ADO
+# detection at all at the time. Every signature now carries either an
+# `ado_tasks` block or a `no_ado_task` entry (5 and 9 respectively, none
+# with neither) — a non-empty, dated-where-it's-a-search-result reason
+# recording that the tool genuinely has no Azure Pipelines marketplace
+# task, so a reader (or a future contributor) never has to re-derive that
+# or mistake a still-undetected tool for an oversight.
+# `no_ado_task` covers two distinct cases, each written out in the entry it
+# applies to: a *structural* absence (the tool's own detection mechanism —
+# a GitHub Actions reusable-workflow call, a PR-diff, a config file's
+# presence, a GitHub-hosted API — has no Azure Pipelines equivalent to
+# register a task against at all, so this isn't expected to ever change) and
+# a *checked negative* (the Marketplace was searched and nothing turned up,
+# dated, since a search result unlike a structural fact can go stale the
+# day someone ships a real task). `major` was investigated per-signature the
+# same way as the existing `ado_tasks` entries above — not assumed clean,
+# and not assumed absent either: grype's own investigation started from a
+# real lead (#234's review noted Anchore publishes
+# AnchoreInc.anchore-scan-task, `- task: Anchore@0`) that turned out not to
+# apply — see grype's own `no_ado_task` for why. Every signature having one
+# of the two fields is enforced by
+# TestEveryScannerSignatureHasADOTasksOrAnExplicitAbsenceMarker
+# (internal/mapping/scannersig_test.go) rather than by the loader itself, so
+# a gap here is a CI failure, not a runtime one.
+#
 # `template:` references in an Azure Pipelines file — a step, job, or
 # stage that points at another YAML file instead of containing its
 # content directly, or the pipeline's own root-level `extends:` (the
@@ -125,7 +156,7 @@
 # for that file directly via the GitHub API; it's listed here now purely
 # for SCA-category registry completeness.
 
-version: "1.4.0"
+version: "1.5.0"
 
 signatures:
   - id: codeql
@@ -168,6 +199,40 @@ signatures:
         # kept since older workflows may still reference the original.
         - slug: returntocorp/semgrep-action
         - slug: semgrep/semgrep-action
+      # Checked negative (issue #243), checked 2026-07-26: Semgrep's own CI
+      # docs (docs.semgrep.dev/deployment/add-semgrep-to-ci) point Azure
+      # Pipelines users at a sample script-based config, not a marketplace
+      # task. A third-party community extension exists on the Marketplace
+      # ("Semgrep Security Scan", published by an unrelated individual
+      # account, not Semgrep Inc.), but every ado_tasks entry in this
+      # registry is a vendor-published task (Aqua Security/trivy,
+      # SonarSource/sonarqube, Snyk/snyk, Microsoft/GHAzDO) — an unofficial
+      # wrapper doesn't meet that bar, so this stays a checked negative
+      # rather than an ado_tasks entry (issue #253's review: grype's own
+      # entry below is the proof case for why — Anchore's task wraps a
+      # deprecated engine and has since been unpublished from the
+      # Marketplace outright, exactly the risk a third-party/unofficial
+      # task carries).
+      #
+      # This gap is PARTIAL, not total like trivy's own gap was (issue
+      # #253's review correction: the wording below used to say the third-
+      # party task path is "already covered by run_patterns", which is
+      # true of the CLI-script path but not the task path at all —
+      # run_patterns matches step script/bash/pwsh/powershell text, and a
+      # marketplace-task step has none). What actually, partially,
+      # mitigates the task path is workflow_name_patterns' displayName:
+      # fallback below: a step invoking the third-party task with a
+      # displayName mentioning "semgrep" still matches at ConfidenceLow.
+      # A generic displayName goes undetected. trivy had no such fallback
+      # at all (its own workflow_name_patterns was empty), which is
+      # exactly what made trivy's gap total and #238 urgent by comparison.
+      no_ado_task: >-
+        No official Semgrep-published Azure Pipelines task exists (checked
+        2026-07-26) — Semgrep's own CI docs recommend a script-based
+        integration instead. This gap is partial, not total: a step
+        invoking the third-party task still matches at low confidence via
+        workflow_name_patterns' displayName fallback below, whenever that
+        displayName mentions "semgrep".
       run_patterns:
         - "\\bsemgrep\\b"
       workflow_name_patterns:
@@ -243,6 +308,14 @@ signatures:
     detect:
       actions:
         - slug: actions/dependency-review-action
+      # Structural absence (issue #243) — GitHub-native by construction:
+      # this diffs a pull request's own dependency changes via GitHub's PR
+      # API, which Azure DevOps has no equivalent surface for. Not a
+      # search-dated claim; there is no marketplace task to eventually find.
+      no_ado_task: >-
+        GitHub-native by construction — diffs a GitHub pull request's own
+        dependency changes; Azure DevOps has no equivalent PR-diffing
+        mechanism to register a task against.
       run_patterns: []
       workflow_name_patterns: []
     run_evidence: >-
@@ -308,10 +381,36 @@ signatures:
     detect:
       actions:
         - slug: aquasecurity/trivy-action
+      # Issue #238: Aqua Security publishes an official Azure Pipelines
+      # marketplace task — verified against the extension's own Marketplace
+      # listing and its source repo (aquasecurity/trivy-azure-pipelines-task):
+      # publisher AquaSecurityOfficial, extension trivy-official, task name
+      # `trivy`. Both `trivy@2` (current, recommended for new users) and
+      # `trivy@1` (the original version — superseded, not deprecated) remain
+      # in real-world use, the same multi-concurrent-majors situation as
+      # sonarqube's ado_tasks above, so major is left unpinned here too
+      # rather than pinned to one and under-detecting the other. Unlike
+      # every other ado_tasks entry in this registry — all PascalCase,
+      # matching Microsoft's/each vendor's own task-naming convention —
+      # trivy's task name is all-lowercase, checked directly against
+      # upstream's own docs (aquasecurity/trivy-azure-pipelines-task's
+      # docs/trivyv1.md and docs/trivyv2.md): every `- task:` YAML example
+      # in both, eight occurrences, is lowercase `trivy@1`/`trivy@2` — only
+      # the README's own prose section headers ("Trivy@1 Configuration")
+      # are capitalized, which isn't something anyone would copy into a
+      # pipeline. Task-name matching is case-insensitive regardless
+      # (matchADOTask's own EqualFold, the matcher's existing behavior for
+      # every ado_tasks entry, not something added for trivy specifically),
+      # so this entry doesn't depend on which capitalization a real
+      # pipeline author happens to type.
+      ado_tasks:
+        - task: trivy
       run_patterns:
         - "trivy (fs|repo|image)"
       workflow_name_patterns: []
-    run_evidence: "Workflow run of the job invoking the trivy-action or trivy CLI."
+    run_evidence: >-
+      Workflow run of the job invoking the trivy-action or trivy CLI. On
+      Azure Pipelines, a run is a pipeline run invoking the trivy task.
 
   - id: grype
     name: "Grype"
@@ -319,6 +418,25 @@ signatures:
     detect:
       actions:
         - slug: anchore/scan-action
+      # Checked negative (issue #243), checked 2026-07-26. #234's own review
+      # left one real lead: Anchore publishes an Azure Pipelines task,
+      # AnchoreInc.anchore-scan-task (`- task: Anchore@0`) — investigated
+      # rather than assumed either way. It doesn't apply: the task's own
+      # Marketplace listing and its source repo (anchore/azure-devops-task)
+      # both confirm it wraps Anchore Engine, not Grype ("Anchore Inline
+      # Scan, which is utilized for this integration, is deprecated" per its
+      # own README, pointing users at Grype instead of fixing the task to
+      # use it), and the listing itself is now unpublished from the
+      # Marketplace entirely ("This extension is now unpublished from
+      # Marketplace") — not grype's task under a different name, and not
+      # installable regardless. No genuine grype-specific Azure Pipelines
+      # task was found.
+      no_ado_task: >-
+        No Grype-specific Azure Pipelines task exists (checked 2026-07-26).
+        Anchore's own AnchoreInc.anchore-scan-task (Anchore@0) was
+        investigated as the one lead from #234's review, but it wraps the
+        deprecated Anchore Engine, not Grype, and has since been
+        unpublished from the Marketplace entirely.
       run_patterns:
         - "\\bgrype\\b"
       workflow_name_patterns: []
@@ -336,6 +454,15 @@ signatures:
         # above. See WorkflowJob.Uses' doc comment for how the matcher
         # checks both the same way.
         - slug: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml
+      # Checked negative (issue #243) — independently searched during
+      # #234's own review round and re-confirmed 2026-07-26: no official
+      # (or any) OSV-Scanner Azure Pipelines marketplace task exists.
+      # Azure Pipelines integration is CLI/script-only, already covered by
+      # run_patterns below.
+      no_ado_task: >-
+        No OSV-Scanner Azure Pipelines task exists (checked 2026-07-26,
+        first noted during #234's review) — integration there is
+        CLI/script-only, already covered by run_patterns below.
       run_patterns:
         - "osv-scanner\\b"
       workflow_name_patterns: []
@@ -346,6 +473,15 @@ signatures:
     category: sca
     detect:
       actions: []
+      # Structural absence (issue #243) — GitHub-native by construction,
+      # same as this entry's own detection mechanism (a config file's
+      # presence, not a workflow step): Azure DevOps has no equivalent
+      # automated dependency-update-PR bot this registry could detect via a
+      # checked-in file the way .github/dependabot.yml works on GitHub.
+      no_ado_task: >-
+        GitHub-native by construction — Azure DevOps has no equivalent
+        automated dependency-update-PR mechanism to register a task
+        against.
       run_patterns: []
       workflow_name_patterns: []
     run_evidence: >-
@@ -361,6 +497,15 @@ signatures:
     detect:
       actions:
         - slug: anchore/sbom-action
+      # Checked negative (issue #243) — independently searched during
+      # #234's own review round and re-confirmed 2026-07-26: no Syft Azure
+      # Pipelines marketplace task exists, official or otherwise. Azure
+      # Pipelines integration is CLI-only, already covered by run_patterns
+      # below.
+      no_ado_task: >-
+        No Syft Azure Pipelines task exists (checked 2026-07-26, first
+        noted during #234's review) — integration there is CLI-only,
+        already covered by run_patterns below.
       run_patterns:
         # syft has no single fixed subcommand the way trivy/snyk/cosign do —
         # its own README's "Basic Usage" is the bare form, `syft <target>`
@@ -479,6 +624,15 @@ signatures:
     detect:
       actions:
         - slug: sigstore/cosign-installer
+      # Checked negative (issue #243) — independently searched during
+      # #234's own review round and re-confirmed 2026-07-26: no cosign
+      # Azure Pipelines marketplace task exists. Azure Pipelines
+      # integration is CLI/script-only, already covered by run_patterns
+      # below.
+      no_ado_task: >-
+        No cosign Azure Pipelines task exists (checked 2026-07-26, first
+        noted during #234's review) — integration there is CLI/script-only,
+        already covered by run_patterns below.
       run_patterns:
         # The installer action only puts the cosign binary on PATH — the
         # actual signing happens in a separate run: step, e.g. `cosign
@@ -506,6 +660,22 @@ signatures:
         # table.
         - slug: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml
         - slug: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml
+      # Structural absence (issue #243) — slsa-github-generator's own
+      # detection mechanism (a GitHub Actions job-level reusable-workflow
+      # call) has no Azure Pipelines equivalent to register a task against.
+      # Checked 2026-07-26 for a production-grade alternative regardless,
+      # not assumed: the SLSA framework's own ADO exploration
+      # (slsa-framework/azure-devops-demo) is explicitly a proof-of-concept
+      # demo, not a task this registry should treat as equivalent; a
+      # separate third-party extension (gattjoe.SLSAProvenanceGenerator)
+      # exists but isn't slsa-github-generator under a different name,
+      # matching the same vendor-published-only bar semgrep's own
+      # no_ado_task above applies.
+      no_ado_task: >-
+        No Azure Pipelines equivalent of slsa-github-generator's own
+        reusable-workflow mechanism exists (checked 2026-07-26); the SLSA
+        framework's own ADO exploration is an explicit proof-of-concept,
+        not a production task.
       run_patterns: []
       workflow_name_patterns:
         - "(?i)\\bslsa\\b"
@@ -520,6 +690,14 @@ signatures:
     detect:
       actions:
         - slug: actions/attest-build-provenance
+      # Structural absence (issue #243) — GitHub-native by construction:
+      # produces a GitHub-hosted attestation retrievable only via GitHub's
+      # own REST API (see run_evidence below); Azure DevOps has no
+      # equivalent hosted-attestation surface to register a task against.
+      no_ado_task: >-
+        GitHub-native by construction — produces a GitHub-hosted
+        attestation via GitHub's own REST API; Azure DevOps has no
+        equivalent surface to register a task against.
       run_patterns: []
       workflow_name_patterns: []
     run_evidence: >-
