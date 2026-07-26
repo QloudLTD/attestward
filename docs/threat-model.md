@@ -392,12 +392,17 @@ diagram doesn't redraw per platform.
     doesn't touch `~/go/pkg/mod`, `~/Library/Caches/go-build`, or a runner's Go
     toolcache, all of which persist across every job/workflow sharing one physical
     machine. That's `spyros-mac-mini-ssdf` (every macOS-labeled job in this repo:
-    `lint`, `test`, `checks-docs-drift`, `examples-drift` (added with issue #228's
-    drift guard), `build` (cross-compiles every target platform — see `ci.yaml`'s own
+    `lint`, `test`, `checks-docs-drift`, `gomod-tidy-drift` (added with issue #249's
+    drift guard — its own `go mod tidy` step is the clearest example of this
+    paragraph's own point: it leans on this exact persistence to avoid a network
+    fetch on every run, see that job's own comment), `examples-drift` (added with
+    issue #228's drift guard), `rubric-drift-check` (added with issue #209's drift
+    guard), `build` (cross-compiles every target platform — see `ci.yaml`'s own
     comment for why this replaced four separate per-arch runners), `goreleaser-dry-run`,
     the `release.yaml` `goreleaser` job, `integration-scan`,
     `integration-scan-ado` (added with issue #155's S9 harness),
-    `sign-verify`, `self-scan`, and the aorus `keepalive` job), `spyros-ionos-ssdf`
+    `sign-verify`, `self-scan`, `semgrep.yaml`'s own `semgrep` job, and the aorus
+    `keepalive` job), `spyros-ionos-ssdf`
     (`test-linux`), `spyros-parallels-ssdf`, and `spyros-aorus-ssdf` — four machines, not
     one, each accumulating shared state across everything routed to it. The latter two
     (and `wake-aorus`/`build-windows`/`sleep-aorus` on `spyros-mac-mini-ssdf` and

@@ -134,6 +134,53 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`go.mod` is now tidy, a CI guard keeps it that way, and goreleaser no longer
+  mutates it during release** (#249). Surfaced while verifying #247: `cmd/attestward/
+  scan.go` imports `github.com/spf13/pflag` directly, but `go.mod` listed it
+  `// indirect` — untidy on `main`, reproduced on a clean checkout (`go mod tidy`
+  changes `go.mod`, leaves `go.sum` alone). Nothing checked this (unlike
+  `checks-docs-check`/`examples-check`/`rubric-drift-check`, which all exist for
+  exactly this shape of drift), and `.goreleaser.yaml`'s `before: hooks: - go mod
+  tidy` ran it unchecked on every release — so the `go.mod` that produced published
+  binaries was never provably the one at the tagged commit. Latent, not active
+  today: the delta was one require-block promotion with `go.sum` unchanged, so the
+  resolved dependency graph — and almost certainly the binaries — were identical
+  either way. But for a tool whose whole premise is verifiable provenance (signed
+  evidence packs, cosign-signed artifacts, #158's signed release tags), "check out
+  the tag and rebuild" needs to be literally true, and a release step that can
+  mutate the tree before building is exactly what shouldn't exist regardless.
+  Three-part fix, in order of what actually matters: a new CI guard,
+  `gomod-tidy-drift` (`make tidy-check`, a new `tidy`/`tidy-check` pair matching
+  `checks-docs`/`checks-docs-check`'s and `examples`/`examples-check`'s existing
+  shape) — this is the part that stops it recurring, without it the other two
+  drift back the first time someone adds an import; the tidy result itself
+  committed; and the goreleaser `before:` hook removed as redundant once the guard
+  exists. Checked rather than assumed whether the guard needs network access:
+  `go mod tidy` computes the full module graph, not just this build's own
+  dependency closure, so it can need a network fetch for transitive test-only
+  modules a plain `go build`/`go test` run never touches (confirmed directly —
+  an isolated cache fully populated by `go build ./...` still needed four more
+  modules under `GOPROXY=off`) — not fully hermetic, and this recurs on every
+  module-graph change (a dependency bump), not just once ever: `lint`'s own
+  `go install golangci-lint@v2.12.2` is pinned and genuinely one-time until the
+  pin itself moves, but tidy's own closure is a strict superset of whatever the
+  build/test jobs already fetched and moves with every `go.mod` change.
+
+  Review found three more things worth fixing in the same PR: `make tidy-check`
+  is the only `-check` target in this repo that mutates the working tree on a
+  failing run (`checks-docs-check` passes `--check` and never writes;
+  `examples-check` renders into a scratch directory and diffs there) — kept
+  deliberately rather than restored on failure (harmless in CI, since
+  `actions/checkout` resets the tree per job; often convenient locally, since
+  the mutation is the fix `make tidy` itself would produce anyway), with the
+  target's own comment corrected to say so rather than claiming a read-only
+  contract it doesn't honor. The failure output was a bare diff hunk with no
+  remediation instruction, unlike its two siblings — now emits an `::error::`
+  annotation naming the fix (`run 'make tidy' and commit the result`), matching
+  their house style. `docs/threat-model.md`'s own "shared, persistent runner
+  state" paragraph — the exact property this guard's hermeticity argument
+  leans on — didn't list this new job (or two other pre-existing omissions,
+  `rubric-drift-check` and `semgrep.yaml`'s own job); added all three.
 - **`multi-arch-build-sample.yaml`'s uploads no longer inherit the 90-day retention
   default** (#242). Its two `upload-artifact` steps set no `retention-days` at all, so
   both fell back to the repo default of 90 days — 15 live artifacts totalling ~128 MB,

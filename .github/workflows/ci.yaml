@@ -115,6 +115,47 @@ jobs:
           go-version-file: go.mod
       - run: make checks-docs-check
 
+  # Issue #249's drift guard: go.mod/go.sum are the input to every build,
+  # including goreleaser's release build, not a generated artifact — but
+  # the same "nothing checks it" gap #30/#228 both existed for applies to
+  # them too. Before this, `go mod tidy` ran unchecked as a goreleaser
+  # `before:` hook on every release, so the go.mod that produced published
+  # binaries was never provably the one at the tagged commit — sharper than
+  # ordinary untidiness for a tool whose whole premise is that "check out
+  # the tag and rebuild" reproduces what shipped. `make tidy-check` runs
+  # `go mod tidy` then diffs go.mod/go.sum against the working tree; a
+  # clean diff here is what lets the goreleaser hook be removed entirely
+  # rather than papering over drift at release time.
+  #
+  # Not fully hermetic: `go mod tidy` computes the full module graph, not
+  # just this build's own dependency closure, so it can need a network
+  # fetch for a transitive test-only module a plain `go build`/`go test`
+  # run never touches — confirmed directly, not assumed: an isolated
+  # GOMODCACHE fully populated by `go build ./...` still needed four more
+  # modules under `GOPROXY=off` (google/go-cmp, inconshreveable/mousetrap,
+  # golang.org/x/oauth2, gopkg.in/check.v1 — test-deps-of-deps this repo's
+  # own build/test never reaches). `GOFLAGS=-mod=mod` doesn't change this
+  # (it only affects whether OTHER commands may rewrite go.mod; `go mod
+  # tidy` itself always can). This runner's module cache persists across
+  # runs, so this is a one-time cost per module-graph change, not per run
+  # — but it DOES recur on every dependency bump, unlike `lint`'s own
+  # `go install golangci-lint@v2.12.2` above: that install is pinned, so
+  # it's one-time until the pin itself is bumped, while tidy's own closure
+  # moves with every `go.mod` require-block change, and is a strict
+  # superset of whatever the build/test jobs above it already fetched. A
+  # transient proxy.golang.org failure on exactly one of those four
+  # modules would redden this job alone, the same "red tick that doesn't
+  # mean the code is wrong" pattern the coverage-upload step above already
+  # documents.
+  gomod-tidy-drift:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: make tidy-check
+
   # Issue #228's drift guard, same shape as checks-docs-drift above:
   # examples/demo-org-pack/{report.md,report.html,poam.md} are rendered
   # from the pack's own evidence.json, not hand-edited — went two releases

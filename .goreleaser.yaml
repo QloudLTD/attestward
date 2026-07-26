@@ -2,10 +2,6 @@ version: 2
 
 project_name: attestward
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
   - id: attestward
     main: ./cmd/attestward
