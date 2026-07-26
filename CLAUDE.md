@@ -51,6 +51,7 @@ accuracy standard that does (every signature backed by a real fixture workflow).
 | `fixtures.yaml` | Expected check status per check per demo repo — the integration test's assertion table; grows as C05–C10 land |
 | `hack/demo-ado-setup.sh` | Azure DevOps twin of `demo-org-setup.sh` (issue #155) — idempotent REST 7.1 setup script for the `attestward-demo` project on `dev.azure.com/seciq` |
 | `fixtures-ado.yaml` | Azure DevOps twin of `fixtures.yaml` (issue #155) — all 81 entries captured from the definitive 2026-07-23 live scan, kept as a separate file so `fixtures.yaml`/its integration test stay untouched |
+| `hack/fetch-drift-baseline.sh` | self-scan.yaml's drift-baseline resolution (issue #211), factored out of the workflow YAML so it's testable against a mocked `gh` — see `fetch-drift-baseline_test.sh`, wired into `ci.yaml`'s `test` job |
 
 Work is tracked entirely in [GitHub Issues](../../issues) — see the
 [v0.1 epic (#1)](../../issues/1) for the full build plan across Phases 0–6. There is no

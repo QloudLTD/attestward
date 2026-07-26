@@ -22,9 +22,41 @@ name: Self-scan
 # coverage is a deliberate future enhancement, not done here: creating and
 # storing a new credential is a more consequential step than this
 # workflow's own read-only scope, left for the repo owner's own call.
+# Issue #211: `on: release: types: [published]` never actually fires here.
+# release.yaml's goreleaser job creates every release using the ambient
+# `secrets.GITHUB_TOKEN` (not a PAT or a human's own session) — and GitHub
+# deliberately does not cascade events triggered by GITHUB_TOKEN into new
+# workflow runs, to prevent recursive workflow chains (documented
+# exceptions: workflow_dispatch, repository_dispatch, and pull_request
+# opened/synchronize/reopened — release is not among them). Confirmed
+# against this repo's own history, not assumed: `gh run list
+# --workflow=self-scan.yaml` shows zero runs with event "release" ever,
+# across all three real releases (v0.1.0, v0.2.0, v0.3.0) — every
+# release-adjacent run visible there was a manual workflow_dispatch.
+#
+# `workflow_run` sidesteps the restriction: it fires on a workflow run's
+# *completion*, regardless of what token authenticated the run underneath
+# it — a documented, standard way to react to a GITHUB_TOKEN-authenticated
+# workflow's results. release.yaml only ever runs on a `v*` tag push, so
+# its completion is an unambiguous release signal; on success, its
+# `head_branch` is the tag itself (verified against this repo's own past
+# "Release" runs via `gh run list --workflow=release.yaml`, e.g. head
+# branch "v0.3.0" for the run that published that tag) — see
+# attach-to-release's TAG below.
+#
+# One tradeoff worth naming: unlike `on: release`, a `workflow_run`-
+# triggered checkout resolves main's current HEAD, not the tagged commit
+# (GITHUB_SHA here is the default branch, not the tag) — so
+# self-attestation.yaml and anything else this scan reads comes from
+# main, not from the exact commit the release was cut at. Anything merged
+# between the tag push and the Release workflow's completion (usually
+# seconds to minutes) lands in that release's pack. Mostly benign for
+# this repo's cadence, but a real difference from what `on: release`
+# would have given.
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   schedule:
     # Monday 06:00 UTC — arbitrary but fixed, so drift is visible weekly
     # even between releases.
@@ -41,7 +73,14 @@ permissions:
   security-events: read
 
 jobs:
+  # A workflow_run event fires on every "Release" completion, including a
+  # failed or cancelled one (e.g. the goreleaser job errors before
+  # publishing) — there's no fresh release to scan against in that case, so
+  # this run is a no-op rather than a scan that would just repeat the last
+  # scheduled/dispatched one. schedule/workflow_dispatch are unaffected
+  # (short-circuits on the event_name check).
   self-scan:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, macOS]
     steps:
       # Default clean:true is quietly load-bearing on this self-hosted
@@ -53,25 +92,28 @@ jobs:
 
       # Drift baseline: the evidence.json attached to the latest release
       # (durable, unlike expiring workflow artifacts — see the
-      # attach-to-release job below, which maintains it). A missing asset
-      # is expected, not an error: it just means no baseline yet (first
-      # run after this workflow landed, or no release-triggered run has
-      # attached one), and the action skips drift mode on an empty
-      # baseline input.
+      # attach-to-release job below, which maintains it). Logic lives in
+      # hack/fetch-drift-baseline.sh, not inline here, specifically so it's
+      # testable against a mocked `gh` without a real release — see
+      # fetch-drift-baseline_test.sh (issue #211) — and because that
+      # script's own header documents the cases (no release yet / latest
+      # has it / latest is missing it — expected on the release currently
+      # being processed, or a genuinely broken chain otherwise) this
+      # comment used to have to.
+      #
+      # TRIGGER_TAG is set only on a workflow_run event, to the release
+      # that triggered this run — this job always runs BEFORE
+      # attach-to-release attaches that same release's own pack below, so
+      # on every successful release run this script would otherwise see
+      # the just-published release missing evidence.json and (correctly,
+      # by every other signal) read that as a broken chain. TRIGGER_TAG
+      # lets it recognize this one expected case instead.
       - name: Fetch drift baseline from the latest release
         id: baseline
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if gh release download --repo "$GITHUB_REPOSITORY" \
-               --pattern evidence.json --dir baseline 2>/dev/null; then
-            echo "path=baseline/evidence.json" >> "$GITHUB_OUTPUT"
-            echo "baseline: latest release's evidence.json"
-          else
-            echo "path=" >> "$GITHUB_OUTPUT"
-            echo "no evidence.json on the latest release — drift detection skipped this run"
-          fi
+          TRIGGER_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
+        run: hack/fetch-drift-baseline.sh
 
       - uses: sioakim/attestward-action@45e3861d57f503a2b7362253d4c924de3158ed87 # v1.0.0
         id: attestward
@@ -163,14 +205,21 @@ jobs:
       # step or shorten its retention without reading the chain: attach-to-release
       # (below) downloads it on release events and attaches evidence.json to the
       # release, and the drift check at the top of this job fetches the baseline
-      # from exactly that release asset. Break the upload and every later run
-      # logs "no evidence.json on the latest release — drift detection skipped"
-      # and stays GREEN, so posture drift goes unnoticed behind a passing badge.
-      # Drift is enforced by the action's fail-on-drift above, not by the
-      # gap-check step — but it is the same class of failure the pass_count
-      # floor below exists to catch: a green run that verified less than it
-      # appears to. #211 tracks making a missing baseline distinguishable from
-      # a genuine first run instead of failing open.
+      # from exactly that release asset (via hack/fetch-drift-baseline.sh, #211).
+      #
+      # #211 shipped making a missing baseline distinguishable from a genuine
+      # first run rather than failing open unconditionally — but breaking THIS
+      # upload can still produce a silent, green skip in one specific case: if
+      # no release has ever carried evidence.json (this step is what would
+      # have seeded the very first one), the read side correctly reads that as
+      # a genuine first run and stays green, since there is nothing yet to
+      # compare against — unavoidable, not a bug. If an OLDER release still
+      # carries a pack from before this step broke, the read side catches the
+      # gap instead — loudly (a `::error::` broken-chain annotation), not
+      # silently, and falls back to that older pack. Drift itself is enforced
+      # by the action's fail-on-drift above, not by the gap-check step — but a
+      # lost baseline is the same class of failure the pass_count floor below
+      # exists to catch: a green run that verified less than it appears to.
       #
       # continue-on-error is still right, with an honest scope. On schedule and
       # workflow_dispatch runs — the large majority — attach-to-release is
@@ -202,11 +251,15 @@ jobs:
           retention-days: 7
 
   # The one write in this workflow, isolated in its own job so the scan
-  # job's permissions stay read-only (ADR-0007): on release events, the
-  # fresh pack becomes the new drift baseline by being attached to the
-  # triggering release.
+  # job's permissions stay read-only (ADR-0007): when this run was fired by
+  # a successful "Release" completion, the fresh pack becomes the new
+  # drift baseline by being attached to the release that run just
+  # published. TAG comes from the completed run's head_branch — for a
+  # tag-triggered workflow that's the tag itself (see the workflow_run
+  # trigger's own comment above for how that was verified against this
+  # repo's real run history, not assumed).
   attach-to-release:
-    if: github.event_name == 'release'
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     needs: self-scan
     runs-on: [self-hosted, macOS]
     permissions:
@@ -216,10 +269,10 @@ jobs:
         with:
           name: self-scan-evidence
           path: evidence
-      - name: Attach pack to the triggering release
+      - name: Attach pack to the release the triggering run just published
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
           gh release upload "$TAG" \

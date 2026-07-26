@@ -32,6 +32,27 @@ All notable changes to this project are documented here. Format follows
   project-scoped, rather than inferred from `(Repo, Project)` presence at each render
   site. The pack-header scope table and `poam.md`'s Summary now also surface
   `Scope.Project` when present, which neither did before.
+- **self-scan.yaml: drift detection actually runs on a release now** (#211). Its
+  `on: release: types: [published]` trigger never fired for any of this repo's real
+  releases — `release.yaml` creates every release with the ambient `GITHUB_TOKEN`, and
+  GitHub deliberately doesn't cascade GITHUB_TOKEN-authenticated events into new
+  workflow runs. Switched to `workflow_run` on the `Release` workflow's completion,
+  which isn't subject to that restriction. Separately, a missing baseline (the latest
+  release has no `evidence.json` attached) used to fail open silently and look
+  identical to a genuine first run either way; the two are now distinguished — an
+  older release carrying the asset while the latest doesn't is a broken chain, loudly
+  annotated (`::error::`) and worked around by falling back to that older release's
+  pack, *except* on the one release-triggered run where that's actually expected (the
+  just-published release's own pack isn't attached until later in the same run) — that
+  case falls back quietly instead of alarming on every single release, forever.
+  `gh` itself failing (rate limit, transient 5xx) is now distinguished from the asset
+  genuinely being absent too, rather than the two looking identical to a fallback scan
+  and silently reproducing the same defect through a different door. "Latest" is now
+  resolved the same way on both the read and write side (previously the write side
+  could target a prerelease the read side's `isLatest` filter would never see again).
+  The baseline-fetch logic moved to `hack/fetch-drift-baseline.sh` so all of the above
+  is testable against a mocked `gh` (`fetch-drift-baseline_test.sh`, wired into
+  `ci.yaml`) without a real release.
 - **C05 sast-history / C06 sca-history: a workflow/pipeline this tool couldn't fully
   inspect no longer reads as a confirmed absence** (#178). A workflow (GitHub) or
   pipeline (Azure DevOps) that failed to fetch, decode, or parse was silently dropped

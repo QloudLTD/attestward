@@ -46,6 +46,11 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test ./... -race -coverprofile=coverage.out
+      # Issue #211: self-scan.yaml's drift-baseline logic lives in
+      # hack/fetch-drift-baseline.sh specifically so it's testable outside
+      # `go test` — pure bash against a mocked `gh`, no live network calls,
+      # same rule the Go collector tests follow.
+      - run: hack/fetch-drift-baseline_test.sh
       # Coverage is archival — nothing downstream consumes it — so its upload
       # must never fail a build whose tests passed. GitHub's artifact-storage
       # quota (recalculated every 6-12h) reddened green runs on PRs #202/#203:
