@@ -92,6 +92,31 @@
 # it by. See MatchPipeline's own doc comment in internal/mapping for the
 # same caveat; traversal support is deferred to a follow-up.
 #
+# The `sbom` category (added by #166, alongside the `syft` signature below)
+# is deliberately narrow. A match under it asserts only that a workflow or
+# pipeline ran a step that GENERATES a software bill of materials — nothing
+# about what happened to it afterward. It does NOT mean the SBOM was
+# scanned for vulnerabilities (that's this file's `sca`/`container`
+# categories — see grype/trivy/osv-scanner above, which scan a component
+# list, not just produce one), does NOT mean it was signed, published as a
+# release asset, retained, or diffed against a prior release, and does NOT
+# mean anything downstream ever read it. `provenance` was considered and
+# rejected as the home for SBOM tools: NIST SP 800-218's PS.3.2 talks about
+# SBOMs as one way to "collect, safeguard, maintain, and share provenance
+# data," but an SBOM itself attests a build's *composition* — what's in
+# it — not its *origin* — how or where it was built, which is what this
+# file's provenance category (cosign, SLSA, attest-build-provenance)
+# actually detects. Filing syft under `provenance` would have been a real,
+# compounding inaccuracy baked into every report that detects it, not a
+# harmless simplification. As of this writing, no collector filters
+# ScannerMatch results down to CategorySBOM the way C05/C06/C07 each filter
+# to CategorySAST/CategorySCA/CategoryProvenance (see internal/mapping's
+# ScannerCategory doc comment and MatchWorkflows/MatchPipelines' callers) —
+# `syft`'s entry below is registry-complete and fixture-proven, held to the
+# same cross-matrix accuracy standard as every other entry, but not yet
+# consumed by any check: a report run today has no SBOM-specific result to
+# show. That's future collector work, not a defect in this entry.
+#
 # dependabot is special-cased: unlike every other entry here, Dependabot
 # isn't invoked from a workflow at all — it's detected by the *presence* of
 # a `.github/dependabot.yml` config file, which this file's workflow-content
@@ -100,7 +125,7 @@
 # for that file directly via the GitHub API; it's listed here now purely
 # for SCA-category registry completeness.
 
-version: "1.3.0"
+version: "1.4.0"
 
 signatures:
   - id: codeql
@@ -329,6 +354,124 @@ signatures:
       detect schema. See this file's header comment. #18 implements real
       detection; this entry is registry-only for now, deliberately excluded
       from the cross-matrix "every signature matches its own fixture" test.
+
+  - id: syft
+    name: "Syft (Anchore)"
+    category: sbom
+    detect:
+      actions:
+        - slug: anchore/sbom-action
+      run_patterns:
+        # syft has no single fixed subcommand the way trivy/snyk/cosign do —
+        # its own README's "Basic Usage" is the bare form, `syft <target>`
+        # (e.g. `syft alpine:latest`, `syft ./my-project`); `scan` is the
+        # current subcommand name and `packages` a deprecated alias for the
+        # same thing (verified against github.com/anchore/syft's README and
+        # cmd/syft/internal/commands/{root,scan,packages}.go, which alias
+        # the bare form straight to `scan`). A bare \bsyft\b would fire on
+        # prose mentioning the tool by name — including the install
+        # one-liner's own URL (`curl -sSfL https://get.anchore.io/syft |
+        # sudo sh -s -- -b /usr/local/bin`, also verified against the same
+        # README) — without anything actually being generated. syft's own
+        # default output (absent -o/--output) is a human-readable table,
+        # not a machine-readable SBOM at all, so requiring an explicit
+        # -o/--output flag on the same line is both the anti-false-positive
+        # fix and the more accurate signal: a syft invocation with no
+        # output flag isn't producing an SBOM artifact anything downstream
+        # could consume.
+        #
+        # An earlier version of this pattern was `\bsyft\b.*(-o
+        # |--output[= ])` — a review round (issue #166's own PR) ran it
+        # against synthetic cases, not just inspected it, and found it both
+        # under- and over-matched:
+        #   - false negatives: `-o` only accepted a following space, so
+        #     `-ojson` (concatenated) and `-o=json` (equals form) — both
+        #     valid cobra/pflag shorthand syntax — matched nothing.
+        #   - false positives: `.*` is unanchored, so ANY `-o`/`--output`
+        #     appearing anywhere later on the same line satisfied it, even
+        #     belonging to a completely different command: an install
+        #     one-liner's own `-o <output-file>` curl flag, a comment
+        #     mentioning "syft" in prose with an unrelated tool's flag
+        #     later in the same line, or a `command -v syft ||
+        #     other-tool -o x` fallback branch where syft is explicitly
+        #     ABSENT.
+        # Fixed by anchoring "syft" to the start of an actual shell command
+        # (line start, or right after a `;`/`&`/`|` separator — a
+        # multi-line `run: | .../syft.../` step is matched per line, since
+        # `\n` is one of that separator's own accepted delimiters, and Go's
+        # RE2 `.` already never crosses a literal newline on its own) and
+        # scoping how far past "syft" the flag search may range to that
+        # same command (stopping at the next `;`/`&`/`|`/newline) — plus
+        # widening `-o`/`--output`'s own delimiter to accept `=` as well as
+        # a space.
+        #
+        # Deliberately NOT handling the fully-concatenated `-ojson` form
+        # (no space, no `=`) — not because there's no way to, but as a
+        # complexity trade this file's own signatures generally favor:
+        # `-o(syft-json|json|table|text|cyclonedx|spdx|github|template)`
+        # would preserve the "a real format was named" premise exactly
+        # (syft's actual `-o`/`--output` value vocabulary), at the cost of
+        # a format-name enumeration this entry would then need to keep in
+        # sync with syft's own if it ever changes. `-ojson`/`-oyaml` isn't
+        # an exotic shape either — it's the habitual style for anyone used
+        # to kubectl's identical short-flag syntax — so this is a real,
+        # plausible miss being accepted, not a theoretical one. `-ojson`
+        # remains a known, accepted non-match.
+        #
+        # Anchoring "syft" to a command start also introduced new misses
+        # the old, unanchored `\bsyft\b` caught — found the same way as
+        # the false positives above (running cases, not just inspecting):
+        # `docker run --rm anchore/syft:latest alpine:latest -o spdx-json`
+        # (syft as a docker image reference, not the command itself — no
+        # command-start position for this signature to anchor to at all);
+        # `sudo syft dir:. -o json`; `./syft dir:. -o json` and
+        # `/usr/local/bin/syft dir:. -o json` (the shape right after a
+        # tarball/binary install, no scheme/action wrapper); `SYFT_QUIET=1
+        # syft dir:. -o json` (an env-var prefix); `time syft dir:. -o
+        # json`; and a one-line `if command -v syft; then syft dir:. -o
+        # json; fi`. All are real, accepted misses, not covered by this
+        # entry's fixtures/tests. Net trade is still an improvement over
+        # the false positives fixed above, and this category has no
+        # collector consuming it yet (see this file's sbom-category note),
+        # so the practical cost of each is currently zero — revisit if
+        # real-world false negatives turn up once something does. An
+        # optional command prefix — `(^|[;&|\n]\s*)(sudo\s+)?
+        # ([\w./-]*/)?syft\b...` — was evaluated and would close the
+        # sudo/`./syft`/path-prefix cases specifically, but not the
+        # docker-image-reference, env-var-prefix, `time`, or `if`/`then`
+        # cases; given it only closes 3 of 7 and this category's
+        # consumers are still zero, the added regex surface wasn't judged
+        # worth it over documenting the gap plainly. Not a closed
+        # decision — revisit alongside wiring up an actual SBOM collector.
+        #
+        # This fixtures' `syft dir:. -o ...` explicit-scheme form was
+        # double-checked, not assumed still current: verified directly
+        # against cmd/syft/internal/commands/scan.go (the source that
+        # generates `syft scan --help`'s own text), which still documents
+        # `dir:path/to/yourproject` under "You can also explicitly specify
+        # the scheme to use" as of this writing — not removed, not flagged
+        # deprecated in any user-facing help text. The same file's source
+        # does carry one internal comment steering new code toward the
+        # newer `--from` flag instead ("a holdover for compatibility,
+        # using the --from flag is recommended"), but that's a
+        # forward-looking preference for a different, additive flag, not
+        # a claim that the `scheme:` prefix form is legacy or non-current;
+        # `dir:` stays the fixture's choice as the still-documented,
+        # still-functional, and (given how long it predates `--from`)
+        # almost certainly still far more common real-world form.
+        - "(^|[;&|\n]\\s*)syft\\b[^|;&\n]*(-o[ =]|--output[ =])"
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking anchore/sbom-action (which wraps
+      syft) or the syft CLI directly with an explicit -o/--output flag;
+      anchore/sbom-action's action.yml defaults `upload-artifact` and
+      `upload-release-assets` to true, so it also uploads the generated
+      SBOM as a workflow artifact and, during a GitHub release, as a
+      release asset by default — but both are caller-disablable inputs, so
+      a match alone doesn't establish either happened, consistent with
+      this file's own sbom-category note above (a match is evidence an
+      SBOM was generated for that run, nothing about what happened to it
+      afterward).
 
   - id: cosign
     name: "Sigstore cosign"

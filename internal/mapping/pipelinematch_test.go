@@ -546,11 +546,14 @@ func TestAdoTaskMajorSegment(t *testing.T) {
 // latter with two fixtures, one per distinct task family it detects, see
 // sonarcloud.yaml below), plus the CLI-driven tools whose existing
 // run_patterns are exercised only via an ADO script/bash/pwsh/powershell
-// step since they have no ado_tasks of their own (trivy, cosign,
-// osv-scanner — syft has no existing signature in this registry to attach
-// a fixture to, so it's not included here; see #149's PR description),
-// its fixture pipeline file and the confidence its detect block should
-// match at.
+// step since this registry has no ado_tasks entry for them (cosign and
+// osv-scanner genuinely have no Azure Pipelines marketplace task to
+// register; trivy is different — Aqua Security publishes one,
+// AquaSecurityOfficial.trivy-official (`- task: trivy@2`, `trivy@1`
+// legacy), but this registry has no ado_tasks entry for it yet, a real,
+// known zero-detection gap tracked as issue #238, not fixed here; syft has
+// no marketplace task either, same as cosign/osv-scanner), its fixture
+// pipeline file and the confidence its detect block should match at.
 var pipelineFixtureExpectations = []struct {
 	fixture         string
 	wantSignatureID string
@@ -567,6 +570,7 @@ var pipelineFixtureExpectations = []struct {
 	{"trivy.yaml", "trivy", ConfidenceMedium},
 	{"cosign.yaml", "cosign", ConfidenceMedium},
 	{"osv-scanner.yaml", "osv-scanner", ConfidenceMedium},
+	{"syft.yaml", "syft", ConfidenceMedium},
 }
 
 func loadFixturePipeline(t *testing.T, name string) PipelineFile {

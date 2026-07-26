@@ -1,8 +1,12 @@
 package mapping
 
 import (
+	"bytes"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +27,7 @@ var fixtureExpectations = []struct {
 	{"trivy.yaml", "trivy", ConfidenceHigh},
 	{"grype.yaml", "grype", ConfidenceHigh},
 	{"osv-scanner.yaml", "osv-scanner", ConfidenceHigh},
+	{"syft.yaml", "syft", ConfidenceHigh},
 	{"cosign.yaml", "cosign", ConfidenceHigh},
 	{"slsa-generator.yaml", "slsa-generator", ConfidenceHigh},
 	{"attest-build-provenance.yaml", "attest-build-provenance", ConfidenceHigh},
@@ -111,6 +116,56 @@ func TestMatchWorkflow_DependabotExcludedFromWorkflowMatching(t *testing.T) {
 	}
 }
 
+// TestCategorySBOMNotYetConsumedByAnyCollector pins, with a real assertion
+// rather than documentation alone, the claim scanner-signatures.yaml's
+// sbom-category header comment makes: as of this writing, no collector
+// filters ScannerMatch results down to CategorySBOM the way C05/C06/C07
+// filter to CategorySAST/CategorySCA/CategoryProvenance — mirrors
+// TestMatchWorkflow_DependabotExcludedFromWorkflowMatching's shape (a real
+// check, not just a comment, so a change here forces the YAML comment to
+// be revisited in the same diff rather than going stale silently).
+//
+// This package must never import internal/collect (mapping is upstream of
+// collect in the dependency graph — every collector already imports
+// mapping, so the reverse would cycle), so this walks internal/collect's
+// own .go source as plain text instead of importing it, looking for any
+// literal "CategorySBOM" reference. A false failure here (e.g. the string
+// appearing only in a comment) is an acceptable, conservative outcome for
+// a staleness tripwire — it forces a human to look, which is the point.
+func TestCategorySBOMNotYetConsumedByAnyCollector(t *testing.T) {
+	root := filepath.Join("..", "collect")
+	scanned := 0
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		scanned++
+		if bytes.Contains(data, []byte("CategorySBOM")) {
+			t.Errorf("%s references mapping.CategorySBOM — a collector now appears to consume the sbom category, so scanner-signatures.yaml's \"no collector filters to CategorySBOM\" header comment (and this test) are stale and need updating together", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+	// A missing root already fails loud above (filepath.WalkDir returns an
+	// error). This catches the quieter case: the root exists but nothing
+	// under it looks like Go source anymore (e.g. collectors moved out of
+	// internal/collect while an empty/vestigial directory survived) — the
+	// scan above would then trivially find zero "CategorySBOM" references
+	// and pass for the wrong reason, exercising nothing.
+	if scanned == 0 {
+		t.Fatalf("walked %s but found no .go files — this test isn't exercising anything; internal/collect may have moved", root)
+	}
+}
+
 // TestFixtureExpectationsCoverAllDetectableSignatures enforces
 // CONTRIBUTING.md's fixture requirement as a real, checked invariant:
 // every registry signature with a non-empty detect block must have a
@@ -192,6 +247,167 @@ func TestMatchWorkflow_AlternateActionSlugsForExistingSignatures(t *testing.T) {
 				}
 			}
 			t.Errorf("expected signature %q to match, got %+v", tt.wantSignatureID, matches)
+		})
+	}
+}
+
+// TestMatchWorkflow_SyftCLIRequiresOutputFlag pins the syft run_pattern's
+// deliberate design (see scanner-signatures.yaml's own comment on the
+// entry): it requires an explicit -o/--output flag belonging to an actual
+// syft invocation, not a bare mention of the tool name and not a flag
+// belonging to some other command on the same line. syft's own default
+// output (absent -o/--output) is a human-readable table, not an SBOM at
+// all, and a naive pattern either missed real invocation syntax or matched
+// prose/unrelated commands — this table is the empirical case list a PR
+// #166 review round found by running candidate patterns against synthetic
+// cases rather than just inspecting the regex, not by inspection alone.
+func TestMatchWorkflow_SyftCLIRequiresOutputFlag(t *testing.T) {
+	reg, err := LoadScannerSignatures("../../mappings/scanner-signatures.yaml")
+	if err != nil {
+		t.Fatalf("LoadScannerSignatures: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		run       string
+		wantMatch bool
+	}{
+		{"bare CLI invocation with -o flag matches", "syft alpine:latest -o cyclonedx-json", true},
+		{"scan subcommand with --output flag matches", "syft scan dir:. --output spdx-json=sbom.json", true},
+		{"packages alias with --output flag matches", "syft packages . --output json", true},
+		{"-o=value equals form matches", "syft dir:. -o=json", true},
+		{"install-script URL mention alone does not match", "curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin", false},
+		{"bare invocation with no output flag does not match (default table output isn't an SBOM)", "syft alpine:latest", false},
+		{"comment-style prose mentioning the tool does not match", "echo 'TODO: generate an SBOM with syft before release'", false},
+		// Fully-concatenated -ovalue (no space, no =) is a deliberate,
+		// documented non-goal — see the run_patterns comment on this entry
+		// in scanner-signatures.yaml for why.
+		{"-ovalue fully concatenated does not match (documented non-goal)", "syft dir:. -ojson > sbom.json", false},
+		// False positives a review round found empirically: an unanchored
+		// `.*` let ANY later -o/--output on the line satisfy the pattern,
+		// regardless of which command it actually belonged to.
+		{"install one-liner's own curl -o flag does not match", "curl -L https://github.com/anchore/syft/releases/download/v1.0.0/syft_1.0.0_linux_amd64.tar.gz -o syft.tgz", false},
+		{"install-then-rename curl -o flag does not match", "curl -sSfL https://get.anchore.io/syft -o install-syft.sh && sh install-syft.sh", false},
+		{"a fallback branch where syft is absent does not match", "command -v syft || cyclonedx-py requirements -o sbom.json", false},
+		{"a comment mentioning syft with a different tool's --output does not match", "# install syft then run trivy image --format cyclonedx --output sbom.json", false},
+		// Mutation-closing: --output-dir must not satisfy the flag class
+		// just because it contains "--output" as a substring. (A prior
+		// version of this table also carried a "--oom-kill-disable does
+		// not match" case with the flag placed BEFORE "syft" in the
+		// string — dropped in review: the flag search only ever looks
+		// forward from an anchored "syft" match, so that case was true
+		// under every mutation, including dropping the anchor entirely,
+		// and proved nothing.)
+		{"--output-dir does not match (not the SBOM-format flag)", "syft dir:. --output-dir /tmp", false},
+		// Exclusion-class mutation kills — dropping \n from
+		// [^|;&\n]* (letting the flag search cross into a later,
+		// unrelated line) and widening it to .* (letting it cross a
+		// same-line ;/&/| into a later, unrelated command) both survived
+		// the suite otherwise; see
+		// TestMatchWorkflow_SyftFlagSearchStopsAtCommandBoundary for the
+		// dedicated cases (kept separate from this table since they need
+		// their own doc comment explaining which mutation each one
+		// kills).
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wf := WorkflowFile{Jobs: map[string]WorkflowJob{"job": {Steps: []WorkflowStep{{Run: tt.run}}}}}
+			matches := reg.MatchWorkflow(wf)
+			got := false
+			for _, m := range matches {
+				if m.SignatureID == "syft" {
+					got = true
+					if m.Confidence != ConfidenceMedium {
+						t.Errorf("syft matched at confidence %q, want medium", m.Confidence)
+					}
+				}
+			}
+			if got != tt.wantMatch {
+				t.Errorf("MatchWorkflow(run=%q) matched syft = %v, want %v (matches: %+v)", tt.run, got, tt.wantMatch, matches)
+			}
+		})
+	}
+}
+
+// TestMatchWorkflow_SyftMultiLineRunOnlyMatchesItsOwnLine proves the
+// anchor (line start, or right after a ;/&/| separator) treats a genuine
+// newline inside a multi-line `run: |` block as its own command boundary
+// — the shape of both this file's real syft fixtures (an install line
+// followed by the actual invocation on its own subsequent line).
+func TestMatchWorkflow_SyftMultiLineRunOnlyMatchesItsOwnLine(t *testing.T) {
+	reg, err := LoadScannerSignatures("../../mappings/scanner-signatures.yaml")
+	if err != nil {
+		t.Fatalf("LoadScannerSignatures: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		run       string
+		wantMatch bool
+	}{
+		{
+			"install line then invocation on its own line matches",
+			"curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin\nsyft dir:. -o spdx-json=sbom.spdx.json",
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wf := WorkflowFile{Jobs: map[string]WorkflowJob{"job": {Steps: []WorkflowStep{{Run: tt.run}}}}}
+			matches := reg.MatchWorkflow(wf)
+			got := false
+			for _, m := range matches {
+				if m.SignatureID == "syft" {
+					got = true
+				}
+			}
+			if got != tt.wantMatch {
+				t.Errorf("MatchWorkflow(run=%q) matched syft = %v, want %v (matches: %+v)", tt.run, got, tt.wantMatch, matches)
+			}
+		})
+	}
+}
+
+// TestMatchWorkflow_SyftFlagSearchStopsAtCommandBoundary is the syft
+// run_pattern's exclusion class ([^|;&\n]*) getting its own dedicated
+// coverage — a review round found the rest of this file's syft cases all
+// stayed green under two mutations of it that would otherwise have gone
+// undetected: dropping \n from the class (letting the flag search cross
+// into an unrelated command on a LATER LINE) and widening the whole class
+// to `.` (letting it cross a same-line ;/&/| into an unrelated command
+// FURTHER ALONG THE SAME LINE — the exact unanchored-`.*` failure mode the
+// very first review round of this signature already flagged once). Each
+// case below is paired with which mutation it kills.
+func TestMatchWorkflow_SyftFlagSearchStopsAtCommandBoundary(t *testing.T) {
+	reg, err := LoadScannerSignatures("../../mappings/scanner-signatures.yaml")
+	if err != nil {
+		t.Fatalf("LoadScannerSignatures: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		run  string
+	}{
+		// Kills: \n dropped from the exclusion class. syft runs with no
+		// flag of its own on its own line; a completely different tool's
+		// -o flag on the NEXT line must not satisfy the pattern.
+		{"unrelated tool's flag on a later line does not match", "syft --version\ntrivy image -o sbom.json"},
+		// Kills: exclusion class widened to `.` (unanchored .* again).
+		// Both real shell command separators (&& and ;) are covered
+		// since they're independent characters in the class.
+		{"unrelated tool's flag after && on the same line does not match", "syft version && grype dir:. -o json"},
+		{"unrelated tool's flag after ; on the same line does not match", "syft --help; trivy image --output sbom.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wf := WorkflowFile{Jobs: map[string]WorkflowJob{"job": {Steps: []WorkflowStep{{Run: tt.run}}}}}
+			matches := reg.MatchWorkflow(wf)
+			for _, m := range matches {
+				if m.SignatureID == "syft" {
+					t.Errorf("MatchWorkflow(run=%q) unexpectedly matched syft via a flag belonging to a different command (matches: %+v)", tt.run, matches)
+				}
+			}
 		})
 	}
 }

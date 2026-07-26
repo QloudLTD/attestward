@@ -8,6 +8,35 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **`syft` (SBOM generation) added to the scanner-signature registry, in a new `sbom`
+  category** (#166). Epic #34/story #149's own text assumed syft already had an entry
+  among the CLI-driven tools (trivy/cosign/syft/osv-scanner) — it never did; the only
+  prior mention anywhere was a code comment. The registry had no `sbom` category at all
+  (only `sast`/`sca`/`container`/`secrets`/`provenance` had entries), and filing syft
+  under `provenance` was rejected: an SBOM attests a build's *composition*, not its
+  *origin*, and conflating the two would be a real, compounding inaccuracy baked into
+  every report that detects it. `mappings/scanner-signatures.yaml`'s header comment now
+  defines what an `sbom` match asserts and — just as importantly — what it does not
+  (generating an SBOM is not scanning it, signing it, or evidence anything downstream
+  acted on it). Detects `anchore/sbom-action` (high confidence) and a direct `syft` CLI
+  invocation with an explicit `-o`/`--output` flag (medium confidence) — the flag
+  requirement is deliberate: syft's own default output is a human-readable table, not a
+  machine-readable SBOM, so a bare `syft` mention (a comment, or the install
+  one-liner's own URL) doesn't false-positive as a real invocation. Fixture-backed on
+  both platforms (`internal/mapping/testdata/workflows/syft.yaml`,
+  `testdata/pipelines/syft.yaml` — cosign/osv-scanner/syft genuinely have no ADO
+  marketplace task, so all three are cross-platform run_patterns only). Audited
+  trivy/cosign/osv-scanner while here, per the same story text: cosign and osv-scanner
+  are correctly and completely registered, with real fixtures on both platforms already.
+  Trivy's own audit turned up a real, separate gap instead of a clean bill of health —
+  Aqua Security publishes an official Azure Pipelines marketplace task
+  (`AquaSecurityOfficial.trivy-official`, `- task: trivy@2`, `trivy@1` legacy) this
+  registry has no `ado_tasks:` entry for, so an ADO pipeline whose only SCA step is that
+  task currently matches nothing — a real false-negative in C06, the same shape of gap
+  #167 fixed for SonarCloud. Not fixed here — tracked as #238, its own fixture, its own
+  focused change;
+  syft was the one category-level gap this issue set out to close.
+
 - **`make examples`/`make examples-check` guard `examples/demo-org-pack` against
   renderer drift** (#228). Nothing regenerated or checked the pack's rendered
   `report.md`/`report.html`/`poam.md` against its own `evidence.json` — it drifted
