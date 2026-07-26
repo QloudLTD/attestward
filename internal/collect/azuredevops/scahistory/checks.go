@@ -224,16 +224,33 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 	}
 	sort.Strings(toolNames)
 
+	// dependency_scanning_injection_enabled, code_security_enabled, and
+	// low_confidence_match_only all derive from setupConfigured/
+	// codeSecurityEnabled, which silently collapse to false whenever
+	// enablementErr != nil — a query failure reads identically to a
+	// genuine, observed HTTP-200-false response. Asserting any of the
+	// three as a confirmed fact from an unconfirmed query is the same
+	// inference C05 sasthistory's identical fix removes (issue #258,
+	// mirroring #226/#236/#244's own status-level fixes for this package):
+	// a Facts consumer reading evidence.json directly has no adjacent
+	// not-checkable status to reconcile it against, unlike a report.md
+	// reader. Included only when the enablement query actually succeeded,
+	// so an unconfirmed state is honestly absent from the pack rather than
+	// misreported as a confirmed false.
+	facts := map[string]any{
+		"tool_names":        toolNames,
+		"skipped_pipelines": skipDetails,
+	}
+	if enablementErr == nil {
+		facts["dependency_scanning_injection_enabled"] = setupConfigured
+		facts["code_security_enabled"] = codeSecurityEnabled
+		facts["low_confidence_match_only"] = hasAny && !hasHighOrMedium && !setupConfigured
+	}
+
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{
-			"tool_names":                            toolNames,
-			"dependency_scanning_injection_enabled": setupConfigured,
-			"code_security_enabled":                 codeSecurityEnabled,
-			"low_confidence_match_only":             hasAny && !hasHighOrMedium && !setupConfigured,
-			"skipped_pipelines":                     skipDetails,
-		},
+		Facts: facts,
 	}
 }
 

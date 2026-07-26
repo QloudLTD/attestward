@@ -173,15 +173,31 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 	}
 	sort.Strings(toolNames)
 
+	// ghazdo_codeql_default_setup and low_confidence_match_only both derive
+	// from setupConfigured, which silently collapses to false whenever
+	// enablementErr != nil — a query failure reads identically to a
+	// genuine, observed HTTP-200-false response. Asserting either as a
+	// confirmed fact from an unconfirmed query is the exact inference
+	// #226/#235/#244/#246/#248 already removed from this collector's
+	// statuses, Reason strings, and rubric text, surviving here in Facts
+	// instead (issue #258 — a Facts consumer reading evidence.json directly
+	// has no adjacent not-checkable status to reconcile it against, unlike
+	// a report.md reader). Included only when the enablement query actually
+	// succeeded, so an unconfirmed state is honestly absent from the pack
+	// rather than misreported as a confirmed false.
+	facts := map[string]any{
+		"tool_names":        toolNames,
+		"skipped_pipelines": skipDetails,
+	}
+	if enablementErr == nil {
+		facts["ghazdo_codeql_default_setup"] = setupConfigured
+		facts["low_confidence_match_only"] = hasAny && !hasHighOrMedium && !setupConfigured
+	}
+
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{
-			"tool_names":                  toolNames,
-			"ghazdo_codeql_default_setup": setupConfigured,
-			"low_confidence_match_only":   hasAny && !hasHighOrMedium && !setupConfigured,
-			"skipped_pipelines":           skipDetails,
-		},
+		Facts: facts,
 	}
 }
 

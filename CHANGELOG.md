@@ -134,6 +134,65 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`checkToolConfigured` Facts no longer assert a confirmed GHAzDO enablement
+  value from a query that merely failed, in both Azure DevOps C05/C06
+  collectors** (#258). `azuredevops/sasthistory`'s `checkToolConfigured`
+  emitted `Facts["ghazdo_codeql_default_setup"]` from `setupConfigured :=
+  enablementErr == nil && enablement.CodeQLEnabled` — a 403, 404, or any other
+  GHAzDO repo-enablement query error collapsed identically to `false`,
+  indistinguishable from a genuine, observed "off" response. Reachable in
+  production whenever a pipeline match already exists (any confidence): the
+  function's own not-checkable guard only fires when there's zero pipeline
+  evidence at all, so a low- or high-confidence match plus a failed
+  enablement query fell straight through to this misstatement — exactly the
+  shape `vso.advsec` being outside the default PAT scope preset produces on
+  every repo a scan-token can't see, the default experience for a large
+  share of real PATs. Same defect as #246 (Reason strings) and #248 (rubric
+  text), one layer down in Facts, where no rubric or status check looks — a
+  consumer reading `evidence.json`'s Facts directly (a dashboard, the hosted
+  tier) has no adjacent not-checkable status to reconcile it against, unlike
+  a `report.md` reader.
+
+  Fixed by omitting the affected key entirely rather than emitting a
+  placeholder or third state (the issue's own top preference, confirmed
+  safe: `internal/report/facts.go`'s `buildFactsView` iterates `range
+  facts`, so an absent key already renders as nothing, and nothing else in
+  this codebase — no schema field, no test, no rubric text — currently
+  consumes this key by name, so there was no existing-consumer stability
+  case for keeping the key and adding a sibling `_query_failed` marker
+  instead). Swept every Facts entry in this package and its sibling
+  `azuredevops/scahistory` for the same shape (a Fact whose value derives
+  from a variable that silently defaults on error) and fixed both found:
+  `sasthistory`'s own `low_confidence_match_only` (derived from the same
+  `setupConfigured`); `scahistory`'s `checkToolConfigured` had the identical
+  `setupConfigured`-derived field (`dependency_scanning_injection_enabled`)
+  plus a second, independent one (`code_security_enabled`) and its own
+  `low_confidence_match_only`. Five Facts-map entries across the two
+  functions in total.
+
+  `checkRanPerRelease` and `checkCadence` were checked, not assumed, per the
+  issue's own explicit ask — both confirmed clean: `sasthistory`'s and
+  `scahistory`'s `checkRanPerRelease` carry no Facts field derived from
+  either package's enablement-error variable; `sasthistory`'s `checkCadence`
+  *does* carry its own `low_confidence_match_only`, but by a deliberately
+  different formula that already excludes `setupConfigured` entirely (its
+  own doc comment explains why: GHAzDO default setup contributes zero
+  observable builds to this collector's own run count, unlike GitHub's).
+  `scahistory` has no `checkCadence` at all.
+
+  The GitHub twins (`github/sasthistory`, `github/scahistory`) carry the
+  identical defect shape and are swept/fixed separately (same issue,
+  follow-up PR) to keep this one under the repo's diff-size ceiling.
+
+  Every new test derives its "the query genuinely failed, not a normalized
+  absence" fixture from a live HTTP 403/Forbidden response the collector
+  actually parses, not a synthetic error value, and asserts the affected
+  keys are *absent* from `Facts` (`_, ok := Facts[key]; ok` false) rather
+  than merely not-`true` — the distinction the whole issue is about.
+  Mutation-proved both fixes independently: reverted each
+  `checkToolConfigured` to its pre-fix Facts construction in turn, confirmed
+  the corresponding new test (and only that one) reddens with the exact
+  conflated value the fix removes, restored.
 - **`mapping_versions.scanner_signatures` is now populated on every scan** (#255).
   Declared on `model.MappingVersions`, in `docs/schema/evidence-pack.v1.schema.json`,
   and rendered by both `report.md.tmpl` and `report.html.tmpl` — but the scan path

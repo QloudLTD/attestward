@@ -281,6 +281,56 @@ func TestCollect_LowConfidenceOnlyMatch_CapsToolConfiguredAndCadenceAtPartial(t 
 	}
 }
 
+// TestCollect_LowConfidenceMatchPlusEnablementFails_FactsOmitEnablementFields
+// is the regression test for issue #258: a low-confidence-only pipeline
+// match plus a failed GHAzDO repo-enablement query must not silently
+// report Facts["ghazdo_codeql_default_setup"]=false or
+// Facts["low_confidence_match_only"]=true — both derive from
+// setupConfigured, which collapses to false whenever enablementErr != nil,
+// indistinguishable from a genuine, observed HTTP-200-false response. This
+// combination is reachable in production: hasAny=true here bypasses
+// checkToolConfigured's own not-checkable guard (line 139), which only
+// fires when hasAny is false — every existing enablement-failure test
+// (TestCollect_Enablement403_NoOtherEvidence_ToolConfiguredNotCheckable and
+// its 404/generic-error siblings) registers no pipeline evidence at all,
+// so none of them exercises this Facts path. Before this fix, both fields
+// asserted a confirmed value from a query that merely failed. Same
+// pipeline fixture as TestCollect_LowConfidenceOnlyMatch_
+// CapsToolConfiguredAndCadenceAtPartial, but the enablement endpoint
+// returns 403 instead of a successful codeQLEnabled:false response.
+func TestCollect_LowConfidenceMatchPlusEnablementFails_FactsOmitEnablementFields(t *testing.T) {
+	fx := adofixture.New()
+	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+	registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+	registerYAML(fx, testRepoID, "name: My Semgrep Check\nsteps:\n  - script: echo hello\n")
+	registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+	releaseDate := time.Now().UTC().AddDate(0, 0, -5)
+	registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+	registerBuilds(fx, map[string]any{"sourceVersion": "sha1", "sourceBranch": "refs/heads/main", "result": "succeeded", "queueTime": releaseDate.Format(time.RFC3339)})
+	fx.Set("GET", azuredevops.HostAdvSec, enablementPath(testRepoID), adofixture.Response{
+		Status: http.StatusForbidden, Body: map[string]any{"message": "forbidden"},
+	})
+
+	c := newCollector(fx)
+	results, err := c.Collect(context.Background(), defaultScope())
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	got := m[idToolConfigured]
+	if got.Status != model.StatusPartial {
+		t.Errorf("tool-configured = %q, want partial (unaffected by this fix — only the Facts values change); reason=%q", got.Status, got.Reason)
+	}
+	if v, ok := got.Facts["ghazdo_codeql_default_setup"]; ok {
+		t.Errorf("Facts[ghazdo_codeql_default_setup] = %v, want the key absent — the enablement query failed, so its value can't be reported as a confirmed fact", v)
+	}
+	if v, ok := got.Facts["low_confidence_match_only"]; ok {
+		t.Errorf("Facts[low_confidence_match_only] = %v, want the key absent — its value depends on the same unconfirmed enablement query", v)
+	}
+}
+
 // TestCollect_LowConfidenceMatchPlusCodeQLEnabled_CadenceStillPartial is
 // the regression test for item 4 found in review: GHAzDO CodeQL default
 // setup being enabled must NOT "rescue" a low-confidence-only pipeline
