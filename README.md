@@ -22,7 +22,7 @@ the current release; CLI flags and output formats may still change between 0.x v
 ## What this is
 
 An open-source CLI tool that connects to a software producer's source-control and CI/CD
-platform (GitHub first) and **verifies** — rather than asks about — the technical controls
+platform (GitHub or Azure DevOps) and **verifies** — rather than asks about — the technical controls
 behind a secure-software-development attestation. It maps findings to NIST SSDF (SP 800-218)
 practices and the CISA Secure Software Development Attestation (SSDA) Common Form's four
 practice clusters, and emits a signed, timestamped **evidence pack** (JSON + human-readable
@@ -75,24 +75,59 @@ report) plus a **gap analysis** and a **draft POA&M** for anything that fails.
 
 ## What it verifies (GitHub and Azure DevOps)
 
-The same ten collectors run against both platforms under the same check IDs; where a
-platform has no equivalent for a control, the check reports `not-checkable` with a
-reason naming the exact gap rather than pretending. Per-platform detail for every
-check lives in [docs/checks-reference.md](docs/checks-reference.md); the table below
-describes each collector's GitHub-side surface (the original v0.1 scope).
+The same ten collectors run against both platforms under the same check IDs. The
+table below is deliberately about the **control** each collector addresses, not the
+per-platform mechanism: which API backs a given check, and whether one exists at all,
+is recorded in [docs/checks-reference.md](docs/checks-reference.md), which is generated
+from the collector registry and therefore cannot drift away from the code.
 
-| ID | Collector | Verifies |
-|----|-----------|----------|
-| C01 | `org-security` | Org 2FA/MFA enforcement, default repo permissions |
-| C02 | `repo-protection` | Branch protection / rulesets on default + release branches |
-| C03 | `env-separation` | GitHub Environments, protection rules, deployment branch policies |
-| C04 | `secrets-hygiene` | Secret scanning, push protection, Dependabot alerts |
-| C05 | `sast-history` | SAST tooling detected + run cadence over last N releases |
-| C06 | `sca-history` | SCA/dependency review tooling + run history |
-| C07 | `provenance` | Signed tags, release checksums/signatures, Sigstore/SLSA workflows |
-| C08 | `actions-security` | Action pinning, token permissions, OIDC vs long-lived creds |
-| C09 | `audit-logging` | Org audit-log availability, event visibility |
-| C10 | `vdp` | SECURITY.md intake channel, private vulnerability reporting |
+| ID | Collector | The control it addresses |
+|----|-----------|--------------------------|
+| C01 | `org-security` | Organization-level identity and default access |
+| C02 | `repo-protection` | The default branch cannot be bypassed |
+| C03 | `env-separation` | Production deploys are gated |
+| C04 | `secrets-hygiene` | Secrets are scanned for, and not stored in the clear |
+| C05 | `sast-history` | SAST is configured *and* actually ran for each release |
+| C06 | `sca-history` | Dependency scanning is configured and enforced |
+| C07 | `provenance` | A release traces back to the build that produced it |
+| C08 | `actions-security` | CI cannot be turned into a supply-chain foothold |
+| C09 | `audit-logging` | Security-relevant events are recorded and exportable |
+| C10 | `vdp` | There is a way to report a vulnerability |
+
+**Coverage is not symmetric, and the gaps are structural rather than configurable.**
+Some controls have no API on one platform at all; a few have one this tool deliberately
+does not read. Either way the check reports `not-checkable` permanently — no plan upgrade
+and no token scope changes it. The notable cases:
+
+- **Azure DevOps has no release-asset concept**, no tag-signature verification, and no
+  task-SHA-pinning feature, so `C07`'s checksum/signature/signed-tag checks and
+  `C08.actions.pinned` can never resolve there. It also exposes no org-level default
+  repository permission, no `pull_request_target`-equivalent trigger, no private
+  vulnerability reporting, and no `.github`-style org default policy.
+- **GitHub exposes audit-log streaming only at the Enterprise account level**, which an
+  org/repo-scoped tool cannot query — so `C09.audit.log-streaming` is never resolvable
+  on GitHub, while it produces real pass/fail results on Azure DevOps. That asymmetry
+  runs the opposite way to most of this list.
+- **Azure DevOps governs force-push, branch deletion and admin bypass through Git
+  repository ACLs** rather than branch-policy configuration, and this tool deliberately
+  does not read `_apis/accesscontrollists` (epic #34's non-goals). So `C02`'s
+  force-push-blocked, deletion-blocked and admin-enforced checks are never resolvable
+  there — note that *bypass* is exactly what `C02`'s control statement is about, so on
+  Azure DevOps this collector verifies required reviewers and build validation only.
+- **Per-user MFA state on Azure DevOps lives in Microsoft Entra ID**, a separate service
+  with its own auth model, so `C01` can report the count of members without 2FA on
+  GitHub but not on Azure DevOps — and ADO's 2FA-enforcement check has a ceiling of
+  `partial`, because enforcement itself lives in Entra Conditional Access.
+
+Separately from those, how much a scan settles also depends on the org's plan and the
+token's scopes: GitHub Advanced Security for Azure DevOps gates most of `C04` there, and
+`C06.sca.alerts-triaged`. Do not read that as covering the whole of `C06` — two of its
+five Azure DevOps checks (`dependency-review`, `dependabot-config`) make no API call at
+all, so no licence changes them.
+
+In total, 15 of Attestward's 48 registered Azure DevOps checks make no API call, against
+2 of 46 on GitHub. Every check's own rubric states exactly which statuses it can produce
+and what evidence backs each one.
 
 Every check lands in one of five statuses: **`verified-pass`**/**`verified-fail`** (the API
 confirmed the answer either way), **`partial`** (real evidence, but not a clean pass —
@@ -117,7 +152,7 @@ mean and what API evidence backs them.
 
 ### 1. Install
 
-**Download a release** (v0.1.0 is the current release):
+**Download a release** (see the [releases page](../../releases) for the current version):
 
 ```bash
 # Substitute the real version/os/arch from the releases page.
