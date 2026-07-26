@@ -2,9 +2,11 @@ package sasthistory
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/sioakim/attestward/internal/collect/azuredevops"
 	"github.com/sioakim/attestward/internal/collect/azuredevops/pipelinehistory"
 	"github.com/sioakim/attestward/internal/model"
 )
@@ -31,7 +33,7 @@ func TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail(t *testing.T) {
 		{Release: filteredReleases[2], Status: pipelinehistory.CoverageRan},
 	}
 
-	got := checkRanPerRelease("attestward-demo", "mixed-repo", filteredReleases, coverage, nil, nil, false, true, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "mixed-repo", filteredReleases, coverage, nil, nil, nil, false, true, nil, nil)
 
 	if got.Status != model.StatusVerifiedFail {
 		t.Errorf("Status = %q, want %q; reason=%q", got.Status, model.StatusVerifiedFail, got.Reason)
@@ -57,7 +59,7 @@ func TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail(t *testing.T) {
 // ADO result (versus the GitHub twin's window-gated count) can see exactly
 // which tags to investigate.
 func TestCheckRanPerRelease_DroppedTagsNamedInFacts(t *testing.T) {
-	got := checkRanPerRelease("attestward-demo", "repo", nil, nil, []string{"v0.9.0-rc1", "v0.8.0-beta"}, nil, false, true, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "repo", nil, nil, []string{"v0.9.0-rc1", "v0.8.0-beta"}, nil, nil, false, true, nil, nil)
 
 	if got.Status != model.StatusPartial {
 		t.Errorf("Status = %q, want partial; reason=%q", got.Status, got.Reason)
@@ -81,7 +83,7 @@ func TestCheckRanPerRelease_DefaultSetupOnly_NotCheckableNotFail(t *testing.T) {
 		{Release: filteredReleases[0], Status: pipelinehistory.CoverageMissing},
 	}
 
-	got := checkRanPerRelease("attestward-demo", "default-setup-only-repo", filteredReleases, coverage, nil, nil, true, false, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "default-setup-only-repo", filteredReleases, coverage, nil, nil, nil, true, false, nil, nil)
 
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("Status = %q, want not-checkable (default-setup-only evidence can't be observed per release); reason=%q", got.Status, got.Reason)
@@ -113,7 +115,7 @@ func TestCheckRanPerRelease_DefaultSetupOnlyWithSkip_DefaultSetupReasonWins(t *t
 	}
 	skipped := []pipelinehistory.SkippedPipeline{{DefinitionID: 2, Name: "unresolved-pipeline", Reason: "yamlFilename missing"}}
 
-	got := checkRanPerRelease("attestward-demo", "default-setup-plus-skip-repo", filteredReleases, coverage, nil, nil, true, false, skipped, nil)
+	got := checkRanPerRelease("attestward-demo", "default-setup-plus-skip-repo", filteredReleases, coverage, nil, nil, nil, true, false, skipped, nil)
 
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
@@ -145,7 +147,7 @@ func TestCheckRanPerRelease_ZeroMatchedWithSkip_NotCheckableNotFail(t *testing.T
 	}
 	skipped := []pipelinehistory.SkippedPipeline{{DefinitionID: 1, Name: "unresolved-pipeline", Reason: "yamlFilename missing"}}
 
-	got := checkRanPerRelease("attestward-demo", "flaky-repo", filteredReleases, coverage, nil, nil, false, false, skipped, nil)
+	got := checkRanPerRelease("attestward-demo", "flaky-repo", filteredReleases, coverage, nil, nil, nil, false, false, skipped, nil)
 
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("Status = %q, want not-checkable (a same-repo skip must cap what would otherwise be verified-fail); reason=%q", got.Status, got.Reason)
@@ -166,10 +168,103 @@ func TestCheckRanPerRelease_ZeroMatchedNoSkip_StillVerifiedFail(t *testing.T) {
 		{Release: filteredReleases[0], Status: pipelinehistory.CoverageMissing},
 	}
 
-	got := checkRanPerRelease("attestward-demo", "bare-repo", filteredReleases, coverage, nil, nil, false, false, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "bare-repo", filteredReleases, coverage, nil, nil, nil, false, false, nil, nil)
 
 	if got.Status != model.StatusVerifiedFail {
 		t.Errorf("Status = %q, want verified-fail (no skip, so this is a confirmed absence); reason=%q", got.Status, got.Reason)
+	}
+}
+
+// TestCheckRanPerRelease_EnablementErr_NotCheckableNotFail is issue #235's
+// regression case: #233 narrowed C05.sast.tool-configured's verified-fail
+// to require a genuinely observed enablement response, routing every
+// enablement error (404 included) to not-checkable instead of an inference
+// from the status code — but that fix only touched checkToolConfigured.
+// This check reads the identical enablement result (whether GHAzDO CodeQL
+// default setup covers a repo with zero matched pipelines) and, before this
+// fix, never gated on enablementErr at all: zero matched pipelines and an
+// enablement-query failure fell straight through to the coverage
+// computation, which always reads CoverageMissing for zero matched
+// pipelines and reports verified-fail. That reintroduced exactly the "two
+// panels of one pack, opposite claims" contradiction this guard already
+// exists to prevent (see TestCheckRanPerRelease_ZeroMatchedWithSkip_NotCheckableNotFail
+// for the same-repo-skip case #202 fixed first) — just reached through
+// enablementErr instead of a same-repo skip: tool-configured now correctly
+// says "we can't tell" right next to ran-per-release saying "it didn't
+// run", for the same repo, from the same evidence gap.
+func TestCheckRanPerRelease_EnablementErr_NotCheckableNotFail(t *testing.T) {
+	filteredReleases := []pipelinehistory.ReleaseInfo{{TagName: "v1.0.0"}}
+	coverage := []pipelinehistory.ReleaseCoverage{
+		{Release: filteredReleases[0], Status: pipelinehistory.CoverageMissing},
+	}
+	enablementErr := &azuredevops.StatusError{StatusCode: http.StatusNotFound}
+
+	got := checkRanPerRelease("attestward-demo", "enablement-404-repo", filteredReleases, coverage, nil, nil, enablementErr, false, false, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable (an enablement-query failure means whether default setup covers this repo can't be confirmed — a confirmed absence can't be asserted over that); reason=%q", got.Status, got.Reason)
+	}
+	if !strings.Contains(got.Reason, "repo-enablement query itself failed") {
+		t.Errorf("Reason = %q, want it to name the enablement-query failure as the cause", got.Reason)
+	}
+}
+
+// TestCheckRanPerRelease_EnablementErrAndSkip_BothNamedInReason proves the
+// combined guard names both causes when they co-occur (an enablement-query
+// failure and an unrelated same-repo pipeline skip are causally
+// independent — one is about the enablement endpoint, the other about a
+// specific pipeline's YAML/build-definition — so both can be true at once),
+// mirroring TestCheckRanPerRelease_DefaultSetupOnlyWithSkip_DefaultSetupReasonWins's
+// discipline of pinning what a two-cause Reason actually says rather than
+// only testing each cause in isolation.
+func TestCheckRanPerRelease_EnablementErrAndSkip_BothNamedInReason(t *testing.T) {
+	filteredReleases := []pipelinehistory.ReleaseInfo{{TagName: "v1.0.0"}}
+	coverage := []pipelinehistory.ReleaseCoverage{
+		{Release: filteredReleases[0], Status: pipelinehistory.CoverageMissing},
+	}
+	enablementErr := &azuredevops.StatusError{StatusCode: http.StatusNotFound}
+	skipped := []pipelinehistory.SkippedPipeline{{DefinitionID: 3, Name: "unresolved-pipeline", Reason: "yamlFilename missing"}}
+
+	got := checkRanPerRelease("attestward-demo", "enablement-404-plus-skip-repo", filteredReleases, coverage, nil, nil, enablementErr, false, false, skipped, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if !strings.Contains(got.Reason, "repo-enablement query itself failed") {
+		t.Errorf("Reason = %q, want the enablement-query failure named", got.Reason)
+	}
+	if !strings.Contains(got.Reason, "1 pipeline(s)") {
+		t.Errorf("Reason = %q, want the same-repo skip count also named", got.Reason)
+	}
+	skipFacts, ok := got.Facts["skipped_pipelines"].([]map[string]any)
+	if !ok || len(skipFacts) != 1 || skipFacts[0]["name"] != "unresolved-pipeline" {
+		t.Errorf("skipped_pipelines facts = %#v, want one entry naming unresolved-pipeline", got.Facts["skipped_pipelines"])
+	}
+}
+
+// TestCheckRanPerRelease_EnablementErrWithDroppedTags_FactsPreserved is the
+// regression test for a real bug the independent review of #245 found in
+// the combined guard above: with an enablement-query failure, zero matched
+// pipelines, and dropped-but-undateable tags leaving nothing in the
+// lookback window, the combined guard used to fire (correctly, on
+// enablementErr) but only ever populated Facts when sameRepoSkips was
+// non-empty — so a repo whose tags couldn't be dated lost that record
+// entirely (Facts went from {dropped_tags: [...]} to nil), even though the
+// later len(filteredReleases) == 0 branch would have preserved it had the
+// combined guard not intercepted the call first. dropped_tags is now
+// always included, matching that later branch's own convention.
+func TestCheckRanPerRelease_EnablementErrWithDroppedTags_FactsPreserved(t *testing.T) {
+	enablementErr := &azuredevops.StatusError{StatusCode: http.StatusNotFound}
+	dropped := []string{"v0.9.0-rc1"}
+
+	got := checkRanPerRelease("attestward-demo", "enablement-404-dropped-tags-repo", nil, nil, dropped, nil, enablementErr, false, false, nil, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	droppedFacts, ok := got.Facts["dropped_tags"].([]string)
+	if !ok || len(droppedFacts) != 1 || droppedFacts[0] != "v0.9.0-rc1" {
+		t.Errorf("dropped_tags facts = %#v, want [\"v0.9.0-rc1\"] — the pack must not silently lose the record of an unresolvable tag just because an enablement-query failure also applies", got.Facts["dropped_tags"])
 	}
 }
 
@@ -179,7 +274,7 @@ func TestCheckRanPerRelease_ZeroMatchedNoSkip_StillVerifiedFail(t *testing.T) {
 // silently reporting zero coverage as a confirmed verified-fail.
 func TestCheckRanPerRelease_BuildsErrIsNotCheckable(t *testing.T) {
 	filteredReleases := []pipelinehistory.ReleaseInfo{{TagName: "v1.0.0"}}
-	got := checkRanPerRelease("attestward-demo", "repo", filteredReleases, nil, nil, errBoom, false, true, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "repo", filteredReleases, nil, nil, errBoom, nil, false, true, nil, nil)
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("Status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
 	}

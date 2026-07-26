@@ -136,6 +136,24 @@ All notable changes to this project are documented here. Format follows
   signal is lost for a genuinely-off org: that state was always observable as this same
   HTTP-200-false response, proven by a pre-existing test unaffected by this change. The
   now-unused `isAdvSecNotFoundErr` predicate is removed rather than left orphaned.
+- **C05.sast.ran-per-release: the sibling gap #226 didn't reach** (#235). #226 fixed
+  `C05.sast.tool-configured` to go `not-checkable` on any repo-enablement error, but
+  never touched `checkRanPerRelease`, which reads the identical enablement result via
+  its own `defaultSetupOnly` guard (`enablementErr == nil` required). So the exact
+  scenario #226 fixed for `tool-configured` left `ran-per-release` disagreeing: a 404,
+  zero matched pipelines, no same-repo skip fell through to the normal coverage
+  computation and reported `verified-fail` — "we can't tell whether SAST is
+  configured" next to "SAST did not run for this release", in one signed pack, the
+  exact "two panels of one pack, opposite claims" contradiction #202 already fixed for
+  the same-repo-skip case. Extended the guard to also fire on an enablement-query
+  failure, not just a same-repo pipeline skip, with a Reason naming whichever cause(s)
+  apply (they're causally independent and can co-occur). Pinned at both the unit level
+  and the full-`Collect` level — extended #226's own 404 regression test to also
+  assert `ran-per-release`, proving the two checks no longer disagree for the same
+  repo. Also fixed, found in independent review: the combined guard could silently
+  drop a repo's `dropped_tags` Facts when an enablement-query failure and dropped,
+  undateable release tags applied at once — `dropped_tags` is now always included,
+  matching the convention the check's own later branch already uses.
 - **Report/POA&M renderers no longer mislabel Azure DevOps project-scoped results as
   org-level** (#176). `report.md`/`report.html`'s Gaps and Not Checkable tables, and
   `poam.md`'s Findings section, rendered every result with an empty `Scope.Repo` as

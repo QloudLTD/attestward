@@ -206,21 +206,25 @@ var checkRubrics = map[string]map[model.Status]string{
 			"pipeline ran for every evaluated release, but not every build succeeded",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SAST " +
 			"builds at all (not even a failed one), and — when there are zero matched pipelines overall — " +
-			"every pipeline MatchPipelines inspected for this repo resolved cleanly (no same-repo skip)",
+			"the GHAzDO repo-enablement query itself succeeded (issue #235: an enablement-query failure " +
+			"routes to not-checkable instead, see below) and every pipeline MatchPipelines inspected for " +
+			"this repo resolved cleanly (no same-repo skip)",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or GHAzDO CodeQL default setup is " +
 			"this repo's ONLY SAST evidence (no signature-matched pipeline at all) — default-setup scans " +
 			"run invisibly to this collector's own build-matching, so this check has no verified way to " +
 			"observe them per release (issue #184, mirroring C06's identical injectionOnly guard); or " +
-			"there are zero matched pipelines and one or more of this repo's own pipelines could not be " +
-			"fully inspected (see Facts.skipped_pipelines) — the same evidence gap " +
-			"C05.sast.tool-configured itself goes not-checkable for, so this check does too rather than " +
-			"asserting a confident absence over it — when default setup is ALSO the sole evidence, that " +
-			"cause wins and is what this Reason names (the skip is still recorded in Facts, just not the " +
-			"stated cause), since the skip wording would otherwise contradict tool-configured's " +
-			"verified-pass for the identical evidence; or no release tag matches the configured pattern " +
-			"within the lookback window, and none of the tags that did match were dropped as unresolvable " +
-			"either — genuinely nothing to evaluate; or the project's build history itself could not be " +
-			"fetched",
+			"there are zero matched pipelines and either the GHAzDO repo-enablement query itself failed " +
+			"(issue #235: whether default setup covers this repo instead can't be confirmed either, the " +
+			"same evidence gap C05.sast.tool-configured itself goes not-checkable for since issue #226) " +
+			"or one or more of this repo's own pipelines could not be fully inspected (see " +
+			"Facts.skipped_pipelines) — this check goes not-checkable rather than asserting a confident " +
+			"absence over either gap — when default setup is ALSO the sole evidence, that cause wins and " +
+			"is what this Reason names (a same-repo skip is still recorded in Facts, just not the stated " +
+			"cause when default setup explains the status), since the skip/enablement-failure wording " +
+			"would otherwise contradict tool-configured's verified-pass for the identical evidence; or no " +
+			"release tag matches the configured pattern within the lookback window, and none of the tags " +
+			"that did match were dropped as unresolvable either — genuinely nothing to evaluate; or the " +
+			"project's build history itself could not be fetched",
 	},
 	idCadence: {
 		model.StatusVerifiedPass: "one or more SAST builds were observed in the lookback window, backed by " +
@@ -477,7 +481,7 @@ func (c *Collector) collectRepo(ctx context.Context, scope collect.Scope, repoNa
 
 	return []model.CheckResult{
 		checkToolConfigured(scope.Org, repoName, matched, sameRepoSkips, enablement, enablementErr, sharedProv),
-		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, buildsErr, defaultSetupOnly, hasMatchedPipelines, sameRepoSkips, sharedProv),
+		checkRanPerRelease(scope.Org, repoName, filteredReleases, coverage, dropped, buildsErr, enablementErr, defaultSetupOnly, hasMatchedPipelines, sameRepoSkips, sharedProv),
 		checkCadence(scope.Org, repoName, matched, enablement, enablementErr, cadenceStats, buildsErr, sharedProv),
 		checkDefaultSetup(scope.Org, repoName, enablement, enablementErr, enablementProv),
 	}

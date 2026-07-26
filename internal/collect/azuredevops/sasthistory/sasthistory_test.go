@@ -561,6 +561,17 @@ func TestCollect_Enablement404_NoOtherEvidence_ToolConfiguredNotCheckable(t *tes
 	if got := m[idDefaultSetup].Status; got != model.StatusNotCheckable {
 		t.Errorf("default-setup = %q, want not-checkable (default-setup's OWN result always goes not-checkable on any enablement error)", got)
 	}
+	// Issue #235: before that fix, this exact scenario (a 404, zero matched
+	// pipelines, one release tag in the window) produced ran-per-release =
+	// verified-fail right next to tool-configured's own not-checkable — the
+	// "two panels of one pack, opposite claims" contradiction #202 already
+	// fixed for the same-repo-skip case. Pinned here at the full-Collect
+	// level, not just checkRanPerRelease's own unit tests, so a future
+	// regression in how Collect wires enablementErr through would be caught
+	// too.
+	if got := m[idRanPerRelease].Status; got != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable (same evidence gap as tool-configured — a 404 means whether default setup covers this repo can't be confirmed, so a confirmed absence can't be asserted either); reason=%q", got, m[idRanPerRelease].Reason)
+	}
 }
 
 // TestCollect_Enablement403_NoOtherEvidence_ToolConfiguredNotCheckable is

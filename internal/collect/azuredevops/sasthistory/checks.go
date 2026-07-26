@@ -225,21 +225,41 @@ func checkToolConfigured(org, repo string, matched []pipelinehistory.MatchedPipe
 // C05.sast.tool-configured's own not-checkable for the identical evidence
 // (two panels of one pack, opposite claims).
 //
-// defaultSetupOnly is checked BEFORE sameRepoSkips, and this precedence is
-// load-bearing, not incidental (pinned by
+// enablementErr joins that same guard as a third cause (issue #235, found
+// in review of #233): #233 narrowed checkToolConfigured's own verified-fail
+// to require a genuinely observed enablement response, routing every
+// enablement error — 404 included — to not-checkable instead. That fix
+// only touched checkToolConfigured. This check reads the identical
+// enablement result but never gated on enablementErr at all, so the exact
+// scenario #233 fixed for tool-configured — no matched pipelines, the
+// enablement query failed, so whether CodeQL default setup covers this
+// repo can't be confirmed — left ran-per-release falling through to the
+// normal coverage computation, which for zero matched pipelines always
+// reads CoverageMissing and reports verified-fail. That reintroduced the
+// identical "two panels of one pack, opposite claims" contradiction this
+// guard already exists to prevent, just reached through enablementErr
+// instead of sameRepoSkips: tool-configured saying "we can't tell" next to
+// ran-per-release saying "it didn't run", for the same repo, from the same
+// evidence gap. enablementErr can never be non-nil at the same time
+// defaultSetupOnly is true — defaultSetupOnly's own formula requires
+// enablementErr == nil — so this addition can't disturb the
+// defaultSetupOnly-wins precedence discussed below.
+//
+// defaultSetupOnly is checked BEFORE this combined guard, and that
+// precedence is load-bearing, not incidental (pinned by
 // TestCheckRanPerRelease_DefaultSetupOnlyWithSkip_DefaultSetupReasonWins):
 // when defaultSetupOnly is true, checkToolConfigured has already reported
 // verified-pass for the identical evidence ("a SAST tool is configured").
-// The sameRepoSkips branch's own wording — "no matched SAST pipeline
-// evidence... a confirmed absence can't be asserted" — would be actively
-// wrong next to that verified-pass, not merely a worse explanation; it
-// reintroduces the exact cross-check contradiction this whole guard exists
-// to remove. The defaultSetupOnly reason is correct regardless of whether a
-// same-repo skip also happened to exist, so it wins unconditionally when
-// both are true — a same-repo skip's Facts are still attached below so the
-// pack doesn't silently drop the record of an uninspectable pipeline just
-// because default setup explains the status.
-func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, buildsErr error, defaultSetupOnly, hasMatchedPipelines bool, sameRepoSkips []pipelinehistory.SkippedPipeline, prov []model.Provenance) model.CheckResult {
+// The combined guard's own wording — "no matched SAST pipeline evidence...
+// a confirmed absence can't be asserted" — would be actively wrong next to
+// that verified-pass, not merely a worse explanation; it reintroduces the
+// exact cross-check contradiction this whole guard exists to remove. The
+// defaultSetupOnly reason is correct regardless of whether a same-repo
+// skip or an enablement error also happened to exist, so it wins
+// unconditionally when both are true — a same-repo skip's Facts are still
+// attached below so the pack doesn't silently drop the record of an
+// uninspectable pipeline just because default setup explains the status.
+func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.ReleaseInfo, coverage []pipelinehistory.ReleaseCoverage, dropped []string, buildsErr, enablementErr error, defaultSetupOnly, hasMatchedPipelines bool, sameRepoSkips []pipelinehistory.SkippedPipeline, prov []model.Provenance) model.CheckResult {
 	const id = idRanPerRelease
 
 	if defaultSetupOnly {
@@ -258,16 +278,40 @@ func checkRanPerRelease(org, repo string, filteredReleases []pipelinehistory.Rel
 		return result
 	}
 
-	if !hasMatchedPipelines && len(sameRepoSkips) > 0 {
-		skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
-		for _, sp := range sameRepoSkips {
-			skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+	if !hasMatchedPipelines && (enablementErr != nil || len(sameRepoSkips) > 0) {
+		reason := "no matched SAST pipeline evidence"
+		switch {
+		case enablementErr != nil && len(sameRepoSkips) > 0:
+			reason += fmt.Sprintf(", the GHAzDO repo-enablement query itself failed (%s) so whether GHAzDO CodeQL default setup covers this repo instead can't be confirmed either, and %d pipeline(s) in this repo could not be fully inspected", advSecNotCheckableReason(enablementErr, org, repo), len(sameRepoSkips))
+		case enablementErr != nil:
+			reason += fmt.Sprintf(", and the GHAzDO repo-enablement query itself failed, so whether GHAzDO CodeQL default setup covers this repo instead can't be confirmed either: %s", advSecNotCheckableReason(enablementErr, org, repo))
+		default:
+			reason += fmt.Sprintf(", but %d pipeline(s) in this repo could not be fully inspected", len(sameRepoSkips))
+		}
+		reason += " — a confirmed absence can't be asserted over incomplete evidence"
+
+		// dropped_tags is included unconditionally (found in review of
+		// #245: an earlier version of this fix only ever set Facts when
+		// sameRepoSkips was non-empty, so a repo with dropped-but-
+		// undateable tags AND an enablement-query failure lost the
+		// dropped-tag record entirely — this guard now runs before the
+		// len(filteredReleases) == 0 check below ever gets a chance to
+		// attach it). Matches that later branch's own convention of
+		// always including dropped_tags, even when empty, rather than
+		// conditionally.
+		facts := map[string]any{"dropped_tags": dropped}
+		if len(sameRepoSkips) > 0 {
+			skipDetails := make([]map[string]any, 0, len(sameRepoSkips))
+			for _, sp := range sameRepoSkips {
+				skipDetails = append(skipDetails, map[string]any{"name": sp.Name, "reason": sp.Reason})
+			}
+			facts["skipped_pipelines"] = skipDetails
 		}
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("no matched SAST pipeline evidence, but %d pipeline(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(sameRepoSkips)),
+			Reason: reason,
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-			Facts: map[string]any{"skipped_pipelines": skipDetails},
+			Facts: facts,
 		}
 	}
 
