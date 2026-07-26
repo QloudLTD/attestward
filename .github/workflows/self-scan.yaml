@@ -230,6 +230,7 @@ jobs:
       # It fails loudly in the one case where the artifact genuinely matters,
       # which is the correct trade, not an oversight.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-evidence
         if: always()
         continue-on-error: true
         with:
@@ -238,17 +239,31 @@ jobs:
           # 7 days, down from 90, matching ci.yaml for consistency. Be honest
           # about the size of that win: this is a JSON pack plus one HTML file,
           # zipped, so 90->7 frees on the order of ~5 MB of standing storage.
-          # The real pressure is ci.yaml's attestward-builds — see below. This
+          # The real pressure was ci.yaml's attestward-builds — see below. This
           # change is right because two artifacts with the same lifetime are
           # easier to reason about, not because it materially eased the quota.
           #
-          # If the quota bites again, the place to look is ci.yaml's
-          # attestward-builds upload: 5 binaries on every PR and every push to
-          # main. multi-arch-build-sample.yaml also uploads binaries and inherits
-          # the 90-day default, but it is workflow_dispatch-only and has run once
-          # ever, so its standing cost is a rounding error despite the long
-          # retention. Recurrence beats per-artifact size here.
+          # #217: the quota exhausted outright — 10.82 GB across 1362
+          # artifacts, 5.69 GB of it pre-rename `attestor-*` debris no
+          # workflow references any more (deleted), the rest almost
+          # entirely ci.yaml's attestward-builds. That upload now only
+          # runs on pushes to main, not every PR/PR-push, which was the
+          # actual volume driver — see its own comment in ci.yaml.
           retention-days: 7
+      # #217: continue-on-error above is right (see this step's own
+      # comment) but made the quota exhausting outright completely
+      # invisible until a live dry run for #211 tripped over it by
+      # accident — this is the second, independent layer that broke
+      # (self-scan succeeds, upload fails, attach-to-release below has
+      # nothing to download), the same silent-fail-open shape #211's own
+      # fix exists to catch, arrived at from a different direction.
+      # outcome reflects the step's real result before continue-on-error
+      # masks it for the job's own conclusion — this only fires on a
+      # genuine failure, and a `::warning::` never reddens the job.
+      - name: Warn if the evidence-pack upload failed
+        if: always() && steps.upload-evidence.outcome == 'failure'
+        run: |
+          echo "::warning::upload of self-scan-evidence failed — likely the artifact storage quota (issue #217); the scan itself succeeded, but attach-to-release below will have nothing to attach"
 
   # The one write in this workflow, isolated in its own job so the scan
   # job's permissions stay read-only (ADR-0007): when this run was fired by

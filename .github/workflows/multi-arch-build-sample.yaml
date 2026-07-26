@@ -80,10 +80,25 @@ jobs:
       # compiles and executes on its target. A storage-quota failure on the
       # upload must not retract that proof by reddening the job.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-native
         continue-on-error: true
         with:
           name: attestward-${{ matrix.goos }}-${{ matrix.goarch }}
           path: attestward-${{ matrix.goos }}-${{ matrix.goarch }}*
+      # Issue #217: continue-on-error above is right (see this step's own
+      # comment) but made the quota exhausting outright completely
+      # invisible. outcome reflects the real result before
+      # continue-on-error masks it — this only fires on a genuine
+      # failure, and a `::warning::` never reddens the job. This
+      # workflow's own uploads weren't the volume driver (workflow_dispatch
+      # -only, run once ever — see this file's header), but the same
+      # visibility gap applied here too.
+      - name: Warn if the build-artifact upload failed
+        if: steps.upload-native.outcome == 'failure'
+        env:
+          ARTIFACT_NAME: attestward-${{ matrix.goos }}-${{ matrix.goarch }}
+        run: |
+          echo "::warning::upload of $ARTIFACT_NAME failed — likely the artifact storage quota (issue #217); the build itself succeeded, only the archival upload was lost"
 
   # windows/amd64's native-execution leg runs on a physical self-hosted
   # runner (spyros-aorus-ssdf) that's kept powered off between uses (~300W
@@ -145,10 +160,21 @@ jobs:
       # compiles and executes on its target. A storage-quota failure on the
       # upload must not retract that proof by reddening the job.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-windows
         continue-on-error: true
         with:
           name: attestward-windows-amd64
           path: attestward-windows-amd64.exe
+      # Issue #217: same visibility gap as the native-runner leg above —
+      # continue-on-error is right, but made a real quota exhaustion
+      # invisible. shell: bash to match every other run: step in this
+      # job (this runner's default-shell bash resolution is unreliable —
+      # see the "Prefer Git's bash" step's own comment above).
+      - name: Warn if the build-artifact upload failed
+        shell: bash
+        if: steps.upload-windows.outcome == 'failure'
+        run: |
+          echo "::warning::upload of attestward-windows-amd64 failed — likely the artifact storage quota (issue #217); the build itself succeeded, only the archival upload was lost"
 
   # Runs regardless of build-windows's outcome (if: always()) — a failed
   # Windows build must not leave the box powered on indefinitely. Only

@@ -53,6 +53,22 @@ All notable changes to this project are documented here. Format follows
   The baseline-fetch logic moved to `hack/fetch-drift-baseline.sh` so all of the above
   is testable against a mocked `gh` (`fetch-drift-baseline_test.sh`, wired into
   `ci.yaml`) without a real release.
+- **The artifact storage quota exhausted outright, and `continue-on-error` made it
+  completely invisible** (#217). 10.82 GB across 1362 artifacts at discovery — 5.69 GB
+  of it pre-rename `attestor-*` debris no workflow references any more (deleted with
+  the owner's approval), the rest almost entirely `ci.yaml`'s `attestward-builds`: five
+  ~18 MB binaries uploaded on every PR *and every push to an open PR's branch*, not
+  just once per PR. That upload now only runs on `push` events (a merge or direct push
+  to `main`) — the `build` job's compile-and-execute proof, which is the actual point
+  of the job, still runs unconditionally on every PR. Every `continue-on-error`-guarded
+  artifact upload across `ci.yaml`, `self-scan.yaml`, and `multi-arch-build-sample.yaml`
+  now emits a `::warning::` annotation on a genuine failure (checked via the upload
+  step's own `outcome`, which `continue-on-error` doesn't mask) — silent before, now
+  noticeable without reddening a build that otherwise passed. This was the second,
+  independent layer at which the drift baseline chain #211 fixes could still break
+  silently: on a release run, a quota-exhausted upload means `attach-to-release` has
+  nothing to download, same outcome as #211's own original defect, arrived at from a
+  different direction.
 - **C05 sast-history / C06 sca-history: a workflow/pipeline this tool couldn't fully
   inspect no longer reads as a confirmed absence** (#178). A workflow (GitHub) or
   pipeline (Azure DevOps) that failed to fetch, decode, or parse was silently dropped

@@ -58,11 +58,22 @@ jobs:
       # failure. A red tick that doesn't mean "the code is wrong" is worse than
       # no tick, because it trains people to merge through red.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-coverage
         continue-on-error: true
         with:
           name: coverage
           path: coverage.out
           retention-days: 7
+      # Issue #217: continue-on-error above is right (see this step's own
+      # comment) but made an actual quota exhaustion completely invisible
+      # until a live dry run for #211 tripped over it by accident. outcome
+      # reflects the step's real result before continue-on-error masks it
+      # for the job's own conclusion — this only fires on a genuine
+      # failure, and a `::warning::` never reddens the job.
+      - name: Warn if the coverage upload failed
+        if: steps.upload-coverage.outcome == 'failure'
+        run: |
+          echo "::warning::upload of coverage failed — likely the artifact storage quota (issue #217); tests still passed, only the archival upload was lost"
 
   # Issue #83: restores the Linux-specific test coverage `test` above can't
   # provide on its own — case-sensitive filesystem, path/rename semantics,
@@ -147,15 +158,51 @@ jobs:
           done
       - name: Verify the darwin/arm64 build runs (matches this runner's own arch)
         run: ./attestward-darwin-arm64 version
-      # Same reasoning as the coverage upload above: these binaries are
-      # archival convenience, and the build itself has already proven it
-      # compiles and runs.
+      # Issue #217: this upload was the dominant driver of the artifact
+      # storage quota exhausting outright (5.13 of 5.14 GB remaining after
+      # deleting 5.69 GB of pre-rename debris) — five ~18 MB binaries
+      # every time this job ran, and `pull_request` re-triggers it on
+      # every push to a PR branch, not just once per PR. The cross-compile
+      # and "Verify it runs" steps above are unconditional and still run
+      # on every PR — that's the actual proof this job exists for. Only
+      # the archival upload becomes push-to-main-only:
+      #   - pull_request event (including every push to an open PR's
+      #     branch): github.event_name == 'pull_request', condition is
+      #     false, upload is skipped — no binaries archived, compile/run
+      #     proof unaffected.
+      #   - push event (a merge or direct push to main):
+      #     github.event_name == 'push', condition is true, upload runs
+      #     as before.
+      #   - workflow_dispatch: condition is TRUE. The volume driver is the
+      #     per-PR-push recurrence, not manual runs, so excluding
+      #     pull_request removes all of it while keeping the manual escape
+      #     hatch working. Skipping dispatch too would leave someone who runs
+      #     this workflow specifically to obtain cross-compiled binaries with
+      #     no binaries and no explanation — the warn step below deliberately
+      #     does not fire on `skipped`, only on `failure`.
+      # a shell `run:` block regardless, matching this repo's own rule.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-builds
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         with:
           name: attestward-builds
           path: attestward-*
           retention-days: 7
+      # continue-on-error above is still right — a storage-quota failure
+      # must never redden a build whose compile/run proof already passed
+      # (#206, #210) — but it also means the failure is otherwise
+      # completely invisible (#217: this is exactly how quota exhaustion
+      # went undetected until a live dry run for #211 tripped over it by
+      # accident). steps.upload-builds.outcome reflects the step's real
+      # result *before* continue-on-error masks it into "success" for the
+      # job's own conclusion, so this step can surface it without
+      # reddening anything: it only runs when the upload genuinely
+      # failed, and a `::warning::` never fails the job itself.
+      - name: Warn if the build-artifact upload failed
+        if: steps.upload-builds.outcome == 'failure'
+        run: |
+          echo "::warning::upload of attestward-builds failed — likely the artifact storage quota (issue #217); the build itself succeeded, only the archival upload was lost"
 
   # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
   # push or cosign's OIDC signing context. Informational only (not a required
