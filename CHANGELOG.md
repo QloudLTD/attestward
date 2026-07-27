@@ -326,7 +326,11 @@ All notable changes to this project are documented here. Format follows
   way. Accepted deliberately — see `tools/rubricguard/main.go`'s own doc
   comment for the full accounting — as the direct cost of the corpus
   result above, not a free trade.
-
+- **`rubricguard`: pinned the #103 corpus-verification finding above as its
+  own dedicated regression test** (#262, follow-up). No production code
+  change — the multiset comparison already handles this shape correctly, so
+  the test alone closes the gap between "verified once during development"
+  and "asserted permanently in CI."
 - **C06.sca (Azure DevOps): `checkRanPerRelease` had the same two `dropped_tags`
   Facts-loss holdouts C05's identical function had, both fixed** (#256). #251
   ported C05 `sasthistory`'s pre-#252/#254 `checkRanPerRelease` shape into C06

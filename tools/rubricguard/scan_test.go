@@ -321,3 +321,53 @@ func computeStatus(ok bool) model.Status {
 		}
 	})
 }
+
+// TestAnalyzeFile_FlagsNewBranchReusingAnAlreadyReferencedStatus is the
+// regression case found by replaying #262's fix against this repo's own
+// commit history (CHANGELOG's #262 entry has the corpus verification) —
+// not designed up front. Real commit 687e9f4 (#103) added a new
+// early-return branch producing model.StatusNotCheckable for a case its
+// rubric didn't describe, but the function already had an unrelated
+// StatusNotCheckable return elsewhere — a plain deduplicated set of
+// status *names* alone sees no change there and would go silent on a
+// real gap; the multiset comparison #262 shipped already handles this
+// correctly (occurrence count rises from one to two), this test only
+// pins that down with a dedicated case. Mirrored here: computeStatus
+// already returns StatusNotCheckable in one branch, and a new branch is
+// added that also does, for a different (checkable bool) reason.
+func TestAnalyzeFile_FlagsNewBranchReusingAnAlreadyReferencedStatus(t *testing.T) {
+	fset := token.NewFileSet()
+	oldSrc := []byte(`package sample
+
+import "github.com/sioakim/attestward/internal/model"
+
+func computeStatus(ok bool) model.Status {
+	if ok {
+		return model.StatusVerifiedPass
+	}
+	return model.StatusNotCheckable
+}
+`)
+	newSrc := []byte(`package sample
+
+import "github.com/sioakim/attestward/internal/model"
+
+func computeStatus(ok, checkable bool) model.Status {
+	if !checkable {
+		return model.StatusNotCheckable
+	}
+	if ok {
+		return model.StatusVerifiedPass
+	}
+	return model.StatusNotCheckable
+}
+`)
+	hunks := []hunk{{Old: lineRange{6, 6}, New: lineRange{6, 9}}}
+	ff, err := analyzeFile(fset, "checks.go", oldSrc, newSrc, hunks)
+	if err != nil {
+		t.Fatalf("analyzeFile: %v", err)
+	}
+	if len(ff.StatusLines) == 0 {
+		t.Error("StatusLines is empty, want a hit — a deduplicated set alone would miss this; see #103")
+	}
+}
