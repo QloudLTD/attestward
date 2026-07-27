@@ -400,7 +400,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	return []model.CheckResult{
 		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
 		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, hasMatchedWorkflows, skippedWorkflows, sharedProv),
-		checkCadence(org, repo, matchedWorkflows, defaultSetup, cadence, sharedProv),
+		checkCadence(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, cadence, sharedProv),
 		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, dsProv),
 	}
 }

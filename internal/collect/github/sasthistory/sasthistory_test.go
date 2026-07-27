@@ -351,19 +351,28 @@ func TestCollect_LowConfidenceOnlyMatch_CapsAtPartial(t *testing.T) {
 }
 
 // TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFields
-// is the regression test for issue #258: a low-confidence-only workflow
-// match plus a failed (non-plan-gated) default-setup query must not
-// silently report Facts["codeql_default_setup"]=false or
-// Facts["low_confidence_match_only"]=true — both derive from
-// defaultSetupConfigured(ds), and GetDefaultSetupConfiguration returns a
-// nil ds on ANY error, indistinguishable from a genuine "not configured"
-// response. This combination is reachable in production: hasAny=true here
-// bypasses checkToolConfigured's own not-checkable guard, which only fires
-// when hasAny is false — TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable
+// is the regression test for issue #258 (checkToolConfigured's own Facts)
+// and issue #268 (checkCadence's identical Facts value, the last
+// default-setup/enablement-derived instance of the same conflation — this
+// fixture already reaches both, found in review rather than needing a
+// second one): a low-confidence-only
+// workflow match plus a failed (non-plan-gated) default-setup query must
+// not silently report Facts["codeql_default_setup"]=false or
+// Facts["low_confidence_match_only"]=true on either check — all three
+// derive from defaultSetupConfigured(ds), and
+// GetDefaultSetupConfiguration returns a nil ds on ANY error,
+// indistinguishable from a genuine "not configured" response. This
+// combination is reachable in production: hasAny=true here bypasses both
+// checks' own not-checkable guards, which only fire when hasAny is false
+// (tool-configured) or no evidence at all exists (cadence's
+// toolConfigured) — TestCollect_DefaultSetupCallFailsOnlyThatCheckNotCheckable
 // covers that same failed-query shape but with a high-confidence match, so
-// status is unaffected and it never exercises either Facts field. Before
-// this fix, both fields asserted a confirmed value from a query that
-// merely failed.
+// status is unaffected there and it never exercises any of these three
+// Facts fields. Before #258/#268, all three asserted a confirmed value
+// from a query that merely failed — before #268 specifically,
+// tool-configured's own key was already correctly absent while cadence's
+// identical key still asserted true, an inconsistency between two
+// adjacent panels of the same check family reading the same evidence.
 func TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFields(t *testing.T) {
 	mux := http.NewServeMux()
 	registerRepo(t, mux, "attestward-demo", "iffy-repo-2", "main")
@@ -404,6 +413,14 @@ func TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFi
 	}
 	if v, ok := got.Facts["low_confidence_match_only"]; ok {
 		t.Errorf("Facts[low_confidence_match_only] = %v, want the key absent — its value depends on the same unconfirmed default-setup query", v)
+	}
+
+	// Issue #268: checkCadence's own copy of low_confidence_match_only had
+	// the identical conflation, never fixed alongside checkToolConfigured's
+	// because checkCadence didn't receive dsResp/dsErr at all before this.
+	cadenceGot := m["C05.sast.cadence"]
+	if v, ok := cadenceGot.Facts["low_confidence_match_only"]; ok {
+		t.Errorf("cadence Facts[low_confidence_match_only] = %v, want the key absent — its value depends on the same unconfirmed default-setup query", v)
 	}
 }
 
@@ -841,6 +858,69 @@ func TestCollect_DefaultSetupPlanGatedWithNoOtherEvidence_ToolConfiguredStaysFai
 
 	if got := m["C05.sast.tool-configured"].Status; got != model.StatusVerifiedFail {
 		t.Errorf("tool-configured = %q, want verified-fail — a plan-gated default-setup response is a legitimate \"not configured\" fact, not an unknown", got)
+	}
+}
+
+// TestCollect_LowConfidenceMatchPlusPlanGatedDefaultSetup_FactsKeepDefaultSetupFields
+// is the plan-gated twin of
+// TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFields
+// (#258/#268's unconfirmed-failure case, 403) and the review finding on
+// #284 (F2): the carve-out that a plan-gated (404/402) default-setup
+// response is a confirmed "not configured" fact, not an unknown, had no
+// test pinning it at the Facts layer for either check.
+// TestCollect_DefaultSetupPlanGatedWithNoOtherEvidence_ToolConfiguredStaysFail
+// pins the carve-out via tool-configured's Status only — and that
+// fixture's own zero-workflow-evidence shape means checkCadence's own
+// unconfirmedDSFailure gate is unreachable there: toolConfigured(matched,
+// ds) is false (no matched workflow, and a plan-gated response is never
+// "configured"), so checkCadence returns not-checkable before ever
+// computing lowConfidenceOnly or touching Facts. Confirmed by reverting
+// checkCadence's gate to the review's exact regression (a bare
+// `dsErr == nil`) and re-running that existing test: cadence's Facts stay
+// nil either way, so no assertion added to it can protect this. This
+// fixture instead gives checkCadence a matched workflow (so toolConfigured
+// is true and it reaches its Facts gate) at low confidence only, so both
+// checks land on the low-confidence branch rather than a confirmed
+// pass/fail — the same shape the 403 sibling test uses, just with a
+// plan-gated failure instead of an unconfirmed one.
+func TestCollect_LowConfidenceMatchPlusPlanGatedDefaultSetup_FactsKeepDefaultSetupFields(t *testing.T) {
+	mux := http.NewServeMux()
+	registerRepo(t, mux, "attestward-demo", "plan-gated-lowconf-repo", "main")
+	mux.HandleFunc("/repos/attestward-demo/plan-gated-lowconf-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "CodeQL", "path": ".github/workflows/codeql.yml", "state": "active"},
+			},
+		})
+	})
+	// Same low-confidence-only content as
+	// TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFields:
+	// name-based heuristic only, no real CodeQL action or run-pattern step.
+	mux.HandleFunc("/repos/attestward-demo/plan-gated-lowconf-repo/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": "name: CodeQL\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n"})
+	})
+	registerNoReleases(t, mux, "attestward-demo", "plan-gated-lowconf-repo")
+	registerWorkflowRuns(t, mux, "attestward-demo", "plan-gated-lowconf-repo", 1, []map[string]any{
+		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
+	})
+	mux.HandleFunc("/repos/attestward-demo/plan-gated-lowconf-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"plan-gated-lowconf-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if v, ok := m["C05.sast.tool-configured"].Facts["low_confidence_match_only"]; !ok || v != true {
+		t.Errorf("tool-configured Facts[low_confidence_match_only] = %v (present=%v), want true — a plan-gated default-setup response is a confirmed absence, not an unknown", v, ok)
+	}
+	if v, ok := m["C05.sast.cadence"].Facts["low_confidence_match_only"]; !ok || v != true {
+		t.Errorf("cadence Facts[low_confidence_match_only] = %v (present=%v), want true — same plan-gated carve-out must hold now that both checks share unconfirmedDSFailure", v, ok)
 	}
 }
 

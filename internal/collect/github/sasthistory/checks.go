@@ -29,6 +29,21 @@ func defaultSetupConfigured(ds *ghgithub.DefaultSetupConfiguration) bool {
 	return ds != nil && ds.GetState() == "configured"
 }
 
+// unconfirmedDSFailure reports whether the default-setup query itself
+// failed in a way this collector can't read anything into — as opposed to
+// a plan-gated failure (GHAS/default-setup genuinely unavailable), which
+// IS a confirmed "not configured" fact. GetDefaultSetupConfiguration
+// returns a nil ds on ANY error, so defaultSetupConfigured(ds) can't
+// itself distinguish "confirmed off" from "query failed"; a Facts value
+// or Reason derived from it needs this distinction to avoid asserting a
+// fact this collector doesn't actually have evidence for. Shared by
+// checkToolConfigured and checkCadence (issue #268, the same reasoning
+// matchConfidence's own doc comment gives for being shared) rather than
+// two independently-maintained copies of the identical carve-out.
+func unconfirmedDSFailure(dsResp *ghgithub.Response, dsErr error) bool {
+	return dsErr != nil && (dsResp == nil || !ghcollect.IsPlanGated(dsResp.StatusCode))
+}
+
 // toolConfigured reports whether any evidence at all (workflow match of
 // any confidence, or CodeQL default setup) indicates a SAST tool is
 // configured — used by checkCadence to decide whether "zero runs" means
@@ -98,15 +113,15 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	// collector can't read anything into — as opposed to a plan-gated
 	// failure (GHAS/default-setup genuinely unavailable), which IS a
 	// confirmed "not configured" fact, same distinction the doc comment
-	// above draws. Shared below between the not-checkable guard and the
+	// above draws. Used below for both the not-checkable guard and the
 	// Facts gate (issue #258): GetDefaultSetupConfiguration returns a nil
 	// ds on ANY error, so defaultSetupConfigured(ds) can't itself
 	// distinguish "confirmed off" from "query failed" — using its bare
 	// value in Facts would assert a fact this collector doesn't actually
 	// have evidence for whenever the failure isn't plan-gated.
-	unconfirmedDSFailure := dsErr != nil && (dsResp == nil || !ghcollect.IsPlanGated(dsResp.StatusCode))
+	unconfirmedDS := unconfirmedDSFailure(dsResp, dsErr)
 
-	if !hasAny && unconfirmedDSFailure {
+	if !hasAny && unconfirmedDS {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: fmt.Sprintf("no SAST tool detected in any workflow, and the CodeQL default-setup query itself failed: %s", notCheckableReason(dsResp, dsErr, org, repo)),
@@ -143,16 +158,16 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	sort.Strings(toolNames)
 
 	// codeql_default_setup and low_confidence_match_only both derive from
-	// setupConfigured, unreliable under exactly unconfirmedDSFailure — see
-	// its own comment above. Included only when the default-setup query
-	// actually resolved (succeeded, or a confirmed plan-gated absence), so
-	// an unconfirmed state is honestly absent from the pack rather than
+	// setupConfigured, unreliable under exactly unconfirmedDS — see its own
+	// comment above. Included only when the default-setup query actually
+	// resolved (succeeded, or a confirmed plan-gated absence), so an
+	// unconfirmed state is honestly absent from the pack rather than
 	// misreported as a confirmed false (issue #258).
 	facts := map[string]any{
 		"tool_names":        toolNames,
 		"skipped_workflows": skipDetails,
 	}
-	if !unconfirmedDSFailure {
+	if !unconfirmedDS {
 		facts["codeql_default_setup"] = setupConfigured
 		facts["low_confidence_match_only"] = hasAny && !hasHighOrMedium && !setupConfigured
 	}
@@ -254,7 +269,19 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 // tool-configured caps at partial for the identical evidence would read as
 // a contradiction — "unsure it's configured, but certain it ran on
 // schedule."
-func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, cadence runhistory.CadenceStats, prov []model.Provenance) model.CheckResult {
+//
+// dsResp/dsErr (issue #268, the last default-setup/enablement-derived
+// instance of the four-surface conflation #258 fixed for Facts elsewhere):
+// lowConfidenceOnly's own
+// !defaultSetupConfigured(ds) can't distinguish "default setup confirmed
+// off" from "the query failed" any more than checkToolConfigured's
+// identical expression could — GetDefaultSetupConfiguration returns a nil
+// ds either way. Status/Reason keep using lowConfidenceOnly unguarded,
+// same as checkToolConfigured's own setupConfigured-driven status/Reason
+// stay unguarded — only the Facts value gets the unconfirmedDSFailure gate
+// below, matching #258's precedent exactly rather than inventing a second
+// shape.
+func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, cadence runhistory.CadenceStats, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.cadence"
 
 	if !toolConfigured(matched, ds) {
@@ -278,15 +305,24 @@ func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *gh
 		status, reason = model.StatusVerifiedPass, fmt.Sprintf("%d SAST run(s) observed in the lookback window", cadence.RunCount)
 	}
 
+	// low_confidence_match_only is included only when the default-setup
+	// query actually resolved (succeeded, or a confirmed plan-gated
+	// absence) — same #258 gate checkToolConfigured applies to its own
+	// copy of this value, so an unconfirmed state is honestly absent
+	// rather than misreported as a confirmed true/false.
+	facts := map[string]any{
+		"run_count":        cadence.RunCount,
+		"runs_per_week":    cadence.RunsPerWeek,
+		"longest_gap_days": cadence.LongestGapDays,
+	}
+	if !unconfirmedDSFailure(dsResp, dsErr) {
+		facts["low_confidence_match_only"] = lowConfidenceOnly
+	}
+
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{
-			"run_count":                 cadence.RunCount,
-			"runs_per_week":             cadence.RunsPerWeek,
-			"longest_gap_days":          cadence.LongestGapDays,
-			"low_confidence_match_only": lowConfidenceOnly,
-		},
+		Facts: facts,
 	}
 }
 

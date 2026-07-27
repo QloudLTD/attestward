@@ -168,6 +168,43 @@ All notable changes to this project are documented here. Format follows
   beats a mitigation table that looks complete); carve-out removed now that
   it's closed. The table's sibling out-of-enum-`status` gap (also named
   there) is unrelated and still open, tracked as #240.
+- **GitHub `sasthistory`'s `checkCadence` no longer asserts a confirmed value from a
+  failed default-setup query — the last default-setup/enablement-derived instance of
+  the #258 conflation class** (#268). `checkCadence`'s `low_confidence_match_only`
+  derives from `!defaultSetupConfigured(ds)`, and `GetDefaultSetupConfiguration`
+  returns a nil `ds` on ANY error — indistinguishable from a genuine "not configured"
+  response, the identical conflation #258 fixed in the sibling `checkToolConfigured`.
+  Not folded into
+  #258 at the time: `checkCadence` never received `dsErr`/`dsResp` at all, and #258's
+  review found closing that is two parameters plus one call site (not the signature
+  rewrite originally estimated). Reachable in production the same way #258 already
+  established: a token lacking `security_events` fails the default-setup query on every
+  repo, and a low-confidence-only workflow match (name heuristic alone) reaches
+  `checkCadence`'s Facts construction regardless. Concretely: before this fix,
+  `C05.sast.tool-configured` correctly omitted `low_confidence_match_only` for this
+  evidence shape while the adjacent `C05.sast.cadence` panel — same key name, same
+  underlying failed query — still asserted `true`.
+
+  Extracted the shared `unconfirmedDSFailure(dsResp, dsErr)` carve-out
+  `checkToolConfigured` already had inline into its own package-level function, reused
+  by both rather than writing a second copy — the same reasoning `matchConfidence`'s own
+  doc comment already gives for being shared. `checkCadence` gained `dsResp`/`dsErr`
+  parameters (threaded from `sasthistory.go`'s one call site, both already in scope one
+  line above it) and gates `low_confidence_match_only`'s Facts inclusion behind
+  `!unconfirmedDSFailure(dsResp, dsErr)`, omitting the key rather than emitting a
+  defaulted value — matching #258's exact shape. Status/Reason computation is
+  deliberately left unguarded, mirroring `checkToolConfigured`'s own precedent (only the
+  Facts value gets the gate, not the status decision) — reusing `unconfirmedDSFailure`
+  rather than writing a `dsErr == nil` shortcut also preserves the plan-gated exception:
+  a plan-gated failure is a confirmed absence, not an unknown, so its key must stay
+  present.
+
+  `TestCollect_LowConfidenceMatchPlusDefaultSetupFails_FactsOmitDefaultSetupFields`
+  (#258's own regression test) already used the exact fixture shape this bug needed —
+  extended it to also assert `C05.sast.cadence`'s Facts, rather than writing a new test
+  with a duplicate fixture. Mutation-proved: reverted `checkCadence`'s Facts gate,
+  confirmed the extended assertion (and only it) reddens with the exact conflated
+  `true` value the fix removes, restored.
 - **`docs/threat-model.md`'s self-hosted-macOS job enumeration had five real defects,
   and nothing kept it current** (#260). The "Shared, persistent runner state"
   residual risk names every job sharing `spyros-mac-mini-ssdf`'s persistent Go
