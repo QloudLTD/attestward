@@ -138,3 +138,21 @@ jobs:
 		t.Errorf("reusable-call job present alongside a real undocumented job; missing = %v, want exactly [undocumented-job]", missing)
 	}
 }
+
+// TestRun_SilentOnRealRepo runs the actual guard against this repo's own
+// .github/workflows and docs/threat-model.md — the property issue #260
+// exists to guarantee: today's enumeration is current.
+func TestRun_SilentOnRealRepo(t *testing.T) {
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(dir, "..", "..")
+	missing, err := run(filepath.Join(root, ".github", "workflows"), filepath.Join(root, "docs", "threat-model.md"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(missing) != 0 {
+		t.Errorf("expected the real threat-model.md to name every self-hosted macOS job, got missing: %v", missing)
+	}
+}

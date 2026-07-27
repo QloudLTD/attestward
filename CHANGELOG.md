@@ -193,6 +193,16 @@ All notable changes to this project are documented here. Format follows
   Swept the rest of the document for the same shape per review: the go-github
   endpoint tables and the "ten ADO collector packages" list are currently accurate
   (verified, not assumed) but equally guardless — not fixed here, out of scope.
+- **`tools/threatmodelguard`: fuller unit-test coverage for its individual functions**
+  (#260, follow-up). No production code change — kept the initial PR's test suite to
+  the issue's own explicit mutation-proof ask plus the one parsing-risk test to stay
+  under the diff-size ceiling; adds the rest: a bare-scalar `runs-on`, a matrix leg
+  with no `os:` key, case-insensitive label matching, a real-`.github/workflows`
+  spot-check, and the doc-section-boundary edge cases (absent bullet, and that
+  neighboring bullets' own job mentions don't leak in). Also adds the one case round 2
+  review of #260 found missing: `missingFromDoc`'s backtick-delimited match is what
+  stops `build-windows` from satisfying `build` as a substring collision — dropping the
+  backticks left the whole package green before this test existed.
 - **`checkToolConfigured` Facts no longer assert a confirmed value from a query
   that merely failed, in the GitHub twins of C05/C06** (#258, follow-up to
   #266's identical Azure DevOps fix). `github/sasthistory`'s
