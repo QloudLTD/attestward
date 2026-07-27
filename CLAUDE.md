@@ -15,9 +15,16 @@ Status: **v0.3.0 released** (2026-07-23 — Azure DevOps support (epic #34, ten
 collectors on both platforms), semgrep SAST, and the first signed + GitHub-verified
 release tag; verified from a clean machine). The repo stays private for now: the public
 flip and everything gated on it land with v1.0 (DECISIONS.md D7, issue #138). All v0.1
-phases (0–6) are closed, as is the v0.2 Azure DevOps epic; open work is the v1.0
-milestone, the hosted tier (separate repo `attestward-cloud`), and the post-v0.1
-backlog — see **Progress tracker** below.
+phases (0–6) are closed, as is the v0.2 Azure DevOps epic; open work in *this* repo is
+the v1.0 public flip (#138), the post-v0.1 backlog, and an ongoing correctness/
+hardening stream — review-spawned fixes to guards, renderers, and docs-drift that
+don't belong to either bucket above, currently 11 open issues (e.g. #217, #260, #268 —
+not enumerated in full here since that list is exactly the kind of hand-maintained
+snapshot this section was just corrected for; see the [issue tracker](../../issues)
+for the live count) — see **Progress tracker** below. The hosted tier (separate repo
+`attestward-cloud`) is tracked entirely there now, not here — every hosted-tier issue
+this repo once held (#121–#126) is closed, one delivered, the rest re-filed as
+`attestward-cloud` stories.
 
 ## The one rule that overrides convenience
 
@@ -30,9 +37,10 @@ call, stop and flag it rather than adding one.
 800-218 or the CISA SSDA form primary sources. Paraphrases are marked as paraphrases.
 This applies to issues #6, #7, and any docs touching compliance mappings.
 `mappings/scanner-signatures.yaml` (issue #16) is a different kind of file — original
-data about how tools present in GitHub Actions workflows, not a regulatory citation —
-so this specific rule doesn't apply to it; see that file's own header comment for the
-accuracy standard that does (every signature backed by a real fixture workflow).
+data about how tools present in GitHub Actions workflow files and, since #149, Azure
+Pipelines YAML too — not a regulatory citation, so this specific rule doesn't apply to
+it; see that file's own header comment for the accuracy standard that does (every
+signature backed by a real fixture workflow, or for ADO, a fixture pipeline).
 
 ## Where things live
 
@@ -72,7 +80,7 @@ issue or needs one opened before starting.
 ## Dev commands
 
 ```bash
-go version   # 1.26+ installed (1.22+ required)
+go version   # 1.26+ installed (1.25+ required — go.mod pins go 1.25.0)
 make build   # or: go build ./cmd/attestward
 make test
 make lint    # golangci-lint run (v2 config — see .golangci.yml)
@@ -146,31 +154,32 @@ lapsed — this is now active work)
   [attestward-action](https://github.com/sioakim/attestward-action) repo, v1.0.0;
   ADR-0007 write boundary; self-scan migrated as first consumer in #147, drift
   baseline attached to the v0.2.0 release; the first live run correctly caught two
-  real gaps, tracked in #157 (no SAST covers releases) and #158 (unsigned release
-  tags — needs a signing-identity decision))
-- [ ] #34 Azure DevOps — epic implementation phase COMPLETE (2026-07-23): stories
-  S1–S8 all closed (#148–#154, #156), all ten collectors live on both platforms, 94
-  registered checks, 18 collector-phase PRs each through independent session-level
-  review. S9 (#155)'s harness merged and live-proven (PR #188, 2026-07-23):
-  hack/demo-ado-setup.sh ran live against dev.azure.com/seciq (found + fixed 5 real
-  bugs across two review rounds), the definitive 81-result fixture capture is in
-  fixtures-ado.yaml, `TestIntegration_ADODemoOrgMatchesFixtures` passed live against
-  the real org, `integration-scan-ado` is wired into CI. S9's docs pass
-  (architecture.md, README token table, threat-model coverage, this tracker) is the
-  companion PR to this commit; once it merges, #155's full scope is done and it will
-  be closed manually with the evidence recorded on it (session convention — no
-  closing keywords in PR bodies/commits). After that, only #190 (retire the
-  [fixture-verify] ledger with the recorded seciq answers) plus review-spawned
-  follow-ups #166/#176/#178/#179/#181/#184 remain open under this
-  epic — both are chores against an already-shipped, live-proven feature, not gates
-  on it. ·
-  #35 GitLab/SLSA/VEX
+  real gaps, both since fixed: #157 (no SAST covers releases, closed 2026-07-26) and
+  #158 (unsigned release tags, closed 2026-07-24 once the signing identity was
+  decided). A third, unrelated drift-detection gap surfaced later — #211, still open
+  pending live re-verification of its fix (#213))
+- [x] #34 Azure DevOps — epic closed 2026-07-23: stories S1–S9 all shipped
+  (#148–#156), all ten collectors live on both platforms, 94 registered checks, 18
+  collector-phase PRs each through independent session-level review. S9 (#155,
+  closed 2026-07-23) delivered `hack/demo-ado-setup.sh` proven live against
+  dev.azure.com/seciq (found + fixed 5 real bugs across two review rounds), the
+  definitive 81-result fixture capture in `fixtures-ado.yaml`,
+  `TestIntegration_ADODemoOrgMatchesFixtures` passing live against the real org, and
+  `integration-scan-ado` wired into CI. #190 (retire the [fixture-verify] ledger) is
+  also closed. Of the epic's six review-spawned follow-ups, five are closed (#166,
+  #176, #178, #179, #184); #181 (secret-hygiene regex v2) remains open as ordinary
+  low-priority backlog, not a gate on the now-complete epic.
+- [ ] #35 GitLab/SLSA/VEX
 
 **v1.0 milestone**
-- Hosted tier (commercial, separate from the OSS CLI; DECISIONS.md D4): #121 portfolio
-  dashboard · #122 evidence retention/drift · #123 team collaboration/POA&M · #124
-  RSAA-ready packaging (undefined, research-first) · #125 org SSO · #126 managed
-  continuous mode (builds on #36)
+- Hosted tier (commercial, separate from the OSS CLI; DECISIONS.md D4) — #121–#126,
+  this repo's original placeholders, are all closed now: #121 (portfolio dashboard) is
+  actually delivered, live at attestward.com/app (built as `attestward-cloud` S4);
+  #122–#126 closed NOT_PLANNED, each re-filed as its own story under
+  `attestward-cloud`'s epic #11 instead — S8 export/retention (drift itself already
+  shipped in cloud S5, closed), S7 team collaboration/POA&M, S10 RSAA-ready packaging
+  (still research-first), S9 org SSO, S6 managed continuous mode. Nothing hosted-tier
+  is open in this repo anymore; check `attestward-cloud` directly for current status.
 - #138 public flip of this OSS repo — the v0.1-deferred launch items (runner trust,
   CodeQL/dependency-review re-add, cold-visitor test, legal sign-off, trademark
   clearance, flip-time secret rescan, the flip + announcement themselves; DECISIONS.md
