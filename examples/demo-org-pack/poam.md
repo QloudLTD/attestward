@@ -27,7 +27,7 @@ narrative context.
 
 > The software is developed and built in secure environments. Those environments are secured by the following actions, at a minimum: a) Separating and protecting each environment involved in developing and building software; b) Regularly logging, monitoring, and auditing trust relationships used for authorization and access: i) to any software development and build environments; and ii) among components within each environment; c) Enforcing multi-factor authentication and conditional access across the environments relevant to developing and building software in a manner that minimizes security risk; d) Taking consistent and reasonable steps to document, as well as minimize use or inclusion of software products that create undue risk within the environments used to develop and build software; e) Encrypting sensitive data, such as credentials, to the extent practicable and based on risk; f) Implementing defensive cybersecurity practices, including continuous monitoring of operations and alerts and, as necessary, responding to suspected and confirmed cyber incidents.
 
-#### POAM-001: Org requires two-factor authentication (`C01.org.2fa-required`) — [FAIL] Verified Fail
+#### POAM-001: Org requires two-factor authentication (C01.org.2fa-required) — [FAIL] Verified Fail
 
 - **Scope:** (org-level)
 - **Affected SSDF task(s):** PO.5.1
@@ -41,7 +41,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-002: Org enables secret/dependency security features by default for new repos (`C04.org.security-defaults`) — [FAIL] Verified Fail
+#### POAM-002: Org enables secret/dependency security features by default for new repos (C04.org.security-defaults) — [FAIL] Verified Fail
 
 - **Scope:** (org-level)
 - **Affected SSDF task(s):** PO.5.1
@@ -55,7 +55,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-003: Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
+#### POAM-003: Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (C08.actions.token-permissions) — [PARTIAL] Partial
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PO.5.1, PW.6.2
@@ -69,7 +69,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-004: A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
+#### POAM-004: A webhook exports push/release/deployment events (C09.repo.webhooks) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PO.5.1
@@ -87,7 +87,7 @@ narrative context.
 
 > The software producer makes a good-faith effort to maintain trusted source code supply chains by employing automated tools or comparable processes to address the security of internal code and third-party components and manage related vulnerabilities.
 
-#### POAM-005: Whether members can create public repositories (`C01.org.members-can-create-public`) — [FAIL] Verified Fail
+#### POAM-005: Whether members can create public repositories (C01.org.members-can-create-public) — [FAIL] Verified Fail
 
 - **Scope:** (org-level)
 - **Affected SSDF task(s):** PS.1.1
@@ -101,7 +101,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-006: CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
+#### POAM-006: CodeQL default setup is configured (C05.sast.default-setup) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.7.1, RV.1.2
@@ -115,7 +115,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-007: A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
+#### POAM-007: A SAST tool is configured (C05.sast.tool-configured) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.7.1, RV.1.2
@@ -129,7 +129,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-008: Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
+#### POAM-008: Dependabot config covers the repo's detected dependency ecosystems (C06.sca.dependabot-config) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4
@@ -143,7 +143,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-009: Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
+#### POAM-009: Dependency review is enforced as a required check on pull requests (C06.sca.dependency-review) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4
@@ -157,7 +157,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-010: An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [FAIL] Verified Fail
+#### POAM-010: An SCA tool ran for each release in the lookback window (C06.sca.ran-per-release) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4, RV.1.2
@@ -171,7 +171,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-011: An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
+#### POAM-011: An SCA tool is configured (C06.sca.tool-configured) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.4, RV.1.2
@@ -185,7 +185,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-012: Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
+#### POAM-012: Third-party actions and reusable workflows are pinned to a full commit SHA (C08.actions.pinned) — [PARTIAL] Partial
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.4.1
@@ -199,7 +199,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-013: SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
+#### POAM-013: SECURITY.md advertises an actionable intake channel (C10.vdp.intake-channel) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** RV.1.1, RV.1.3
@@ -213,7 +213,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-014: GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
+#### POAM-014: GitHub private vulnerability reporting is enabled (C10.vdp.private-reporting) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** RV.1.1
@@ -231,7 +231,7 @@ narrative context.
 
 > The software producer maintains provenance for internal code and third-party components incorporated into the software to the greatest extent feasible.
 
-#### POAM-015: A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [FAIL] Verified Fail
+#### POAM-015: A SAST tool ran for each release in the lookback window (C05.sast.ran-per-release) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** PW.7.2, RV.1.2
@@ -249,7 +249,7 @@ narrative context.
 
 > The software producer employs automated tools or comparable processes that check for security vulnerabilities. In addition: a) The software producer operates these processes on an ongoing basis and prior to product, version, or update releases; b) The software producer has a policy or process to address discovered security vulnerabilities prior to product release; and c) The software producer operates a vulnerability disclosure program and accepts, reviews, and addresses disclosed software vulnerabilities in a timely fashion and according to any timelines specified in the vulnerability disclosure program or applicable policies.
 
-#### POAM-016: A SECURITY.md resolves for this repo (`C10.vdp.security-md`) — [FAIL] Verified Fail
+#### POAM-016: A SECURITY.md resolves for this repo (C10.vdp.security-md) — [FAIL] Verified Fail
 
 - **Scope:** demo-good
 - **Affected SSDF task(s):** RV.1.3
@@ -273,17 +273,17 @@ result means this tool structurally could not determine an answer (plan-gated,
 insufficient token permission, or an unanswered self-attestation question). Neither
 is a confirmed gap, but both may need a human's attention outside this document.
 
-- `C04.secrets.advanced-security` (Not Checkable) on demo-good: not applicable to public repositories (GHAS licensing only gates private-repo features)
-- `C05.sast.cadence` (Not Checkable) on demo-good: no SAST tool is configured; cadence cannot be computed
-- `C08.actions.oidc-vs-secrets` (Not Checkable) on demo-good: no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch
-- `C09.audit.log-streaming` (Not Checkable): audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it's configured
-- `C09.audit.org-log-available` (Not Checkable): GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone)
-- `C09.audit.retention-awareness` (Not Checkable): informational only — GitHub's documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org
-- `C10.vdp.security-policy-org` (Not Checkable): Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists
-- `SA.agency-notification-process` (Not Checkable): no self-attestation provided for this question
-- `SA.audit-log-export-fallback` (Not Checkable): no self-attestation provided for this question
-- `SA.dev-security-training` (Not Checkable): no self-attestation provided for this question
-- `SA.threat-modeling` (Not Checkable): no self-attestation provided for this question
-- `SA.vuln-remediation-sla` (Not Checkable): no self-attestation provided for this question
-- `SA.vuln-triage-sla` (Not Checkable): no self-attestation provided for this question
+- C04.secrets.advanced-security (Not Checkable) on demo-good: not applicable to public repositories (GHAS licensing only gates private-repo features)
+- C05.sast.cadence (Not Checkable) on demo-good: no SAST tool is configured; cadence cannot be computed
+- C08.actions.oidc-vs-secrets (Not Checkable) on demo-good: no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch
+- C09.audit.log-streaming (Not Checkable): audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it's configured
+- C09.audit.org-log-available (Not Checkable): GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone)
+- C09.audit.retention-awareness (Not Checkable): informational only — GitHub's documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org
+- C10.vdp.security-policy-org (Not Checkable): Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists
+- SA.agency-notification-process (Not Checkable): no self-attestation provided for this question
+- SA.audit-log-export-fallback (Not Checkable): no self-attestation provided for this question
+- SA.dev-security-training (Not Checkable): no self-attestation provided for this question
+- SA.threat-modeling (Not Checkable): no self-attestation provided for this question
+- SA.vuln-remediation-sla (Not Checkable): no self-attestation provided for this question
+- SA.vuln-triage-sla (Not Checkable): no self-attestation provided for this question
 

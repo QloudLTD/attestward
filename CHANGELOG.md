@@ -134,6 +134,40 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`check_id` rendered raw inside an unescaped markdown code span at five
+  sites — closed** (#239, a v1.0 flip blocker). `` `{{.CheckID}}` `` appeared
+  in `report.md.tmpl`'s Gaps table, Self-Attested heading, and Not Checkable
+  table; `poam.md.tmpl`'s Findings heading and Requires-Attention-Outside-
+  This-Tool list. All five pull from `pack.Results` filtered only by
+  `Status`, never by `check_id` validity, so a hostile `check_id` containing
+  a backtick could close the span early and un-neutralize whatever markdown/
+  HTML followed — the same class #222/#231 already fixed for Repo/
+  Provenance/pack-header fields, left as a deliberately-documented,
+  exploitable gap in `docs/threat-model.md` while the repo stays private
+  (found during #231's own review, not folded into that fix since it
+  reshaped rendering/formatting rather than adding an `esc` call). Escaping
+  *inside* the span was never the fix (CommonMark doesn't process backslash
+  escapes there — the exact trap #222 hit and had to undo): dropped the span
+  at all five sites, `esc`'d as plain text instead, matching the established
+  pattern.
+
+  Two sites — `report.md.tmpl`'s Cluster Detail block and its Paired list —
+  render `check_id` too but were **not** touched: both are keyed through a
+  trusted-mapping lookup (`task.Checks`, `q.Pairing`) that only ever surfaces
+  a `CheckResult` whose `CheckID` is byte-identical to the trusted mapping
+  string it was looked up by — confirmed by tracing `resultsByCheck`'s
+  construction directly, not assumed. `hostile-pack.json` gained three new
+  hostile `check_id` markers (two new results, one existing result's
+  `check_id` extended) covering all five vulnerable sites and both
+  non-vulnerable ones by omission; confirmed each new marker fails against
+  the pre-fix templates before fixing them, and re-confirmed via a second,
+  single-site mutation per file after.
+
+  `docs/threat-model.md`'s mitigations table had this gap's exploit recipe
+  named explicitly (deliberately, per #231's own review — an honest claim
+  beats a mitigation table that looks complete); carve-out removed now that
+  it's closed. The table's sibling out-of-enum-`status` gap (also named
+  there) is unrelated and still open, tracked as #240.
 - **`docs/threat-model.md`'s self-hosted-macOS job enumeration had five real defects,
   and nothing kept it current** (#260). The "Shared, persistent runner state"
   residual risk names every job sharing `spyros-mac-mini-ssdf`'s persistent Go

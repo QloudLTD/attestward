@@ -258,13 +258,16 @@ func TestRenderPOAM_FindingIDsCrossLinkWithReportGaps(t *testing.T) {
 		t.Fatalf("RenderPOAM: %v", err)
 	}
 
-	gapRow := regexp.MustCompile("\\| (POAM-\\d{3}) \\| `([^`]+)` \\| ([^|]+) \\|")
+	// CheckID isn't backtick-wrapped in either table/heading (issue #239 —
+	// dropped the code span, which let a hostile CheckID break out of it;
+	// these regexes match the plain-text esc'd form that replaced it).
+	gapRow := regexp.MustCompile(`\| (POAM-\d{3}) \| ([^|]+) \| ([^|]+) \|`)
 	gaps := gapRow.FindAllStringSubmatch(string(reportMD), -1)
 	if len(gaps) == 0 {
 		t.Fatal("report.md's Gaps table has no POAM rows — is rich-pack.json still gap-free?")
 	}
 
-	findingBlock := regexp.MustCompile("(?s)#### (POAM-\\d{3}): .*?\\(`([^`]+)`\\).*?- \\*\\*Scope:\\*\\* (\\S+)")
+	findingBlock := regexp.MustCompile(`(?s)#### (POAM-\d{3}): .*?\(([^)]+)\).*?- \*\*Scope:\*\* (\S+)`)
 	poamByID := map[string][2]string{}
 	for _, b := range findingBlock.FindAllStringSubmatch(string(poamMD), -1) {
 		poamByID[b[1]] = [2]string{b[2], b[3]}

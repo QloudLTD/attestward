@@ -40,7 +40,7 @@
       }
     },
     {
-      "check_id": "SA.hostile-question",
+      "check_id": "SA.hostile-question`<script>alert('sa-checkid')</script>",
       "title": "hostile self-attested question?",
       "status": "self-attested",
       "reason": "self-attested (not independently verified): <script>alert('sa-reason')</script>",
@@ -61,6 +61,22 @@
         "platform": "azuredevops",
         "project": "scope-project\" onmouseover=\"alert('scope-project')|`code-span-break`\nsecond-line-scope-project"
       },
+      "provenance": []
+    },
+    {
+      "check_id": "C88.hostile.gaps`<script>alert('gaps-checkid')</script>",
+      "title": "hostile check_id reaching the Gaps table and POA&M Findings",
+      "status": "verified-fail",
+      "reason": "issue #239 — CheckID rendered raw inside a code span at report.md.tmpl's Gaps table and poam.md.tmpl's Findings heading; a backtick here used to break out of that span",
+      "scope": { "org": "attestward-demo" },
+      "provenance": []
+    },
+    {
+      "check_id": "C88.hostile.notcheckable`<script>alert('notcheckable-checkid')</script>",
+      "title": "hostile check_id reaching the Not Checkable table and poam.md's Outside Tool list",
+      "status": "not-checkable",
+      "reason": "issue #239 — the sibling not-checkable/self-attested render path (report.md.tmpl's Not Checkable table, poam.md.tmpl's Outside Tool list) had the identical unescaped-code-span bug",
+      "scope": { "org": "attestward-demo" },
       "provenance": []
     }
   ]

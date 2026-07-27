@@ -2049,22 +2049,22 @@ Every `verified-fail` or `partial` result, in one place. See poam.md for remedia
 
 | POA&M ID | Check | Scope | Status | Reason |
 |---|---|---|---|---|
-| POAM-001 | `C01.org.2fa-required` | (org) | [FAIL] Verified Fail | org does not require two-factor authentication for members |
-| POAM-005 | `C01.org.members-can-create-public` | (org) | [FAIL] Verified Fail | members can create public repositories (potential leak vector) |
-| POAM-002 | `C04.org.security-defaults` | (org) | [FAIL] Verified Fail | not every security feature is enabled by default for new repositories |
-| POAM-006 | `C05.sast.default-setup` | demo-good | [FAIL] Verified Fail | CodeQL default setup is "not-configured" |
-| POAM-015 | `C05.sast.ran-per-release` | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SAST run at all |
-| POAM-007 | `C05.sast.tool-configured` | demo-good | [FAIL] Verified Fail | no SAST tool detected in any workflow, and CodeQL default setup is not configured |
-| POAM-008 | `C06.sca.dependabot-config` | demo-good | [FAIL] Verified Fail | no Dependabot config found; 1 detected ecosystem(s) are uncovered |
-| POAM-009 | `C06.sca.dependency-review` | demo-good | [FAIL] Verified Fail | no dependency-review-action (or equivalent) workflow detected |
-| POAM-010 | `C06.sca.ran-per-release` | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SCA run at all |
-| POAM-011 | `C06.sca.tool-configured` | demo-good | [FAIL] Verified Fail | no SCA tool detected in any workflow, and no Dependabot config found |
-| POAM-012 | `C08.actions.pinned` | demo-good | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
-| POAM-003 | `C08.actions.token-permissions` | demo-good | [PARTIAL] Partial | 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions |
-| POAM-004 | `C09.repo.webhooks` | demo-good | [FAIL] Verified Fail | no active webhook subscribes to push, release, or deployment events |
-| POAM-013 | `C10.vdp.intake-channel` | demo-good | [FAIL] Verified Fail | no SECURITY.md exists to advertise an intake channel |
-| POAM-014 | `C10.vdp.private-reporting` | demo-good | [FAIL] Verified Fail | private vulnerability reporting is not enabled |
-| POAM-016 | `C10.vdp.security-md` | demo-good | [FAIL] Verified Fail | no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo |
+| POAM-001 | C01.org.2fa-required | (org) | [FAIL] Verified Fail | org does not require two-factor authentication for members |
+| POAM-005 | C01.org.members-can-create-public | (org) | [FAIL] Verified Fail | members can create public repositories (potential leak vector) |
+| POAM-002 | C04.org.security-defaults | (org) | [FAIL] Verified Fail | not every security feature is enabled by default for new repositories |
+| POAM-006 | C05.sast.default-setup | demo-good | [FAIL] Verified Fail | CodeQL default setup is "not-configured" |
+| POAM-015 | C05.sast.ran-per-release | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SAST run at all |
+| POAM-007 | C05.sast.tool-configured | demo-good | [FAIL] Verified Fail | no SAST tool detected in any workflow, and CodeQL default setup is not configured |
+| POAM-008 | C06.sca.dependabot-config | demo-good | [FAIL] Verified Fail | no Dependabot config found; 1 detected ecosystem(s) are uncovered |
+| POAM-009 | C06.sca.dependency-review | demo-good | [FAIL] Verified Fail | no dependency-review-action (or equivalent) workflow detected |
+| POAM-010 | C06.sca.ran-per-release | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SCA run at all |
+| POAM-011 | C06.sca.tool-configured | demo-good | [FAIL] Verified Fail | no SCA tool detected in any workflow, and no Dependabot config found |
+| POAM-012 | C08.actions.pinned | demo-good | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
+| POAM-003 | C08.actions.token-permissions | demo-good | [PARTIAL] Partial | 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions |
+| POAM-004 | C09.repo.webhooks | demo-good | [FAIL] Verified Fail | no active webhook subscribes to push, release, or deployment events |
+| POAM-013 | C10.vdp.intake-channel | demo-good | [FAIL] Verified Fail | no SECURITY.md exists to advertise an intake channel |
+| POAM-014 | C10.vdp.private-reporting | demo-good | [FAIL] Verified Fail | private vulnerability reporting is not enabled |
+| POAM-016 | C10.vdp.security-md | demo-good | [FAIL] Verified Fail | no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo |
 
 ---
 
@@ -2083,19 +2083,19 @@ None.
 
 | Check | Scope | Reason |
 |---|---|---|
-| `C04.secrets.advanced-security` | demo-good | not applicable to public repositories (GHAS licensing only gates private-repo features) |
-| `C05.sast.cadence` | demo-good | no SAST tool is configured; cadence cannot be computed |
-| `C08.actions.oidc-vs-secrets` | demo-good | no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch |
-| `C09.audit.log-streaming` | (org) | audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it's configured |
-| `C09.audit.org-log-available` | (org) | GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone) |
-| `C09.audit.retention-awareness` | (org) | informational only — GitHub's documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org |
-| `C10.vdp.security-policy-org` | (org) | Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists |
-| `SA.agency-notification-process` | (org) | no self-attestation provided for this question |
-| `SA.audit-log-export-fallback` | (org) | no self-attestation provided for this question |
-| `SA.dev-security-training` | (org) | no self-attestation provided for this question |
-| `SA.threat-modeling` | (org) | no self-attestation provided for this question |
-| `SA.vuln-remediation-sla` | (org) | no self-attestation provided for this question |
-| `SA.vuln-triage-sla` | (org) | no self-attestation provided for this question |
+| C04.secrets.advanced-security | demo-good | not applicable to public repositories (GHAS licensing only gates private-repo features) |
+| C05.sast.cadence | demo-good | no SAST tool is configured; cadence cannot be computed |
+| C08.actions.oidc-vs-secrets | demo-good | no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch |
+| C09.audit.log-streaming | (org) | audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it's configured |
+| C09.audit.org-log-available | (org) | GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone) |
+| C09.audit.retention-awareness | (org) | informational only — GitHub's documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org |
+| C10.vdp.security-policy-org | (org) | Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists |
+| SA.agency-notification-process | (org) | no self-attestation provided for this question |
+| SA.audit-log-export-fallback | (org) | no self-attestation provided for this question |
+| SA.dev-security-training | (org) | no self-attestation provided for this question |
+| SA.threat-modeling | (org) | no self-attestation provided for this question |
+| SA.vuln-remediation-sla | (org) | no self-attestation provided for this question |
+| SA.vuln-triage-sla | (org) | no self-attestation provided for this question |
 
 ---
 

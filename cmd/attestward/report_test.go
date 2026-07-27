@@ -278,10 +278,13 @@ func TestRunReport_ADOWebhooksRendersAsProjectScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read report.md: %v", err)
 	}
-	if !bytes.Contains(md, []byte("`"+checkID+"` | (project: billing) |")) {
+	// Not backtick-wrapped (issue #239 dropped the code span for CheckID in
+	// the Gaps table) — the html/template assertion below keeps <code>,
+	// since that site was never vulnerable and wasn't touched.
+	if !bytes.Contains(md, []byte(checkID+" | (project: billing) |")) {
 		t.Errorf("report.md doesn't label %s (project: billing); got:\n%s", checkID, md)
 	}
-	if bytes.Contains(md, []byte("`"+checkID+"` | (org) |")) {
+	if bytes.Contains(md, []byte(checkID+" | (org) |")) {
 		t.Errorf("report.md still labels %s org-level (issue #214)", checkID)
 	}
 

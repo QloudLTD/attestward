@@ -63,7 +63,7 @@ Evidence:
 
 | POA&M ID | Check | Scope | Status | Reason |
 |---|---|---|---|---|
-{{range .Gaps}}| {{if .POAMID}}{{.POAMID}}{{else}}—{{end}} | `{{.Result.CheckID}}` | {{esc .ScopeLabel}} | {{statusBadge .Result.Status}} {{statusLabel .Result.Status}} | {{esc .Result.Reason}} |
+{{range .Gaps}}| {{if .POAMID}}{{.POAMID}}{{else}}—{{end}} | {{esc .Result.CheckID}} | {{esc .ScopeLabel}} | {{statusBadge .Result.Status}} {{statusLabel .Result.Status}} | {{esc .Result.Reason}} |
 {{end}}{{else}}No gaps found — every check that could be verified reported `verified-pass`.
 {{end}}
 ---
@@ -77,7 +77,7 @@ upgrades a CISA form cluster to fully verified.
 
 ### Self-Attested
 
-{{if .SelfAttested}}{{range .SelfAttested}}#### `{{.Result.CheckID}}` — {{statusBadge .Result.Status}} {{statusLabel .Result.Status}}
+{{if .SelfAttested}}{{range .SelfAttested}}#### {{esc .Result.CheckID}} — {{statusBadge .Result.Status}} {{statusLabel .Result.Status}}
 
 {{esc .Result.Title}}
 
@@ -92,7 +92,7 @@ Complements these API-verified checks:
 
 {{if .NotCheckable}}| Check | Scope | Reason |
 |---|---|---|
-{{range .NotCheckable}}| `{{.Result.CheckID}}` | {{esc .ScopeLabel}} | {{esc .Result.Reason}} |
+{{range .NotCheckable}}| {{esc .Result.CheckID}} | {{esc .ScopeLabel}} | {{esc .Result.Reason}} |
 {{end}}{{else}}None.
 {{end}}
 ---

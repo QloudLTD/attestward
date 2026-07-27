@@ -29,7 +29,7 @@ narrative context.
 
 > The software producer makes a good-faith effort to maintain trusted source code supply chains by employing automated tools or comparable processes to address the security of internal code and third-party components and manage related vulnerabilities.
 
-#### POAM-001: Branch protection exists (`C02.branch.protection-exists`) — [FAIL] Verified Fail
+#### POAM-001: Branch protection exists (C02.branch.protection-exists) — [FAIL] Verified Fail
 
 - **Scope:** bad-repo
 - **Affected SSDF task(s):** PS.1.1
@@ -43,7 +43,7 @@ narrative context.
 - **Milestones:** ____
 - **Status:** Open
 
-#### POAM-002: Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
+#### POAM-002: Third-party actions and reusable workflows are pinned to a full commit SHA (C08.actions.pinned) — [PARTIAL] Partial
 
 - **Scope:** good-repo
 - **Affected SSDF task(s):** PW.4.1
@@ -67,6 +67,6 @@ result means this tool structurally could not determine an answer (plan-gated,
 insufficient token permission, or an unanswered self-attestation question). Neither
 is a confirmed gap, but both may need a human's attention outside this document.
 
-- `C09.audit.org-log-available` (Not Checkable): GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
-- `SA.audit-log-export-fallback` (Self-Attested): self-attested (not independently verified): yes
+- C09.audit.org-log-available (Not Checkable): GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
+- SA.audit-log-export-fallback (Self-Attested): self-attested (not independently verified): yes
 

@@ -382,8 +382,8 @@ Every `verified-fail` or `partial` result, in one place. See poam.md for remedia
 
 | POA&M ID | Check | Scope | Status | Reason |
 |---|---|---|---|---|
-| POAM-001 | `C02.branch.protection-exists` | bad-repo | [FAIL] Verified Fail | no branch protection configured on main |
-| POAM-002 | `C08.actions.pinned` | good-repo | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
+| POAM-001 | C02.branch.protection-exists | bad-repo | [FAIL] Verified Fail | no branch protection configured on main |
+| POAM-002 | C08.actions.pinned | good-repo | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
 
 ---
 
@@ -396,7 +396,7 @@ upgrades a CISA form cluster to fully verified.
 
 ### Self-Attested
 
-#### `SA.audit-log-export-fallback` — [SELF-ATTESTED] Self-Attested
+#### SA.audit-log-export-fallback — [SELF-ATTESTED] Self-Attested
 
 If GitHub's own audit-log API or streaming isn't available, does the producer export or retain audit/access logs through another mechanism, and for how long?
 
@@ -410,7 +410,7 @@ Complements these API-verified checks:
 
 | Check | Scope | Reason |
 |---|---|---|
-| `C09.audit.org-log-available` | (org) | GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope |
+| C09.audit.org-log-available | (org) | GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope |
 
 ---
 

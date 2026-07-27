@@ -31,7 +31,7 @@ No open findings — every check that could be verified reported `verified-pass`
 {{else}}
 Findings below aren't cited by any SSDF task, or no CISA form cluster cites the task(s) that do.
 {{end}}{{range .Findings}}
-#### {{.ID}}: {{esc .Result.Title}} (`{{.Result.CheckID}}`) — {{statusBadge .Result.Status}} {{statusLabel .Result.Status}}
+#### {{.ID}}: {{esc .Result.Title}} ({{esc .Result.CheckID}}) — {{statusBadge .Result.Status}} {{statusLabel .Result.Status}}
 
 - **Scope:** {{esc .ScopeLabel}}
 - **Affected SSDF task(s):** {{if .TaskIDs}}{{range $i, $t := .TaskIDs}}{{if $i}}, {{end}}{{$t}}{{end}}{{else}}(none cited){{end}}
@@ -55,6 +55,6 @@ result means this tool structurally could not determine an answer (plan-gated,
 insufficient token permission, or an unanswered self-attestation question). Neither
 is a confirmed gap, but both may need a human's attention outside this document.
 
-{{if .OutsideTool}}{{range .OutsideTool}}- `{{.CheckID}}` ({{statusLabel .Status}}){{if .Scope.Repo}} on {{esc .Scope.Repo}}{{end}}: {{esc .Reason}}
+{{if .OutsideTool}}{{range .OutsideTool}}- {{esc .CheckID}} ({{statusLabel .Status}}){{if .Scope.Repo}} on {{esc .Scope.Repo}}{{end}}: {{esc .Reason}}
 {{end}}{{else}}None.
 {{end}}

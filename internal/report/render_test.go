@@ -174,6 +174,28 @@ func TestRenderHTML_Deterministic(t *testing.T) {
 // coverage of, which is exactly how report.md.tmpl:7/poam.md.tmpl:13's Org
 // interpolation and report.md.tmpl:110's release-tag-pattern code span
 // went unescaped for as long as they did.
+//
+// Issue #239 added the three gaps-checkid/notcheckable-checkid/sa-checkid
+// markers below: CheckID itself, rendered raw inside a code span at five
+// sites (report.md.tmpl's Gaps table, Self-Attested heading, and Not
+// Checkable table; poam.md.tmpl's Findings heading and Outside Tool list),
+// none of which #222/#231's own sweeps above ever planted a hostile value
+// in — every existing check_id in this fixture was benign by construction,
+// so the whole surface passed vacuously the same way #222's Cluster-Detail
+// gap did. Two NEW results (C88.hostile.gaps, C88.hostile.notcheckable)
+// cover the two statuses (verified-fail, not-checkable) the existing three
+// results didn't between them; SA.hostile-question's own check_id gained a
+// hostile suffix for the Self-Attested heading, safe to do since (unlike
+// C99.hostile.project-scope, load-bearing as hostileScopeLevelByCheckID's
+// map key below) nothing else in this file keys off its exact string. All
+// three payloads share hostilePackProjectValue's shape — a literal backtick
+// followed by injectable content — because that's the actual vulnerability:
+// `{{.CheckID}}` (backticks in the template, not escaped) lets a backtick
+// IN CheckID close the span early, un-neutralizing whatever follows. Two
+// sites (report.md.tmpl:39's Cluster Detail, :87's Paired list) are
+// deliberately NOT covered here — their CheckID is proven byte-identical to
+// a trusted mapping string by construction (see context.go's task.Checks/
+// q.Pairing indirection), not merely unexercised.
 var hostileMarkers = []string{
 	"<script>alert('repo')</script>",
 	"<script>alert('title')</script>",
@@ -192,6 +214,9 @@ var hostileMarkers = []string{
 	"<script>alert('selfattestversion')</script>",
 	"<script>alert('org')</script>",
 	"<script>alert('releasetag')</script>",
+	"<script>alert('gaps-checkid')</script>",
+	"<script>alert('notcheckable-checkid')</script>",
+	"<script>alert('sa-checkid')</script>",
 	hostilePackProjectValue,
 	hostileScopeProjectValue,
 }
@@ -578,8 +603,11 @@ func TestRenderMarkdown_ProjectScopedResultsNotLabeledOrgLevel(t *testing.T) {
 	if !strings.Contains(text, "**Project:** my-project") {
 		t.Errorf("report.md's Executive Summary doesn't surface Pack.Scope.Project; got:\n%s", text)
 	}
-	assertScopeLabelPrecise(t, text, "Gaps", "`C03.env.exists` | (project: my-project) |", "`C03.env.exists` | (org) |")
-	assertScopeLabelPrecise(t, text, "Not Checkable", "`C03.env.protection-rules` | (project: my-project) |", "`C03.env.protection-rules` | (org) |")
+	// Not backtick-wrapped (issue #239 dropped the code span for CheckID
+	// here) — the html/template twin below keeps <code>, since that site
+	// (report.html.tmpl) was never vulnerable and wasn't touched.
+	assertScopeLabelPrecise(t, text, "Gaps", "C03.env.exists | (project: my-project) |", "C03.env.exists | (org) |")
+	assertScopeLabelPrecise(t, text, "Not Checkable", "C03.env.protection-rules | (project: my-project) |", "C03.env.protection-rules | (org) |")
 }
 
 // TestRenderHTML_ProjectScopedResultsNotLabeledOrgLevel is report.html's
