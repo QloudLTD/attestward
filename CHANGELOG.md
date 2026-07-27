@@ -923,6 +923,47 @@ All notable changes to this project are documented here. Format follows
   now names its two candidate paths (`/SECURITY.md`, `/docs/SECURITY.md`) explicitly,
   restoring detail the old `Endpoints` parenthetical carried and the trim would
   otherwise have dropped from the published reference.
+- **`CLAUDE.md`'s hand-maintained Progress tracker section removed, including its
+  frozen Phase 0-6 history** (#276). Line 3's own instruction told every session to
+  keep it current "in the same PR/commit that closes an issue" — followed reliably
+  enough that the section still went stale repeatedly: the #34 Azure DevOps epic
+  shown unchecked and "in progress" days after it had actually closed, the #36
+  bullet's own two continuous-mode cross-references (#157, #158) still called open
+  after both had been fixed, and a v1.0-milestone bullet naming six hosted-tier
+  issues (#121-126) as this repo's open work after all six had closed (one
+  delivered, five re-filed to `attestward-cloud`) — all found only by being asked to
+  specifically audit the file, not by the "update it in the same PR" rule catching
+  any of it on its own. A hand-typed mirror of GitHub issue state, updated by a rule
+  nobody was structurally forced to follow, reliably drifts — the identical failure
+  mode issue #260 independently found the same week in `docs/threat-model.md`'s own
+  hand-maintained enumeration, one level down from process docs into code-adjacent
+  claims.
+
+  Considered and rejected: a CI guard comparing the tracker against live issue state
+  (this repo's other four drift guards are all deliberately hermetic — no network
+  calls in `go test ./...` — and a guard needing live GitHub API access is a
+  materially heavier, differently-fragile category of tooling, one that also
+  degrades on a fork's CI once #138 flips this repo public, with no credential to
+  query issue state from); and regenerating it from the API the way
+  `tools/progress/generate.py` already does for `tools/progress/index.html` (the
+  tracker's only real value was its hand-written narrative — "18 collector-phase PRs
+  each through independent session-level review", "found + fixed 5 real bugs across
+  two review rounds" — texture no API call can reconstruct from issue titles and
+  state alone, so a generator would only ever produce the checkbox skeleton and
+  leave the prose to keep drifting anyway).
+
+  The narrative was relocated, not deleted: `docs/archive/progress-narrative.md`
+  carries it now, marked historical/not-maintained the same way
+  `docs/archive/roadmap.md` already was — GitHub Issues stay canonical, this is
+  context a future reader can't get from issue titles alone. `CLAUDE.md` itself now
+  points at the [issue tracker](../../issues) and `tools/progress/generate.py`'s live
+  dashboard directly, with no local mirror to drift. The Status paragraph's own
+  hand-typed open-issue count ("11 open issues") was corrected too, by removing the
+  number entirely rather than updating it to the now-current count — a fresh number
+  written into prose is the identical bug, just reset to zero drift for one commit.
+  `tools/progress/generate.py`'s own comment, previously instructing "update both
+  places" (itself and this file) when phase scope changes, updated to reflect that
+  there's only one place now.
 
 ## [0.3.0] - 2026-07-23
 
