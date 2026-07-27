@@ -62,6 +62,7 @@ signature backed by a real fixture workflow, or for ADO, a fixture pipeline).
 | `hack/fetch-drift-baseline.sh` | self-scan.yaml's drift-baseline resolution (issue #211), factored out of the workflow YAML so it's testable against a mocked `gh` — see `fetch-drift-baseline_test.sh`, wired into `ci.yaml`'s `test` job |
 | `examples/demo-org-pack/` | Rendered output (`report.md`/`report.html`/`poam.md`) is generated from the pack's own `evidence.json` — never hand-edit; regenerate with `make examples`, CI enforces via `make examples-check` (issue #228, `hack/check-examples-drift.sh`) |
 | `tools/rubricguard/` | CI guard (issue #209) — flags a collector package whose status-assignment code changed without its own `checkRubrics` following along in the same diff; dev/CI tooling, not part of the shipped `attestward` binary, wired into `ci.yaml`'s `rubric-drift-check` job |
+| `tools/threatmodelguard/` | CI guard (issue #260) — flags any self-hosted-macOS job in `.github/workflows/*.yaml`/`*.yml` not backtick-quoted in `docs/threat-model.md`'s "Shared, persistent runner state" bullet; dev/CI tooling, not part of the shipped `attestward` binary, wired into `ci.yaml`'s `threat-model-drift` job |
 
 Work is tracked entirely in [GitHub Issues](../../issues) — see the
 [v0.1 epic (#1)](../../issues/1) for the full build plan across Phases 0–6. There is no

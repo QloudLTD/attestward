@@ -1,6 +1,7 @@
 # Binaries / build
 /attestward
 /rubricguard
+/threatmodelguard
 /dist/
 *.exe
 

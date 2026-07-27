@@ -278,6 +278,19 @@ jobs:
         run: |
           echo "::warning::possible rubric drift found on this push to main (issue #209) — see the 'Check for rubric drift' step's own output above; this doesn't fail the build here since there's no PR context left to review or waive it in, but it's worth a look"
 
+  # Issue #260: keeps docs/threat-model.md's self-hosted-macOS job
+  # enumeration current — see tools/threatmodelguard/scan.go's own doc
+  # comment. Not diff-based like rubric-drift-check above, so no
+  # merge-base/range step is needed.
+  threat-model-drift:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go run ./tools/threatmodelguard
+
   # Cross-compiles every target platform from spyros-mac-mini-ssdf in one job,
   # instead of round-tripping through 4 different self-hosted runners
   # (previously: ionos for linux/amd64, parallels for linux/arm64, mac-mini

@@ -134,6 +134,31 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`docs/threat-model.md`'s self-hosted-macOS job enumeration had five real defects,
+  and nothing kept it current** (#260). The "Shared, persistent runner state"
+  residual risk names every job sharing `spyros-mac-mini-ssdf`'s persistent Go
+  caches, but the list was hand-maintained. Two job names were absent entirely:
+  `runner-maintenance.yaml`'s `clean` job (the one job whose whole purpose is
+  bounding this exact risk) and `self-scan.yaml`'s `attach-to-release`. Three more
+  were attribution-level, not name-level: `multi-arch-build-sample.yaml`'s own
+  `build` job (its darwin legs share the runner too, previously invisible behind
+  ci.yaml's identically-named, unrelated `build`) landed unattributed on
+  `spyros-mac-mini-ssdf`, and that same job's linux/arm64 and linux/amd64 legs land
+  on `spyros-parallels-ssdf`/`spyros-ionos-ssdf` respectively — both named as
+  machines exposed to this risk with no job attributed (ionos only partially, via
+  `test-linux`). Found by re-auditing from scratch, not by trusting the one gap
+  already reported. Guarded
+  with a new `tools/threatmodelguard`, matching this repo's other three drift guards
+  (`checks-docs-check` #30, `examples-check` #228, `rubricguard` #209): parses every
+  workflow job's `runs-on` (resolving matrix indirection) and flags any
+  self-hosted-macOS job not backtick-quoted in that one bullet. Coarse like its
+  siblings — doesn't disambiguate which workflow a bare job name came from, so the
+  two `build` jobs are indistinguishable to it. Wired into `ci.yaml` as
+  `threat-model-drift`, which had to be added to the enumeration it now guards.
+
+  Swept the rest of the document for the same shape per review: the go-github
+  endpoint tables and the "ten ADO collector packages" list are currently accurate
+  (verified, not assumed) but equally guardless — not fixed here, out of scope.
 - **`checkToolConfigured` Facts no longer assert a confirmed value from a query
   that merely failed, in the GitHub twins of C05/C06** (#258, follow-up to
   #266's identical Azure DevOps fix). `github/sasthistory`'s

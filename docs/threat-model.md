@@ -397,13 +397,23 @@ diagram doesn't redraw per platform.
     paragraph's own point: it leans on this exact persistence to avoid a network
     fetch on every run, see that job's own comment), `examples-drift` (added with
     issue #228's drift guard), `rubric-drift-check` (added with issue #209's drift
-    guard), `build` (cross-compiles every target platform — see `ci.yaml`'s own
+    guard), `threat-model-drift` (issue #260's own drift guard, keeping this very
+    enumeration current, including its own entry), `build`
+    (cross-compiles every target platform — see `ci.yaml`'s own
     comment for why this replaced four separate per-arch runners), `goreleaser-dry-run`,
     the `release.yaml` `goreleaser` job, `integration-scan`,
     `integration-scan-ado` (added with issue #155's S9 harness),
-    `sign-verify`, `self-scan`, `semgrep.yaml`'s own `semgrep` job, and the aorus
-    `keepalive` job), `spyros-ionos-ssdf`
-    (`test-linux`), `spyros-parallels-ssdf`, and `spyros-aorus-ssdf` — four machines, not
+    `sign-verify`, `self-scan`, `attach-to-release` (self-scan.yaml's own second job,
+    attaches a scan's evidence pack to a matching GitHub release), `semgrep.yaml`'s
+    own `semgrep` job, `runner-maintenance.yaml`'s own `clean` job (a weekly scheduled
+    wipe of the Go build/module caches, added specifically to bound this risk), and
+    the aorus `keepalive` job — `multi-arch-build-sample.yaml`'s own `build` job
+    (a different job from ci.yaml's identically-named one above) lands here too, for
+    its darwin/amd64 and darwin/arm64 legs, only when that `workflow_dispatch`-only
+    workflow is manually run), `spyros-ionos-ssdf` (`test-linux`, and
+    `multi-arch-build-sample.yaml`'s `build` again for its linux/amd64 leg),
+    `spyros-parallels-ssdf` (`multi-arch-build-sample.yaml`'s `build`, linux/arm64
+    leg), and `spyros-aorus-ssdf` — four machines, not
     one, each accumulating shared state across everything routed to it. The latter two
     (and `wake-aorus`/`build-windows`/`sleep-aorus` on `spyros-mac-mini-ssdf` and
     `spyros-aorus-ssdf` respectively) are idle unless `multi-arch-build-sample.yaml` (a
