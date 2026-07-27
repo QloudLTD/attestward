@@ -905,7 +905,7 @@
 </div>
 </header>
 
-<div class="note"><strong>Note:</strong> this pack's mapping versions do not match the mapping data used to render this report. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.</div>
+<div class="note"><strong>Note:</strong> this pack's mapping versions do not match the mapping data used to render this report &mdash; the following mapping files no longer match: <code>mappings/ssdf-800-218.yaml</code>, <code>mappings/cisa-ssda-form.yaml</code>, <code>mappings/self-attestation-questions.yaml</code>. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.</div>
 
 <section class="report-section" aria-labelledby="executive-summary">
 <h2 id="executive-summary">Executive Summary</h2>

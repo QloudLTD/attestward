@@ -1,6 +1,6 @@
 # Plan of Action & Milestones (Draft)
-{{if .MappingVersionMismatch}}
-> **Note:** this pack's mapping versions do not match the mapping data used to render this document. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.
+{{if .DriftedMappingFiles}}
+> **Note:** this pack's mapping versions do not match the mapping data used to render this document — the following mapping files no longer match: {{range $i, $f := .DriftedMappingFiles}}{{if $i}}, {{end}}`{{$f}}`{{end}}. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.
 {{end}}
 This is a **draft** POA&M generated from `evidence.json`. Owner, target date, and
 resources-required fields are placeholders for a human to fill in — this tool has

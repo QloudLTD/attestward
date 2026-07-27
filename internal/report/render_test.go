@@ -633,8 +633,18 @@ func TestRenderMarkdown_MappingVersionMismatchBanner_SelfAttestationOnly(t *test
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	if !strings.Contains(string(got), "this pack's mapping versions do not match") {
+	text := string(got)
+	if !strings.Contains(text, "this pack's mapping versions do not match") {
 		t.Error("report.md doesn't show the mapping-version-mismatch banner for a pack whose self_attestation alone has drifted from what's loaded")
+	}
+	// Issue #271: the banner must name the specific file that drifted, not
+	// just say "something drifted" — and name only that one, since ssdf/
+	// cisa_form/scanner_signatures were all deliberately set to match above.
+	if !strings.Contains(text, "`mappings/self-attestation-questions.yaml`") {
+		t.Errorf("report.md's banner doesn't name mappings/self-attestation-questions.yaml as the drifted file; got:\n%s", text)
+	}
+	if strings.Contains(text, "`mappings/ssdf-800-218.yaml`") || strings.Contains(text, "`mappings/cisa-ssda-form.yaml`") || strings.Contains(text, "`mappings/scanner-signatures.yaml`") {
+		t.Errorf("report.md's banner names a file that didn't drift; got:\n%s", text)
 	}
 }
 

@@ -1,6 +1,6 @@
 # Plan of Action & Milestones (Draft)
 
-> **Note:** this pack's mapping versions do not match the mapping data used to render this document. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.
+> **Note:** this pack's mapping versions do not match the mapping data used to render this document — the following mapping files no longer match: `mappings/ssdf-800-218.yaml`, `mappings/cisa-ssda-form.yaml`. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.
 
 This is a **draft** POA&M generated from `evidence.json`. Owner, target date, and
 resources-required fields are placeholders for a human to fill in — this tool has

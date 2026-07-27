@@ -2,6 +2,7 @@ package report
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/sioakim/attestward/internal/mapping"
@@ -34,9 +35,25 @@ func matchingMappingVersions(t *testing.T) (model.MappingVersions, *mapping.SSDF
 // the mismatch banner.
 func TestMappingVersionMismatch_AllFourMatch_False(t *testing.T) {
 	pack, ssdf, cisa, saQuestions, scannerSignatures := matchingMappingVersions(t)
-	if got := mappingVersionMismatch(pack, ssdf, cisa, saQuestions, scannerSignatures); got {
-		t.Errorf("mappingVersionMismatch(pack=%+v) = true, want false — every field matches what's loaded", pack)
+	if got := mappingVersionMismatch(pack, ssdf, cisa, saQuestions, scannerSignatures); len(got) != 0 {
+		t.Errorf("mappingVersionMismatch(pack=%+v) = %v, want empty — every field matches what's loaded", pack, got)
 	}
+}
+
+// mappingFileByField pins the one file name each model.MappingVersions
+// field must produce when it alone drifts — checked against reflection
+// below rather than left as "some name came back", so a branch that names
+// the WRONG file (e.g. a copy-paste of the ssdf case left under the
+// self_attestation comparison) fails this test as reliably as a branch
+// that names none. A fifth field with no entry here fails loudly by name
+// (the map lookup's ok is asserted), the same "can't go unnoticed" property
+// TestMappingVersionMismatch_EveryFieldDriftsIndependently's reflection
+// already gives the comparisons themselves.
+var mappingFileByField = map[string]string{
+	"SSDF":              "mappings/ssdf-800-218.yaml",
+	"CISAForm":          "mappings/cisa-ssda-form.yaml",
+	"SelfAttestation":   "mappings/self-attestation-questions.yaml",
+	"ScannerSignatures": "mappings/scanner-signatures.yaml",
 }
 
 // TestMappingVersionMismatch_EveryFieldDriftsIndependently is issue #264
@@ -57,7 +74,12 @@ func TestMappingVersionMismatch_AllFourMatch_False(t *testing.T) {
 // shape as #263's own guard — closes that gap structurally: a fifth
 // field is discovered and drifted automatically, with no test-file change
 // required, and fails with a message naming exactly which field has no
-// comparison wired up for it.
+// comparison wired up for it. Issue #271 changed what "flip the result"
+// means (a populated []string, not true) — updated here to assert the
+// result equals exactly [mappingFileByField[field]], not just that the
+// slice is non-empty or merely contains the right name (round 2 review:
+// slices.Contains alone missed a branch that also names an undrifted
+// file alongside the right one).
 func TestMappingVersionMismatch_EveryFieldDriftsIndependently(t *testing.T) {
 	baseline, ssdf, cisa, saQuestions, scannerSignatures := matchingMappingVersions(t)
 
@@ -69,13 +91,25 @@ func TestMappingVersionMismatch_EveryFieldDriftsIndependently(t *testing.T) {
 			if v.Field(i).Kind() != reflect.String {
 				t.Fatalf("MappingVersions.%s is not a string field — this test assumes every field is a version string; update it if that's no longer true", field.Name)
 			}
+			wantFile, ok := mappingFileByField[field.Name]
+			if !ok {
+				t.Fatalf("field %s (%s) has no entry in mappingFileByField — add one naming its mappings/*.yaml file", field.Name, field.Tag.Get("json"))
+			}
 
 			drifted := baseline
 			dv := reflect.ValueOf(&drifted).Elem()
 			dv.Field(i).SetString(dv.Field(i).String() + "-drifted")
 
-			if !mappingVersionMismatch(drifted, ssdf, cisa, saQuestions, scannerSignatures) {
-				t.Errorf("field %s (%s) drifted but mappingVersionMismatch returned false — add a comparison for it", field.Name, field.Tag.Get("json"))
+			got := mappingVersionMismatch(drifted, ssdf, cisa, saQuestions, scannerSignatures)
+			// slices.Equal against a one-element slice, not slices.Contains:
+			// this baseline drifts exactly one field, so the correct answer
+			// is exactly [wantFile] — Contains alone would pass if a branch
+			// also (wrongly) appended an undrifted field's name alongside
+			// the right one (round 2 review of #271, mutation-proven: two
+			// literal extra appends in mappingVersionMismatch left this
+			// check green with the whole suite green and lint clean).
+			if !slices.Equal(got, []string{wantFile}) {
+				t.Errorf("field %s (%s) drifted but mappingVersionMismatch returned %v, want exactly [%q]", field.Name, field.Tag.Get("json"), got, wantFile)
 			}
 		})
 	}
@@ -98,7 +132,7 @@ func TestMappingVersionMismatch_OlderPackMissingScannerSignaturesVersion_NoFalse
 	ssdf, cisa, saQuestions, scannerSignatures := loadRealMappings(t)
 	pack := model.MappingVersions{SSDF: ssdf.Version, CISAForm: cisa.Version, SelfAttestation: saQuestions.Version} // ScannerSignatures deliberately absent
 
-	if got := mappingVersionMismatch(pack, ssdf, cisa, saQuestions, scannerSignatures); got {
-		t.Errorf("mappingVersionMismatch(pack=%+v) = true, want false — an older pack missing scanner_signatures entirely must not spuriously trigger the mismatch banner on that field", pack)
+	if got := mappingVersionMismatch(pack, ssdf, cisa, saQuestions, scannerSignatures); len(got) != 0 {
+		t.Errorf("mappingVersionMismatch(pack=%+v) = %v, want empty — an older pack missing scanner_signatures entirely must not spuriously trigger the mismatch banner on that field", pack, got)
 	}
 }

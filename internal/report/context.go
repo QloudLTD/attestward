@@ -15,15 +15,19 @@ import (
 type renderContext struct {
 	Pack model.EvidencePack
 
-	// MappingVersionMismatch is set when any loaded mapping's own Version
-	// doesn't match what pack.MappingVersions recorded for it — e.g.
+	// DriftedMappingFiles lists which mappings/*.yaml file(s), if any, no
+	// longer match what pack.MappingVersions recorded for them — e.g.
 	// rendering an old saved pack with a newer binary. All four mapping
 	// files are compared (ssdf, cisa_form, self_attestation,
 	// scanner_signatures — see mappingVersionMismatch). Rendering still
 	// proceeds (IDs without a matching title/text just render bare), but
 	// the report surfaces this rather than silently mixing eras of
-	// mapping text.
-	MappingVersionMismatch bool
+	// mapping text. Empty means nothing drifted; a template's
+	// {{if .DriftedMappingFiles}} is both "should the banner render" and,
+	// via {{range}}, "which file(s) to name in it" — issue #271: naming
+	// the actual file(s) replaces a banner that used to list every
+	// possible cause on every mismatch, regardless of which one applied.
+	DriftedMappingFiles []string
 
 	StatusCounts map[model.Status]int
 	Clusters     []clusterView
@@ -89,19 +93,37 @@ type selfAttestedView struct {
 	Paired []model.CheckResult
 }
 
-// mappingVersionMismatch reports whether any loaded mapping's own Version
-// differs from what pack itself recorded for it. A nil loaded mapping (a
-// caller that couldn't load one, or doesn't need it), or an empty
-// recorded pack version (an older pack that predates that field being
-// populated — see issue #255 for scanner_signatures' own history of
-// exactly that), skips that one comparison rather than asserting a
-// mismatch it has no actual evidence for — confirmed directly, not
-// assumed, by TestMappingVersionMismatch_OlderPackMissingScannerSignaturesVersion_NoFalsePositive:
+// mappingVersionMismatch reports which mappings/*.yaml file(s), if any,
+// have their own Version differing from what pack itself recorded for
+// them — the mappings/ source file name, not the Go field name
+// (SelfAttestation) or the JSON key (self_attestation): issue #271, a
+// compliance reader needs to know which file to go look at, and the file
+// name is the only one of the three spellings that's directly actionable.
+// A nil loaded mapping (a caller that couldn't load one, or doesn't need
+// it), or an empty recorded pack version (an older pack that predates
+// that field being populated — see issue #255 for scanner_signatures'
+// own history of exactly that), skips that one comparison rather than
+// asserting a mismatch it has no actual evidence for — confirmed
+// directly, not assumed, by
+// TestMappingVersionMismatch_OlderPackMissingScannerSignaturesVersion_NoFalsePositive:
 // this is what makes it safe to ship this comparison when not every pack
 // carries scanner_signatures. #255's fix (PR #263) started populating it,
 // so packs scanned from that point on have it — but packs captured before
 // it, including examples/demo-org-pack's own, still lack the field
 // entirely and must not spuriously trigger this banner.
+//
+// Returns nil (not an error) when nothing drifted. The order is fixed —
+// ssdf, cisa, scanner-signatures, self-attestation, regardless of which
+// combination actually drifted — so a pack with more than one drifted
+// file renders its banner in the same order every time; a caller-visible
+// order that depended on comparison order or map iteration would make
+// rendering non-deterministic and break the golden-file tests (issue #24's
+// determinism discipline) intermittently, only on packs with more than
+// one drift. Matches the "Mapping versions:" header line's own order
+// (report.md.tmpl/report.html.tmpl: SSDF, CISA form, scanner signatures,
+// self-attestation) rather than model.MappingVersions' struct field
+// order, so a reader cross-referencing the two lists sees the same order
+// in both (round 2 review of #271).
 //
 // One shared implementation rather than duplicated inline comparisons in
 // buildContext and buildPOAMContext (issue #264, found while working on
@@ -118,23 +140,27 @@ type selfAttestedView struct {
 // struct, one uniform predicate — the same shape #263's own guard uses),
 // not over the four differently-typed *ssdf/*cisa/... parameters here,
 // so a future field is discovered and drifted automatically rather than
-// needing a new hand-written case. A fifth mapping file still needs a
-// comparison line added here, but only once (not once per caller), and
-// the test above will say so by name if that line is ever missed.
-func mappingVersionMismatch(pack model.MappingVersions, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry) bool {
+// needing a new hand-written case; it also pins the exact file name each
+// field must produce, not just that some name comes back, catching a
+// branch that names the wrong file as readily as one that names none. A
+// fifth mapping file still needs a comparison line added here, but only
+// once (not once per caller), and the test above will say so by name if
+// that line is ever missed.
+func mappingVersionMismatch(pack model.MappingVersions, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry) []string {
+	var drifted []string
 	if ssdf != nil && pack.SSDF != "" && ssdf.Version != pack.SSDF {
-		return true
+		drifted = append(drifted, "mappings/ssdf-800-218.yaml")
 	}
 	if cisa != nil && pack.CISAForm != "" && cisa.Version != pack.CISAForm {
-		return true
-	}
-	if saQuestions != nil && pack.SelfAttestation != "" && saQuestions.Version != pack.SelfAttestation {
-		return true
+		drifted = append(drifted, "mappings/cisa-ssda-form.yaml")
 	}
 	if scannerSignatures != nil && pack.ScannerSignatures != "" && scannerSignatures.Version != pack.ScannerSignatures {
-		return true
+		drifted = append(drifted, "mappings/scanner-signatures.yaml")
 	}
-	return false
+	if saQuestions != nil && pack.SelfAttestation != "" && saQuestions.Version != pack.SelfAttestation {
+		drifted = append(drifted, "mappings/self-attestation-questions.yaml")
+	}
+	return drifted
 }
 
 // buildContext assembles a renderContext from pack plus the mapping data
@@ -149,7 +175,7 @@ func mappingVersionMismatch(pack model.MappingVersions, ssdf *mapping.SSDFMappin
 func buildContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, scopeLevelByCheckID map[string]string) renderContext {
 	ctx := renderContext{Pack: pack, StatusCounts: map[model.Status]int{}}
 
-	ctx.MappingVersionMismatch = mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, saQuestions, scannerSignatures)
+	ctx.DriftedMappingFiles = mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, saQuestions, scannerSignatures)
 
 	poamIDByCheckRepo := map[string]string{}
 	for _, f := range assignFindings(pack, ssdf, cisa) {

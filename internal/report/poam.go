@@ -16,7 +16,11 @@ import (
 type poamContext struct {
 	Pack model.EvidencePack
 
-	MappingVersionMismatch bool
+	// DriftedMappingFiles — see renderContext's identical field in
+	// context.go for the full doc comment; shared logic (mappingVersionMismatch),
+	// duplicated field because poamContext and renderContext are otherwise
+	// unrelated template-input types.
+	DriftedMappingFiles []string
 
 	TotalFindings int
 	FailCount     int
@@ -69,7 +73,7 @@ type poamFindingView struct {
 func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, remediationByCheckID, scopeLevelByCheckID map[string]string) poamContext {
 	ctx := poamContext{Pack: pack}
 
-	ctx.MappingVersionMismatch = mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, saQuestions, scannerSignatures)
+	ctx.DriftedMappingFiles = mappingVersionMismatch(pack.MappingVersions, ssdf, cisa, saQuestions, scannerSignatures)
 
 	findings := assignFindings(pack, ssdf, cisa)
 	ctx.TotalFindings = len(findings)
@@ -150,7 +154,7 @@ func buildPOAMContext(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *
 // scopeLabelVerbose). May be nil — degrades to the org-level label.
 //
 // saQuestions/scannerSignatures (issue #264) are consulted only for
-// MappingVersionMismatch — poam.md itself has no self-attestation
+// DriftedMappingFiles — poam.md itself has no self-attestation
 // pairing or scanner-signature content of its own to render, unlike
 // report.md/report.html — so both may be nil with no other effect.
 func RenderPOAM(pack model.EvidencePack, ssdf *mapping.SSDFMapping, cisa *mapping.CISAMapping, saQuestions *mapping.SelfAttestationQuestions, scannerSignatures *mapping.ScannerSignatureRegistry, remediationByCheckID, scopeLevelByCheckID map[string]string) ([]byte, error) {

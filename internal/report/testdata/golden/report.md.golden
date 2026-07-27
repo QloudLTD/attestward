@@ -1,6 +1,6 @@
 # Software Development Security Report
 
-> **Note:** this pack's mapping versions do not match the mapping data used to render this report. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.
+> **Note:** this pack's mapping versions do not match the mapping data used to render this report — the following mapping files no longer match: `mappings/ssdf-800-218.yaml`, `mappings/cisa-ssda-form.yaml`, `mappings/self-attestation-questions.yaml`. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.
 
 ## Executive Summary
 

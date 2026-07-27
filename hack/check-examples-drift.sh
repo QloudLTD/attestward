@@ -51,7 +51,7 @@ fi
 #
 # evidence.json embeds the mapping versions live when it was captured
 # (mapping_versions.ssdf/cisa_form/self_attestation). If mappings/*.yaml's
-# own `version:` has moved since, re-rendering sets MappingVersionMismatch
+# own `version:` has moved since, re-rendering populates DriftedMappingFiles
 # (internal/report/context.go), which bakes a "this pack's mapping
 # versions do not match..." banner into the TOP of all three files (see
 # report.html.tmpl:918, report.md.tmpl:2, poam.md.tmpl:2) — not a

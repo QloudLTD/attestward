@@ -469,7 +469,62 @@ All notable changes to this project are documented here. Format follows
   `Render*` entry point, use a pack whose `ssdf`/`cisa_form`/`scanner_signatures` all
   match what's loaded but whose `self_attestation` alone drifts, and assert the banner
   appears in the rendered output; the same mutation now fails exactly those two tests
-  and nothing else.
+  and nothing else. (#271, below, later made the golden-file tests sensitive to the
+  same mutation too, once the banner started naming specific files — see that entry.)
+- **The mapping-version-mismatch banner now names which file(s) actually drifted**
+  (#271, filed as a non-trivial follow-up from #264/#265's own review). The banner text
+  used to list all four possible causes on every mismatch regardless of which one
+  applied — harmless for `report.md`/`report.html`, which both also render a "Mapping
+  versions:" line a reader can cross-reference by hand, but `poam.md` renders no
+  mapping-version line at all, and two of the four triggers (`self_attestation`,
+  `scanner_signatures`) affect nothing `poam.md` itself renders (`RenderPOAM`'s own doc
+  comment). A pure `self_attestation` drift printed a "may be missing" warning on a
+  POA&M with nothing on the page that could have drifted for that reason, and no way to
+  find out which of the four causes actually applied.
+
+  `mappingVersionMismatch` now returns `[]string` (the drifted `mappings/*.yaml` file
+  paths, in a fixed ssdf/cisa/scanner-signatures/self-attestation order regardless of
+  which combination actually drifted, so a pack with more than one drift renders
+  identically every run) instead of `bool`. File paths, not the Go field name
+  (`SelfAttestation`) or the JSON key (`self_attestation`): the file is what a
+  compliance reader would actually go open. `renderContext.MappingVersionMismatch`/
+  `poamContext.MappingVersionMismatch` are renamed to `DriftedMappingFiles []string` —
+  `{{if .DriftedMappingFiles}}` is unchanged as "should the banner render" (empty slice
+  is falsy in `text/template`/`html/template` same as `false` was) and doubles as
+  "which file(s) to name," via the same comma-join `{{range}}` pattern
+  `report.md.tmpl`'s Repos line already used. All three templates gained the drifted
+  list; `report.html`'s own "Mapping versions" row shows the *pack's recorded* versions
+  only, not which one no longer matches what's currently loaded, so it doesn't make the
+  new list redundant there either — kept for consistency across all three documents.
+  Banner wording changed too: "drifted: `X`, `Y`" became "the following mapping files
+  no longer match: `X`, `Y`" — "drifted" is this project's own jargon (drift baseline,
+  `attestward diff`), out of place in a document that went through non-engineer
+  sign-off (#25). And the four-file order was picked to match the "Mapping versions:"
+  header line both markdown documents already render (`report.md.tmpl:12`) — a reader
+  cross-referencing the drift list against that line now sees the same order in both,
+  not two different orderings of the same four names.
+
+  `TestMappingVersionMismatch_EveryFieldDriftsIndependently` (#265's reflection test)
+  now asserts the specific file name each field must produce, not just that some name
+  comes back — a branch naming the *wrong* file (e.g. a copy-paste under the wrong
+  case) fails it exactly as loudly as a branch naming none. Both `Render*` wiring
+  tests, proven necessary by #265's own review (a `nil, nil` revert at either call site
+  used to leave every test green), gained the same specificity: re-run the identical
+  mutation here and it now fails on the missing file name, not just a missing
+  substring — and, because the golden fixture's own drift list now names files by
+  name rather than just tripping a bool, the two golden-file tests catch that same
+  mutation too, without any change to them. Four tests redden where two did before.
+
+  Round 2 review found the reflection test's own new assertion wasn't tight enough:
+  `slices.Contains(got, wantFile)` passes if a branch appends an extra, undrifted
+  file's name alongside the right one — proven by mutating the scanner-signatures
+  branch to also append `cisa-ssda-form.yaml`, which left the whole suite green and
+  lint clean, since no golden drifts `scanner_signatures` (`rich-pack.json` lacks the
+  field entirely) and both wiring tests set it to *matching*. Each subtest drifts
+  exactly one field from an all-matching baseline, so the correct answer is always a
+  one-element slice; `slices.Contains` now reads `slices.Equal(got, []string{wantFile})`
+  instead, mutation-proven to catch the same injected extra-append the naive check
+  missed.
 - **`multi-arch-build-sample.yaml`'s uploads no longer inherit the 90-day retention
   default** (#242). Its two `upload-artifact` steps set no `retention-days` at all, so
   both fell back to the repo default of 90 days — 15 live artifacts totalling ~128 MB,
