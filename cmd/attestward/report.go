@@ -36,7 +36,10 @@ post-processing.
 
 If evidence.json's schema_version isn't the one this build of attestward
 understands, attestward report fails with a friendly error rather than
-guessing at how to render an unfamiliar shape.
+guessing at how to render an unfamiliar shape. The rest of the pack is
+validated against the same schema too — a status outside the five defined
+values, or any other shape the schema doesn't allow, is refused the same
+way, with no --force override.
 
 If a .sha256 sidecar sits next to the input file (written automatically by
 attestward scan — see "Verifying an evidence pack" in the README), attestward
@@ -91,6 +94,30 @@ func runReport(_ context.Context, stdout io.Writer, inputPath, outDir string, fo
 	}
 	if pack.SchemaVersion != model.SchemaVersion {
 		return fmt.Errorf("%s has schema_version %d, this build of attestward understands schema_version %d — use a matching attestward version to render it", inputPath, pack.SchemaVersion, model.SchemaVersion)
+	}
+	// Issue #240: the schema declares status (CheckResult.Status,
+	// TaskRollup.Status, ClusterRollup.Status — all three via the shared
+	// $defs/status enum) as exactly the five defined values, and
+	// model.Status's own doc comment claims the same thing at the Go level
+	// ("Exactly these five values exist; nothing else may ever appear in an
+	// evidence pack"). Neither renderer enforces that — statusLabel/
+	// statusBadge's default branch renders an out-of-enum value verbatim,
+	// unescaped, into a compliance document (report.md.tmpl/poam.md.tmpl
+	// interpolate both without esc, having always trusted them to return one
+	// of a handful of known-safe strings). Rejected here, the same way an
+	// unrecognized schema_version already is — no --force bypass, unlike the
+	// hash-tamper check below: a schema violation means the pack's SHAPE is
+	// wrong, not that its unmodified content might be untrustworthy, and
+	// that's not something a visible warning banner can meaningfully
+	// override. ValidateAgainstSchema validates the whole pack, not just
+	// status, which is deliberate: it's already-existing, already-tested
+	// infrastructure (internal/model/validate_test.go), and it structurally
+	// covers all three Status-typed fields (and any future one) the same
+	// way, rather than three hand-written .Valid() loops that could each
+	// individually go stale the way this repo has repeatedly found
+	// hand-maintained enumerations do.
+	if err := pack.ValidateAgainstSchema(); err != nil {
+		return fmt.Errorf("%s failed schema validation: %w", inputPath, err)
 	}
 	// The hash of the exact bytes being rendered from, not whatever (if
 	// anything) was already embedded in the JSON — so report.md/html's

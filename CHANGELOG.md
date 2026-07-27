@@ -240,6 +240,68 @@ All notable changes to this project are documented here. Format follows
   review of #260 found missing: `missingFromDoc`'s backtick-delimited match is what
   stops `build-windows` from satisfying `build` as a substring collision — dropping the
   backticks left the whole package green before this test existed.
+- **An out-of-enum `status` reaching an unescaped rendering fallback —
+  closed** (#240, a v1.0 flip blocker, sibling gap to #239 above).
+  `statusLabel`/`statusBadge`'s `default` branch returned an out-of-enum
+  `Status` verbatim, unescaped — reachable because nothing on the report
+  path ever called `Status.Valid()` or `EvidencePack.ValidateAgainstSchema`
+  (only `scan.go`/`diff.go` do).
+
+  Chose rejection over escaping: the schema already declares `status` a
+  closed five-value enum (shared by `CheckResult`/`TaskRollup`/
+  `ClusterRollup` via one `$defs/status`), and `attestward report` already
+  refuses a pack whose `schema_version` it doesn't understand — an
+  out-of-enum status is the same category of "this pack isn't what it
+  claims to be," and `model.Status`'s own doc comment ("exactly these five
+  values exist") makes that a structural invariant, not a soft convention,
+  unlike `check_id` (an open string namespace by design — the "Unmapped"
+  bucket already handles a `check_id` matching no known task, the reason
+  #239 above chose escaping instead).
+
+  `cmd/attestward/report.go`'s `runReport` now calls
+  `pack.ValidateAgainstSchema()` — already-existing, already-tested
+  infrastructure, reused rather than three hand-written `.Valid()` loops
+  that could each go stale independently — right after the `schema_version`
+  check, same hard-refusal treatment, no `--force` bypass (a schema
+  violation is a shape problem, not the provenance question `--force`'s
+  visible-banner escape hatch answers). Two new tests prove the guard
+  catches an out-of-enum status on `CheckResult` and on `Rollup.Clusters`
+  alike (all three Status-typed fields share the schema's one enum, not
+  three independent ones — confirmed directly), plus a negative-baseline
+  test confirming a valid pack still renders; mutation-proved by removing
+  the new check and confirming exactly the two rejection tests redden while
+  the baseline stays green.
+
+  Round 2 review found the `Rollup.Clusters` test was vacuous as first
+  written: it set `Clusters` but left `Tasks` nil, and `model.Rollup.Tasks`
+  has no `omitempty` — a nil `Tasks` marshals as `"tasks": null` against a
+  schema that requires an array, so the pack was rejected at
+  `/rollup/tasks` regardless of what the Clusters status said. Proved
+  directly: swapping in a genuinely valid status left the test green.
+  Fixed by giving `Tasks` its own valid (empty) value, isolating the
+  Clusters status as the only remaining schema violation, and tightening
+  the assertion from a bare `"schema validation"` substring to
+  `"clusters/0/status"` — the broad substring is exactly what let the
+  vacuity hide. The `CheckResult` half was never vacuous: the
+  negative-baseline test shares the same fixture pack and passes, proving
+  it's otherwise schema-clean.
+
+  `docs/threat-model.md`'s mitigations table gains `cmd/attestward/report.go`
+  as a "Where" entry alongside the templates/`mdescape` already there;
+  this gap's carve-out removed now that it's closed too — the table's
+  injection-mitigation cell now has no remaining known-exploitable gap.
+
+  Two more round 2 review fixes, no behavior change: `attestward report --help`
+  only described `schema_version` as a hard-refusal reason, but
+  `ValidateAgainstSchema()` validates the whole pack — a `null` where the
+  schema wants an array (`scope.repos`, `results[].provenance`,
+  `rollup.tasks`/`rollup.clusters`) is refused identically now, so `--help`
+  says so. `report.md.tmpl`'s two sites #239 left untouched (Cluster Detail,
+  the Paired list) and its `Integrity.SHA256` code span each gained an inline
+  template comment naming exactly why the raw code span is safe there —
+  that reasoning used to live only in a PR body, a threat-model paragraph,
+  and a test comment, nowhere near the code a future site would be copied
+  from.
 - **`checkToolConfigured` Facts no longer assert a confirmed value from a query
   that merely failed, in the GitHub twins of C05/C06** (#258, follow-up to
   #266's identical Azure DevOps fix). `github/sasthistory`'s

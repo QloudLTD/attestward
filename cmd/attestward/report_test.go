@@ -361,6 +361,117 @@ func TestRunReport_UnsupportedSchemaVersionIsFriendlyError(t *testing.T) {
 	}
 }
 
+// TestRunReport_OutOfEnumStatusIsRejected is issue #240: model.Status's own
+// doc comment says "exactly these five values exist; nothing else may ever
+// appear in an evidence pack", and the schema encodes that as a real enum
+// (docs/schema/evidence-pack.v1.schema.json's $defs/status) — but nothing on
+// the report path enforced it before this. An out-of-enum status used to
+// reach statusLabel/statusBadge's default branch and render verbatim,
+// unescaped, into report.md/poam.md. Same treatment as an unrecognized
+// schema_version above: a hard refusal, --force never bypasses it (unlike
+// the hash-tamper checks below), since this is a shape violation, not a
+// provenance question --force's "render anyway, with a visible warning" is
+// meant to answer.
+func TestRunReport_OutOfEnumStatusIsRejected(t *testing.T) {
+	dir := t.TempDir()
+	pack := reportFixturePack()
+	// Can't come from writeEvidencePack either, same reason as the
+	// schema_version test above: its own pre-write validation would
+	// correctly reject this pack before it ever reached disk. Written
+	// directly to simulate a pack from a source that skipped that check —
+	// exactly the case this fix exists to catch.
+	pack.Results[0].Status = model.Status("not-a-real-status")
+	data, err := json.MarshalIndent(pack, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal pack: %v", err)
+	}
+	path := filepath.Join(dir, "evidence.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write evidence.json: %v", err)
+	}
+
+	err = runReport(context.Background(), &bytes.Buffer{}, path, t.TempDir(), []string{"md"}, false)
+	if err == nil {
+		t.Fatal("runReport against a pack with an out-of-enum status returned no error, want one")
+	}
+	if !strings.Contains(err.Error(), "schema validation") {
+		t.Errorf("error %q doesn't mention schema validation", err)
+	}
+}
+
+// TestRunReport_OutOfEnumRollupStatusIsRejected proves the same guard
+// catches TaskRollup/ClusterRollup's own Status fields, not just
+// CheckResult's — all three reference the schema's identical $defs/status
+// enum (confirmed directly), and both rolled-up statuses reach
+// statusLabel/statusBadge too (Cluster Detail's cluster/task headings,
+// report.md.tmpl's Cluster status table). A guard that only checked
+// CheckResult.Status would leave two of the three call sites open.
+//
+// Tasks must be a non-nil (possibly empty) slice, not left zero-valued —
+// round 2 review found the original version left it nil, and
+// model.Rollup.Tasks is tagged `json:"tasks"` with no `omitempty`
+// (evidence_pack.go), so it marshals as "tasks": null against a schema
+// that requires rollup.tasks to be an array. The pack was rejected at
+// /rollup/tasks regardless of what Clusters[0].Status said, making the
+// test vacuous — proved directly: swapping in a genuinely valid Status
+// left it green. Fixed by giving Tasks its own valid (empty) value, so
+// the only thing left for the pack to fail on is the actual Clusters
+// status this test exists to pin.
+func TestRunReport_OutOfEnumRollupStatusIsRejected(t *testing.T) {
+	dir := t.TempDir()
+	pack := reportFixturePack()
+	pack.Rollup = &model.Rollup{
+		Tasks:    []model.TaskRollup{},
+		Clusters: []model.ClusterRollup{{ClusterID: "2", Status: model.Status("also-not-real")}},
+	}
+	data, err := json.MarshalIndent(pack, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal pack: %v", err)
+	}
+	path := filepath.Join(dir, "evidence.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write evidence.json: %v", err)
+	}
+
+	err = runReport(context.Background(), &bytes.Buffer{}, path, t.TempDir(), []string{"md"}, false)
+	if err == nil {
+		t.Fatal("runReport against a pack with an out-of-enum Rollup.Clusters status returned no error, want one")
+	}
+	// Names the specific failing path, not just "schema validation" — a
+	// substring that broad is exactly what let this test's own vacuity
+	// hide: any schema violation anywhere in the pack would have satisfied
+	// it just as well as the one this test claims to pin.
+	if !strings.Contains(err.Error(), "clusters/0/status") {
+		t.Errorf("error %q doesn't mention clusters/0/status", err)
+	}
+}
+
+// TestRunReport_ValidStatusStillRenders is the negative baseline: the new
+// schema-validation call in runReport must not reject a genuinely valid
+// pack. TestRunReport_ByteIdenticalToDirectRenderersCall already exercises
+// runReport end-to-end via writeReportFixture (which validates on write,
+// so it could never carry an invalid status to begin with) — this pins the
+// same "still works" property against a pack written the same direct-marshal
+// way the two tests above use, so a bug in the new check that rejected
+// every pack, valid or not, wouldn't hide behind writeEvidencePack's own
+// pre-write validation never exercising the code path this test targets.
+func TestRunReport_ValidStatusStillRenders(t *testing.T) {
+	dir := t.TempDir()
+	pack := reportFixturePack()
+	data, err := json.MarshalIndent(pack, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal pack: %v", err)
+	}
+	path := filepath.Join(dir, "evidence.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write evidence.json: %v", err)
+	}
+
+	if err := runReport(context.Background(), &bytes.Buffer{}, path, t.TempDir(), []string{"md"}, false); err != nil {
+		t.Fatalf("runReport against a valid pack: %v", err)
+	}
+}
+
 // TestRunReport_MalformedSidecarIsHardErrorEvenWithForce locks in the
 // distinction --force's own help text now makes explicit: --force only
 // overrides a hash *mismatch* (verification ran and found tampering). A

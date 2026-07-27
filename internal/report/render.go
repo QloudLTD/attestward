@@ -30,6 +30,21 @@ var statusOrder = []model.Status{
 // statusLabel is a human-readable label for a Status — used by both
 // renderers so the vocabulary stays identical across formats (issue #25:
 // "Status vocabulary/styling defined once").
+//
+// The default branch (issue #240) is reachable only by a Status this
+// package's own callers never produce — model.Status's doc comment says
+// "exactly these five values exist" — but a pack loaded from disk isn't
+// bound by that at the Go type level, since Status is just a string
+// underneath. This function does not itself guard against that: it trusts
+// the caller to have already rejected an out-of-enum Status, the same way
+// it already trusts the caller on schema_version (neither renderer
+// re-validates the pack it's handed). cmd/attestward/report.go's runReport
+// is where that trust is actually earned, via pack.ValidateAgainstSchema()
+// — a caller that skips it (a future CLI subcommand, a hosted-tier
+// consumer calling this package directly) reopens exactly the hole #240
+// closed, since text/template's callers below interpolate this return
+// value without esc, having always trusted it to be one of a handful of
+// known-safe strings.
 func statusLabel(s model.Status) string {
 	switch s {
 	case model.StatusVerifiedPass:
@@ -52,7 +67,8 @@ func statusLabel(s model.Status) string {
 // deliberately not color-only (issue #25: "status conveyed by text+icon,
 // never color alone" — a colorblind reader or a black-and-white printout
 // of report.html must still be able to tell statuses apart from the text
-// alone).
+// alone). Same caller-trust contract as statusLabel's own doc comment for
+// its default branch — not repeated here.
 func statusBadge(s model.Status) string {
 	switch s {
 	case model.StatusVerifiedPass:

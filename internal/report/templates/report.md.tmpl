@@ -10,7 +10,7 @@
 - **Scan window:** {{fmtTime .Pack.ScanStartedAt}} – {{fmtTime .Pack.ScanEndedAt}}
 - **Tool version:** {{esc .Pack.ToolVersion}}
 - **Mapping versions:** SSDF {{esc .Pack.MappingVersions.SSDF}} · CISA form {{esc .Pack.MappingVersions.CISAForm}}{{if .Pack.MappingVersions.ScannerSignatures}} · scanner signatures {{esc .Pack.MappingVersions.ScannerSignatures}}{{end}}{{if .Pack.MappingVersions.SelfAttestation}} · self-attestation {{esc .Pack.MappingVersions.SelfAttestation}}{{end}}
-{{if .Pack.Integrity}}- **Pack SHA-256:** `{{.Pack.Integrity.SHA256}}`
+{{if .Pack.Integrity}}- **Pack SHA-256:** `{{.Pack.Integrity.SHA256}}`{{/* Safe unescaped, unlike CheckID below, only because cmd/attestward/report.go's runReport overwrites Integrity.SHA256 with a freshly-computed hex digest before ever rendering — the schema permits any string here, and this command renders third-party packs by design (see runReport's own comment). Any caller that renders a pack without recomputing this field first (attestward-cloud calls internal/report directly) reopens a markdown-injection hole. */}}
 {{end}}
 ### Cluster status
 
@@ -36,7 +36,7 @@
 {{if .Text}}
 {{.Text}}
 {{end}}{{range .Checks}}
-##### {{esc .Title}} (`{{.CheckID}}`) — {{statusBadge .Status}} {{statusLabel .Status}}
+##### {{esc .Title}} (`{{.CheckID}}`){{/* CheckID safe unescaped, unlike the five sites #239 fixed, only because .Checks (context.go's buildContext) comes from resultsByCheck[task.Checks] — task.Checks is a trusted mapping-file ID, and resultsByCheck is keyed by each CheckResult's own CheckID, so only a byte-identical match can ever surface here. A site fed straight from pack.Results, not through this lookup, carries attacker-chosen characters and must esc it. */}} — {{statusBadge .Status}} {{statusLabel .Status}}
 
 {{if .Scope.Repo}}Repo: {{esc .Scope.Repo}}. {{end}}{{esc .Reason}}
 {{if .Provenance}}
@@ -84,7 +84,7 @@ upgrades a CISA form cluster to fully verified.
 {{esc .Result.Reason}}
 {{if .Paired}}
 Complements these API-verified checks:
-{{range .Paired}}- `{{.CheckID}}`: {{statusBadge .Status}} {{statusLabel .Status}} — {{esc .Reason}}
+{{range .Paired}}- `{{.CheckID}}`{{/* Safe unescaped the same way as Cluster Detail's CheckID above, via the identical trusted-lookup shape — resultsByCheck[q.Pairing] (self-attestation-questions.yaml's own Pairing field) instead of resultsByCheck[task.Checks]. */}}: {{statusBadge .Status}} {{statusLabel .Status}} — {{esc .Reason}}
 {{end}}{{end}}
 {{end}}{{else}}None.
 {{end}}
