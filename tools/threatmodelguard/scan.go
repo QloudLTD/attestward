@@ -25,14 +25,28 @@
 // A green run doesn't mean every self-hosted-macOS job is truly discovered
 // — jobLabelSets' matrix-indirection resolution (round 2 review of #260)
 // only understands `runs-on: ${{ matrix.<field> }}` paired with
-// `strategy.matrix.include`. Three related shapes would go undetected if
-// they ever appeared, none of which exist in this repo today (confirmed
-// directly, not assumed):
+// `strategy.matrix.include`. Three related shapes would go undetected if a
+// job reached them; two are confirmed genuinely absent from this repo
+// today (checked directly, not assumed), but the first now exists —
+// harmlessly, for a reason specific to how it's currently written, not
+// because this package resolves it:
 //
 //   - Plain `strategy.matrix.<key>: [...]` without an `include:` block —
 //     the *more common* form in real-world Actions workflows, and this
-//     package doesn't resolve it at all; a self-hosted-macOS leg reached
-//     only this way is invisible.
+//     package doesn't resolve it at all. `runner-maintenance.yaml`'s
+//     `clean` job is now exactly this shape (`strategy.matrix.runner:
+//     [mini-1 .. mini-6]`, no `include:`, added by issue #313). It's
+//     still discovered today only because `clean` selects `runs-on:
+//     [self-hosted, macOS, "${{ matrix.runner }}"]` — a YAML sequence, not
+//     a bare matrix expression — so jobLabelSets' SequenceNode branch
+//     decodes it as three literal strings, and isMacOSSelfHosted finds the
+//     literal "self-hosted"/"macOS" entries without ever needing to
+//     resolve `matrix.runner`. Moving `clean` to the scalar-indirection
+//     form (`runs-on: ${{ matrix.runner }}`) would take the ScalarNode
+//     branch instead, which only knows how to resolve a field through
+//     `strategy.matrix.include` — a key this job's matrix doesn't have —
+//     and would silently return zero label sets, making `clean` invisible
+//     to this guard.
 //   - A typo'd matrix key in `${{ matrix.<field> }}` (or in an `include`
 //     entry) — silently resolves to zero legs rather than erroring, since
 //     `entry[field]`'s `ok` check just skips a missing key the same way it
