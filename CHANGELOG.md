@@ -8,6 +8,18 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **`tools/threatmodelguard` now also guards `docs/threat-model.md`'s "ten ADO
+  collector packages" list** (#274, option 2 of that issue's four). Enumerates every
+  package directly under `internal/collect/azuredevops` exposing a
+  `Collect(ctx context.Context, ...)` method — determined by that method's presence,
+  not by directory listing — and flags any not named in the doc's brace-expansion
+  list; `adofixture`/`pipelinehistory` have no such method and stay correctly
+  excluded. The go-github endpoint tables (#274's option 1) are deliberately left
+  unguarded: their HTTP verbs are already asserted structurally at runtime by
+  `provenanceTransport`, so the issue asks for a real cost/benefit call there rather
+  than a reflex extension of this guard. Mutation-proved the same way as #260's own
+  guard: removing a real collector name from the doc's list flags exactly that
+  package; adding it back silences the flag.
 - **`trivy` gains Azure Pipelines `ado_tasks` detection, and every other signature now
   records an explicit ADO-task decision** (#238, #243). #238: trivy had no `ado_tasks`
   entry at all despite Aqua Security publishing an official marketplace task
