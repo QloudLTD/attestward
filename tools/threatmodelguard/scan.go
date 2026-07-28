@@ -221,13 +221,29 @@ func selfHostedMacOSJobs(dir string) ([]string, error) {
 // parenthetical cross-reference never does.
 var bulletStartRe = regexp.MustCompile(`(?m)^  - \*\*Shared, persistent runner state`)
 
+// sectionTerminatorRe matches the start of any Markdown construct that ends
+// the runner-state bullet's own scope: a heading two or more "#"s deep, a
+// sibling bullet at this bullet's own two-space indent or the residual-
+// risks list's own zero-space indent, or a numbered list item at either of
+// those two indents. Issue #309 found two shapes the old literal-prefix
+// list ("\n  - **", "\n- **", "\n## ", "\n### ") let through: a "#### "
+// heading, since the old "### " marker's trailing space isn't the fourth
+// "#"; and an unbolded sibling bullet ("- A sibling risk") or a numbered
+// item ("1. ..."), since the old bullet markers required the bold "**"
+// opener. Matching the bare "- "/"  - " prefix, rather than "- **"/"  - **"
+// (the shape #309 itself suggested), covers a sibling bullet whether or
+// not it's bolded with one alternative instead of a bold-specific and a
+// plain-specific entry per indent: "- " is a strict prefix of "- **", so
+// matching it alone already covers both. Matching any heading depth
+// ("#{2,}", not capped at four) means a heading deeper than this document
+// uses today needs no future entry either — the exact kind of gap #309
+// was filed to close.
+var sectionTerminatorRe = regexp.MustCompile(`\n(#{2,} |  - |- |\d+\. )`)
+
 // runnerStateSection extracts the runner-state bullet's own text — from
-// its start to whichever of these comes first: the next nested "  - **"
-// bullet at this same two-space indent (a sibling residual-risk sub-
-// bullet), a 0-indent "- **" bullet (a sibling top-level residual risk —
-// the level this document's own residual-risks list actually uses), a
-// "## " heading, or a "### " heading — so a job name mentioned in any of
-// those doesn't count as documented here.
+// its start to wherever sectionTerminatorRe first matches — so a job name
+// mentioned in a heading, a sibling bullet, or a numbered item after this
+// bullet's own end doesn't count as documented here.
 func runnerStateSection(doc []byte) (string, error) {
 	text := string(doc)
 	loc := bulletStartRe.FindStringIndex(text)
@@ -235,14 +251,12 @@ func runnerStateSection(doc []byte) (string, error) {
 		return "", fmt.Errorf("no %q bullet found", "Shared, persistent runner state")
 	}
 	// loc[0] is the start of this bullet's own "  - **" — rest can't
-	// spuriously self-match any end marker below, since each one only
-	// begins after a "\n" and rest itself doesn't start with one.
+	// spuriously self-match sectionTerminatorRe, since every alternative
+	// requires a preceding "\n" and rest itself doesn't start with one.
 	rest := text[loc[0]:]
 	end := len(rest)
-	for _, marker := range []string{"\n  - **", "\n- **", "\n## ", "\n### "} {
-		if i := strings.Index(rest, marker); i >= 0 && i < end {
-			end = i
-		}
+	if m := sectionTerminatorRe.FindStringIndex(rest); m != nil {
+		end = m[0]
 	}
 	return rest[:end], nil
 }

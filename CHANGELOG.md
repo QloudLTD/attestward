@@ -172,6 +172,34 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`tools/threatmodelguard`'s runner-state section scope missed two Markdown shapes,
+  both disclosed rather than silent since #298** (#309). `runnerStateSection`'s
+  terminator set was four literal prefixes (`"\n  - **"`, `"\n- **"`, `"\n## "`,
+  `"\n### "`): a `"#### "` heading didn't match `"\n### "`, since the fourth `"#"`
+  isn't the trailing space the marker required, and an unbolded sibling bullet
+  (`"- A sibling risk"`) or a numbered item (`"1. ..."`) didn't match either, since
+  both bullet markers required the bold `"**"` opener. Reproduced directly against
+  the real, unmodified doc: each of the three shapes, injected after the runner-state
+  bullet and mentioning a job removed from its own exhaustive list, made
+  `runnerStateSection`'s returned text include the injected mention pre-fix, and
+  exclude it post-fix.
+
+  Replaced the four literal prefixes with one regex, `\n(#{2,} |  - |- |\d+\. )`:
+  matching the bare `"- "`/`"  - "` prefix rather than the bold-specific forms covers
+  a sibling bullet whether or not it's bolded in one alternative instead of two, and
+  matching any heading depth (`#{2,}`, not capped at four) means a heading deeper than
+  this document uses today needs no future entry either.
+
+  `docs/threat-model.md`'s own exhaustive list has closed inside its own balanced
+  parenthetical (tracked independently by `runnerStateListSection`, added in #308)
+  well before this bullet's end for as long as that list has existed, so this
+  particular gap was never reachable through `missingFromDoc`/`extraInDoc`'s actual
+  verdicts on the real document — confirmed by running both the pre- and post-fix
+  guard binary against every reproduction above, which agreed in every case. The gap
+  was real in `runnerStateSection` itself (mutation-proven with three new unit tests),
+  just fully absorbed downstream today; fixing it at its own layer means a future
+  restructuring of the bullet — one that puts the exhaustive list at the very end,
+  removing that buffer — doesn't reopen it.
 - **`tools/threatmodelguard`'s runner-state guard verified mention, not membership —
   closed the structural half of #286, plus this list's share of #302's reverse-check
   gap** (#286, #302). `missingFromDoc` substring-searched the whole "Shared, persistent

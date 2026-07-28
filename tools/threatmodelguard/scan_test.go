@@ -225,6 +225,79 @@ Mentions ` + "`test`" + ` here, which must not count.
 	}
 }
 
+// TestRunnerStateSection_ScopesPastAnH4Heading is issue #309's first
+// terminator gap: the old "### " marker's trailing space isn't the fourth
+// "#", so "#### " never matched it, and a job name under a level-4
+// subsection could leak in without counting as documented.
+func TestRunnerStateSection_ScopesPastAnH4Heading(t *testing.T) {
+	doc := []byte(`## Residual risks
+
+  - **Shared, persistent runner state is not wiped.** Mentions ` + "`lint`" + ` here.
+
+#### Some deeper subsection
+
+Mentions ` + "`test`" + ` here, which must not count.
+
+## See also
+`)
+	section, err := runnerStateSection(doc)
+	if err != nil {
+		t.Fatalf("runnerStateSection: %v", err)
+	}
+	if !strings.Contains(section, "`lint`") {
+		t.Errorf("section missing `lint`: %q", section)
+	}
+	if strings.Contains(section, "`test`") {
+		t.Errorf("section leaked past a #### heading: %q", section)
+	}
+}
+
+// TestRunnerStateSection_ScopesPastAnUnboldedSiblingBullet is issue #309's
+// second terminator gap: the old 0-indent marker was "\n- **" specifically,
+// so a sibling bullet written without the bold opener still leaked.
+func TestRunnerStateSection_ScopesPastAnUnboldedSiblingBullet(t *testing.T) {
+	doc := []byte(`## Residual risks
+
+  - **Shared, persistent runner state is not wiped.** Mentions ` + "`lint`" + ` here.
+- A sibling risk, unbolded. Mentions ` + "`test`" + ` here, which must not count.
+
+## See also
+`)
+	section, err := runnerStateSection(doc)
+	if err != nil {
+		t.Fatalf("runnerStateSection: %v", err)
+	}
+	if !strings.Contains(section, "`lint`") {
+		t.Errorf("section missing `lint`: %q", section)
+	}
+	if strings.Contains(section, "`test`") {
+		t.Errorf("section leaked past an unbolded sibling bullet: %q", section)
+	}
+}
+
+// TestRunnerStateSection_ScopesPastANumberedItem is issue #309's second
+// terminator gap, the other shape it names: a numbered list item wasn't in
+// the old marker set at all, bolded or not.
+func TestRunnerStateSection_ScopesPastANumberedItem(t *testing.T) {
+	doc := []byte(`## Residual risks
+
+  - **Shared, persistent runner state is not wiped.** Mentions ` + "`lint`" + ` here.
+1. A numbered item. Mentions ` + "`test`" + ` here, which must not count.
+
+## See also
+`)
+	section, err := runnerStateSection(doc)
+	if err != nil {
+		t.Fatalf("runnerStateSection: %v", err)
+	}
+	if !strings.Contains(section, "`lint`") {
+		t.Errorf("section missing `lint`: %q", section)
+	}
+	if strings.Contains(section, "`test`") {
+		t.Errorf("section leaked past a numbered list item: %q", section)
+	}
+}
+
 func TestRunnerStateSection_Absent(t *testing.T) {
 	if _, err := runnerStateSection([]byte("# nothing relevant here\n")); err == nil {
 		t.Error("expected an error when the bullet doesn't exist, got nil")
