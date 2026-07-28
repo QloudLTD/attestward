@@ -171,6 +171,60 @@ func TestRunnerStateSection_ScopesToTheOneBullet(t *testing.T) {
 	}
 }
 
+// TestRunnerStateSection_ScopesPastA0IndentBullet is issue #286's finding 2:
+// the residual-risks list's own bullets are 0-indent ("- **"), the level a
+// sibling risk actually gets appended at — the old marker set
+// ("\n  - **", "\n## ") had no 0-indent terminator at all, so a job name
+// mentioned in the very next real-world edit (a new top-level residual
+// risk) would have silently satisfied this guard.
+func TestRunnerStateSection_ScopesPastA0IndentBullet(t *testing.T) {
+	doc := []byte(`## Residual risks
+
+  - **Shared, persistent runner state is not wiped.** Mentions ` + "`lint`" + ` here.
+- **A sibling top-level risk.** Mentions ` + "`test`" + ` here, which must not count.
+
+## See also
+`)
+	section, err := runnerStateSection(doc)
+	if err != nil {
+		t.Fatalf("runnerStateSection: %v", err)
+	}
+	if !strings.Contains(section, "`lint`") {
+		t.Errorf("section missing `lint`: %q", section)
+	}
+	if strings.Contains(section, "`test`") {
+		t.Errorf("section leaked past a 0-indent sibling bullet: %q", section)
+	}
+}
+
+// TestRunnerStateSection_ScopesPastASubsectionHeading is issue #286's
+// finding 2: a "### " subsection heading didn't terminate the section
+// either, so content under one — e.g. a "## See also"-style cross-
+// reference list one level down — could leak a job name in without it
+// counting as documented in the bullet itself.
+func TestRunnerStateSection_ScopesPastASubsectionHeading(t *testing.T) {
+	doc := []byte(`## Residual risks
+
+  - **Shared, persistent runner state is not wiped.** Mentions ` + "`lint`" + ` here.
+
+### Some subsection
+
+Mentions ` + "`test`" + ` here, which must not count.
+
+## See also
+`)
+	section, err := runnerStateSection(doc)
+	if err != nil {
+		t.Fatalf("runnerStateSection: %v", err)
+	}
+	if !strings.Contains(section, "`lint`") {
+		t.Errorf("section missing `lint`: %q", section)
+	}
+	if strings.Contains(section, "`test`") {
+		t.Errorf("section leaked past a ### subsection heading: %q", section)
+	}
+}
+
 func TestRunnerStateSection_Absent(t *testing.T) {
 	if _, err := runnerStateSection([]byte("# nothing relevant here\n")); err == nil {
 		t.Error("expected an error when the bullet doesn't exist, got nil")

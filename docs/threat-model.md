@@ -378,7 +378,10 @@ diagram doesn't redraw per platform.
   self-hosted footprint):
   - **Release integrity rests on a persistent personal machine, not an ephemeral hosted
     VM.** `release.yaml`'s `goreleaser` job (which publishes real artifacts with
-    `contents: write` and keyless-signs real checksums) runs on `spyros-mac-mini-ssdf`.
+    `contents: write` and keyless-signs real checksums) selects `runs-on: [self-hosted,
+    macOS]` — a label, not a pinned machine, so it lands on whichever of this repo's two
+    identically-labeled self-hosted macOS runners GitHub assigns (issue #301 tracks the
+    fuller accounting this section still owes both of them).
     If that machine were compromised during a release run, tampered binaries could get
     published *and* validly Sigstore-signed with the exact workflow identity
     [SECURITY.md](../SECURITY.md) tells consumers to verify — keyless signing attests
@@ -391,7 +394,11 @@ diagram doesn't redraw per platform.
     `actions/checkout`'s default clean only resets the checked-out source tree — it
     doesn't touch `~/go/pkg/mod`, `~/Library/Caches/go-build`, or a runner's Go
     toolcache, all of which persist across every job/workflow sharing one physical
-    machine. That's `spyros-mac-mini-ssdf` (every macOS-labeled job in this repo:
+    machine. That's `spyros-mac-mini-ssdf` — equally `spyros-mac-studio-ssdf` today,
+    since every job below selects `runs-on: [self-hosted, macOS]`, a label rather
+    than a pinned machine, and the two runners carry identical labels (issue #301
+    tracks the fuller per-machine accounting this section still owes both) — (every
+    macOS-labeled job in this repo:
     `lint`, `test`, `checks-docs-drift`, `gomod-tidy-drift` (added with issue #249's
     drift guard — its own `go mod tidy` step is the clearest example of this
     paragraph's own point: it leans on this exact persistence to avoid a network
@@ -409,15 +416,19 @@ diagram doesn't redraw per platform.
     wipe of the Go build/module caches, added specifically to bound this risk), and
     the aorus `keepalive` job — `multi-arch-build-sample.yaml`'s own `build` job
     (a different job from ci.yaml's identically-named one above) lands here too, for
-    its darwin/amd64 and darwin/arm64 legs, only when that `workflow_dispatch`-only
+    its darwin/amd64 and darwin/arm64 legs, plus that same workflow's `wake-aorus`/
+    `sleep-aorus` pair (power the physical AORUS machine up before its Windows build
+    leg and back down after) — all three only when that `workflow_dispatch`-only
     workflow is manually run), `spyros-ionos-ssdf` (`test-linux`, and
     `multi-arch-build-sample.yaml`'s `build` again for its linux/amd64 leg),
     `spyros-parallels-ssdf` (`multi-arch-build-sample.yaml`'s `build`, linux/arm64
     leg), and `spyros-aorus-ssdf` — four machines, not
     one, each accumulating shared state across everything routed to it. The latter two
-    (and `wake-aorus`/`build-windows`/`sleep-aorus` on `spyros-mac-mini-ssdf` and
-    `spyros-aorus-ssdf` respectively) are idle unless `multi-arch-build-sample.yaml` (a
-    non-required, `workflow_dispatch`-only reference pipeline) is manually run.
+    are idle unless `multi-arch-build-sample.yaml` (a non-required,
+    `workflow_dispatch`-only reference pipeline) is manually run —
+    `spyros-parallels-ssdf` only for that workflow's linux/arm64 leg, and
+    `spyros-aorus-ssdf` only for its own `build-windows` job, which the two jobs
+    named above wake and put back to sleep around.
     Low-severity today (private repo, single collaborator with full access already has
     every capability this risk would grant), but a distinct mechanism from "an
     untrusted fork PR executes arbitrary code" (already covered on #138): even *trusted*

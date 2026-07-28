@@ -207,9 +207,12 @@ func selfHostedMacOSJobs(dir string) ([]string, error) {
 var bulletStartRe = regexp.MustCompile(`(?m)^  - \*\*Shared, persistent runner state`)
 
 // runnerStateSection extracts the runner-state bullet's own text — from
-// its start to the next top-level bullet or heading, whichever comes
-// first — so a job name mentioned elsewhere in the document doesn't
-// count as documented here.
+// its start to whichever of these comes first: the next nested "  - **"
+// bullet at this same two-space indent (a sibling residual-risk sub-
+// bullet), a 0-indent "- **" bullet (a sibling top-level residual risk —
+// the level this document's own residual-risks list actually uses), a
+// "## " heading, or a "### " heading — so a job name mentioned in any of
+// those doesn't count as documented here.
 func runnerStateSection(doc []byte) (string, error) {
 	text := string(doc)
 	loc := bulletStartRe.FindStringIndex(text)
@@ -217,11 +220,11 @@ func runnerStateSection(doc []byte) (string, error) {
 		return "", fmt.Errorf("no %q bullet found", "Shared, persistent runner state")
 	}
 	// loc[0] is the start of this bullet's own "  - **" — rest can't
-	// spuriously self-match either end marker below, since neither begins
-	// until after a "\n" and rest itself doesn't start with one.
+	// spuriously self-match any end marker below, since each one only
+	// begins after a "\n" and rest itself doesn't start with one.
 	rest := text[loc[0]:]
 	end := len(rest)
-	for _, marker := range []string{"\n  - **", "\n## "} {
+	for _, marker := range []string{"\n  - **", "\n- **", "\n## ", "\n### "} {
 		if i := strings.Index(rest, marker); i >= 0 && i < end {
 			end = i
 		}

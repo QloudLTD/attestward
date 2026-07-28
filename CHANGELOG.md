@@ -1104,6 +1104,56 @@ All notable changes to this project are documented here. Format follows
   (dependency-review-action is itself SCA-category), silently relying on the very
   swallow this issue fixes to hide the other's unmocked 404 — the fixture now mocks
   both.
+- **`tools/threatmodelguard`'s guarded enumeration was itself incomplete, and its
+  section scoping leaked past two real Markdown boundaries** (#286, two compounding
+  findings against #260/#272/#273, independently re-verified before merge). `wake-aorus`
+  and `sleep-aorus` (`multi-arch-build-sample.yaml`'s AORUS wake/sleep pair) were named
+  only in a separate "idle unless manually run" clause, not in the "every macOS-labeled
+  job in this repo" list `docs/threat-model.md` itself claims is exhaustive — and
+  `missingFromDoc` substring-searches the whole bullet, so that clause's backtick
+  mention satisfied the guard anyway, silently. The clause also tried to map three job
+  names to two machines with one "respectively," which can't express the real mapping.
+  Fixed by moving both names into the exhaustive list (where every other guarded job
+  already lives) and rewriting the idle-jobs clause without "respectively" —
+  `docs/threat-model.md` now names all twenty of this repo's self-hosted-macOS jobs
+  inside that one list, the doc-only fix #286 itself recommends.
+
+  That fix is prose convention, not enforcement, and is not the structural half of
+  finding 1 — deliberately left open, per the issue's own recommended option, so it
+  isn't recorded as closed here. `missingFromDoc` is unchanged: it still accepts a
+  name mentioned anywhere in the bullet, not just inside the list, so "in the list"
+  and "mentioned in the bullet" only coincide today because every name happens to be
+  written that way. Reviewer proved the gap survives: moving `sign-verify` out of the
+  list into another clause of the same bullet still passes. A pre-existing instance
+  of the same looseness was already there before this PR — `build` appears four times
+  in the bullet, and removing its one list-anchored mention still passes the guard
+  because it's also named three more times elsewhere in the same bullet (confirmed
+  directly). Separately, `runnerStateSection`'s end-of-section scan only recognized
+  `"\n  - **"` (a nested, two-space sibling bullet) and `"\n## "` as terminators —
+  neither a 0-indent `"- **"` bullet (the level this document's own residual-risks
+  list actually uses) nor a `"### "` subsection heading ended the scan, so a job name
+  appended after either would have silently satisfied the guard against a stale
+  enumeration. Added both markers; the doc comment above `runnerStateSection` also
+  overclaimed "top-level bullet" for the existing two-space marker, corrected to say
+  what it actually matches.
+
+  New tests `TestRunnerStateSection_ScopesPastA0IndentBullet` and
+  `TestRunnerStateSection_ScopesPastASubsectionHeading` cover the two new boundaries;
+  mutation-proved by reverting the marker-list change and confirming both (and only
+  both) redden, then restoring. `go run ./tools/threatmodelguard` stays green against
+  the corrected doc — today's enumeration is genuinely complete, which is a fact about
+  this edit, not a stronger guarantee the guard itself now enforces.
+
+  Also corrected, found during review: this same bullet (and the sibling residual risk
+  above it) named a single machine, `spyros-mac-mini-ssdf`, for every self-hosted-macOS
+  job, but this repo has two identically-labeled self-hosted macOS runners
+  (`spyros-mac-mini-ssdf` and `spyros-mac-studio-ssdf`) and every job selects by label
+  (`runs-on: [self-hosted, macOS]`), never by machine name, so either can run any of
+  them — confirmed against the live runners API, and `spyros-mac-studio-ssdf` has
+  actually executed several of the jobs this section attributes solely to the other
+  machine. Reworded both mentions to reflect label-based assignment across both
+  machines; the fuller per-machine accounting and isolation implications are out of
+  scope here and tracked in #301.
 
 ### Changed
 
