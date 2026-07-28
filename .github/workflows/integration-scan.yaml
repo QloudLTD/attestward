@@ -19,11 +19,69 @@ name: Integration scan (demo org)
 # no `needs:` on integration-scan — GitHub and Azure DevOps drift are
 # independent failure modes, so one platform's outage/token expiry must
 # never block the other platform's job from running or reporting.
+#
+# Issue #278 added the `push` trigger below: the weekly schedule alone only
+# catches drift in GitHub's/Azure DevOps's own API surface, which doesn't
+# track this repo's merge rate — a regression in this repo's own collector
+# code lands the moment a PR merges, not up to a week later. The path
+# filter is narrowed to what can actually move a fixtures.yaml/
+# fixtures-ado.yaml entry, or change how that comparison itself runs:
+#   - internal/collect/**, internal/mapping/**, mappings/** — the actual
+#     status-assignment/mapping logic every collector reads.
+#   - cmd/attestward/scan.go, scanrepos.go, scanconfig.go — runScan's own
+#     orchestration. scanrepos.go's resolveRepos runs unconditionally on
+#     both platforms' live path (scan.go's preflight step), not just
+#     GitHub's; scanconfig.go's defaultLookbackReleases/defaultLookbackMonths/
+#     defaultReleaseTagPattern feed collect.Scope and, through
+#     FilterReleasesInLookback, six collectors' verified-pass/fail logic on
+#     both platforms, and its platformAzureDevOps constant is hard-asserted
+#     by the ADO test.
+#   - cmd/attestward/integration_test.go, integration_ado_test.go — these
+#     define the assertion itself (assertFixtureChecks and friends), and the
+#     GitHub test also reads its scan's org/repos from fixtures.yaml, not
+#     just the expected statuses.
+#   - fixtures.yaml, fixtures-ado.yaml — not only the expected side of the
+#     comparison: fixtures.yaml also supplies the GitHub test's org/repos,
+#     and fixtures-ado.yaml's platform: is hard-asserted. The most likely
+#     way this filter would otherwise go dark is exactly the routine case
+#     of closing a drift issue by editing one of these files to match live
+#     reality.
+#   - this workflow file itself — so a bug in the go test invocation or the
+#     failure-reporting script below is caught by the very next push rather
+#     than waiting for next week's schedule.
+# internal/report (ADR-0005's producer/consumer seam), every renderer/docs/
+# CI/tools path, and internal/model/internal/integrity are deliberately
+# excluded: neither test's call graph reaches internal/report or
+# internal/integrity, and internal/model is pure types (a renamed Status
+# constant would be caught by the unit suite, which does run on every PR,
+# long before this workflow). cmd/attestward/root.go IS reached — scan.go
+# reads its `version` var into pack.ToolVersion — but stays excluded on a
+# different, more fragile basis than "not reached": neither test asserts
+# ToolVersion (assertFixtureChecks only reads Status/CheckID/Scope.Repo),
+# not that the reference doesn't exist. go.mod/go.sum are excluded too, but
+# for a narrower reason than the above: every collector's unit suite
+# already decodes recorded API JSON through the real transport chain, so a
+# decode-breaking dependency bump reddens `test` on its own PR first — a
+# safety net scanconfig.go's constants and the fixtures files don't have.
 
 on:
   schedule:
     - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC — off-the-hour to avoid GitHub Actions' documented cron pile-up
   workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'internal/collect/**'
+      - 'internal/mapping/**'
+      - 'mappings/**'
+      - 'cmd/attestward/scan.go'
+      - 'cmd/attestward/scanrepos.go'
+      - 'cmd/attestward/scanconfig.go'
+      - 'cmd/attestward/integration_test.go'
+      - 'cmd/attestward/integration_ado_test.go'
+      - 'fixtures.yaml'
+      - 'fixtures-ado.yaml'
+      - '.github/workflows/integration-scan.yaml'
 
 permissions:
   contents: read
@@ -69,7 +127,18 @@ jobs:
           script: |
             const title = "Integration scan drift: demo org no longer matches fixtures.yaml";
             const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = `The scheduled integration scan against the demo org (issue #15) failed.\n\nThis usually means either a real regression in a collector, or GitHub's API behavior drifted out from under an assumption a collector makes.\n\nFailed run: ${runURL}\n\nClose this issue once the drift is understood and either the collector or \`fixtures.yaml\` is fixed to match.`;
+            // eventName-aware closing clause: since issue #278 added a
+            // push-to-main trigger alongside the weekly schedule, a merged
+            // PR can open this issue against itself — the wording must read
+            // sensibly either way, not assume the schedule fired it. On a
+            // push, name the merge commit too: it's the first thing a
+            // triager needs, and the run URL only gets there indirectly.
+            const triggerNote = context.eventName === "push"
+              ? ` (triggered by a push to main, commit ${context.sha})`
+              : context.eventName === "schedule"
+                ? " (this week's scheduled run)"
+                : ` (triggered by ${context.eventName})`;
+            const body = `The integration scan against the demo org (issue #15) failed${triggerNote}.\n\nThis usually means one of three things: a real regression in a collector, GitHub's API behavior drifting out from under an assumption a collector makes, or a deliberate change to what this tool detects (e.g. a new or changed scanner signature) that legitimately moves a fixtures.yaml entry and just needs that file updated to match.\n\nFailed run: ${runURL}\n\nClose this issue once the drift is understood and either the collector or \`fixtures.yaml\` is fixed to match.`;
             const label = "integration-drift";
 
             const existing = await github.rest.issues.listForRepo({
@@ -184,7 +253,16 @@ jobs:
           script: |
             const title = "Integration scan drift: ADO demo project no longer matches fixtures-ado.yaml";
             const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = `The scheduled integration scan against the Azure DevOps demo project (issue #155) failed.\n\nThis usually means either a real regression in an azuredevops collector, or Azure DevOps's API behavior drifted out from under an assumption a collector makes.\n\nFailed run: ${runURL}\n\nClose this issue once the drift is understood and either the collector or \`fixtures-ado.yaml\` is fixed to match.`;
+            // eventName-aware closing clause: same reasoning as the GitHub
+            // job's identical comment above — issue #278's push-to-main
+            // trigger means a merged PR can open this issue against itself,
+            // and naming the merge commit is the first thing a triager needs.
+            const triggerNote = context.eventName === "push"
+              ? ` (triggered by a push to main, commit ${context.sha})`
+              : context.eventName === "schedule"
+                ? " (this week's scheduled run)"
+                : ` (triggered by ${context.eventName})`;
+            const body = `The integration scan against the Azure DevOps demo project (issue #155) failed${triggerNote}.\n\nThis usually means one of three things: a real regression in an azuredevops collector, Azure DevOps's API behavior drifting out from under an assumption a collector makes, or a deliberate change to what this tool detects (e.g. a new or changed scanner signature) that legitimately moves a fixtures-ado.yaml entry and just needs that file updated to match.\n\nFailed run: ${runURL}\n\nClose this issue once the drift is understood and either the collector or \`fixtures-ado.yaml\` is fixed to match.`;
             // A DISTINCT label from the GitHub job's "integration-drift":
             // both jobs' failure-tracking steps only look at the FIRST open
             // issue carrying their label, with no other disambiguation — if

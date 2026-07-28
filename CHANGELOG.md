@@ -1157,6 +1157,22 @@ All notable changes to this project are documented here. Format follows
 
 ### Changed
 
+- **`integration-scan.yaml` gains a path-filtered `push`-to-`main` trigger alongside its
+  weekly schedule** (#278): the schedule alone only catches drift in GitHub's/Azure
+  DevOps's own API surface, which doesn't track this repo's merge rate — a regression in
+  this repo's own collector code now surfaces the moment a qualifying PR merges rather
+  than waiting up to a week. Path-filtered to the trees that can move a
+  `fixtures.yaml`/`fixtures-ado.yaml` entry or change how that comparison runs — the
+  collector/mapping logic (`internal/collect/**`, `internal/mapping/**`, `mappings/**`),
+  `runScan`'s orchestration (`cmd/attestward/scan.go`, `scanrepos.go`, `scanconfig.go`),
+  the two integration tests and their fixture tables, and the workflow file itself. The
+  workflow's own header comment records the full derivation, including what is
+  deliberately excluded and why — not repeated here, since an enumerated list in two
+  places is exactly the kind of claim that drifts. Both drift-tripwire issue bodies now
+  name their actual trigger (push vs. schedule vs. manual dispatch) instead of assuming
+  "scheduled", and both now name a third failure cause alongside a real regression and
+  platform API drift: a deliberate, legitimate change to what the tool detects that just
+  needs its fixtures file updated to match.
 - **`C04.vars.secret-hygiene`'s sensitive-variable-name pattern widened to v2** (#181,
   from #180's own review). v1 (`(?i)(password|passwd|secret|token|api[_-]?key|
   connectionstring)`) was internally inconsistent — `api[_-]?key` tolerated a separator
