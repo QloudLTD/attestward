@@ -44,6 +44,7 @@ signature backed by a real fixture workflow, or for ADO, a fixture pipeline).
 | Path | Purpose |
 |---|---|
 | `docs/checks-reference.md` | Generated (issue #30) — never hand-edit; regenerate with `make checks-docs` from `mappings/*.yaml` + the collector registry, CI enforces via `make checks-docs-check` |
+| `THIRD-PARTY-NOTICES.md` | Generated (issue #282) — never hand-edit; regenerate with `make notices` from the resolved module graph (`go list -deps`, every OS/arch the release ships) + each dependency's own LICENSE in the module cache, CI enforces via `make notices-check`; ships in every release archive alongside `LICENSE`/`NOTICE` (`.goreleaser.yaml`'s `archives.files`) |
 | `docs/architecture.md` | Living architecture doc — update in the same PR as any structural change |
 | `docs/threat-model.md` | Living threat model — finalized in issue #31, update as claims change |
 | `docs/adr/` | Permanent decision records (Nygard format) — never edited after acceptance, superseded instead |

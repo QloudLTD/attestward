@@ -8,6 +8,32 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **Release archives now carry third-party attribution and our own `NOTICE`** (#282).
+  `.goreleaser.yaml`'s `archives.files` was just `LICENSE`/`README.md` — every published
+  `attestward_<version>_<os>_<arch>` archive shipped without the copyright-notice
+  attribution that five of the binary's eight statically-linked third-party modules'
+  licenses explicitly require to accompany binary redistribution (BSD-3:
+  `google/go-github/v75`, `google/go-querystring`, `spf13/pflag`; MIT:
+  `shurcooL/githubv4`, `gopkg.in/yaml.v3`), and without our own `NOTICE`, which
+  Apache-2.0 §4(d) binds a redistributor of derivative works to carry — a downstream
+  recipient of only the tarball had no way to know it exists. Re-derived the dependency
+  list from the real module graph rather than trusting a hand-transcribed one: `go list
+  -deps ./cmd/attestward` across all five GOOS/GOARCH goreleaser builds (not just the
+  host platform) turns up a ninth module the naive single-platform check misses —
+  `github.com/inconshreveable/mousetrap` (Apache-2.0), pulled in by `cobra` only on
+  windows/amd64 for its double-click-detection helper. New generated file
+  `THIRD-PARTY-NOTICES.md` (`hack/gen-third-party-notices.sh`, committed and
+  drift-guarded rather than produced only inside the release job — same
+  generated/checked pairing as `checks-docs`/`checks-docs-check` and
+  `examples`/`examples-check`): reads the resolved module graph plus each dependency's
+  own LICENSE (and NOTICE, for `yaml.v3`'s dual MIT/Apache split) already extracted in
+  the local module cache, no network call and no new tool (`google/go-licenses`/
+  `Songmu/gocredits` both considered, a hermetic hack/ script preferred). New
+  `make notices`/`make notices-check` pair and a `third-party-notices-drift` CI job,
+  same shape as the existing drift guards. `archives.files` now lists `LICENSE`,
+  `NOTICE`, `THIRD-PARTY-NOTICES.md`, `README.md`; verified by extracting a
+  `goreleaser release --snapshot --clean --skip=sign` archive and confirming all four
+  are present.
 - **`tools/threatmodelguard` now also guards `docs/threat-model.md`'s "ten ADO
   collector packages" list** (#274, option 2 of that issue's four). Enumerates every
   package directly under `internal/collect/azuredevops` exposing a

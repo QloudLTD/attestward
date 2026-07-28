@@ -55,6 +55,10 @@ jobs:
       # job below) actually catches drift and actually passes on a
       # genuinely up-to-date pack, not just that it runs without erroring.
       - run: hack/check-examples-drift_test.sh
+      # Issue #282: proves hack/check-third-party-notices-drift.sh (the
+      # third-party-notices-drift job below) actually catches a
+      # hand-edited THIRD-PARTY-NOTICES.md, not just that it runs.
+      - run: hack/check-third-party-notices-drift_test.sh
       # Coverage is archival — nothing downstream consumes it — so its upload
       # must never fail a build whose tests passed. GitHub's artifact-storage
       # quota (recalculated every 6-12h) reddened green runs on PRs #202/#203:
@@ -171,6 +175,21 @@ jobs:
         with:
           go-version-file: go.mod
       - run: make examples-check
+
+  # Issue #282's drift guard, same shape as checks-docs-drift/examples-drift
+  # above: THIRD-PARTY-NOTICES.md is generated from the resolved module
+  # graph plus each dependency's own LICENSE file in the module cache,
+  # never hand-edited — see hack/gen-third-party-notices.sh's own header
+  # comment, including why it's not enough to run this on one platform.
+  third-party-notices-drift:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: make notices-check
+
   # Issue #209: checks-docs-drift above only compares the generated doc
   # against the rubric *source* (mappings/*.yaml + the collector
   # registry) — it has no opinion on whether a collector's checkRubrics

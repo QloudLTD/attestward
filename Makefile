@@ -4,7 +4,7 @@ COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
-.PHONY: build test lint tidy tidy-check checks-docs checks-docs-check examples examples-check
+.PHONY: build test lint tidy tidy-check checks-docs checks-docs-check examples examples-check notices notices-check
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/attestward
@@ -48,3 +48,12 @@ examples:
 
 examples-check:
 	./hack/check-examples-drift.sh
+
+# Issue #282: THIRD-PARTY-NOTICES.md is generated from the resolved
+# module graph + each dependency's own LICENSE file in the module
+# cache — same generated/checked pairing as checks-docs/examples above.
+notices:
+	./hack/gen-third-party-notices.sh
+
+notices-check:
+	./hack/check-third-party-notices-drift.sh

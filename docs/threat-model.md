@@ -405,7 +405,8 @@ diagram doesn't redraw per platform.
     fetch on every run, see that job's own comment), `examples-drift` (added with
     issue #228's drift guard), `rubric-drift-check` (added with issue #209's drift
     guard), `threat-model-drift` (issue #260's own drift guard, keeping this very
-    enumeration current, including its own entry), `build`
+    enumeration current, including its own entry), `third-party-notices-drift`
+    (added with issue #282's drift guard), `build`
     (cross-compiles every target platform — see `ci.yaml`'s own
     comment for why this replaced four separate per-arch runners), `goreleaser-dry-run`,
     the `release.yaml` `goreleaser` job, `integration-scan`,
