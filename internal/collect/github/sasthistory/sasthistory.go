@@ -133,7 +133,9 @@ var checkRubrics = map[string]map[model.Status]string{
 			"dropped as unresolvable either — genuinely nothing to evaluate; or there are zero matched " +
 			"workflows and one or more of this repo's own workflows could not be fully inspected (see " +
 			"Facts.skipped_workflows) — the same evidence gap C05.sast.tool-configured itself goes " +
-			"not-checkable for, so this check does too rather than asserting a confident absence over it",
+			"not-checkable for, so this check does too rather than asserting a confident absence over it; " +
+			"or the workflow run-history fetch itself failed for one or more matched workflows (issue #287) " +
+			"— an incomplete run-history pool can't be trusted to certify a genuine per-release absence",
 	},
 	"C05.sast.cadence": {
 		model.StatusVerifiedPass: "one or more SAST runs were observed in the lookback window, backed by " +
@@ -146,7 +148,9 @@ var checkRubrics = map[string]map[model.Status]string{
 			"zero SAST runs were observed in the lookback window",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or no SAST tool is configured at " +
 			"all (no workflow match of any confidence, and CodeQL default setup does not read " +
-			"\"configured\") — nothing to compute cadence for",
+			"\"configured\") — nothing to compute cadence for; or a SAST tool is configured, but the " +
+			"workflow run-history fetch itself failed for one or more matched workflows (issue #287) — an " +
+			"incomplete run-history pool can't be trusted to certify a genuine zero-run absence",
 	},
 	"C05.sast.default-setup": {
 		model.StatusVerifiedPass: "CodeQL default setup's state reads \"configured\"",
@@ -370,11 +374,31 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	}
 	filteredReleases := runhistory.FilterReleasesInLookback(releases, tagPattern, scope.LookbackReleases, scope.LookbackMonths, now)
 
+	// runsErr records the first workflow run-history fetch failure, if any
+	// (issue #287). The loop still queries every remaining matched
+	// workflow rather than aborting on the first failure — an unrelated
+	// workflow's runs are still worth gathering for provenance/debugging —
+	// but checkRanPerRelease and checkCadence both below consume the
+	// merged runs slice as a single pool, and a partial fetch can silently
+	// undercount it exactly like a total failure would: a release the
+	// failed workflow actually covered would read as "missing," and a run
+	// it produced would simply vanish from cadence's count. Both checks
+	// treat ANY runsErr as tainting their own result (not-checkable,
+	// mirroring azuredevops/sasthistory's identical buildsErr shape)
+	// rather than trying to attribute which specific release/count in the
+	// merged pool is still trustworthy — the previous behavior (silently
+	// `continue`ing past the error) let runs default to whatever the
+	// surviving workflows happened to produce, which is exactly how #287
+	// minted false verified-fail statuses from a transient rate limit.
 	var runs []runhistory.RunInfo
+	var runsErr error
 	for _, mw := range matchedWorkflows {
 		wfRuns, err := runhistory.FetchWorkflowRuns(ctx, client, org, repo, mw.WorkflowID, windowStart)
 		if err != nil {
-			continue // an individual workflow's run history failing to fetch doesn't invalidate the rest
+			if runsErr == nil {
+				runsErr = fmt.Errorf("workflow %d (%s): %w", mw.WorkflowID, mw.Path, err)
+			}
+			continue
 		}
 		for _, r := range wfRuns {
 			runs = append(runs, runhistory.RunInfo{
@@ -399,8 +423,8 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	return []model.CheckResult{
 		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
-		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, hasMatchedWorkflows, skippedWorkflows, sharedProv),
-		checkCadence(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, cadence, sharedProv),
+		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, hasMatchedWorkflows, skippedWorkflows, runsErr, sharedProv),
+		checkCadence(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, cadence, runsErr, sharedProv),
 		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, dsProv),
 	}
 }

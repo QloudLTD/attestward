@@ -253,6 +253,13 @@ func TestCollect_WorkflowBasedSCATool_AllChecksResolveCleanly(t *testing.T) {
 	registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{
 		{"head_sha": "sha1", "head_branch": branch, "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
 	})
+	// dependency-review-action is itself SCA-category (mappings/scanner-signatures.yaml),
+	// so it's a second matched workflow alongside trivy — its own run
+	// history must be registered too (issue #287's review: this fixture
+	// previously left workflow 2's runs endpoint unmocked, and the bug
+	// this test now guards against silently swallowed the resulting fetch
+	// error rather than surfacing it).
+	registerWorkflowRuns(t, mux, org, repo, 2, []map[string]any{})
 	registerNoAlerts(t, mux, org, repo)
 	registerRequiredStatusCheck(t, mux, org, repo, branch, "Dependency Review")
 
@@ -597,6 +604,50 @@ func TestCollect_ReleaseListingFailure_RanPerReleaseSurfacesRealReason(t *testin
 	}
 }
 
+// TestCollect_WorkflowRunsFetch403_RanPerReleaseNotCheckable is issue #287's
+// GitHub-side twin for C06: a real Trivy workflow is matched, one release is
+// in scope, and everything succeeds except the run-history call (GET
+// .../actions/workflows/{id}/runs), which returns a 403 — a realistic
+// secondary-rate-limit response. Before this fix, collectRepo silently
+// `continue`d past that error, leaving runs empty, so ran-per-release
+// asserted "no matched SCA run at all" (verified-fail) from a query that
+// never actually returned.
+func TestCollect_WorkflowRunsFetch403_RanPerReleaseNotCheckable(t *testing.T) {
+	org, repo, branch := "attestward-demo", "sca-rate-limited-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	registerWorkflows(t, mux, org, repo, workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML})
+	registerOneRelease(t, mux, org, repo, "v1.2.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows/1/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+	})
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m["C06.sca.tool-configured"].Status; got != model.StatusVerifiedPass {
+		t.Errorf("tool-configured = %q, want verified-pass (unaffected — it never reads run history); reason=%q", got, m["C06.sca.tool-configured"].Reason)
+	}
+
+	ranPerRelease := m["C06.sca.ran-per-release"]
+	if ranPerRelease.Status != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable, NOT verified-fail — a failed run-history query is not a confirmed per-release absence; reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+	if v, ok := ranPerRelease.Facts["per_release"]; ok {
+		t.Errorf("ran-per-release Facts[per_release] = %v, want the key absent — coverage was computed from an incomplete runs pool", v)
+	}
+	if dropped, ok := ranPerRelease.Facts["dropped_tags"].(int); !ok || dropped != 0 {
+		t.Errorf("ran-per-release Facts[dropped_tags] = %v, want 0 (still reported — unaffected by the run-history failure)", ranPerRelease.Facts["dropped_tags"])
+	}
+}
+
 // TestCollect_DependabotConfigFetchFailure_ToolConfiguredAndConfigNotCheckable
 // pins the fix for a second silently-swallowed error: collectRepo used to
 // discard fetchDependabotConfig's own resp/err entirely (`cfg,
@@ -722,6 +773,20 @@ func TestCollect_LowConfidenceMatchPlusDependabotFetchFails_FactsOmitDependabotF
 	}
 	if v, ok := got.Facts["low_confidence_match_only"]; ok {
 		t.Errorf("Facts[low_confidence_match_only] = %v, want the key absent — its value depends on the same unconfirmed Dependabot fetch", v)
+	}
+
+	// Issue #287's secondary finding: tool_names must not silently include
+	// "Dependabot" (or silently omit it as a confirmed exclusion) from an
+	// unconfirmed dependabotConfigured value either — same source, same
+	// hazard as the two keys just checked above.
+	names, ok := got.Facts["tool_names"].([]string)
+	if !ok {
+		t.Fatalf("Facts[tool_names] = %v (%T), want a []string", got.Facts["tool_names"], got.Facts["tool_names"])
+	}
+	for _, n := range names {
+		if n == "Dependabot" {
+			t.Errorf("Facts[tool_names] = %v, want it to exclude \"Dependabot\" — the Dependabot config fetch failed, so its presence can't be reported as a confirmed fact", names)
+		}
 	}
 }
 

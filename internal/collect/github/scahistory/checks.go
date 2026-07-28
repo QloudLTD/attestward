@@ -106,7 +106,18 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 			names[m.Name] = true
 		}
 	}
-	if dependabotConfigured {
+	// Gated on dependabotErr == nil, matching the two Facts keys below that
+	// derive from this identical dependabotConfigured value (issue #287,
+	// secondary finding). fetchDependabotConfig already normalizes every
+	// real fetch failure to exists=false (so dependabotConfigured is false
+	// whenever dependabotErr != nil regardless of this gate today) — but
+	// leaving it implicit meant tool_names' own inclusion/exclusion of
+	// "Dependabot" silently depended on that other function's contract
+	// rather than this function's own explicit not-confirmed handling, the
+	// same kind of implicit coupling that produced #287's main defect.
+	// Explicit here so a future change to fetchDependabotConfig's contract
+	// can't silently reintroduce it.
+	if dependabotConfigured && dependabotErr == nil {
 		names["Dependabot"] = true
 	}
 
@@ -172,7 +183,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 // this check can actually verify. In that case the check is honestly
 // not-checkable, pointing at C06.sca.alerts-triaged as the check that DOES
 // have real Dependabot-sourced evidence (open alert counts/ages).
-func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly, dependabotUnknown, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, relResp *ghgithub.Response, relErr error, prov []model.Provenance) model.CheckResult {
+func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly, dependabotUnknown, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, relResp *ghgithub.Response, relErr error, runsErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.ran-per-release"
 
 	// dependabotUnknown (no workflow-based SCA evidence, and the
@@ -237,6 +248,20 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 			Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"dropped_tags": droppedTags},
+		}
+	}
+
+	// runsErr (issue #287): mirrors sasthistory's identical guard — see
+	// that package's checkRanPerRelease for the full reasoning. Placed in
+	// the same position (after the "nothing to evaluate" early return
+	// above, before the coverage table is built), keeping the same
+	// unconditional dropped_tags inclusion that early return already uses.
+	if runsErr != nil {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("could not fetch workflow run history to evaluate release coverage: %v", runsErr),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 			Facts: map[string]any{"dropped_tags": droppedTags},
 		}
 	}

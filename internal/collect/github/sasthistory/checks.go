@@ -192,7 +192,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 // verified-pass, and never masking a genuine verified-fail from the
 // releases that DID resolve) is the honest reflection of "some releases in
 // scope were never actually evaluated."
-func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, prov []model.Provenance) model.CheckResult {
+func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, runsErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.ran-per-release"
 
 	// A skip-caused false verified-fail (issue #202's review finding): with
@@ -226,6 +226,33 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 			Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"dropped_tags": droppedTags},
+		}
+	}
+
+	// runsErr (issue #287): collectRepo's workflow run-history fetch failed
+	// for at least one matched workflow, so the merged runs pool the
+	// coverage table below is computed from is potentially incomplete — a
+	// release reading CoverageMissing here could really be a release the
+	// failed workflow covered, not a confirmed absence. Mirrors
+	// azuredevops/sasthistory's identical buildsErr guard, placed in the
+	// same position (after the "nothing to evaluate" early return above,
+	// before the coverage table is built) and keeping the same
+	// unconditional dropped_tags inclusion that early return already uses.
+	//
+	// Reason uses runsErr's plain %v rather than routing through
+	// notCheckableReason: that helper maps any 403 to "token lacks
+	// permission to read org/repo," which is actively wrong for the
+	// scenario #287 exists to name — a secondary rate limit, not a
+	// permissions problem — and notCheckableReason has no way to tell them
+	// apart from a bare *github.Response (FetchWorkflowRuns doesn't return
+	// one). The raw API error text is less polished but not misleading;
+	// don't "fix" this into notCheckableReason without solving that first.
+	if runsErr != nil {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("could not fetch workflow run history to evaluate release coverage: %v", runsErr),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 			Facts: map[string]any{"dropped_tags": droppedTags},
 		}
 	}
@@ -281,13 +308,30 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 // stay unguarded — only the Facts value gets the unconfirmedDSFailure gate
 // below, matching #258's precedent exactly rather than inventing a second
 // shape.
-func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, cadence runhistory.CadenceStats, prov []model.Provenance) model.CheckResult {
+func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, cadence runhistory.CadenceStats, runsErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.cadence"
 
 	if !toolConfigured(matched, ds) {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
 			Reason: "no SAST tool is configured; cadence cannot be computed",
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+		}
+	}
+
+	// runsErr (issue #287): mirrors checkRanPerRelease's identical guard —
+	// a SAST tool IS configured, but at least one matched workflow's
+	// run-history fetch failed, so cadence.RunCount below is a potential
+	// undercount, not a confirmed zero. Checked before computing
+	// lowConfidenceOnly/status, mirroring azuredevops/sasthistory's own
+	// buildsErr placement (right after its identical tool-configured
+	// guard). Reason uses runsErr's plain %v rather than notCheckableReason
+	// for the same reason checkRanPerRelease's own identical guard does —
+	// see its doc comment.
+	if runsErr != nil {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("could not fetch workflow run history to compute cadence: %v", runsErr),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		}
 	}

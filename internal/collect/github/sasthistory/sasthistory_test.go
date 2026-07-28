@@ -493,6 +493,57 @@ func TestCollect_ConfiguredButRunFails_RanPerReleaseIsPartial(t *testing.T) {
 	}
 }
 
+// TestCollect_WorkflowRunsFetch403_CadenceAndRanPerReleaseNotCheckable is
+// issue #287's own reproduction: a real CodeQL workflow is configured, one
+// release is in scope, and everything succeeds EXCEPT the run-history call
+// (GET .../actions/workflows/{id}/runs), which returns a 403 (a secondary
+// rate limit is a realistic real-world cause). Before this fix, collectRepo
+// silently `continue`d past that error, leaving runs empty — cadence then
+// asserted "no SAST runs were found" and ran-per-release asserted "no
+// matched SAST run at all," both verified-fail, from a query that never
+// actually returned. tool-configured is unaffected: it never reads run
+// history, only workflow-match evidence, which resolved fine.
+func TestCollect_WorkflowRunsFetch403_CadenceAndRanPerReleaseNotCheckable(t *testing.T) {
+	mux := http.NewServeMux()
+	registerRepo(t, mux, "attestward-demo", "rate-limited-repo", "main")
+	registerCodeQLWorkflow(t, mux, "attestward-demo", "rate-limited-repo")
+	registerOneRelease(t, mux, "attestward-demo", "rate-limited-repo", "v1.2.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	mux.HandleFunc("/repos/attestward-demo/rate-limited-repo/actions/workflows/1/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+	})
+	registerDefaultSetup(t, mux, "attestward-demo", "rate-limited-repo", "not-configured")
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"rate-limited-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m["C05.sast.tool-configured"].Status; got != model.StatusVerifiedPass {
+		t.Errorf("tool-configured = %q, want verified-pass (unaffected — it never reads run history); reason=%q", got, m["C05.sast.tool-configured"].Reason)
+	}
+
+	cadence := m["C05.sast.cadence"]
+	if cadence.Status != model.StatusNotCheckable {
+		t.Errorf("cadence = %q, want not-checkable, NOT verified-fail — a failed run-history query is not a confirmed zero-run absence; reason=%q", cadence.Status, cadence.Reason)
+	}
+	for _, key := range []string{"run_count", "runs_per_week", "longest_gap_days"} {
+		if v, ok := cadence.Facts[key]; ok {
+			t.Errorf("cadence Facts[%s] = %v, want the key absent — its value would be a defaulted zero from a failed query, not a confirmed observation", key, v)
+		}
+	}
+
+	ranPerRelease := m["C05.sast.ran-per-release"]
+	if ranPerRelease.Status != model.StatusNotCheckable {
+		t.Errorf("ran-per-release = %q, want not-checkable, NOT verified-fail — a failed run-history query is not a confirmed per-release absence; reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+	if v, ok := ranPerRelease.Facts["per_release"]; ok {
+		t.Errorf("ran-per-release Facts[per_release] = %v, want the key absent — coverage was computed from an incomplete runs pool", v)
+	}
+}
+
 // TestCollect_CodeQLDefaultSetupDynamicWorkflow_RunHistoryObserved covers
 // the common real-world case: CodeQL default setup is enabled, and GitHub
 // surfaces it via ListWorkflows as a virtual entry at

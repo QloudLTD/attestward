@@ -1011,6 +1011,63 @@ All notable changes to this project are documented here. Format follows
   claim. No schema change and nothing to migrate: existing packs aren't rewritten, and
   no downstream consumer reads `scope.project` on a per-result basis (`internal/report`'s
   own renderers do, but only for the checks that keep it, so they're unaffected).
+- **GitHub `sasthistory`/`scahistory` no longer assert `verified-fail` from a
+  workflow-run-history query that never returned** (#287, found by the independent
+  review of #284, which had claimed to close "the last known instance of the #258
+  conflation class" — it didn't; #258's own class definition — "any Fact whose value
+  is derived from a variable that silently defaults on error" — always covered this
+  run-history variable too, a different variable than #267's sweep scoped to.
+  #268's title overclaimed the same way and was corrected separately, not by this
+  PR; #284's commit message made the identical overclaim and is immutable in git
+  history — left as written rather than misdescribed as fixed here). `sasthistory.go`'s
+  `collectRepo` looped `runhistory.FetchWorkflowRuns` once per matched SAST workflow
+  and `continue`d past a failure with no record of it; `runs` silently defaulted to
+  whatever the surviving workflows produced, and `checkCadence`/`checkRanPerRelease`
+  both asserted confirmed values (Facts and Reason) from that incomplete pool.
+  Reproduced: a real `codeql-action/analyze` workflow, one release, a good token, but
+  the workflow-runs endpoint returning 403 (secondary rate limit) or 500 — everything
+  else succeeds, and the pack emitted `C05.sast.cadence`/`C05.sast.ran-per-release`
+  both `verified-fail`, asserting a confirmed absence from a query that failed.
+  `scahistory.go`'s identical loop fed `checkRanPerRelease`'s `per_release` the same
+  way.
+
+  Both collectors now track the first per-workflow fetch error (`runsErr`) while
+  still querying every remaining matched workflow (an unrelated workflow's runs are
+  still worth gathering), then route to `not-checkable` rather than `verified-fail`
+  when the merged runs pool is tainted by ANY workflow's failure — not just the
+  failing workflow's own contribution: `checkCadence`'s run count and
+  `checkRanPerRelease`'s per-release coverage both read the merged pool as a single
+  unit, so a partial failure can silently undercount it exactly like a total one
+  would (a release the failed workflow actually covered would still read
+  "missing"). Mirrors `azuredevops/sasthistory`'s and `azuredevops/scahistory`'s
+  identical `buildsErr` shape (checks.go:357/458/404) rather than inventing a new
+  one — same early-return-before-either-Facts-map position, same unconditional
+  `dropped_tags` inclusion on the ran-per-release path. Derived Facts keys
+  (`run_count`, `runs_per_week`, `longest_gap_days`, `per_release`) are omitted
+  entirely rather than reported as a defaulted zero, preserving #258's invariant
+  that a `verified-fail` status is never paired with an omitted Facts key.
+
+  Secondary finding also addressed: `scahistory/checks.go`'s `tool_names` added
+  `"Dependabot"` from `dependabotConfigured` without an explicit `dependabotErr ==
+  nil` gate, unlike the two Facts keys beside it. Investigated and confirmed
+  behaviorally inert today — `fetchDependabotConfig` already normalizes every real
+  fetch failure to `exists=false`, so `dependabotConfigured` is false whenever
+  `dependabotErr != nil` regardless of the gate — but made explicit anyway so
+  `tool_names`' correctness stops silently depending on that other function's
+  contract, plus a regression test pinning the invariant (mutation-proved against a
+  simulated contract regression, not against this no-op diff, since there is no
+  live behavior for that specific gate to counterfactually prove).
+
+  New tests: `TestCollect_WorkflowRunsFetch403_CadenceAndRanPerReleaseNotCheckable`
+  and `TestCheckRanPerRelease_RunsErr_NotCheckableFactsOmitPerRelease` (sasthistory),
+  `TestCollect_WorkflowRunsFetch403_RanPerReleaseNotCheckable` (scahistory) — neither
+  package previously had any test exercising a failing `/runs` response. Fixing this
+  also exposed a real pre-existing gap in
+  `TestCollect_WorkflowBasedSCATool_AllChecksResolveCleanly`'s own fixture: it
+  registered run history for only one of its two matched SCA workflows
+  (dependency-review-action is itself SCA-category), silently relying on the very
+  swallow this issue fixes to hide the other's unmocked 404 — the fixture now mocks
+  both.
 
 ### Changed
 

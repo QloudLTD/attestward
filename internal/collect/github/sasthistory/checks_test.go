@@ -1,6 +1,8 @@
 package sasthistory
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/sioakim/attestward/internal/collect/github/runhistory"
@@ -26,7 +28,7 @@ func TestCheckRanPerRelease_MixedMissingAndFailed_IsVerifiedFail(t *testing.T) {
 		{Release: filteredReleases[2], Status: runhistory.CoverageRan},
 	}
 
-	got := checkRanPerRelease("attestward-demo", "mixed-repo", filteredReleases, coverage, 0, true, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "mixed-repo", filteredReleases, coverage, 0, true, nil, nil, nil)
 
 	if got.Status != model.StatusVerifiedFail {
 		t.Errorf("Status = %q, want %q; reason=%q", got.Status, model.StatusVerifiedFail, got.Reason)
@@ -61,7 +63,7 @@ func TestCheckRanPerRelease_ZeroMatchedWithSkip_NotCheckableNotFail(t *testing.T
 	}
 	skipped := []runhistory.SkippedWorkflow{{Path: ".github/workflows/mystery.yml", Reason: "fetch content failed: 404"}}
 
-	got := checkRanPerRelease("attestward-demo", "flaky-repo", filteredReleases, coverage, 0, false, skipped, nil)
+	got := checkRanPerRelease("attestward-demo", "flaky-repo", filteredReleases, coverage, 0, false, skipped, nil, nil)
 
 	if got.Status != model.StatusNotCheckable {
 		t.Errorf("Status = %q, want not-checkable (a same-repo skip must cap what would otherwise be verified-fail); reason=%q", got.Status, got.Reason)
@@ -82,9 +84,43 @@ func TestCheckRanPerRelease_ZeroMatchedNoSkip_StillVerifiedFail(t *testing.T) {
 		{Release: filteredReleases[0], Status: runhistory.CoverageMissing},
 	}
 
-	got := checkRanPerRelease("attestward-demo", "bare-repo", filteredReleases, coverage, 0, false, nil, nil)
+	got := checkRanPerRelease("attestward-demo", "bare-repo", filteredReleases, coverage, 0, false, nil, nil, nil)
 
 	if got.Status != model.StatusVerifiedFail {
 		t.Errorf("Status = %q, want verified-fail (no skip, so this is a confirmed absence); reason=%q", got.Status, got.Reason)
+	}
+}
+
+// TestCheckRanPerRelease_RunsErr_NotCheckableFactsOmitPerRelease is issue
+// #287's regression case: collectRepo's own workflow run-history fetch
+// (runhistory.FetchWorkflowRuns) can fail for a matched workflow while
+// everything else succeeds — the coverage slice passed in would then be
+// silently derived from an incomplete runs pool (a release the failed
+// workflow actually covered would still read CoverageMissing). Even with
+// coverage claiming every release is missing (which, pre-fix, drove
+// verified-fail), a non-nil runsErr must override that and produce
+// not-checkable instead, with Facts["per_release"] entirely absent — the
+// coverage table itself is untrustworthy evidence here, not just its
+// consequence.
+func TestCheckRanPerRelease_RunsErr_NotCheckableFactsOmitPerRelease(t *testing.T) {
+	filteredReleases := []runhistory.ReleaseInfo{{TagName: "v1.2.0"}}
+	coverage := []runhistory.ReleaseCoverage{
+		{Release: filteredReleases[0], Status: runhistory.CoverageMissing},
+	}
+	runsErr := errors.New("workflow 1 (.github/workflows/codeql.yml): GET .../runs: 403 secondary rate limit")
+
+	got := checkRanPerRelease("attestward-demo", "rate-limited-repo", filteredReleases, coverage, 0, true, nil, runsErr, nil)
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("Status = %q, want not-checkable (the run-history fetch itself failed — coverage can't be trusted); reason=%q", got.Status, got.Reason)
+	}
+	if !strings.Contains(got.Reason, "run history") {
+		t.Errorf("Reason = %q, want it to mention the run-history fetch failure", got.Reason)
+	}
+	if v, ok := got.Facts["per_release"]; ok {
+		t.Errorf("Facts[per_release] = %v, want the key absent — coverage was computed from an incomplete runs pool, not a confirmed observation", v)
+	}
+	if dropped, ok := got.Facts["dropped_tags"].(int); !ok || dropped != 0 {
+		t.Errorf("Facts[dropped_tags] = %v, want 0 (still reported — unaffected by the run-history failure)", got.Facts["dropped_tags"])
 	}
 }

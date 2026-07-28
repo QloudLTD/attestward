@@ -129,7 +129,9 @@ var checkRubrics = map[string]map[model.Status]string{
 			"asserting a confident absence over it; or the release listing itself failed (403/plan-gated/" +
 			"other API error); or no release tag matches the configured pattern within the lookback window, " +
 			"and none of the tags that did match were dropped as unresolvable either — genuinely nothing to " +
-			"evaluate",
+			"evaluate; or the workflow run-history fetch itself failed for one or more matched workflows " +
+			"(issue #287) — an incomplete run-history pool can't be trusted to certify a genuine per-release " +
+			"absence",
 	},
 	"C06.sca.dependabot-config": {
 		model.StatusVerifiedPass: "a Dependabot config exists and covers every ecosystem detected from the " +
@@ -327,6 +329,12 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	var filteredReleases []runhistory.ReleaseInfo
 	var coverage []runhistory.ReleaseCoverage
 	droppedTags := 0
+	// runsErr (issue #287): mirrors sasthistory's identical guard — see
+	// that package's collectRepo doc comment on the equivalent loop for
+	// the full reasoning on why a partial per-workflow fetch failure taints
+	// the whole merged runs pool checkRanPerRelease consumes below, rather
+	// than being scoped to just the failing workflow.
+	var runsErr error
 	rawReleases, relResp, relErr := runhistory.FetchReleases(ctx, client, org, repo)
 	if relErr == nil {
 		var releases []runhistory.ReleaseInfo
@@ -351,6 +359,9 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 		for _, mw := range workflowMatches {
 			wfRuns, rErr := runhistory.FetchWorkflowRuns(ctx, client, org, repo, mw.WorkflowID, windowStart)
 			if rErr != nil {
+				if runsErr == nil {
+					runsErr = fmt.Errorf("workflow %d (%s): %w", mw.WorkflowID, mw.Path, rErr)
+				}
 				continue
 			}
 			for _, r := range wfRuns {
@@ -412,7 +423,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	return []model.CheckResult{
 		checkToolConfigured(org, repo, workflowMatches, skippedWorkflows, dependabotConfigured, dependabotResp, dependabotErr, toolConfiguredProv),
-		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, ranPerReleaseProv),
+		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, runsErr, ranPerReleaseProv),
 		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, dependabotConfigProv),
 		checkDependencyReview(org, repo, depReviewFound, depReviewWorkflow, depReviewFetchErr, statusCheckNames, statusErr, dependencyReviewProv),
 		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, alertsProv),
