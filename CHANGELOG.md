@@ -1095,6 +1095,25 @@ All notable changes to this project are documented here. Format follows
 
 ### Changed
 
+- **`C04.vars.secret-hygiene`'s sensitive-variable-name pattern widened to v2** (#181,
+  from #180's own review). v1 (`(?i)(password|passwd|secret|token|api[_-]?key|
+  connectionstring)`) was internally inconsistent — `api[_-]?key` tolerated a separator
+  but `connectionstring` didn't, so `CONNECTION_STRING`/`connection-string`, the
+  dominant real-world spelling, never matched; `pwd`, `credential(s)`, and `connstr`
+  were missing outright too. v2 (`(?i)(password|passwd|pwd|secret|credentials?|token|
+  api[_-]?key|connstr|connection[_-]?string)`) applies `[_-]?` separator tolerance
+  uniformly to every multi-word stem and adds the three missing stems. This is a
+  coverage improvement, not an honesty-bug fix:
+  disclosure was already adequate (the rubric quotes the pattern verbatim, and nothing
+  presents this as a content scan). The pattern is now exported as
+  `SensitiveVariableNameRE` with a doc comment inviting reuse by a future GitHub
+  variable-store analog, though no such collector exists yet and none is added here.
+  The documented false-positive trade is unchanged and now pinned by its own test:
+  `tokenizer_config`-shaped names still match (they contain "token") and are meant to,
+  with the exact offending variable/group name always recorded in Facts for trivial
+  triage. Reason strings, the `checkRubrics` entry, the remediation text, and
+  `docs/checks-reference.md` (regenerated via `make checks-docs`) all quote the new
+  pattern in lockstep with the code.
 - **Harmonized `CheckMeta.Endpoints` host formatting across Azure DevOps collectors**
   (#179): C09 audit-logging and C10 vdp used a path-first style with the host named in
   a trailing parenthetical; every other ADO collector uses host-first

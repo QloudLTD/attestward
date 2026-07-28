@@ -441,6 +441,134 @@ func varGroup(name string, variables map[string]any) map[string]any {
 	return map[string]any{"name": name, "variables": variables}
 }
 
+// TestSensitiveVariableNameRE pins the v2 pattern (issue #181) form by
+// form: every v1 form must still match (so this can't silently narrow
+// coverage), every newly-added form must now match, and the accepted
+// false-positive class (tokenizer_config-shaped names) must still match
+// too — that is the documented trade, not an oversight.
+func TestSensitiveVariableNameRE(t *testing.T) {
+	tests := []struct {
+		name  string
+		match bool
+	}{
+		// v1 forms — must still match.
+		{"password", true},
+		{"PASSWORD", true},
+		{"passwd", true},
+		{"secret", true},
+		{"token", true},
+		{"api_key", true},
+		{"api-key", true},
+		{"apiKey", true},
+		{"connectionstring", true},
+
+		// v2 new/newly-covered forms — the point of issue #181.
+		{"CONNECTION_STRING", true},
+		{"connection-string", true},
+		{"connString", true},
+		{"connStr", true},
+		{"PWD", true},
+		{"pwd", true},
+		{"credential", true},
+		{"credentials", true},
+		{"CREDENTIALS", true},
+
+		// accepted false-positive class — documented trade, pinned here.
+		{"tokenizer_config", true},
+
+		// unrelated names must still not match.
+		{"buildConfiguration", false},
+		{"environment", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SensitiveVariableNameRE.MatchString(tt.name); got != tt.match {
+				t.Errorf("SensitiveVariableNameRE.MatchString(%q) = %v, want %v", tt.name, got, tt.match)
+			}
+		})
+	}
+}
+
+// TestCollect_SecretHygiene_V2FormsFlagged proves the v2 pattern (issue
+// #181) end to end through Collect, not just via MatchString: names using
+// the newly-covered conventions (uniform separator tolerance, pwd,
+// credential(s), connstr) move Status to verified-fail exactly as the v1
+// forms already did.
+func TestCollect_SecretHygiene_V2FormsFlagged(t *testing.T) {
+	fx := adofixture.New().Set("GET", azuredevops.HostCore, variableGroupsPath(), adofixture.Response{
+		Status: http.StatusOK,
+		Body: map[string]any{
+			"count": 1,
+			"value": []map[string]any{
+				varGroup("db-vars", map[string]any{
+					"CONNECTION_STRING": map[string]any{"value": "Server=prod;User=app"},
+					"connection-string": map[string]any{"value": "Server=prod;User=app"},
+					"connStr":           map[string]any{"value": "Server=prod;User=app"},
+					"PWD":               map[string]any{"value": "hunter2"},
+					"credentials":       map[string]any{"value": "user:pass"},
+				}),
+			},
+		},
+	})
+
+	c := newTestCollector(fx)
+	results, err := c.Collect(context.Background(), collect.Scope{Org: testOrg, Project: testProject})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	r := resultByID(results, idSecretHygiene)
+	if r.Status != model.StatusVerifiedFail {
+		t.Fatalf("secret-hygiene = %q, want verified-fail; reason=%q", r.Status, r.Reason)
+	}
+	offending, ok := r.Facts["offending_variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("offending_variables = %v, want a []map[string]any", r.Facts["offending_variables"])
+	}
+	got := make(map[string]bool, len(offending))
+	for _, o := range offending {
+		got[o["variable_name"].(string)] = true
+	}
+	for _, want := range []string{"CONNECTION_STRING", "connection-string", "connStr", "PWD", "credentials"} {
+		if !got[want] {
+			t.Errorf("offending_variables missing %q — want every v2-covered form flagged; got %v", want, offending)
+		}
+	}
+}
+
+// TestCollect_SecretHygiene_TokenizerConfigClassStillFlagged pins the
+// accepted false-positive trade documented on SensitiveVariableNameRE and in
+// this check's own rubric/remediation text: a name shaped like
+// tokenizer_config still matches (it contains "token") and is meant to —
+// coverage over precision, with the exact name recorded in Facts so a false
+// positive is trivial to triage.
+func TestCollect_SecretHygiene_TokenizerConfigClassStillFlagged(t *testing.T) {
+	fx := adofixture.New().Set("GET", azuredevops.HostCore, variableGroupsPath(), adofixture.Response{
+		Status: http.StatusOK,
+		Body: map[string]any{
+			"count": 1,
+			"value": []map[string]any{
+				varGroup("ml-vars", map[string]any{
+					"tokenizer_config": map[string]any{"value": "bpe-v3"},
+				}),
+			},
+		},
+	})
+
+	c := newTestCollector(fx)
+	results, err := c.Collect(context.Background(), collect.Scope{Org: testOrg, Project: testProject})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	r := resultByID(results, idSecretHygiene)
+	if r.Status != model.StatusVerifiedFail {
+		t.Fatalf("secret-hygiene = %q, want verified-fail (tokenizer_config is the documented false-positive trade, not a bug)", r.Status)
+	}
+	offending, ok := r.Facts["offending_variables"].([]map[string]any)
+	if !ok || len(offending) != 1 || offending[0]["variable_name"] != "tokenizer_config" {
+		t.Errorf("offending_variables = %v, want exactly tokenizer_config", r.Facts["offending_variables"])
+	}
+}
+
 func TestCollect_SecretHygiene_NoOffendingVariables_Pass(t *testing.T) {
 	fx := adofixture.New().Set("GET", azuredevops.HostCore, variableGroupsPath(), adofixture.Response{
 		Status: http.StatusOK,

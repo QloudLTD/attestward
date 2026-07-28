@@ -836,9 +836,9 @@ This check is registered under more than one platform — details for each below
 
 - **verified-fail:** at least one variable with a sensitive-looking name is stored in plaintext (isSecret absent/false, value non-empty) — the offending variable and group names are recorded in Facts, never the value
 - **not-checkable:** the project's variable groups list couldn't be read (403/404/other API error)
-- **verified-pass:** no variable across every variable group in the project has both a name matching (?i)(password|passwd|secret|token|api[_-]?key|connectionstring) and isSecret absent/false with a non-empty value
+- **verified-pass:** no variable across every variable group in the project has both a name matching (?i)(password|passwd|pwd|secret|credentials?|token|api[_-]?key|connstr|connection[_-]?string) and isSecret absent/false with a non-empty value
 
-**Remediation:** Open the flagged variable group (Pipelines -> Library) and mark every offending variable (name matching password/passwd/secret/token/api-key/connectionstring) as secret — the padlock icon next to its value — so Azure DevOps encrypts it at rest instead of storing it in plaintext.
+**Remediation:** Open the flagged variable group (Pipelines -> Library) and mark every offending variable (name matching password/passwd/pwd/secret/credential(s)/token/api-key/connstr/connection-string) as secret — the padlock icon next to its value — so Azure DevOps encrypts it at rest instead of storing it in plaintext.
 
 **SSDF task text (verbatim from NIST SP 800-218):**
 

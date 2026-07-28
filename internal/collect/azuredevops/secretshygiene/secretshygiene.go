@@ -132,9 +132,9 @@ var checkRemediations = map[string]string{
 		"created repositories — all four must be on for this check to pass, so every repo created going " +
 		"forward starts protected instead of relying on each repo owner to enable them individually.",
 	idSecretHygiene: "Open the flagged variable group (Pipelines -> Library) and mark every offending " +
-		"variable (name matching password/passwd/secret/token/api-key/connectionstring) as secret — the " +
-		"padlock icon next to its value — so Azure DevOps encrypts it at rest instead of storing it in " +
-		"plaintext.",
+		"variable (name matching password/passwd/pwd/secret/credential(s)/token/api-key/connstr/connection-" +
+		"string) as secret — the padlock icon next to its value — so Azure DevOps encrypts it at rest " +
+		"instead of storing it in plaintext.",
 }
 
 // sharedRepoFetchFailedRubric is shared by all four per-repo checks — each
@@ -209,8 +209,8 @@ var checkRubrics = map[string]map[model.Status]string{
 	},
 	idSecretHygiene: {
 		model.StatusVerifiedPass: "no variable across every variable group in the project has both a name " +
-			"matching (?i)(password|passwd|secret|token|api[_-]?key|connectionstring) and isSecret absent/" +
-			"false with a non-empty value",
+			"matching (?i)(password|passwd|pwd|secret|credentials?|token|api[_-]?key|connstr|connection[_-]?" +
+			"string) and isSecret absent/false with a non-empty value",
 		model.StatusVerifiedFail: "at least one variable with a sensitive-looking name is stored in " +
 			"plaintext (isSecret absent/false, value non-empty) — the offending variable and group names " +
 			"are recorded in Facts, never the value",
@@ -570,10 +570,26 @@ func checkOrgSecurityDefaults(ctx context.Context, client *azuredevops.Client, o
 	}
 }
 
-// sensitiveVariableNameRE matches variable names that look like they
-// should hold a secret — issue #151's literal pattern, verbatim, never
-// invented.
-var sensitiveVariableNameRE = regexp.MustCompile(`(?i)(password|passwd|secret|token|api[_-]?key|connectionstring)`)
+// SensitiveVariableNameRE matches variable names that look like they should
+// hold a secret. Exported and package-level (unlike almost everything else
+// in this package) specifically so a future GitHub variable-store analog of
+// this check could reuse it verbatim rather than forking a second copy —
+// no such collector exists yet and none is being added here (speculative
+// abstraction is out of scope), this is just leaving the door open.
+//
+// v2 (issue #181, superseding v1's issue #151 pattern): v1 was internally
+// inconsistent — api[_-]?key tolerated a separator but connectionstring
+// didn't, so CONNECTION_STRING/connection-string (the dominant real-world
+// spelling) never matched. v2 applies [_-]? separator tolerance uniformly
+// to every multi-word stem (api[_-]?key, connection[_-]?string) and adds
+// the missing common stems pwd, credential(s), and connstr.
+//
+// This is deliberately a broad substring match, not a word-boundaried one:
+// a name like tokenizer_config still matches "token" and is meant to —
+// coverage is traded for some false positives, and checkSecretHygiene
+// always records the exact offending variable/group name in Facts so a
+// false positive is trivial to triage.
+var SensitiveVariableNameRE = regexp.MustCompile(`(?i)(password|passwd|pwd|secret|credentials?|token|api[_-]?key|connstr|connection[_-]?string)`)
 
 // variableValueRaw is Azure DevOps's VariableValue shape (one entry of a
 // VariableGroup's variables map). Value is read only to test for
@@ -621,7 +637,7 @@ type offendingVariable struct {
 // checkSecretHygiene is C04.vars.secret-hygiene, the new ADO-only check —
 // see the package doc comment for why no GitHub twin exists. A variable
 // counts as plaintext-and-sensitive when its name matches
-// sensitiveVariableNameRE, IsSecret is false (Azure DevOps's own zero
+// SensitiveVariableNameRE, IsSecret is false (Azure DevOps's own zero
 // value when absent from the response — encrypted variables are the ones
 // documented as explicitly true), and Value is non-empty (an empty value
 // stores nothing worth flagging regardless of the name). Facts record
@@ -646,7 +662,7 @@ func checkSecretHygiene(ctx context.Context, client *azuredevops.Client, org, pr
 	var offending []offendingVariable
 	for _, g := range groups {
 		for varName, v := range g.Variables {
-			if !sensitiveVariableNameRE.MatchString(varName) {
+			if !SensitiveVariableNameRE.MatchString(varName) {
 				continue
 			}
 			if v.IsSecret {
