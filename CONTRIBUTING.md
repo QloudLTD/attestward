@@ -23,7 +23,9 @@ issue thread is the record of what was decided and why.
 3. Small PRs — target under 200 changed lines, hard ceiling 400. Split bigger work.
 4. Conventional commits: `feat(collect): add repo-protection ruleset checks`
    (types: `feat|fix|chore|docs|refactor|test|style|perf`; imperative mood; reference the
-   issue in the footer: `Fixes #12`).
+   issue in the footer: `Refs #12`). Never `Fixes`/`Closes #N` — squash-merge auto-closes
+   the issue, losing the close comment that records the evidence. Confirm with
+   `gh pr view <N> --json closingIssuesReferences` → `[]`.
 5. CI must be green (`lint` and `test` are required status checks on `main`; the `build`
    matrix runs and uploads artifacts but does not gate merge). Squash merge only; the PR
    title becomes the commit on `main`.

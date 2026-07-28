@@ -70,9 +70,10 @@ issue or needs one opened before starting.
 ## Workflow (see CONTRIBUTING.md for the full version)
 
 - Branch from `main`: `<type>/<issue-number>-<short-description>` (types: `feature|fix|hotfix|chore|docs`)
-- Conventional commits (`feat|fix|chore|docs|refactor|test|style|perf`), imperative mood, `Fixes #N` in the footer
+- Conventional commits (`feat|fix|chore|docs|refactor|test|style|perf`), imperative mood, `Refs #N` in the footer
+- **Never `Fixes`/`Closes #N`** in a commit or PR body — squash-merge auto-closes the issue, losing the close comment that records the evidence. Verify with `gh pr view <N> --json closingIssuesReferences` → `[]`
 - Small PRs: target under 200 changed lines, hard ceiling 400 — split bigger work
-- Squash merge only; delete branch after merge
+- Squash merge only; delete branch after merge — **except a stacked PR's parent**: merge it *without* `--delete-branch` so the child auto-retargets, since deleting the base auto-closes the child unrecoverably. After a squash-merged parent the child hits add/add conflicts; cherry-pick its own commits onto `main` rather than resolving
 - Every collector change ships with fixture-based unit tests (`testdata/`, no live network calls in `go test ./...`)
 - Behavior/architecture changes update `docs/` in the same PR; significant design choices get an ADR
 
@@ -84,7 +85,58 @@ make build   # or: go build ./cmd/attestward
 make test
 make lint    # golangci-lint run (v2 config — see .golangci.yml)
 make tidy    # go mod tidy
+
+make checks-docs-check examples-check tidy-check   # drift guards, all wired into CI
+go run ./tools/rubricguard <base> <head>           # status-vs-checkRubrics drift
+go run ./tools/threatmodelguard                    # threat-model job enumeration
+gh workflow run integration-scan.yaml              # live demo-org scan (otherwise weekly only)
 ```
+
+## Only statuses are guarded
+
+`rubricguard` compares a package's status-assignment code against that package's own
+`checkRubrics`; the integration test's `assertFixtureChecks` compares `Status` and reads
+`Reason` only inside its failure message. **Nothing asserts on a `Reason` string, rubric
+prose, or a `Facts` value.** Treat all three as untested customer-facing output.
+
+They do not all surface in the same place, and the difference sets how bad a wrong one is.
+`Reason` and `Facts` are schema properties on every result, so they **render verbatim into
+signed evidence packs**. Rubric prose does not: `CheckMeta.Rubric`'s only non-collector
+consumer is `internal/checksref/render.go` → the generated `docs/checks-reference.md`, and
+`docs/schema/evidence-pack.v1.schema.json` has no rubric field at all. So a stale rubric
+misleads a reader of the generated reference, not an auditor of a signed pack — still worth
+fixing, but don't weight it as if it shipped inside the attestation artifact.
+
+The tell for the recurring defect class is `x := err == nil && resp.Field`: a value that
+silently defaults on error, then gets asserted as a confirmed observation. The same false
+inference was found on five separate surfaces because fixing one reached none of the
+others — see `docs/handoff-2026-07-28.md`.
+
+`rubricguard` is also blind to cross-package drift: a change in `cmd/attestward` can
+invalidate rubrics in six collector packages without flagging.
+
+## CI signals that mislead
+
+- `continue-on-error: true` normalizes a step's `conclusion` to success — only `outcome`
+  shows the truth. A green run can hide a failed artifact upload.
+- A **cancelled** job renders identically to a **failed** one in `gh pr checks`; check the
+  job's step conclusions (`gh api repos/{o}/{r}/actions/jobs/{id}`) before assuming a real failure.
+- "no checks reported" ≠ failing — a branch GitHub can't merge cleanly never gets a
+  `pull_request` run. Merge `main` in first.
+- A run can read `status=queued`/`conclusion=null` at the **run** level while `lint` and
+  `test` inside it already completed `success` — non-required jobs (`build`,
+  `gomod-tidy-drift`) keep the run open. Unlike the two above, this hides a ready merge
+  rather than inventing a failure. Read job conclusions (`.../runs/{id}/jobs`), never the run.
+- Only `lint` and `test` are required (`gh api repos/{o}/{r}/rulesets`); `--admin` bypasses
+  the 1-approval rule, not status checks. It is needed on **every** merge here: the PR author
+  and the `gh` account are the same identity, so GitHub won't let it approve its own PR and
+  `reviewDecision` stays `REVIEW_REQUIRED` permanently.
+- `gh pr merge --delete-branch` exits **non-zero on a successful merge** when a worktree
+  still holds the local branch. The merge landed; confirm with `gh pr view <N> --json state`
+  rather than reading the exit code as failure.
+- A context expression inside a `run:` block is substituted **before the shell sees it,
+  including inside a `#` comment** — an empty `${{ }}` is a hard syntax error and a valid
+  one silently interpolates. `actionlint` catches only the former, and isn't run in CI.
 
 ## Current status
 
