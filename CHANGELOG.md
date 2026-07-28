@@ -1234,6 +1234,20 @@ All notable changes to this project are documented here. Format follows
 
 ### Changed
 
+- **`docs/threat-model.md`'s "outside any collector" endpoint table drops its
+  line-number citations** (#274, option 3 of that issue's four). The table's `Call
+  site` column cited exact lines in `cmd/attestward/scanrepos.go` (`:122`/`:46`/`:75`)
+  — still accurate (re-verified against every `.REST.*` call site in the codebase, no
+  drift since the issue's 2026-07-26 audit, including every go-github endpoint path
+  spot-checked against the vendored v75.0.0 source) but the most brittle claim in the
+  document per the issue's own reasoning: a line shifts on any unrelated edit to that
+  file, and nothing checks it, whereas a reader can find the method without one.
+  Dropped the column; the go-github method names, HTTP verbs, and endpoint paths —
+  including the GET/HEAD-only claim ADR-0004's read-only invariant depends on — are
+  unchanged, and the file itself stays named in the surrounding prose. Option 1
+  (structurally guarding the endpoint tables) remains deliberately out of scope: the
+  verbs are already asserted at runtime by `provenanceTransport` with tests, so a doc
+  guard would buy documentation accuracy rather than safety.
 - **`integration-scan.yaml` gains a path-filtered `push`-to-`main` trigger alongside its
   weekly schedule** (#278): the schedule alone only catches drift in GitHub's/Azure
   DevOps's own API surface, which doesn't track this repo's merge rate — a regression in

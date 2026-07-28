@@ -134,11 +134,11 @@ Three more calls happen outside any collector, in the scan orchestrator itself
 repo-listing calls run only when no explicit repo list is configured (`resolveRepos`
 makes zero API calls otherwise):
 
-| go-github call | Endpoint (verb confirmed against source) | Call site |
-|---|---|---|
-| `Users.Get` | `GET /users/{account}` | `cmd/attestward/scanrepos.go:122` |
-| `Repositories.ListByOrg` | `GET /orgs/{org}/repos` | `cmd/attestward/scanrepos.go:46` |
-| `Repositories.ListByUser` | `GET /users/{user}/repos` | `cmd/attestward/scanrepos.go:75` |
+| go-github call | Endpoint (verb confirmed against source) |
+|---|---|
+| `Users.Get` | `GET /users/{account}` |
+| `Repositories.ListByOrg` | `GET /orgs/{org}/repos` |
+| `Repositories.ListByUser` | `GET /users/{user}/repos` |
 
 All three route through the same `client.REST` / `provenanceTransport` as every
 collector call above, so the read-only guard covers them identically — this was a gap in
