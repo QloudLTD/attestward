@@ -109,12 +109,20 @@ var checkRubrics = map[string]map[model.Status]string{
 	"C06.sca.ran-per-release": {
 		model.StatusVerifiedPass: "an SCA tool ran successfully (at least one matched run whose conclusion " +
 			"is \"success\") for every release in the lookback window, and every matching release tag " +
-			"published in the lookback window resolved to a commit",
+			"published in the lookback window resolved to a commit; reachable even when a matched " +
+			"workflow's own run-history fetch failed (issue #291), as long as every release's coverage " +
+			"already reads \"ran\" from the workflow(s) that DID resolve — e.g. dependency-review-action is " +
+			"itself SCA-category, so its own `/runs` failing doesn't taint a repo whose release coverage is " +
+			"otherwise fully evidenced by another matched SCA workflow — coverage status only ever improves " +
+			"as more runs are added, never regresses, so an already-\"ran\" release can't be undone by data " +
+			"this collector couldn't fetch",
 		model.StatusPartial: "release tags published in the lookback window matched but couldn't be " +
 			"resolved to a commit, so no release could be evaluated; or a matched SCA tool ran for every " +
 			"evaluated release, but not every run succeeded; or every evaluated release succeeded, but one " +
 			"or more matching release tags couldn't be resolved to a commit and were excluded from " +
-			"evaluation",
+			"evaluation — either of the latter two reachable despite a matched workflow's run-history fetch " +
+			"failing (issue #291), by the same monotonicity reasoning as verified-pass above, as long as no " +
+			"release's coverage reads \"missing\"",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SCA runs " +
 			"at all (not even a failed one), and — when there are zero matched workflows and no Dependabot " +
 			"config — every workflow this collector inspected for this repo resolved cleanly (no same-repo " +
@@ -129,9 +137,12 @@ var checkRubrics = map[string]map[model.Status]string{
 			"asserting a confident absence over it; or the release listing itself failed (403/plan-gated/" +
 			"other API error); or no release tag matches the configured pattern within the lookback window, " +
 			"and none of the tags that did match were dropped as unresolvable either — genuinely nothing to " +
-			"evaluate; or the workflow run-history fetch itself failed for one or more matched workflows " +
-			"(issue #287) — an incomplete run-history pool can't be trusted to certify a genuine per-release " +
-			"absence",
+			"evaluate; or the workflow run-history fetch itself failed for one or more matched workflows AND " +
+			"the resulting coverage table (built from whatever run history DID resolve) shows at least one " +
+			"release with no matched run at all (issue #287, narrowed by #291) — an incomplete run-history " +
+			"pool can't be trusted to certify that specific per-release absence; a partial pool whose table " +
+			"already reads \"ran\"/\"failed\" for every release is NOT tainted by this (see verified-pass/" +
+			"partial above)",
 	},
 	"C06.sca.dependabot-config": {
 		model.StatusVerifiedPass: "a Dependabot config exists and covers every ecosystem detected from the " +
@@ -333,11 +344,21 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	var filteredReleases []runhistory.ReleaseInfo
 	var coverage []runhistory.ReleaseCoverage
 	droppedTags := 0
-	// runsErr (issue #287): mirrors sasthistory's identical guard — see
-	// that package's collectRepo doc comment on the equivalent loop for
-	// the full reasoning on why a partial per-workflow fetch failure taints
-	// the whole merged runs pool checkRanPerRelease consumes below, rather
-	// than being scoped to just the failing workflow.
+	// runsErr (issue #287): mirrors sasthistory's identical loop — see that
+	// package's collectRepo doc comment on the equivalent loop for the
+	// full reasoning on why a partial per-workflow fetch failure is
+	// tracked as a single error rather than attributed to just the failing
+	// workflow. checkRanPerRelease below only taints its own result from
+	// this when the merged runs pool it DID get already shows a release
+	// with no matched run at all (issue #291, narrowing #287's original
+	// unconditional taint) — coverage status is monotone in the runs pool
+	// (more runs can only turn CoverageMissing into CoverageFailed/
+	// CoverageRan, never the reverse), so a pool that already fully covers
+	// every release can't be invalidated by whatever the failed workflow's
+	// runs would have added. See checkRanPerRelease's own doc comment for
+	// the full reasoning; C06 has no cadence check, so there's no
+	// sasthistory-style asymmetry to track here — this package's runsErr
+	// feeds exactly one check.
 	var runsErr error
 	rawReleases, relResp, relErr := runhistory.FetchReleases(ctx, client, org, repo)
 	if relErr == nil {

@@ -648,6 +648,58 @@ func TestCollect_WorkflowRunsFetch403_RanPerReleaseNotCheckable(t *testing.T) {
 	}
 }
 
+// TestCollect_SecondWorkflowRunsFetch403WithReleaseAlreadyRan_RanPerReleaseStaysVerifiedPass
+// is issue #291's own reproduction, applied to C06 — the widest surface
+// named in the issue: dependency-review-action is itself SCA-category
+// (mappings/scanner-signatures.yaml), so any repo with dependency review
+// PLUS another SCA scanner has two matched workflows, and
+// dependency-review typically triggers only on pull_request — contributing
+// nothing to release coverage either way. Trivy's run history resolves
+// cleanly and already covers the one release with a successful run before
+// dependency-review's own `/runs` fetch (which 403s) even factors in.
+//
+// Coverage status is monotone non-decreasing in the runs pool, so
+// ran-per-release's already-"ran" table can't be invalidated by whatever
+// dependency-review's unfetched runs would have added — it must stay
+// verified-pass, not be discarded to not-checkable the way #289 tainted it
+// unconditionally (see TestCollect_WorkflowRunsFetch403_RanPerReleaseNotCheckable
+// above for the single-workflow case that must still taint).
+func TestCollect_SecondWorkflowRunsFetch403WithReleaseAlreadyRan_RanPerReleaseStaysVerifiedPass(t *testing.T) {
+	org, repo, branch := "attestward-demo", "acme-multi", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	registerWorkflows(t, mux, org, repo,
+		workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+		workflowFixture{ID: 2, Path: ".github/workflows/dependency-review.yml", Name: "Dependency Review", Content: dependencyReviewWorkflowYAML},
+	)
+	registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{
+		{"head_sha": "sha1", "head_branch": branch, "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows/2/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+	})
+	registerNoAlerts(t, mux, org, repo)
+	registerRequiredStatusCheck(t, mux, org, repo, branch, "Dependency Review")
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	ranPerRelease := m["C06.sca.ran-per-release"]
+	if ranPerRelease.Status != model.StatusVerifiedPass {
+		t.Errorf("ran-per-release = %q, want verified-pass — every release already reads \"ran\" from Trivy's own runs, so dependency-review's failed fetch can't invalidate it; reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+	perRelease, ok := ranPerRelease.Facts["per_release"].([]map[string]any)
+	if !ok || len(perRelease) != 1 || perRelease[0]["status"] != "ran" {
+		t.Errorf("ran-per-release Facts[per_release] = %v, want one entry with status=ran", ranPerRelease.Facts["per_release"])
+	}
+}
+
 // TestCollect_DependabotConfigFetchFailure_ToolConfiguredAndConfigNotCheckable
 // pins the fix for a second silently-swallowed error: collectRepo used to
 // discard fetchDependabotConfig's own resp/err entirely (`cfg,

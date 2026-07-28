@@ -124,3 +124,29 @@ func TestCheckRanPerRelease_RunsErr_NotCheckableFactsOmitPerRelease(t *testing.T
 		t.Errorf("Facts[dropped_tags] = %v, want 0 (still reported — unaffected by the run-history failure)", got.Facts["dropped_tags"])
 	}
 }
+
+// TestCheckRanPerRelease_RunsErrButNoMissing_KeepsVerifiedPass is issue
+// #291's narrowing of the #287 taint above: coverage status is monotone
+// non-decreasing in the runs pool (more runs can only turn CoverageMissing
+// into CoverageFailed/CoverageRan, never the reverse), so a coverage table
+// that already reads "ran" for every release can't be invalidated by
+// whatever the failed fetch would have added. A non-nil runsErr must NOT
+// override that positive result — unlike the all-missing case above, which
+// still must.
+func TestCheckRanPerRelease_RunsErrButNoMissing_KeepsVerifiedPass(t *testing.T) {
+	filteredReleases := []runhistory.ReleaseInfo{{TagName: "v1.0.0"}}
+	coverage := []runhistory.ReleaseCoverage{
+		{Release: filteredReleases[0], Status: runhistory.CoverageRan},
+	}
+	runsErr := errors.New("workflow 2 (.github/workflows/semgrep.yml): GET .../runs: 403 secondary rate limit")
+
+	got := checkRanPerRelease("attestward-demo", "acme-multi", filteredReleases, coverage, 0, true, nil, runsErr, nil)
+
+	if got.Status != model.StatusVerifiedPass {
+		t.Errorf("Status = %q, want verified-pass (every release already reads \"ran\" — the failed fetch can't invalidate that); reason=%q", got.Status, got.Reason)
+	}
+	table, ok := got.Facts["per_release"].([]map[string]any)
+	if !ok || len(table) != 1 || table[0]["status"] != "ran" {
+		t.Errorf("Facts[per_release] = %v, want one entry with status=ran", got.Facts["per_release"])
+	}
+}

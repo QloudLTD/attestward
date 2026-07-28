@@ -252,20 +252,14 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 		}
 	}
 
-	// runsErr (issue #287): mirrors sasthistory's identical guard — see
-	// that package's checkRanPerRelease for the full reasoning. Placed in
-	// the same position (after the "nothing to evaluate" early return
-	// above, before the coverage table is built), keeping the same
-	// unconditional dropped_tags inclusion that early return already uses.
-	if runsErr != nil {
-		return model.CheckResult{
-			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("could not fetch workflow run history to evaluate release coverage: %v", runsErr),
-			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-			Facts: map[string]any{"dropped_tags": droppedTags},
-		}
-	}
-
+	// The coverage table is built unconditionally, runsErr or not — see
+	// sasthistory's identical checkRanPerRelease for the full monotonicity
+	// reasoning (issue #291): coverage status is monotone non-decreasing in
+	// the runs pool, so a table that already reads "ran" (or "failed" —
+	// attempted, just not successfully) for every release can't be
+	// invalidated by whatever the failed fetch would have added; only a
+	// table with a CoverageMissing entry actually depends on the missing
+	// data.
 	allRan, anyMissing := true, false
 	table := make([]map[string]any, 0, len(coverage))
 	for _, c := range coverage {
@@ -275,6 +269,23 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 		}
 		if c.Status == runhistory.CoverageMissing {
 			anyMissing = true
+		}
+	}
+
+	// runsErr (issue #287, narrowed by #291): mirrors sasthistory's
+	// identical guard — see that package's checkRanPerRelease for the full
+	// reasoning. Only taints the result when the table above actually
+	// asserts an absence (anyMissing); a table with no missing release is
+	// kept rather than discarded into not-checkable. Placed after the
+	// coverage table is built (rather than before, as the pre-#291 total
+	// taint was), keeping the same unconditional dropped_tags inclusion the
+	// "nothing to evaluate" early return above already uses.
+	if runsErr != nil && anyMissing {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("could not fetch workflow run history to evaluate release coverage: %v", runsErr),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"dropped_tags": droppedTags},
 		}
 	}
 

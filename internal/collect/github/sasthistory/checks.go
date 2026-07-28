@@ -230,33 +230,17 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 		}
 	}
 
-	// runsErr (issue #287): collectRepo's workflow run-history fetch failed
-	// for at least one matched workflow, so the merged runs pool the
-	// coverage table below is computed from is potentially incomplete — a
-	// release reading CoverageMissing here could really be a release the
-	// failed workflow covered, not a confirmed absence. Mirrors
-	// azuredevops/sasthistory's identical buildsErr guard, placed in the
-	// same position (after the "nothing to evaluate" early return above,
-	// before the coverage table is built) and keeping the same
-	// unconditional dropped_tags inclusion that early return already uses.
-	//
-	// Reason uses runsErr's plain %v rather than routing through
-	// notCheckableReason: that helper maps any 403 to "token lacks
-	// permission to read org/repo," which is actively wrong for the
-	// scenario #287 exists to name — a secondary rate limit, not a
-	// permissions problem — and notCheckableReason has no way to tell them
-	// apart from a bare *github.Response (FetchWorkflowRuns doesn't return
-	// one). The raw API error text is less polished but not misleading;
-	// don't "fix" this into notCheckableReason without solving that first.
-	if runsErr != nil {
-		return model.CheckResult{
-			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("could not fetch workflow run history to evaluate release coverage: %v", runsErr),
-			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-			Facts: map[string]any{"dropped_tags": droppedTags},
-		}
-	}
-
+	// The coverage table is built unconditionally, runsErr or not — the
+	// runsErr guard just below needs anyMissing to decide whether it
+	// actually matters (issue #291): coverage status and RunCount are
+	// monotone non-decreasing in the runs pool, since LinkRunsToReleases
+	// can only turn CoverageMissing into CoverageFailed/CoverageRan as more
+	// runs are added, never the reverse. A table that already reads "ran"
+	// (or "failed" — attempted, just not successfully) for every release
+	// can't be invalidated by whatever the failed fetch would have added;
+	// only a table with a CoverageMissing entry actually depends on run
+	// data this collector doesn't have, since more data could still have
+	// filled that gap.
 	allRan, anyMissing := true, false
 	table := make([]map[string]any, 0, len(coverage))
 	for _, c := range coverage {
@@ -266,6 +250,34 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 		}
 		if c.Status == runhistory.CoverageMissing {
 			anyMissing = true
+		}
+	}
+
+	// runsErr (issue #287, narrowed by #291): collectRepo's workflow
+	// run-history fetch failed for at least one matched workflow, so the
+	// merged runs pool the coverage table above is computed from is
+	// potentially incomplete — a release reading CoverageMissing here could
+	// really be a release the failed workflow covered, not a confirmed
+	// absence. That only matters when the table above actually asserts an
+	// absence (anyMissing) — see the monotonicity comment above for why a
+	// table with no missing release is trustworthy regardless. Mirrors
+	// azuredevops/sasthistory's identical buildsErr guard for the
+	// unconditional-taint case ADO has no partial pool to narrow.
+	//
+	// Reason uses runsErr's plain %v rather than routing through
+	// notCheckableReason: that helper maps any 403 to "token lacks
+	// permission to read org/repo," which is actively wrong for the
+	// scenario #287 exists to name — a secondary rate limit, not a
+	// permissions problem — and notCheckableReason has no way to tell them
+	// apart from a bare *github.Response (FetchWorkflowRuns doesn't return
+	// one). The raw API error text is less polished but not misleading;
+	// don't "fix" this into notCheckableReason without solving that first.
+	if runsErr != nil && anyMissing {
+		return model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+			Reason: fmt.Sprintf("could not fetch workflow run history to evaluate release coverage: %v", runsErr),
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Facts: map[string]any{"dropped_tags": droppedTags},
 		}
 	}
 
@@ -319,15 +331,30 @@ func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *gh
 		}
 	}
 
-	// runsErr (issue #287): mirrors checkRanPerRelease's identical guard —
-	// a SAST tool IS configured, but at least one matched workflow's
-	// run-history fetch failed, so cadence.RunCount below is a potential
-	// undercount, not a confirmed zero. Checked before computing
-	// lowConfidenceOnly/status, mirroring azuredevops/sasthistory's own
-	// buildsErr placement (right after its identical tool-configured
-	// guard). Reason uses runsErr's plain %v rather than notCheckableReason
-	// for the same reason checkRanPerRelease's own identical guard does —
-	// see its doc comment.
+	// runsErr (issue #287): a SAST tool IS configured, but at least one
+	// matched workflow's run-history fetch failed, so cadence.RunCount
+	// below is a potential undercount, not a confirmed zero. Checked
+	// before computing lowConfidenceOnly/status, mirroring
+	// azuredevops/sasthistory's own buildsErr placement (right after its
+	// identical tool-configured guard).
+	//
+	// Deliberately NOT narrowed the way checkRanPerRelease's identical
+	// guard was (issue #291) — this asymmetry is the entire point of
+	// #291, not an inconsistency to resolve. checkRanPerRelease can narrow
+	// its taint to "only when the partial pool would already assert an
+	// absence" because coverage status is monotone in the runs pool (more
+	// runs can only turn CoverageMissing into CoverageFailed/CoverageRan,
+	// never the reverse). run_count/runs_per_week/longest_gap_days here
+	// are NOT monotone the same way: a partial pool could understate
+	// RunCount, and — more importantly — could overstate LongestGapDays
+	// (a run the failed workflow actually produced, sitting inside what
+	// looks like the longest gap in the partial pool, would close that
+	// gap once fetched). So ANY runsErr keeps tainting this check's whole
+	// result unconditionally; do not "fix" this to match
+	// checkRanPerRelease's narrower guard without solving that overstatement
+	// risk first. Reason uses runsErr's plain %v rather than
+	// notCheckableReason for the same reason checkRanPerRelease's own
+	// guard does — see its doc comment.
 	if runsErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,

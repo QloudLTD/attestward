@@ -544,6 +544,85 @@ func TestCollect_WorkflowRunsFetch403_CadenceAndRanPerReleaseNotCheckable(t *tes
 	}
 }
 
+const semgrepWorkflowYAML = `name: Semgrep
+on: [push]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: semgrep/semgrep-action@v1
+`
+
+// TestCollect_SecondWorkflowRunsFetch403WithReleaseAlreadyRan_RanPerReleasePassesCadenceNotCheckable
+// is issue #291's own reproduction: two matched SAST workflows (CodeQL and
+// Semgrep), one release in scope. CodeQL's run history resolves cleanly and
+// already covers the release with a successful run — every per_release
+// entry reads "ran" before Semgrep's own run-history fetch even factors in.
+// Semgrep's `/runs` call 403s (a secondary rate limit).
+//
+// Coverage status is monotone non-decreasing in the runs pool (more runs
+// can only turn CoverageMissing into CoverageFailed/CoverageRan, never the
+// reverse), so ran-per-release's already-"ran" table can't be invalidated
+// by whatever Semgrep's unfetched runs would have added — it must stay
+// verified-pass, not be discarded to not-checkable the way #289 tainted it
+// unconditionally. cadence is NOT scoped by this refinement (runs_per_week/
+// longest_gap_days are not monotone — a missing pool could understate a run
+// count or overstate a gap) and must stay not-checkable, same as #289.
+func TestCollect_SecondWorkflowRunsFetch403WithReleaseAlreadyRan_RanPerReleasePassesCadenceNotCheckable(t *testing.T) {
+	org, repo := "attestward-demo", "acme-multi"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, "main")
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 2,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "CodeQL", "path": ".github/workflows/codeql.yml", "state": "active"},
+				{"id": 2, "name": "Semgrep", "path": ".github/workflows/semgrep.yml", "state": "active"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": codeqlWorkflowYAML, "sha": "content-sha-1"})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/semgrep.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": semgrepWorkflowYAML, "sha": "content-sha-2"})
+	})
+	registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", time.Now().UTC().AddDate(0, 0, -1))
+	registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{
+		{"head_sha": "sha1", "head_branch": "main", "conclusion": "success", "created_at": time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)},
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows/2/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+	})
+	registerDefaultSetup(t, mux, org, repo, "not-configured")
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	ranPerRelease := m["C05.sast.ran-per-release"]
+	if ranPerRelease.Status != model.StatusVerifiedPass {
+		t.Errorf("ran-per-release = %q, want verified-pass — every release already reads \"ran\" from CodeQL's own runs, so Semgrep's failed fetch can't invalidate it; reason=%q", ranPerRelease.Status, ranPerRelease.Reason)
+	}
+	perRelease, ok := ranPerRelease.Facts["per_release"].([]map[string]any)
+	if !ok || len(perRelease) != 1 || perRelease[0]["status"] != "ran" {
+		t.Errorf("ran-per-release Facts[per_release] = %v, want one entry with status=ran", ranPerRelease.Facts["per_release"])
+	}
+
+	// cadence is a different check — runs_per_week/longest_gap_days are not
+	// monotone in the runs pool, so it must stay tainted regardless of
+	// ran-per-release's outcome above (the asymmetry is deliberate, not a
+	// bug — see issue #291).
+	cadence := m["C05.sast.cadence"]
+	if cadence.Status != model.StatusNotCheckable {
+		t.Errorf("cadence = %q, want not-checkable — Semgrep's failed run-history fetch still taints cadence's own run_count/runs_per_week/longest_gap_days, which are not monotone; reason=%q", cadence.Status, cadence.Reason)
+	}
+}
+
 // TestCollect_CodeQLDefaultSetupDynamicWorkflow_RunHistoryObserved covers
 // the common real-world case: CodeQL default setup is enabled, and GitHub
 // surfaces it via ListWorkflows as a virtual entry at

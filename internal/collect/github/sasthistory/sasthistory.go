@@ -120,11 +120,18 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusVerifiedPass: "a SAST tool ran successfully (at least one matched run whose conclusion " +
 			"is \"success\") for every release in the lookback window, and every matching release tag " +
 			"published in the lookback window resolved to a commit — an unresolvable tag published " +
-			"outside the window is out of scope, not a drop, so it doesn't block verified-pass",
+			"outside the window is out of scope, not a drop, so it doesn't block verified-pass; reachable " +
+			"even when a matched workflow's own run-history fetch failed (issue #291), as long as every " +
+			"release's coverage already reads \"ran\" from the workflow(s) that DID resolve — coverage " +
+			"status only ever improves as more runs are added, never regresses, so an already-\"ran\" " +
+			"release can't be undone by data this collector couldn't fetch",
 		model.StatusPartial: "one or more matching release tags published in the lookback window couldn't " +
 			"be resolved to a commit; if that leaves nothing evaluable, the reason names the drop count " +
 			"directly, otherwise every evaluated release still succeeded but the exclusion caps the result " +
-			"at partial; or a matched SAST tool ran for every evaluated release, but not every run succeeded",
+			"at partial; or a matched SAST tool ran for every evaluated release, but not every run succeeded " +
+			"— either reachable despite a matched workflow's run-history fetch failing (issue #291), by the " +
+			"same monotonicity reasoning as verified-pass above, as long as no release's coverage reads " +
+			"\"missing\"",
 		model.StatusVerifiedFail: "at least one release in the lookback window has zero matched SAST runs " +
 			"at all (not even a failed one), and — when there are zero matched workflows overall — every " +
 			"workflow MatchWorkflows inspected for this repo resolved cleanly (no same-repo skip)",
@@ -134,8 +141,13 @@ var checkRubrics = map[string]map[model.Status]string{
 			"workflows and one or more of this repo's own workflows could not be fully inspected (see " +
 			"Facts.skipped_workflows) — the same evidence gap C05.sast.tool-configured itself goes " +
 			"not-checkable for, so this check does too rather than asserting a confident absence over it; " +
-			"or the workflow run-history fetch itself failed for one or more matched workflows (issue #287) " +
-			"— an incomplete run-history pool can't be trusted to certify a genuine per-release absence",
+			"or the workflow run-history fetch itself failed for one or more matched workflows AND the " +
+			"resulting coverage table (built from whatever run history DID resolve) shows at least one " +
+			"release with no matched run at all (issue #287, narrowed by #291) — an incomplete run-history " +
+			"pool can't be trusted to certify that specific per-release absence; a partial pool whose table " +
+			"already reads \"ran\"/\"failed\" for every release is NOT tainted by this (see verified-pass/" +
+			"partial above) — coverage status only ever improves as more runs are added, so it can't have " +
+			"been overstated by data this collector couldn't fetch",
 	},
 	"C05.sast.cadence": {
 		model.StatusVerifiedPass: "one or more SAST runs were observed in the lookback window, backed by " +
@@ -382,14 +394,21 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	// merged runs slice as a single pool, and a partial fetch can silently
 	// undercount it exactly like a total failure would: a release the
 	// failed workflow actually covered would read as "missing," and a run
-	// it produced would simply vanish from cadence's count. Both checks
-	// treat ANY runsErr as tainting their own result (not-checkable,
-	// mirroring azuredevops/sasthistory's identical buildsErr shape)
-	// rather than trying to attribute which specific release/count in the
-	// merged pool is still trustworthy — the previous behavior (silently
-	// `continue`ing past the error) let runs default to whatever the
-	// surviving workflows happened to produce, which is exactly how #287
-	// minted false verified-fail statuses from a transient rate limit.
+	// it produced would simply vanish from cadence's count. checkCadence
+	// treats ANY runsErr as tainting its own result (not-checkable,
+	// mirroring azuredevops/sasthistory's identical buildsErr shape),
+	// since runs_per_week/longest_gap_days aren't monotone in the runs
+	// pool — a missing run could understate a count or overstate a gap.
+	// checkRanPerRelease narrows this (issue #291): coverage status IS
+	// monotone (more runs can only turn CoverageMissing into
+	// CoverageFailed/CoverageRan, never the reverse), so it only taints
+	// when the merged pool it DID get already shows a release with no
+	// matched run at all — see that check's own doc comment for the full
+	// reasoning. Before either check existed, the previous behavior
+	// (silently `continue`ing past the error) let runs default to
+	// whatever the surviving workflows happened to produce, which is
+	// exactly how #287 minted false verified-fail statuses from a
+	// transient rate limit.
 	var runs []runhistory.RunInfo
 	var runsErr error
 	for _, mw := range matchedWorkflows {

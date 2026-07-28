@@ -1181,6 +1181,41 @@ All notable changes to this project are documented here. Format follows
   machines; the fuller per-machine accounting and isolation implications are out of
   scope here and tracked in #301.
 
+- **GitHub `sasthistory`/`scahistory`'s `ran-per-release` no longer discards a sound
+  `verified-pass` just because a *different* matched workflow's run-history fetch
+  failed** (#291, refining #287/#289). #289 tainted `checkCadence`/`checkRanPerRelease`
+  to `not-checkable` on ANY matched workflow's `runsErr`, even when the merged runs pool
+  already fully evidenced every release. Coverage status (and `RunCount`) is monotone
+  non-decreasing in the runs pool — more runs can only turn `CoverageMissing` into
+  `CoverageFailed`/`CoverageRan`, never the reverse — so a coverage table that already
+  reads "ran" (or "failed but attempted") for every release can't be invalidated by
+  whatever the failed fetch would have added; only a table with a `CoverageMissing`
+  entry actually depends on data this collector doesn't have. `checkRanPerRelease` in
+  both packages now builds the coverage table first and only taints to `not-checkable`
+  when `runsErr != nil` AND the table itself shows a missing release (`anyMissing`) —
+  otherwise the positive result (verified-pass or partial) stands. Measured with a
+  32-cell harness: exactly 8 cells change, all `verified-fail`/`not-checkable`
+  combinations collapsing back to their pre-#289 positive, zero collateral.
+
+  `checkCadence` is deliberately **not** touched — `runs_per_week`/`longest_gap_days`
+  are not monotone (a missing pool could understate a run count or overstate a gap), so
+  its blanket taint from #289 stays exactly as it was. The Azure DevOps twins
+  (`azuredevops/sasthistory`, `azuredevops/scahistory`) are also untouched: their
+  `buildsErr` comes from a single aggregate `FetchBuilds` call, so there's no partial
+  pool to narrow against — total taint remains the only option there, a deliberate
+  asymmetry with the GitHub collectors' per-workflow fetch, not an inconsistency.
+
+  New tests: `TestCollect_SecondWorkflowRunsFetch403WithReleaseAlreadyRan_RanPerReleasePassesCadenceNotCheckable`
+  and `TestCheckRanPerRelease_RunsErrButNoMissing_KeepsVerifiedPass` (sasthistory),
+  `TestCollect_SecondWorkflowRunsFetch403WithReleaseAlreadyRan_RanPerReleaseStaysVerifiedPass`
+  (scahistory) — each reproduces the issue's own scenario (two matched workflows, one
+  whose `/runs` fails, every release already covered by the other) and asserts both
+  `ran-per-release` staying `verified-pass` and, for sasthistory, `cadence` staying
+  `not-checkable` in the same fixture. The existing #287/#289 regression tests
+  (single matched workflow, genuine absence) are unchanged and still pass, pinning that
+  a fetch failure over an actual gap still reads `not-checkable`, not a false
+  `verified-pass`.
+
 ### Changed
 
 - **`integration-scan.yaml` gains a path-filtered `push`-to-`main` trigger alongside its
