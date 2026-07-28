@@ -18,6 +18,10 @@
 # or the Actions UI) to confirm the pattern still works before reaching for
 # it in anger; it is not run on a schedule and nothing alerts if it silently
 # bit-rots.
+#
+# Both `actions/setup-go` steps below set `cache: false` — see ci.yaml's
+# matching comment (issue #313) for why: these runners are self-hosted, so
+# GOMODCACHE/GOCACHE already persist in $HOME across jobs.
 name: Multi-arch build (sample — native runners, manual only)
 
 on:
@@ -63,6 +67,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - name: Build
         shell: bash
         env:
@@ -182,6 +187,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - name: Build
         shell: bash
         env:

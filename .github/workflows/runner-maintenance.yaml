@@ -73,16 +73,19 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          # This action's own default is cache: true — every other workflow
-          # wants that, this one specifically must not: it would restore the
-          # shared setup-go cache (build cache + module cache) right before
-          # the step below deletes it, then "successfully" save back a
-          # near-empty archive under that same cache key (cache-save only
-          # skips when *every* path is missing, and GOCACHE still has
-          # go clean's own leftover README/trim.txt after the wipe) —
-          # poisoning that key for every other macOS job sharing it, since
-          # cache entries are write-once per key. Disabled here only; do not
-          # copy this into a sibling workflow.
+          # Issue #313: cache: false is no longer an exception here — every
+          # setup-go call site in every workflow in this repo sets it now
+          # (self-hosted runners already persist GOMODCACHE/GOCACHE in $HOME
+          # across jobs, so restoring/saving through GitHub's Actions cache
+          # service just duplicates what's already on local disk; see
+          # ci.yaml's matching comment for the full reasoning). This job
+          # still has its own, narrower reason to want it regardless of that
+          # repo-wide change: with caching on, this step would restore the
+          # setup-go cache right before the step below deletes it, then
+          # save a near-empty archive back under that same key — a moot
+          # failure mode now that no sibling job restores through that key
+          # either, but this job's own logic doesn't depend on the others
+          # having it disabled too.
           cache: false
       # issue #301: this used to be `rm -rf "$HOME/go/pkg/mod"`, which is
       # exactly the wrong tool — Go marks every downloaded module file

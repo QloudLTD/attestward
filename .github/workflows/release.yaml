@@ -30,9 +30,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history for the conventional-commit changelog
+      # cache: false — see ci.yaml's matching comment (issue #313): this
+      # runner is self-hosted, so GOMODCACHE/GOCACHE already persist in
+      # $HOME across jobs.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       # Pin the actual cosign release, not just the installer action: the
       # bundle-based sign/verify flow in .goreleaser.yaml and SECURITY.md
       # was verified against this exact version.

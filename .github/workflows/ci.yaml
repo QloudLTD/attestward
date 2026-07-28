@@ -20,6 +20,19 @@ permissions:
 # produce or check a binary, so there's no technical reason to spend
 # GitHub-hosted Actions minutes running plain Go tooling. One runner queues
 # these serially rather than in parallel, which is an acceptable tradeoff.
+#
+# Issue #313: every `actions/setup-go` step below sets `cache: false`. On a
+# self-hosted runner GOMODCACHE/GOCACHE already persist in $HOME across jobs
+# (that's the actual reason repeat runs are fast), so the action's own
+# default (`cache: true`) uploads/restores a redundant ~2GB copy through
+# GitHub's Actions cache service on every run — duplicating what's already
+# on local disk. Those redundant caches had grown to 8.65GB against the 10GB
+# per-repo ceiling and were evicting each other. Disabling it also makes
+# `go build`/`go test` prove what they claim to: that the module graph
+# resolves from `go.sum` against the real proxy, not from a warm cache —
+# see #313 for the full reasoning. `runner-maintenance.yaml`'s weekly
+# `clean` job is what actually empties the persistent local cache; without
+# it, "cold" here is aspirational, not proven.
 jobs:
   lint:
     runs-on: [self-hosted, macOS]
@@ -32,6 +45,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.25"
+          cache: false
       - name: Install golangci-lint (pinned to the version required locally)
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
       - run: golangci-lint run
@@ -45,6 +59,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - run: go test ./... -race -coverprofile=coverage.out
       # Issue #211: self-scan.yaml's drift-baseline logic lives in
       # hack/fetch-drift-baseline.sh specifically so it's testable outside
@@ -59,29 +74,6 @@ jobs:
       # third-party-notices-drift job below) actually catches a
       # hand-edited THIRD-PARTY-NOTICES.md, not just that it runs.
       - run: hack/check-third-party-notices-drift_test.sh
-      # Coverage is archival — nothing downstream consumes it — so its upload
-      # must never fail a build whose tests passed. GitHub's artifact-storage
-      # quota (recalculated every 6-12h) reddened green runs on PRs #202/#203:
-      # every Go test passed, the upload hit the quota, and the job reported
-      # failure. A red tick that doesn't mean "the code is wrong" is worse than
-      # no tick, because it trains people to merge through red.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        id: upload-coverage
-        continue-on-error: true
-        with:
-          name: coverage
-          path: coverage.out
-          retention-days: 7
-      # Issue #217: continue-on-error above is right (see this step's own
-      # comment) but made an actual quota exhaustion completely invisible
-      # until a live dry run for #211 tripped over it by accident. outcome
-      # reflects the step's real result before continue-on-error masks it
-      # for the job's own conclusion — this only fires on a genuine
-      # failure, and a `::warning::` never reddens the job.
-      - name: Warn if the coverage upload failed
-        if: steps.upload-coverage.outcome == 'failure'
-        run: |
-          echo "::warning::upload of coverage failed — likely the artifact storage quota (issue #217); tests still passed, only the archival upload was lost"
 
   # Issue #83: restores the Linux-specific test coverage `test` above can't
   # provide on its own — case-sensitive filesystem, path/rename semantics,
@@ -104,6 +96,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - run: go test ./... -race -coverprofile=coverage.out
 
   # Issue #30's drift guard: docs/checks-reference.md is generated from
@@ -117,6 +110,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - run: make checks-docs-check
 
   # Issue #249's drift guard: go.mod/go.sum are the input to every build,
@@ -158,6 +152,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - run: make tidy-check
 
   # Issue #228's drift guard, same shape as checks-docs-drift above:
@@ -174,6 +169,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - run: make examples-check
 
   # Issue #282's drift guard, same shape as checks-docs-drift/examples-drift
@@ -188,6 +184,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - run: make notices-check
 
   # Issue #209: checks-docs-drift above only compares the generated doc
@@ -232,6 +229,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       # Determines what to diff for this event, entirely in `if:`/`env:`
       # — pull_request's base/head SHAs and push's before/after are all
       # commit SHAs GitHub itself sets (not attacker-influenceable free
@@ -308,6 +306,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - run: go run ./tools/threatmodelguard
 
   # Cross-compiles every target platform from spyros-mac-mini-ssdf in one job,
@@ -339,6 +338,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - name: Cross-compile every target platform
         env:
           CGO_ENABLED: 0
@@ -366,84 +366,6 @@ jobs:
           done
       - name: Verify the darwin/arm64 build runs (matches this runner's own arch)
         run: ./attestward-darwin-arm64 version
-      # Issue #217: this upload was the dominant driver of the artifact
-      # storage quota exhausting outright — five binaries every time this
-      # job ran, and `pull_request` re-triggers it on
-      # every push to a PR branch, not just once per PR. The cross-compile
-      # and "Verify it runs" steps above are unconditional and still run
-      # on every PR — that's the actual proof this job exists for. Only
-      # the archival upload becomes push-to-main-only:
-      #   - pull_request event (including every push to an open PR's
-      #     branch): github.event_name == 'pull_request', condition is
-      #     false, upload is skipped — no binaries archived, compile/run
-      #     proof unaffected.
-      #   - push event (a merge or direct push to main):
-      #     github.event_name == 'push', condition is true, upload runs
-      #     as before.
-      #   - workflow_dispatch: condition is TRUE. The volume driver is the
-      #     per-PR-push recurrence, not manual runs, so excluding
-      #     pull_request removes all of it while keeping the manual escape
-      #     hatch working. Skipping dispatch too would leave someone who runs
-      #     this workflow specifically to obtain cross-compiled binaries with
-      #     no binaries and no explanation — the warn step below deliberately
-      #     does not fire on `skipped`, only on `failure`.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        id: upload-builds
-        if: github.event_name != 'pull_request'
-        continue-on-error: true
-        with:
-          name: attestward-builds
-          path: attestward-*
-          # 1 day, not the 7 this used to be. The quota is billed against
-          # the whole ACCOUNT (500 MB on Free, 1 GB on Pro — the plan
-          # itself is not verifiable from CI), not per repo, so #217's
-          # original per-repo cleanups could never have fixed it.
-          #
-          # The mechanism is accrual, not a byte cap: GitHub meters
-          # artifact storage in GB-HOURS across the billing month, and
-          # deleting artifacts does not un-accrue hours already billed.
-          # The evidence is a cutover, not a slope — uploads succeeded
-          # while the account held 10.82 GB and then stopped dead on
-          # 2026-07-24 (last success 13:51:11Z). An instantaneous byte cap
-          # would have blocked long before 10.82 GB accumulated, so it
-          # isn't one. This also explains why deleting 5.69 GB, then
-          # another 10 GB, then 801 MB more each changed nothing, and why
-          # the error's own "recalculated every 6-12 hours" never came
-          # true. Under this reading the cycle's allowance is spent and
-          # uploads stay blocked until it resets, regardless of further
-          # cleanup. Unconfirmed: the test is whether uploads resume at
-          # the cycle boundary with no further deletion.
-          #
-          # Retention is still the right lever precisely BECAUSE the cost
-          # is bytes x hours — cutting hours 7x cuts the bill 7x. These
-          # five binaries are ~44 MB per run TOTAL as one bundled artifact,
-          # not each ("~18 MB binaries" above is uncompressed size; ~48%
-          # deflate). But do not read this as solved: this repo merges a
-          # measured ~10x/day (30-day median; 30 on the heaviest day), so
-          # even at 1 day this holds ~445 MB standing — most of a 500 MB
-          # allowance from this one artifact alone, before attestward-cloud
-          # (~239 MB) is counted. This buys time; it is not durable
-          # headroom. multi-arch-build-sample.yaml's uploads were the other
-          # named consumer and are fixed (#242 — they had no retention-days
-          # at all, so they inherited the 90-day repo default); its 15
-          # pre-existing artifacts still expire 2026-10-17 on their own,
-          # since retention applies at upload time. attestward-cloud is the
-          # remaining one, and it is in a different repo.
-          retention-days: 1
-      # continue-on-error above is still right — a storage-quota failure
-      # must never redden a build whose compile/run proof already passed
-      # (#206, #210) — but it also means the failure is otherwise
-      # completely invisible (#217: this is exactly how quota exhaustion
-      # went undetected until a live dry run for #211 tripped over it by
-      # accident). steps.upload-builds.outcome reflects the step's real
-      # result *before* continue-on-error masks it into "success" for the
-      # job's own conclusion, so this step can surface it without
-      # reddening anything: it only runs when the upload genuinely
-      # failed, and a `::warning::` never fails the job itself.
-      - name: Warn if the build-artifact upload failed
-        if: steps.upload-builds.outcome == 'failure'
-        run: |
-          echo "::warning::upload of attestward-builds failed — likely the artifact storage quota (issue #217); the build itself succeeded, only the archival upload was lost"
 
   # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
   # push or cosign's OIDC signing context. Informational only (not a required
@@ -457,6 +379,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       # No `version:` pin — see the matching comment in release.yaml.
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:

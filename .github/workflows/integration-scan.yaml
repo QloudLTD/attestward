@@ -91,6 +91,12 @@ permissions:
 # OS-specific execution requirement (see ci.yaml's matching comment).
 # id-token: write below still works identically on a self-hosted runner:
 # GitHub's Actions service mints the OIDC token, not the runner itself.
+#
+# Every `actions/setup-go` step below sets `cache: false` — see ci.yaml's
+# matching comment (issue #313) for why: this repo's runners are
+# self-hosted, so GOMODCACHE/GOCACHE already persist in $HOME across jobs,
+# and setup-go's own cache just duplicates that through GitHub's Actions
+# cache service.
 jobs:
   integration-scan:
     runs-on: [self-hosted, macOS]
@@ -103,6 +109,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - name: Run integration test against the demo org
         env:
           GITHUB_TOKEN: ${{ secrets.DEMO_ORG_PAT }}
@@ -176,6 +183,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       # Same pin as release.yaml — the --bundle sign/verify flow was
       # verified against this exact version (see that workflow's comment).
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -230,6 +238,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - name: Run integration test against the ADO demo project
         env:
           AZURE_DEVOPS_EXT_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}

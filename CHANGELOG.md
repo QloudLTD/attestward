@@ -1448,6 +1448,27 @@ All notable changes to this project are documented here. Format follows
   `tools/progress/generate.py`'s own comment, previously instructing "update both
   places" (itself and this file) when phase scope changes, updated to reflect that
   there's only one place now.
+- **Every `actions/setup-go` call site across all five workflow files now sets
+  `cache: false`** (#313; 18 sites total — 11 in `ci.yaml`, 3 in `integration-scan.yaml`,
+  2 in `multi-arch-build-sample.yaml`, 1 each in `release.yaml`/`runner-maintenance.yaml`).
+  17 of those previously inherited the action's own `cache: true` default; on this repo's
+  self-hosted runners `GOMODCACHE`/`GOCACHE` already persist in `$HOME` across jobs, so
+  that default was uploading/restoring a redundant ~2GB copy through GitHub's Actions
+  cache service every run, duplicating what was already on local disk — the repo's stored
+  caches had grown to 8.65GB against the 10GB per-repo ceiling and were evicting each
+  other. `runner-maintenance.yaml`'s own `cache: false` (added earlier, for an unrelated
+  reason — see #301/#304) is no longer an exception to a repo-wide default; its comment
+  is rewritten to say so. `ci.yaml`'s `test` and `build` jobs also drop their
+  `upload-artifact` steps for coverage and cross-compiled binaries: nothing ever
+  downloaded either, and the compile/test/run proof those jobs exist for is unchanged —
+  only the archival upload is gone. Does not fix the artifact-storage quota outage
+  itself (#217 — that's an account-wide GB-hours accrual, not a per-repo byte total, so
+  removing uploads only prevents further accrual); does not purge existing stored
+  caches/artifacts either, left as a deliberate follow-up rather than folded in here.
+  Collapsing `ci.yaml`'s eight non-required macOS jobs into one shared-checkout job
+  (#313's other ask) is deliberately not part of this change — held pending a decision
+  on moving CI to multiple concurrent Linux runners, which would invert the argument for
+  collapsing them.
 
 ## [0.3.0] - 2026-07-23
 
