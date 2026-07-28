@@ -1319,6 +1319,34 @@ All notable changes to this project are documented here. Format follows
   (single matched workflow, genuine absence) are unchanged and still pass, pinning that
   a fetch failure over an actual gap still reads `not-checkable`, not a false
   `verified-pass`.
+- **This repo's self-hosted macOS runner fleet is down to one, and every surviving
+  reference in `docs/threat-model.md` and `.github/workflows/runner-maintenance.yaml`
+  now says so** (#301, #310). #298's own entry above correctly recorded, at the time,
+  that this repo ran two identically-labeled self-hosted macOS runners
+  (`spyros-mac-mini-ssdf` and `spyros-mac-studio-ssdf`); that entry is left as
+  written; it describes what #298 did, and editing it now would describe an edit
+  nobody performed. This is a new entry, not a rewrite of that one.
+
+  #301's own investigation — the "fuller per-machine accounting" both of #298's
+  corrections deferred to it — found `spyros-mac-studio-ssdf` had never once run
+  `runner-maintenance.yaml`'s `clean` job in its existence, with no way to audit
+  what had accumulated on it short of actually cleaning it. Rather than clean it,
+  the owner decommissioned the machine (2026-07-28): runner service stopped and
+  uninstalled, registration deleted from GitHub, and the ~1.6 GB install directory
+  removed from the host. `gh api repos/sioakim/attestward/actions/runners` now
+  returns four runners with exactly one macOS (`spyros-mac-mini-ssdf`) — reconfirmed
+  directly against the live API for this entry, not assumed from #301's own record
+  of it.
+
+  PR #310 updated both of `docs/threat-model.md`'s mentions and
+  `runner-maintenance.yaml`'s header comment to match, deliberately without
+  reverting to the pre-#298 single-machine wording those two spots used before #298
+  corrected them: every job still selects the `self-hosted, macOS` label, never a
+  pinned machine name, so the mechanism that let a second macOS-labeled runner
+  silently double the blast radius — "without a line of any workflow changing," in
+  the doc's own words — is recorded as a standing property of label-based selection,
+  not retired as a historical footnote now that only one runner happens to carry
+  that label today.
 
 ### Changed
 

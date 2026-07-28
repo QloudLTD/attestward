@@ -224,9 +224,18 @@ var bulletStartRe = regexp.MustCompile(`(?m)^  - \*\*Shared, persistent runner s
 // sectionTerminatorRe matches the start of any Markdown construct that ends
 // the runner-state bullet's own scope: a heading two or more "#"s deep, a
 // sibling bullet at this bullet's own two-space indent or the residual-
-// risks list's own zero-space indent, or a numbered list item at either of
-// those two indents. Issue #309 found two shapes the old literal-prefix
-// list ("\n  - **", "\n- **", "\n## ", "\n### ") let through: a "#### "
+// risks list's own zero-space indent, or a zero-indent numbered list item —
+// the alternation has no paired two-space form, so a two-space-indented
+// numbered item ("  1. ...") isn't matched. Left that way deliberately: the
+// gap only makes this function's own scope run further than it strictly
+// needs to, and runnerStateListSection's independent paren-tracking (#308)
+// already bounds the text this guard actually acts on well short of where
+// either indent's numbered form would change a real verdict — the same
+// "gap real here, absorbed downstream" shape this fix's own PR measured
+// for the terminator regex as a whole.
+//
+// Issue #309 found two shapes the old literal-prefix list ("\n  - **",
+// "\n- **", "\n## ", "\n### ") let through: a "#### "
 // heading, since the old "### " marker's trailing space isn't the fourth
 // "#"; and an unbolded sibling bullet ("- A sibling risk") or a numbered
 // item ("1. ..."), since the old bullet markers required the bold "**"
