@@ -158,7 +158,11 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusVerifiedFail: "no workflow matching the dependency-review-action signature (or " +
 			"equivalent) was detected in any workflow",
 		model.StatusNotCheckable: sharedUpstreamFetchFailureRubric + "; or a dependency-review workflow " +
-			"was detected, but re-fetching it to inspect its triggers failed",
+			"was detected, but re-fetching it to inspect its triggers failed; or no matched " +
+			"dependency-review-action (or equivalent) workflow was found, but one or more of this " +
+			"repo's own workflows could not be fully inspected (see Facts.skipped_workflows) — the " +
+			"same evidence gap C06.sca.tool-configured itself goes not-checkable for, so this check " +
+			"does too rather than asserting a confident absence over it",
 	},
 	"C06.sca.alerts-triaged": {
 		model.StatusVerifiedPass: fmt.Sprintf("the open-alerts fetch succeeded, and no critical alert has "+
@@ -425,7 +429,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 		checkToolConfigured(org, repo, workflowMatches, skippedWorkflows, dependabotConfigured, dependabotResp, dependabotErr, toolConfiguredProv),
 		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, runsErr, ranPerReleaseProv),
 		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, dependabotConfigProv),
-		checkDependencyReview(org, repo, depReviewFound, depReviewWorkflow, depReviewFetchErr, statusCheckNames, statusErr, dependencyReviewProv),
+		checkDependencyReview(org, repo, depReviewFound, skippedWorkflows, depReviewWorkflow, depReviewFetchErr, statusCheckNames, statusErr, dependencyReviewProv),
 		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, alertsProv),
 	}
 }

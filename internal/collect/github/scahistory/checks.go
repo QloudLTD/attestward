@@ -434,10 +434,29 @@ func matchRequiredCheck(workflowName string, requiredNames []string) (exact, loo
 // content, and the required-status-check names) happens in the caller
 // (collectRepo) — this function is pure given already-fetched data,
 // matching this codebase's established check-function shape.
-func checkDependencyReview(org, repo string, found bool, workflow *mapping.WorkflowFile, fetchErr error, statusCheckNames []string, statusCheckErr error, prov []model.Provenance) model.CheckResult {
+//
+// skipped is this repo's runhistory.MatchWorkflows skip list (issue #290):
+// !found alone can't distinguish "no dependency-review workflow exists"
+// from "one might exist among the workflows this collector couldn't fully
+// inspect" — a same-repo skip caps that verified-fail at not-checkable
+// instead, the same treatment checkToolConfigured and checkRanPerRelease
+// already apply to identical evidence.
+func checkDependencyReview(org, repo string, found bool, skipped []runhistory.SkippedWorkflow, workflow *mapping.WorkflowFile, fetchErr error, statusCheckNames []string, statusCheckErr error, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.dependency-review"
 
 	if !found {
+		if len(skipped) > 0 {
+			skipDetails := make([]map[string]any, 0, len(skipped))
+			for _, sw := range skipped {
+				skipDetails = append(skipDetails, map[string]any{"path": sw.Path, "reason": sw.Reason})
+			}
+			return model.CheckResult{
+				CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
+				Reason: fmt.Sprintf("no matched dependency-review-action (or equivalent) workflow, but %d workflow(s) in this repo could not be fully inspected — a confirmed absence can't be asserted over incomplete evidence", len(skipped)),
+				Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+				Facts: map[string]any{"skipped_workflows": skipDetails},
+			}
+		}
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusVerifiedFail,
 			Reason: "no dependency-review-action (or equivalent) workflow detected",

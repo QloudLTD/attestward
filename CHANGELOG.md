@@ -134,6 +134,30 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **GitHub `scahistory`'s `checkDependencyReview` no longer asserts `verified-fail` from
+  a workflow it couldn't read** (#290, found by the independent review of #289 — a
+  different variable than that fix's, in the same check function). `found` (whether a
+  dependency-review-action-or-equivalent workflow matched) derives from
+  `runhistory.MatchWorkflows`, which silently drops any workflow it couldn't fetch,
+  decode, or parse into `skippedWorkflows` — and `checkDependencyReview` was the only
+  check in the package that never received that list, unlike its siblings
+  `checkToolConfigured` and `checkRanPerRelease` (#178/#202). Reproduced: a repo whose
+  real `dependency-review-action` workflow (a required status check) 403s on content
+  fetch — `C06.sca.tool-configured`/`C06.sca.ran-per-release` correctly went
+  not-checkable over the same skip while `C06.sca.dependency-review` asserted
+  verified-fail beside them, one signed pack certifying both "couldn't read this file"
+  and "this control doesn't exist."
+
+  `checkDependencyReview` now takes `skipped []runhistory.SkippedWorkflow` (threaded
+  from `scahistory.go`'s one call site, which already computes it) and caps the
+  `!found` branch at not-checkable — surfacing `skipped_workflows` in Facts — whenever
+  the skip list is non-empty, mirroring `checkToolConfigured`'s existing shape rather
+  than inventing a new one. The check's `checkRubrics` not-checkable entry gained the
+  new cause. New test:
+  `TestCollect_DependencyReview_OnlyWorkflowUnreadable_NotCheckableNotFail`, mirrored
+  from #178/#202's identical regression tests; mutation-proved by disabling the new
+  cap and confirming the test reddened with the exact pre-fix verified-fail/reason
+  pair before restoring it.
 - **`check_id` rendered raw inside an unescaped markdown code span at five
   sites — closed** (#239, a v1.0 flip blocker). `` `{{.CheckID}}` `` appeared
   in `report.md.tmpl`'s Gaps table, Self-Attested heading, and Not Checkable

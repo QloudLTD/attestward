@@ -812,6 +812,51 @@ func TestCollect_DependencyReview_NoWorkflow_VerifiedFail(t *testing.T) {
 	}
 }
 
+// TestCollect_DependencyReview_OnlyWorkflowUnreadable_NotCheckableNotFail is
+// issue #290's regression case, mirrored from #178/#202's identical fix for
+// this package's other two checks: a repo whose only workflow can't be
+// fetched (content 404) must NOT read verified-fail ("no dependency-review
+// workflow detected") — that asserts a confirmed absence when inspection of
+// the one workflow that exists actually failed. It must read not-checkable
+// instead, with the skip surfaced in Facts, the same way
+// C06.sca.tool-configured already does for identical evidence.
+func TestCollect_DependencyReview_OnlyWorkflowUnreadable_NotCheckableNotFail(t *testing.T) {
+	org, repo, branch := "attestward-demo", "flaky-dep-review-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repo, branch)
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "Mystery", "path": ".github/workflows/mystery.yml", "state": "active"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/mystery.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+	registerNoReleases(t, mux, org, repo)
+	registerNoAlerts(t, mux, org, repo)
+	registerNoBranchProtection(t, mux, org, repo, branch)
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	dr := m["C06.sca.dependency-review"]
+	if dr.Status != model.StatusNotCheckable {
+		t.Errorf("dependency-review = %q, want not-checkable (the repo's only workflow couldn't be inspected — not a confirmed absence); reason=%q", dr.Status, dr.Reason)
+	}
+	skipped, ok := dr.Facts["skipped_workflows"].([]map[string]any)
+	if !ok || len(skipped) != 1 || skipped[0]["path"] != ".github/workflows/mystery.yml" || skipped[0]["reason"] == "" {
+		t.Errorf("skipped_workflows facts = %v, want one entry for mystery.yml with a non-empty reason", dr.Facts["skipped_workflows"])
+	}
+}
+
 func TestCollect_DependencyReview_NotTriggeredOnPullRequest_Partial(t *testing.T) {
 	org, repo, branch := "attestward-demo", "wrong-trigger-repo", "main"
 	mux := http.NewServeMux()
