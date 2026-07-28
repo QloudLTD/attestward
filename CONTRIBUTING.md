@@ -27,8 +27,8 @@ issue thread is the record of what was decided and why.
    the issue, losing the close comment that records the evidence. Confirm with
    `gh pr view <N> --json closingIssuesReferences` → `[]`.
 5. CI must be green (`lint` and `test` are required status checks on `main`; the `build`
-   matrix runs and uploads artifacts but does not gate merge). Squash merge only; the PR
-   title becomes the commit on `main`.
+   matrix runs but does not gate merge). Squash merge only; the PR title becomes the
+   commit on `main`.
 6. Delete the branch after merge.
 
 `main` is protected by a repository ruleset (PR required, linear history, no force-push,

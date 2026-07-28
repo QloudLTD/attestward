@@ -18,8 +18,11 @@ permissions:
 # (spyros-mac-mini-ssdf) rather than a GitHub-hosted runner — cross-compilation
 # (see `build`'s own comment below) means none of them need a specific OS to
 # produce or check a binary, so there's no technical reason to spend
-# GitHub-hosted Actions minutes running plain Go tooling. One runner queues
-# these serially rather than in parallel, which is an acceptable tradeoff.
+# GitHub-hosted Actions minutes running plain Go tooling. `runs-on:
+# [self-hosted, macOS]` is a label, not a pinned machine — it now resolves to
+# any of six runner registrations on that one Mac mini (issue #313), so these
+# jobs can run concurrently across up to six of them rather than queuing
+# serially behind a single registration the way they used to.
 #
 # Issue #313: every `actions/setup-go` step below sets `cache: false`. On a
 # self-hosted runner GOMODCACHE/GOCACHE already persist in $HOME across jobs

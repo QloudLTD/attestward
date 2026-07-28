@@ -1,0 +1,30 @@
+self-hosted-runner:
+  # Labels of self-hosted runner in array of strings. Only the per-runner
+  # labels unique to issue #313's runner-maintenance.yaml matrix need
+  # listing here — "self-hosted", "macOS"/"Linux"/"Windows",
+  # "ARM64"/"X64" all match actionlint's built-in GitHub-hosted-runner
+  # vocabulary case-insensitively already, so every other custom label this
+  # repo's workflows use passes without needing an entry.
+  labels:
+    - mini-1
+    - mini-2
+    - mini-3
+    - mini-4
+    - mini-5
+    - mini-6
+
+# Configuration variables in array of strings defined in your repository or
+# organization. `null` means disabling configuration variables check.
+# Empty array means no configuration variable is allowed.
+config-variables: null
+
+# Configuration for file paths. The keys are glob patterns to match to file
+# paths relative to the repository root. The values are the configurations for
+# the file paths. Note that the path separator is always '/'.
+# The following configurations are available.
+#
+# "ignore" is an array of regular expression patterns. Matched error messages
+# are ignored. This is similar to the "-ignore" command line option.
+paths:
+#  .github/workflows/**/*.yml:
+#    ignore: []

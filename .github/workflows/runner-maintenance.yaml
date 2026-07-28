@@ -1,6 +1,8 @@
-# Periodic cleanup of stale state on this repo's self-hosted macOS runner
-# (spyros-mac-mini-ssdf; spyros-mac-studio-ssdf was decommissioned, issue
-# #301). Addresses one of docs/threat-model.md's residual risks:
+# Periodic cleanup of stale state on this repo's six self-hosted macOS
+# runners — spyros-mac-mini-ssdf plus -2 through -6, all hosted on the one
+# Mac mini (spyros-mac-studio-ssdf was decommissioned, issue #301) — one
+# matrix leg per runner (issue #313). Addresses one of docs/threat-model.md's
+# residual risks:
 # actions/checkout's default clean only resets the checked-out source tree —
 # it doesn't touch the runner's broader _work directory, the Go build
 # cache, or the Go module cache, all of which persist across every
@@ -19,27 +21,35 @@
 # hosted runner, since a private org's release job realistically keeps
 # running self-hosted regardless).
 #
-# This job is only safe to run unattended because this repo's one
-# self-hosted macOS runner (spyros-mac-mini-ssdf; its former sibling
-# spyros-mac-studio-ssdf is decommissioned, issue #301) currently hosts
-# exactly one *attestward* runner registration — a runner registration
-# executes one job at a time, so `clean` has the machine to itself and
-# every other attestward macOS job queues behind it rather than racing it.
-# That machine's other co-tenant runner registrations are for unrelated
-# Swift/Rust/PHP projects, none of them Go, so they don't share
-# GOCACHE/GOMODCACHE with this job. Neither property is visible from this
-# file and neither generalizes:
+# This job runs as a six-way matrix (issue #313), one leg per runner
+# registration, rather than landing on whichever macOS-labeled runner
+# happens to be free. The Mac mini that used to host exactly one attestward
+# runner registration now hosts six — spyros-mac-mini-ssdf plus -2 through
+# -6 — each carrying its own unique label (mini-1 .. mini-6, in addition to
+# the shared `self-hosted, macOS` pair every job in this repo selects by)
+# and its own GOCACHE/GOMODCACHE, set via that runner's own .env; no two
+# registrations share a cache directory. `runs-on: [self-hosted, macOS,
+# "${{ matrix.runner }}"]` below pins each leg to exactly one registration
+# by its unique label, so a leg's `go clean` only ever touches that leg's
+# own runner. That per-runner label pinning plus per-runner cache isolation
+# is what makes six legs running concurrently safe: a runner registration
+# still executes one job at a time (an Actions property, not something this
+# workflow arranges), and since no registration's cache is reachable from
+# any other, one leg's wipe can't race a different leg's — or a different
+# macOS job's — cache reads on a sibling runner the way a shared cache
+# would. Neither the per-runner isolation nor the six-runner enumeration is
+# visible from this file and neither generalizes:
 #   - Do not point this job at spyros-ionos-ssdf without first serializing
 #     it against attestward-cloud's runner on that same host — that host
 #     already runs three runner registrations sharing one GOCACHE, which is
 #     independently corrupting CI today (issue #307): a live example is a
 #     `test-linux` job that failed build-cache reads mid-build while an
 #     attestward-cloud run was in flight on the same machine.
-#   - Registering a second Go runner on this Mac — or standing up another
-#     macOS runner carrying the same `self-hosted, macOS` label this job's
-#     own `runs-on` selects by — would make this job unsafe again, for the
-#     same reason: a concurrent Go job's cache reads could race this job's
-#     wipe.
+#   - A future runner registration — on this Mac or elsewhere — that isn't
+#     added to the matrix list below simply never gets cleaned: a coverage
+#     gap, not a race, since each existing leg targets only its own named
+#     registration and can't be redirected onto a new one the way the old
+#     generic `self-hosted, macOS` selection could land `clean` anywhere.
 on:
   schedule:
     - cron: "38 4 * * 3" # weekly, Wednesday 04:38 UTC — off-the-hour, distinct day from the other weekly crons (self-scan/integration-scan: Monday, aorus-keepalive: Thursday)
@@ -50,7 +60,15 @@ permissions:
 
 jobs:
   clean:
-    runs-on: [self-hosted, macOS]
+    strategy:
+      # One runner's cleanup failing (a `du`/`go clean` hiccup on that
+      # specific registration) has no bearing on whether the other five
+      # should still be cleaned — same reasoning multi-arch-build-sample.yaml's
+      # own `build` matrix already uses for its per-arch legs.
+      fail-fast: false
+      matrix:
+        runner: [mini-1, mini-2, mini-3, mini-4, mini-5, mini-6]
+    runs-on: [self-hosted, macOS, "${{ matrix.runner }}"]
     permissions:
       contents: read
       issues: write # only for the on-failure pinned-issue step below; this job never writes to any scanned platform (ADR-0004 governs platform calls, not our own CI infra)

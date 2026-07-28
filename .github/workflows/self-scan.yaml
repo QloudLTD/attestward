@@ -236,19 +236,23 @@ jobs:
         with:
           name: self-scan-evidence
           path: evidence/
-          # 7 days, down from 90, matching ci.yaml for consistency. Be honest
-          # about the size of that win: this is a JSON pack plus one HTML file,
-          # zipped, so 90->7 frees on the order of ~5 MB of standing storage.
-          # The real pressure was ci.yaml's attestward-builds — see below. This
-          # change is right because two artifacts with the same lifetime are
-          # easier to reason about, not because it materially eased the quota.
+          # 7 days, down from 90. Originally set to match ci.yaml's own
+          # attestward-builds retention-days for consistency — that upload,
+          # and the retention-days setting on it, no longer exist at all
+          # (issue #313/#314 removed it outright: nothing had ever
+          # downloaded it), so there's no sibling value left to match.
+          # Kept at 7 days on its own merits: this is a JSON pack plus one
+          # HTML file, zipped, so 90->7 frees on the order of ~5 MB of
+          # standing storage — a small win on its own, but the honest one
+          # available now that the real pressure (ci.yaml's
+          # attestward-builds, an order of magnitude larger) is gone
+          # rather than just scoped down.
           #
           # #217: the quota exhausted outright — 10.82 GB across 1362
           # artifacts, 5.69 GB of it pre-rename `attestor-*` debris no
           # workflow references any more (deleted), the rest almost
-          # entirely ci.yaml's attestward-builds. That upload now only
-          # runs on pushes to main, not every PR/PR-push, which was the
-          # actual volume driver — see its own comment in ci.yaml.
+          # entirely ci.yaml's attestward-builds — see #313/#314 for why
+          # that upload is gone rather than merely scoped down further.
           retention-days: 7
       # #217: continue-on-error above is right (see this step's own
       # comment) but made the quota exhausting outright completely

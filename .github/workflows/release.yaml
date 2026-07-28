@@ -17,8 +17,9 @@ jobs:
   # blocked, silently, unless someone happens to check the run.
   goreleaser:
     runs-on: [self-hosted, macOS]
-    # A hung release job now blocks the single shared self-hosted runner
-    # for the whole repo (lint/test/everything else queues behind it),
+    # A hung release job now blocks whichever of the six shared self-hosted
+    # runner registrations it lands on (issue #313) — down from blocking the
+    # one shared registration this repo used to have, but still a real cost,
     # unlike on a hosted runner where it only wasted its own VM —
     # integration-scan.yaml's jobs already set a timeout for the same
     # reason.
