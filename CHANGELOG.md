@@ -172,6 +172,38 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`runner-maintenance.yaml`'s `clean` job — the mitigation #260's own entry below calls
+  "the one job whose whole purpose is bounding this exact risk" — had never once
+  succeeded** (#301). Its first run (2026-07-19, a manual `workflow_dispatch` against the
+  commit that added this workflow) never reached the cache step at all: the runner
+  process died mid-job at the since-removed `_work` cleanup step, the incident that
+  step's own warning comment describes — zero steps recorded. Its only *scheduled* run
+  (2026-07-22) did reach the cache step and failed there, at `rm -rf "$HOME/go/pkg/
+  mod"`: Go marks every downloaded module-cache file read-only by design, which `rm -rf`
+  cannot remove. That failure sat red and unreported for six days on a private repo's
+  weekly cron. Replaced both `rm -rf` calls with `go clean -cache`/
+  `go clean -modcache`, which clear the read-only bit correctly, resolving the cache
+  paths via `go env GOCACHE`/`GOMODCACHE` rather than a hardcoded `$HOME` path. Added
+  `actions/checkout`+`actions/setup-go` (`go-version-file: go.mod`, matching every other
+  workflow's pin) since the job now needs a Go toolchain and previously relied on none;
+  `cache: false` on that setup-go step specifically, since its own default `cache: true`
+  would restore the shared setup-go cache immediately before this job deletes it, then
+  save back a near-empty archive under that cache key — poisoning it for every other
+  macOS job sharing it, as cache entries are write-once per key. On failure, now opens
+  or updates a pinned issue (new `runner-maintenance-drift` label) mirroring
+  `integration-scan.yaml`'s existing pattern, chosen over a bare `::error::` annotation
+  because both prior failures were already visibly red in the Actions tab and still went
+  unnoticed — pushing into Issues reaches a surface that's actually watched. On success,
+  writes a one-line before-size summary per cache to the run's step summary. Deliberately
+  did not restore the job's prior `_work`/`$RUNNER_WORKSPACE` cleanup step, which broke
+  the runner process mid-job on its first live dispatch — that incident's warning comment
+  stays intact and unresolved. Also documented, in the same header comment, why this job
+  is safe only because each macOS runner currently hosts one attestward runner
+  registration exclusively, and why it must not be extended to `spyros-ionos-ssdf` (three
+  runner registrations sharing one `GOCACHE` there already, independently corrupting CI —
+  #307) without serializing against that host's other runner first. Unverified on a live
+  runner as of this entry — #301 tracks confirming a green `clean` run on both macOS
+  machines before treating scheduled cleaning as an operative control.
 - **`tools/threatmodelguard`'s ADO collector-list check (#299) closed three residual
   gaps found by that PR's own pre-merge review** (#302). The doc's "ten" numeral was a
   hand-maintained count next to a machine-checked list — reproduced by adding a real

@@ -1,10 +1,11 @@
-# Periodic cleanup of stale state on the self-hosted macOS runner
-# (spyros-mac-mini-ssdf). Addresses one of docs/threat-model.md's residual
-# risks: actions/checkout's default clean only resets the checked-out
-# source tree — it doesn't touch the runner's broader _work directory, the
-# Go build cache, or the Go module cache, all of which persist across every
-# job/workflow sharing this one physical machine. Go's own content-addressed
-# caches (go.sum-verified, hash-keyed) already bound the risk meaningfully,
+# Periodic cleanup of stale state on this repo's self-hosted macOS runners
+# (spyros-mac-mini-ssdf, spyros-mac-studio-ssdf). Addresses one of
+# docs/threat-model.md's residual risks: actions/checkout's default clean
+# only resets the checked-out source tree — it doesn't touch the runner's
+# broader _work directory, the Go build cache, or the Go module cache, all
+# of which persist across every job/workflow sharing whichever of these two
+# physical machines a run lands on. Go's own content-addressed caches
+# (go.sum-verified, hash-keyed) already bound the risk meaningfully,
 # but this bounds how long any stray state — from an old checkout, a
 # compromised build step, or simple accumulation — can sit unnoticed.
 #
@@ -14,6 +15,25 @@
 # discussion favored this over moving the release job to an ephemeral
 # hosted runner, since a private org's release job realistically keeps
 # running self-hosted regardless).
+#
+# This job is only safe to run unattended because each of this repo's two
+# self-hosted macOS runners (spyros-mac-mini-ssdf, spyros-mac-studio-ssdf)
+# currently hosts exactly one *attestward* runner registration — a runner
+# registration executes one job at a time, so `clean` has the machine to
+# itself and every other attestward macOS job queues behind it rather than
+# racing it. Those machines' other co-tenant runner registrations are for
+# unrelated Swift/Rust/PHP projects, none of them Go, so they don't share
+# GOCACHE/GOMODCACHE with this job. Neither property is visible from this
+# file and neither generalizes:
+#   - Do not point this job at spyros-ionos-ssdf without first serializing
+#     it against attestward-cloud's runner on that same host — that host
+#     already runs three runner registrations sharing one GOCACHE, which is
+#     independently corrupting CI today (issue #307): a live example is a
+#     `test-linux` job that failed build-cache reads mid-build while an
+#     attestward-cloud run was in flight on the same machine.
+#   - Registering a second Go runner on either Mac would make this job
+#     unsafe there too, for the same reason: a concurrent Go job's cache
+#     reads could race this job's wipe.
 on:
   schedule:
     - cron: "38 4 * * 3" # weekly, Wednesday 04:38 UTC — off-the-hour, distinct day from the other weekly crons (self-scan/integration-scan: Monday, aorus-keepalive: Thursday)
@@ -25,6 +45,9 @@ permissions:
 jobs:
   clean:
     runs-on: [self-hosted, macOS]
+    permissions:
+      contents: read
+      issues: write # only for the on-failure pinned-issue step below; this job never writes to any scanned platform (ADR-0004 governs platform calls, not our own CI infra)
     steps:
       # A prior version of this workflow had a step here that computed the
       # runner's _work root from $RUNNER_WORKSPACE and deleted every sibling
@@ -40,10 +63,103 @@ jobs:
       # $RUNNER_WORKSPACE/$GITHUB_WORKSPACE values confirmed via a
       # read-only diagnostic run on this specific runner before any rm -rf
       # touches anything path-computed again.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          # This action's own default is cache: true — every other workflow
+          # wants that, this one specifically must not: it would restore the
+          # shared setup-go cache (build cache + module cache) right before
+          # the step below deletes it, then "successfully" save back a
+          # near-empty archive under that same cache key (cache-save only
+          # skips when *every* path is missing, and GOCACHE still has
+          # go clean's own leftover README/trim.txt after the wipe) —
+          # poisoning that key for every other macOS job sharing it, since
+          # cache entries are write-once per key. Disabled here only; do not
+          # copy this into a sibling workflow.
+          cache: false
+      # issue #301: this used to be `rm -rf "$HOME/go/pkg/mod"`, which is
+      # exactly the wrong tool — Go marks every downloaded module file
+      # read-only by design ("rm: .../LICENSE: Permission denied"). This
+      # step has only ever run once (this workflow's other run, 2026-07-19,
+      # died mid-job at the since-removed `_work` step above, before ever
+      # reaching here) and that one run failed here, unnoticed for six days
+      # (see the failure-reporting step below). `go clean` knows to clear
+      # the read-only bit first, and resolves the same two directories via
+      # `go env` instead of a hardcoded $HOME path, so it also works if a
+      # runner ever overrides GOCACHE/GOMODCACHE.
       - name: Clear Go build and module caches
         run: |
           set -euo pipefail
-          echo "removing $HOME/Library/Caches/go-build"
-          rm -rf "$HOME/Library/Caches/go-build"
-          echo "removing $HOME/go/pkg/mod"
-          rm -rf "$HOME/go/pkg/mod"
+
+          go_cache="$(go env GOCACHE)"
+          mod_cache="$(go env GOMODCACHE)"
+
+          cache_size() {
+            du -sh "$1" 2>/dev/null | cut -f1 || echo "0"
+          }
+
+          build_before="$(cache_size "$go_cache")"
+          mod_before="$(cache_size "$mod_cache")"
+
+          echo "clearing Go build cache: $go_cache ($build_before)"
+          go clean -cache
+
+          echo "clearing Go module cache: $mod_cache ($mod_before)"
+          go clean -modcache
+
+          {
+            echo "### Runner cache cleanup ($RUNNER_NAME)"
+            echo "- build cache (\`$go_cache\`): $build_before freed"
+            echo "- module cache (\`$mod_cache\`): $mod_before freed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # issue #301's real finding: the only run that ever reached this
+      # job's actual cache-cleanup logic (2026-07-22, scheduled) failed
+      # silently for six days on a weekly cron nobody was watching —
+      # unlike the earlier `_work` incident above, which was caught live
+      # the moment it happened. A red run in the Actions tab was already
+      # the true state and still went unnoticed, so an `::error::`
+      # annotation would only decorate a signal that already existed and
+      # was already ignored. Mirrors
+      # integration-scan.yaml's pinned-issue pattern instead: it pushes the
+      # failure into Issues, which — unlike the Actions tab — is watched
+      # (this very finding was filed there).
+      - name: Open or update the runner-cleanup-failed issue on failure
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = "runner-maintenance's clean job failed";
+            const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const runnerName = process.env.RUNNER_NAME || "unknown runner";
+            const triggerNote = context.eventName === "schedule"
+              ? " (this week's scheduled run)"
+              : ` (triggered by ${context.eventName})`;
+            const body = `\`runner-maintenance.yaml\`'s \`clean\` job failed on \`${runnerName}\`${triggerNote}.\n\nThis job clears the Go build and module caches on whichever self-hosted macOS runner it lands on — the only mitigation docs/threat-model.md names for unbounded shared-runner-state accumulation (issue #301). A failure here means that runner is accumulating state uncleaned.\n\nFailed run: ${runURL}\n\nClose this issue once the cause is understood and the job has passed again on this runner.`;
+            const label = "runner-maintenance-drift";
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+            });
+
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body: `Still failing as of ${runURL} on \`${runnerName}\`.`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }
