@@ -172,6 +172,22 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`tools/threatmodelguard`'s ADO collector-list check (#299) closed three residual
+  gaps found by that PR's own pre-merge review** (#302). The doc's "ten" numeral was a
+  hand-maintained count next to a machine-checked list — reproduced by adding a real
+  eleventh collector package and following the guard's own remediation text, which left
+  a green build over a doc reading "ten ADO collector packages" against eleven names;
+  dropped the numeral rather than deriving it, since the brace list already makes the
+  count redundant. `adoCollectorListRe.FindSubmatch` bound to whichever
+  `internal/collect/azuredevops/{...}/` construct came first in the document, so a
+  second complete construct placed earlier silently shadowed the real list — reproduced
+  against the real doc with `vdp` deleted from the real list and a complete decoy
+  earlier: exit 0. Switched to `FindAllSubmatch`, erroring whenever more than one
+  construct matches anywhere in the document, not just before the real list. The guard
+  also only checked for real packages missing from the list, never the reverse — a
+  `ghostpackage` name added to the list with no matching real package exited 0.
+  `extraADOCollectors` adds that direction. `CLAUDE.md`'s `tools/threatmodelguard` row
+  updated to describe both checks the tool now performs.
 - **GitHub `scahistory`'s `checkDependencyReview` no longer asserts `verified-fail` from
   a workflow it couldn't read** (#290, found by the independent review of #289 — a
   different variable than that fix's, in the same check function). `found` (whether a

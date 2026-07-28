@@ -30,20 +30,31 @@ func main() {
 			"self-hosted macOS and fix the workflow/guard instead.")
 	}
 
-	missingCollectors, err := runADOCollectors("internal/collect/azuredevops", "docs/threat-model.md")
+	missingCollectors, extraCollectors, err := runADOCollectors("internal/collect/azuredevops", "docs/threat-model.md")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "threatmodelguard: "+err.Error())
 		os.Exit(2)
 	}
 	if len(missingCollectors) > 0 {
 		failed = true
-		fmt.Fprintln(os.Stderr, "threatmodelguard: docs/threat-model.md's \"ten ADO collector packages\" "+
+		fmt.Fprintln(os.Stderr, "threatmodelguard: docs/threat-model.md's \"ADO collector packages\" "+
 			"list doesn't name these internal/collect/azuredevops packages (issue #274):")
 		for _, name := range missingCollectors {
 			fmt.Fprintf(os.Stderr, "  - %s\n", name)
 		}
 		fmt.Fprintln(os.Stderr, "\nAdd each to that list, or confirm it genuinely has no Collect(ctx...) "+
 			"method and fix the package/guard instead.")
+	}
+	if len(extraCollectors) > 0 {
+		failed = true
+		fmt.Fprintln(os.Stderr, "threatmodelguard: docs/threat-model.md's \"ADO collector packages\" "+
+			"list names these packages, but none exist under internal/collect/azuredevops with a "+
+			"Collect(ctx...) method (issue #302):")
+		for _, name := range extraCollectors {
+			fmt.Fprintf(os.Stderr, "  - %s\n", name)
+		}
+		fmt.Fprintln(os.Stderr, "\nRemove each from that list, or confirm the package genuinely exists "+
+			"and fix the package/guard instead.")
 	}
 
 	if failed {

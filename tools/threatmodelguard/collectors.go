@@ -1,5 +1,5 @@
 // This file extends threatmodelguard for issue #274 (option 2 of that
-// issue's four): docs/threat-model.md's "ten ADO collector packages"
+// issue's four): docs/threat-model.md's "ADO collector packages"
 // list is a hand-maintained enumeration of code facts, the same shape
 // scan.go's runner-state guard closes for issue #260. It enumerates every
 // directory directly under internal/collect/azuredevops exposing a
@@ -15,6 +15,16 @@
 // GitHub's collectors are covered by the endpoint table instead — #274's
 // harder option 1, left for its own cost/benefit call — so there's no
 // GitHub-side list for this guard to check.
+//
+// Issue #302 closed three residual gaps found in review of #274/#299: the
+// doc's "ten" numeral was an unguarded hand-maintained count (dropped
+// rather than derived — see docs/threat-model.md's own sentence), the
+// brace-list extraction was first-match-wins and could silently read a
+// decoy construct instead of the real one (now errors on more than one
+// match), and the guard only checked for packages missing from the list,
+// never the reverse — a name left in the list for a deleted, renamed, or
+// nonexistent package (extraADOCollectors) is as false a claim as an
+// incomplete list.
 package main
 
 import (
@@ -30,7 +40,7 @@ import (
 )
 
 // adoCollectorListRe matches the brace-expansion package list in
-// docs/threat-model.md's "ten ADO collector packages" sentence, e.g.
+// docs/threat-model.md's "ADO collector packages" sentence, e.g.
 // "internal/collect/azuredevops/{orgsecurity,\nrepoprotection, ...}/".
 // Anchoring on this exact path prefix — not a bare `{...}` — is what
 // keeps this guard from being satisfiable by a package name mentioned
@@ -39,23 +49,26 @@ import (
 // list that makes the claim".
 var adoCollectorListRe = regexp.MustCompile(`internal/collect/azuredevops/\{([^}]*)\}/`)
 
-// runADOCollectors returns which packages directly under collectDir with
-// a Collect(ctx context.Context, ...) method aren't named in
-// threatModelPath's "ten ADO collector packages" list.
-func runADOCollectors(collectDir, threatModelPath string) ([]string, error) {
+// runADOCollectors returns two directions of drift between collectDir's
+// real packages and threatModelPath's "ADO collector packages" list:
+// missing is which real packages the list doesn't name, extra is which
+// listed names have no matching real package (a name left behind after a
+// package is deleted or renamed, or one that never existed) — an
+// over-broad list is as false a claim as an incomplete one.
+func runADOCollectors(collectDir, threatModelPath string) (missing, extra []string, err error) {
 	packages, err := adoCollectorPackages(collectDir)
 	if err != nil {
-		return nil, fmt.Errorf("scan %s: %w", collectDir, err)
+		return nil, nil, fmt.Errorf("scan %s: %w", collectDir, err)
 	}
 	doc, err := os.ReadFile(threatModelPath)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", threatModelPath, err)
+		return nil, nil, fmt.Errorf("read %s: %w", threatModelPath, err)
 	}
 	listed, err := adoCollectorListFromDoc(doc)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", threatModelPath, err)
+		return nil, nil, fmt.Errorf("%s: %w", threatModelPath, err)
 	}
-	return missingADOCollectors(packages, listed), nil
+	return missingADOCollectors(packages, listed), extraADOCollectors(packages, listed), nil
 }
 
 // adoCollectorPackages returns the sorted set of directory names directly
@@ -135,18 +148,29 @@ func firstParamIsContextContext(ft *ast.FuncType) bool {
 	return ok && pkgIdent.Name == "context" && sel.Sel.Name == "Context"
 }
 
-// adoCollectorListFromDoc extracts the package names named in doc's "ten
-// ADO collector packages" brace-expansion list. Errors if the list can't
-// be found — a restructured threat model needs a human to re-anchor the
-// guard, not a silent pass.
+// adoCollectorListFromDoc extracts the package names named in doc's "ADO
+// collector packages" brace-expansion list. Errors if the list can't be
+// found — a restructured threat model needs a human to re-anchor the
+// guard, not a silent pass — and errors the same way if it finds more than
+// one: FindAllSubmatch, not FindSubmatch, so a second complete
+// "internal/collect/azuredevops/{...}/" construct anywhere else in the
+// document (before or after the real one) can't silently shadow it or get
+// silently ignored. A first-match-wins read has no way to tell which of
+// two such constructs is "the real list" — that's a call for a human to
+// resolve by re-anchoring, same as the missing-list case above.
 func adoCollectorListFromDoc(doc []byte) (map[string]bool, error) {
-	m := adoCollectorListRe.FindSubmatch(doc)
-	if m == nil {
-		return nil, fmt.Errorf("no %q brace-list found in the \"ten ADO collector packages\" sentence",
+	matches := adoCollectorListRe.FindAllSubmatch(doc, -1)
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no %q brace-list found in the \"ADO collector packages\" sentence",
 			"internal/collect/azuredevops/{...}/")
 	}
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("found %d %q constructs in the document, expected exactly one — "+
+			"a restructured threat model needs a human to re-anchor the guard, not a guess at which is real",
+			len(matches), "internal/collect/azuredevops/{...}/")
+	}
 	listed := map[string]bool{}
-	for _, part := range strings.Split(string(m[1]), ",") {
+	for _, part := range strings.Split(string(matches[0][1]), ",") {
 		if name := strings.TrimSpace(part); name != "" {
 			listed[name] = true
 		}
@@ -164,4 +188,23 @@ func missingADOCollectors(packages []string, listed map[string]bool) []string {
 		}
 	}
 	return missing
+}
+
+// extraADOCollectors returns which names in listed (the doc's own claimed
+// set) have no matching entry in packages (the real, code-derived set) —
+// the reverse direction from missingADOCollectors: a name left behind
+// after its package is deleted or renamed, or one that never existed.
+func extraADOCollectors(packages []string, listed map[string]bool) []string {
+	haveReal := map[string]bool{}
+	for _, p := range packages {
+		haveReal[p] = true
+	}
+	var extra []string
+	for name := range listed {
+		if !haveReal[name] {
+			extra = append(extra, name)
+		}
+	}
+	sort.Strings(extra)
+	return extra
 }

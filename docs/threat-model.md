@@ -89,7 +89,7 @@ through `azuredevops.Client` across all four hosts. Regression tests:
 `TestProvenanceTransportRejectsWriteMethods` and `TestProvenanceTransportAllowsHead`
 in `internal/collect/azuredevops/transport_test.go` — the same two-test shape as the
 GitHub twin's own tests above. Every ADO REST call any collector makes is a `GET`; none
-of the ten ADO collector packages (`internal/collect/azuredevops/{orgsecurity,
+of the ADO collector packages (`internal/collect/azuredevops/{orgsecurity,
 repoprotection, envseparation, secretshygiene, sasthistory, scahistory, provenance,
 pipelinesecurity, auditlogging, vdp}/`) is exhaustively enumerated here the way
 GitHub's table below is — `docs/checks-reference.md`'s `azuredevops` subsections are
