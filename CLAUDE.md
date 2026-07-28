@@ -86,10 +86,10 @@ make test
 make lint    # golangci-lint run (v2 config — see .golangci.yml)
 make tidy    # go mod tidy
 
-make checks-docs-check examples-check tidy-check   # drift guards, all wired into CI
+make checks-docs-check examples-check tidy-check notices-check   # drift guards, all wired into CI
 go run ./tools/rubricguard <base> <head>           # status-vs-checkRubrics drift
 go run ./tools/threatmodelguard                    # threat-model job enumeration
-gh workflow run integration-scan.yaml              # live demo-org scan (otherwise weekly only)
+gh workflow run integration-scan.yaml              # live demo-org scan (otherwise weekly, plus push-to-main on collector-relevant paths, issue #278)
 ```
 
 ## Only statuses are guarded
@@ -131,9 +131,10 @@ invalidate rubrics in six collector packages without flagging.
   the 1-approval rule, not status checks. It is needed on **every** merge here: the PR author
   and the `gh` account are the same identity, so GitHub won't let it approve its own PR and
   `reviewDecision` stays `REVIEW_REQUIRED` permanently.
-- `gh pr merge --delete-branch` exits **non-zero on a successful merge** when a worktree
-  still holds the local branch. The merge landed; confirm with `gh pr view <N> --json state`
-  rather than reading the exit code as failure.
+- `gh pr merge --delete-branch`'s exit code says nothing about whether the merge itself
+  landed, only about local-branch cleanup — across six merges in one day it exited 1 with
+  the merge fully successful, and 0 with local deletion genuinely failing. Always confirm
+  with `gh pr view <N> --json state` rather than trusting the exit code either direction.
 - A context expression inside a `run:` block is substituted **before the shell sees it,
   including inside a `#` comment** — an empty `${{ }}` is a hard syntax error and a valid
   one silently interpolates. `actionlint` catches only the former, and isn't run in CI.

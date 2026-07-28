@@ -12,7 +12,7 @@ A local, read-only CLI that queries source-control APIs with a user-supplied tok
 writes evidence files to a user-chosen local directory. No server component, no database,
 no telemetry, no network destinations other than the platform API in scope for a given
 scan — `api.github.com` for `--platform github` (the default), or, per the v0.2 Azure
-DevOps epic (issue #34, ships in the next tagged release), exactly four first-party
+DevOps epic (issue #34, shipped in v0.3.0), exactly four first-party
 Azure DevOps hosts for `--platform azuredevops`: `dev.azure.com`, `vssps.dev.azure.com`
 (Graph), `advsec.dev.azure.com` (GHAzDO), and `auditservice.dev.azure.com` (Audit Log) —
 see `docs/architecture.md`'s "Azure DevOps" section for what each one serves. One scan
@@ -379,9 +379,12 @@ diagram doesn't redraw per platform.
   - **Release integrity rests on a persistent personal machine, not an ephemeral hosted
     VM.** `release.yaml`'s `goreleaser` job (which publishes real artifacts with
     `contents: write` and keyless-signs real checksums) selects `runs-on: [self-hosted,
-    macOS]` — a label, not a pinned machine, so it lands on whichever of this repo's two
-    identically-labeled self-hosted macOS runners GitHub assigns (issue #301 tracks the
-    fuller accounting this section still owes both of them).
+    macOS]` — a label, not a pinned machine, so it lands on whichever self-hosted macOS
+    runner carries that label, never a name pinned in this file. Exactly one does today,
+    `spyros-mac-mini-ssdf` (`spyros-mac-studio-ssdf`, this bullet's prior co-attribution,
+    is decommissioned — issue #301 has the accounting). The selection is still by label,
+    though: a second macOS-labeled runner would make this job's landing machine
+    non-deterministic again without one word of `release.yaml` changing.
     If that machine were compromised during a release run, tampered binaries could get
     published *and* validly Sigstore-signed with the exact workflow identity
     [SECURITY.md](../SECURITY.md) tells consumers to verify — keyless signing attests
@@ -394,10 +397,13 @@ diagram doesn't redraw per platform.
     `actions/checkout`'s default clean only resets the checked-out source tree — it
     doesn't touch `~/go/pkg/mod`, `~/Library/Caches/go-build`, or a runner's Go
     toolcache, all of which persist across every job/workflow sharing one physical
-    machine. That's `spyros-mac-mini-ssdf` — equally `spyros-mac-studio-ssdf` today,
-    since every job below selects `runs-on: [self-hosted, macOS]`, a label rather
-    than a pinned machine, and the two runners carry identical labels (issue #301
-    tracks the fuller per-machine accounting this section still owes both) — (every
+    machine. That's `spyros-mac-mini-ssdf`, this repo's only self-hosted macOS runner
+    as of `spyros-mac-studio-ssdf`'s decommissioning (issue #301 has the accounting).
+    Every job below still selects `runs-on: [self-hosted, macOS]`, a label rather than
+    a pinned machine, so that attribution is a fact about today's runner fleet, not a
+    guarantee the label enforces: a second macOS-labeled runner registered tomorrow
+    would be an equally eligible target for every job in the list below, silently,
+    without a line of any workflow changing — (every
     macOS-labeled job in this repo:
     `lint`, `test`, `checks-docs-drift`, `gomod-tidy-drift` (added with issue #249's
     drift guard — its own `go mod tidy` step is the clearest example of this

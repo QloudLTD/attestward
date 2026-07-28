@@ -1,13 +1,16 @@
-# Periodic cleanup of stale state on this repo's self-hosted macOS runners
-# (spyros-mac-mini-ssdf, spyros-mac-studio-ssdf). Addresses one of
-# docs/threat-model.md's residual risks: actions/checkout's default clean
-# only resets the checked-out source tree — it doesn't touch the runner's
-# broader _work directory, the Go build cache, or the Go module cache, all
-# of which persist across every job/workflow sharing whichever of these two
-# physical machines a run lands on. Go's own content-addressed caches
-# (go.sum-verified, hash-keyed) already bound the risk meaningfully,
-# but this bounds how long any stray state — from an old checkout, a
-# compromised build step, or simple accumulation — can sit unnoticed.
+# Periodic cleanup of stale state on this repo's self-hosted macOS runner
+# (spyros-mac-mini-ssdf; spyros-mac-studio-ssdf was decommissioned, issue
+# #301). Addresses one of docs/threat-model.md's residual risks:
+# actions/checkout's default clean only resets the checked-out source tree —
+# it doesn't touch the runner's broader _work directory, the Go build
+# cache, or the Go module cache, all of which persist across every
+# job/workflow sharing this physical machine — and, by the same
+# label-not-machine selection every job below relies on, would persist just
+# as much across any future second macOS-labeled runner. Go's own
+# content-addressed caches (go.sum-verified, hash-keyed) already bound the
+# risk meaningfully, but this bounds how long any stray state — from an old
+# checkout, a compromised build step, or simple accumulation — can sit
+# unnoticed.
 #
 # Deliberately a scheduled, standalone job rather than a step folded into
 # every CI run: wiping the Go caches on every lint/test/build would erase
@@ -16,13 +19,14 @@
 # hosted runner, since a private org's release job realistically keeps
 # running self-hosted regardless).
 #
-# This job is only safe to run unattended because each of this repo's two
-# self-hosted macOS runners (spyros-mac-mini-ssdf, spyros-mac-studio-ssdf)
-# currently hosts exactly one *attestward* runner registration — a runner
-# registration executes one job at a time, so `clean` has the machine to
-# itself and every other attestward macOS job queues behind it rather than
-# racing it. Those machines' other co-tenant runner registrations are for
-# unrelated Swift/Rust/PHP projects, none of them Go, so they don't share
+# This job is only safe to run unattended because this repo's one
+# self-hosted macOS runner (spyros-mac-mini-ssdf; its former sibling
+# spyros-mac-studio-ssdf is decommissioned, issue #301) currently hosts
+# exactly one *attestward* runner registration — a runner registration
+# executes one job at a time, so `clean` has the machine to itself and
+# every other attestward macOS job queues behind it rather than racing it.
+# That machine's other co-tenant runner registrations are for unrelated
+# Swift/Rust/PHP projects, none of them Go, so they don't share
 # GOCACHE/GOMODCACHE with this job. Neither property is visible from this
 # file and neither generalizes:
 #   - Do not point this job at spyros-ionos-ssdf without first serializing
@@ -31,9 +35,11 @@
 #     independently corrupting CI today (issue #307): a live example is a
 #     `test-linux` job that failed build-cache reads mid-build while an
 #     attestward-cloud run was in flight on the same machine.
-#   - Registering a second Go runner on either Mac would make this job
-#     unsafe there too, for the same reason: a concurrent Go job's cache
-#     reads could race this job's wipe.
+#   - Registering a second Go runner on this Mac — or standing up another
+#     macOS runner carrying the same `self-hosted, macOS` label this job's
+#     own `runs-on` selects by — would make this job unsafe again, for the
+#     same reason: a concurrent Go job's cache reads could race this job's
+#     wipe.
 on:
   schedule:
     - cron: "38 4 * * 3" # weekly, Wednesday 04:38 UTC — off-the-hour, distinct day from the other weekly crons (self-scan/integration-scan: Monday, aorus-keepalive: Thursday)

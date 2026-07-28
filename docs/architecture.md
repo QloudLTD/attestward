@@ -59,14 +59,14 @@ architecture; it is updated in the same PR as any change that affects it.
 
 Recorded as ADRs in [docs/adr/](adr/). Summary:
 
-- **Go 1.22+, single static binary** ([ADR-0002](adr/0002-go-single-static-binary.md)) —
+- **Go 1.25+, single static binary** ([ADR-0002](adr/0002-go-single-static-binary.md)) —
   standard in security tooling, trivial install, easy audit.
 - **Mappings are data, not code** ([ADR-0003](adr/0003-mappings-as-data.md)) — SSDF/CISA
   mappings and scanner signatures live in versioned YAML; community extensions never touch Go.
 - **Read-only, local-first, zero telemetry** ([ADR-0004](adr/0004-read-only-local-first.md)).
 - **Collector interface as the platform seam** ([ADR-0005](adr/0005-collector-interface-seam.md)) —
   Azure DevOps slots in behind the same interface per the v0.2 Azure DevOps epic
-  (#34, see below) — ships in the next tagged release; GitLab remains backlog (issue #35).
+  (#34, see below) — shipped in v0.3.0; GitLab remains backlog (issue #35).
 
 ## Collector contract
 
@@ -85,8 +85,8 @@ type Collector interface {
 
 A second platform behind the same `collect.Collector` seam (ADR-0005; the v0.2 Azure
 DevOps epic, issue #34): full C01–C10 parity, same check IDs, `not-checkable` with an
-honest, specific reason wherever Azure DevOps has no equivalent control — ships in the
-next tagged release. Package tree:
+honest, specific reason wherever Azure DevOps has no equivalent control — shipped in
+v0.3.0. Package tree:
 
 ```
 /internal/collect/azuredevops/
