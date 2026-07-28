@@ -1,9 +1,11 @@
 // threatmodelguard is a CI guard for issue #260 (usage: `go run
 // ./tools/threatmodelguard`): flags any self-hosted-macOS job whose name
-// isn't backtick-quoted in docs/threat-model.md's "Shared, persistent
-// runner state" bullet. See scan.go's doc comment for the precision this
-// accepts and why. Also covers issue #274's collector-list check — see
-// collectors.go's doc comment.
+// isn't backtick-quoted inside docs/threat-model.md's "Shared, persistent
+// runner state" bullet's own exhaustive list (issue #286), plus its
+// reverse (issue #302): a name in that list with no matching real job. See
+// scan.go's doc comment for the precision this accepts and why. Also
+// covers issue #274's collector-list check — see collectors.go's doc
+// comment.
 package main
 
 import (
@@ -28,6 +30,22 @@ func main() {
 		}
 		fmt.Fprintln(os.Stderr, "\nAdd each to that bullet, backtick-quoted, or confirm it's genuinely not "+
 			"self-hosted macOS and fix the workflow/guard instead.")
+	}
+
+	extraRunnerState, err := runRunnerStateExtras(".github/workflows", "docs/threat-model.md")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "threatmodelguard: "+err.Error())
+		os.Exit(2)
+	}
+	if len(extraRunnerState) > 0 {
+		failed = true
+		fmt.Fprintln(os.Stderr, "threatmodelguard: docs/threat-model.md's \"Shared, persistent runner state\" "+
+			"bullet's list names these, but no such self-hosted macOS job exists (issue #302):")
+		for _, name := range extraRunnerState {
+			fmt.Fprintf(os.Stderr, "  - %s\n", name)
+		}
+		fmt.Fprintln(os.Stderr, "\nRemove each from that list, or confirm it's a real self-hosted macOS job "+
+			"and fix the workflow/guard instead.")
 	}
 
 	missingCollectors, extraCollectors, err := runADOCollectors("internal/collect/azuredevops", "docs/threat-model.md")
@@ -78,5 +96,9 @@ func run(workflowsDir, threatModelPath string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", threatModelPath, err)
 	}
-	return missingFromDoc(jobNames, section), nil
+	list, err := runnerStateListSection(section)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", threatModelPath, err)
+	}
+	return missingFromDoc(jobNames, list), nil
 }

@@ -38,7 +38,8 @@ func TestRun_MutationProof(t *testing.T) {
 
 	t.Run("flags an undocumented job", func(t *testing.T) {
 		writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
-			"  - **Shared, persistent runner state is not wiped.** Only `documented-job` is named here.\n\n"+
+			"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+			"in this repo: `documented-job`).\n\n"+
 			"## See also\n")
 		missing, err := run(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
 		if err != nil {
@@ -51,8 +52,8 @@ func TestRun_MutationProof(t *testing.T) {
 
 	t.Run("silent once every macOS job is named", func(t *testing.T) {
 		writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
-			"  - **Shared, persistent runner state is not wiped.** Names both "+
-			"`documented-job` and `undocumented-job` here.\n\n"+
+			"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+			"in this repo: `documented-job`, `undocumented-job`).\n\n"+
 			"## See also\n")
 		missing, err := run(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
 		if err != nil {
@@ -77,8 +78,8 @@ func TestRun_MutationProof(t *testing.T) {
 			"Some other risk (see the Shared, persistent runner state residual risk "+
 			"below for the full list of affected jobs).\n\n"+
 			"## Residual risks\n\n"+
-			"  - **Shared, persistent runner state is not wiped.** Names both "+
-			"`documented-job` and `undocumented-job` here.\n\n"+
+			"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+			"in this repo: `documented-job`, `undocumented-job`).\n\n"+
 			"## See also\n")
 		missing, err := run(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
 		if err != nil {
@@ -99,7 +100,8 @@ func TestRun_YmlExtensionWorkflowsAreScanned(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "workflows", "new.yml"), fixtureWorkflow)
 	writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
-		"  - **Shared, persistent runner state is not wiped.** Only `documented-job` is named here.\n\n"+
+		"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+		"in this repo: `documented-job`).\n\n"+
 		"## See also\n")
 
 	missing, err := run(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
@@ -127,7 +129,8 @@ jobs:
 `)
 	writeFile(t, filepath.Join(dir, "workflows", "ci.yaml"), fixtureWorkflow)
 	writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
-		"  - **Shared, persistent runner state is not wiped.** Only `documented-job` is named here.\n\n"+
+		"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+		"in this repo: `documented-job`).\n\n"+
 		"## See also\n")
 
 	missing, err := run(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
@@ -136,6 +139,52 @@ jobs:
 	}
 	if len(missing) != 1 || missing[0] != "undocumented-job" {
 		t.Errorf("reusable-call job present alongside a real undocumented job; missing = %v, want exactly [undocumented-job]", missing)
+	}
+}
+
+// TestRun_MentionOutsideTheListDoesNotSatisfyMembership is issue #286's
+// own reproduction in miniature: moving a name out of the exhaustive list
+// into another machine's clause of the same bullet used to still pass.
+func TestRun_MentionOutsideTheListDoesNotSatisfyMembership(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "workflows", "ci.yaml"), fixtureWorkflow)
+	writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
+		"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+		"in this repo: `documented-job`), `spyros-ionos-ssdf` (`undocumented-job`, "+
+		"`test-linux`).\n\n"+
+		"## See also\n")
+
+	missing, err := run(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(missing) != 1 || missing[0] != "undocumented-job" {
+		t.Errorf("missing = %v, want exactly [undocumented-job] — a mention in another machine's "+
+			"clause of the same bullet must not satisfy the macOS list's own claim", missing)
+	}
+}
+
+// TestRun_MentionsOutsideListDoNotAccumulateIntoMembership is the `build`
+// shape issue #286 found: absent from the list, but mentioned three
+// separate times elsewhere in the same bullet, used to still pass.
+func TestRun_MentionsOutsideListDoNotAccumulateIntoMembership(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "workflows", "ci.yaml"), fixtureWorkflow)
+	writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
+		"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+		"in this repo: `undocumented-job`). Elsewhere in this very bullet, `documented-job` "+
+		"comes up three separate times: once here, `documented-job` again right here, and a "+
+		"third time, `documented-job`, here too — none of those three mentions are inside "+
+		"the list that claims exhaustiveness.\n\n"+
+		"## See also\n")
+
+	missing, err := run(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(missing) != 1 || missing[0] != "documented-job" {
+		t.Errorf("missing = %v, want exactly [documented-job] — three mentions outside the list "+
+			"must not substitute for membership in it", missing)
 	}
 }
 

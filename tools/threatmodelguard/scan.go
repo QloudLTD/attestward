@@ -2,10 +2,25 @@
 // closing the same "hand-maintained list of code facts, no guard" gap
 // checks-docs-check (#30), examples-check (#228), and rubricguard (#209)
 // already close elsewhere — for docs/threat-model.md's self-hosted-macOS
-// job enumeration (CHANGELOG's #260 entry has the full story). Coarse
-// like those siblings: a job counts as documented if it's backtick-quoted
-// anywhere in the runner-state bullet, not disambiguated by workflow file
-// (CHANGELOG has the one real ambiguity this causes).
+// job enumeration (CHANGELOG's #260 entry has the full story). A job
+// counts as documented only if it's backtick-quoted inside the runner-
+// state bullet's own list — the parenthetical opened by "(every
+// macOS-labeled job in this repo:" — not merely mentioned anywhere in the
+// bullet: issue #286 found a mention in a clause claiming something else
+// entirely (moving `sign-verify` into the spyros-ionos-ssdf clause) used
+// to still pass. Still coarse on one axis, unchanged from before #286: a
+// documented name isn't disambiguated by workflow file, so two different
+// jobs sharing one bare key (ci.yaml's `build` and multi-arch-build-
+// sample.yaml's own `build`) are treated as the same name (CHANGELOG has
+// the one real ambiguity this causes).
+//
+// The reverse direction is checked too (issue #302): a name left in the
+// list after its job is deleted, renamed, or moves off macOS produced no
+// signal, since the forward check only ever walks discovered jobs looking
+// for a mention. extraInDoc walks the list instead, for backtick-quoted,
+// job-id-shaped tokens with no matching real job — nonJobBacktickTokens
+// is a short, explicit exclusion list (today: `workflow_dispatch`) for the
+// one case that shape check alone can't rule out.
 //
 // A green run doesn't mean every self-hosted-macOS job is truly discovered
 // — jobLabelSets' matrix-indirection resolution (round 2 review of #260)
@@ -234,7 +249,10 @@ func runnerStateSection(doc []byte) (string, error) {
 
 // missingFromDoc returns which of jobNames don't appear backtick-quoted
 // (this document's own convention for naming a job, e.g. "`lint`")
-// anywhere in section.
+// anywhere in section — callers pass the list text from
+// runnerStateListSection, not the whole bullet from runnerStateSection, so
+// a mention outside the list that claims exhaustiveness doesn't satisfy
+// the check (issue #286).
 func missingFromDoc(jobNames []string, section string) []string {
 	var missing []string
 	for _, name := range jobNames {
@@ -243,4 +261,117 @@ func missingFromDoc(jobNames []string, section string) []string {
 		}
 	}
 	return missing
+}
+
+// macOSListMarkerRe anchors on the literal "(every macOS-labeled job in
+// this repo:" phrase that opens the runner-state bullet's own exhaustive
+// list — the same "anchor on a real syntactic construct, not a bare
+// phrase" idea as collectors.go's adoCollectorListRe (issue #274), adapted
+// to prose: there's no bare `{...}` here, so the list's own boundary is
+// this parenthetical's balanced close instead of a single delimiter
+// character.
+var macOSListMarkerRe = regexp.MustCompile(`\(every\s+macOS-labeled job in this repo:`)
+
+// runnerStateListSection narrows section (the whole runner-state bullet,
+// from runnerStateSection) down to just the parenthetical that actually
+// claims exhaustiveness. Depth is tracked rather than stopping at the
+// first ")" because nearly every item in the list has its own explanatory
+// aside in parens (e.g. "`gomod-tidy-drift` (added with issue #249's drift
+// guard ...)"), and the list itself continues past the first job or two
+// that "lands here too" via a different workflow file before the
+// parenthetical actually closes. Errors if the marker or its own balanced
+// close can't be found — a restructured bullet needs a human to re-anchor
+// this, not a silent pass, the same contract adoCollectorListFromDoc uses.
+func runnerStateListSection(section string) (string, error) {
+	loc := macOSListMarkerRe.FindStringIndex(section)
+	if loc == nil {
+		return "", fmt.Errorf("no %q parenthetical found", "(every macOS-labeled job in this repo:")
+	}
+	depth := 0
+	for i := loc[0]; i < len(section); i++ {
+		switch section[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return section[loc[0] : i+1], nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%q parenthetical never closes", "(every macOS-labeled job in this repo:")
+}
+
+// backtickTokenRe extracts every backtick-quoted token from a piece of
+// text. Used only against the already-scoped list, not the whole bullet,
+// so every match is a genuine candidate for "a name this list claims" —
+// never a mention from a clause making some other claim.
+var backtickTokenRe = regexp.MustCompile("`([^`]*)`")
+
+// jobIDShapeRe is a loose "looks like a GitHub Actions job id" gate —
+// letters, digits, hyphens, and underscores only, per GitHub's own job-id
+// syntax — just enough to drop the workflow-filename asides the list's own
+// prose also backtick-quotes (ci.yaml, release.yaml, ...) and multi-word
+// phrases (the go mod tidy step), without a per-token exclusion list for
+// every one of those.
+var jobIDShapeRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
+
+// nonJobBacktickTokens are job-id-shaped tokens the list's own prose
+// backtick-quotes for a reason other than naming a job — today just the
+// one workflow-trigger keyword the "manually run" aside mentions
+// (confirmed directly against the real list text, not assumed). Extend
+// this rather than jobIDShapeRe if a future edit adds another such token.
+var nonJobBacktickTokens = map[string]bool{
+	"workflow_dispatch": true,
+}
+
+// extraInDoc is missingFromDoc's mirror image (issue #302): it returns
+// job-id-shaped names backtick-quoted inside list that don't correspond to
+// any real jobName — a name left in the list after its job is deleted,
+// renamed, or moves off macOS, which missingFromDoc's walk-the-jobs
+// direction can never surface on its own.
+func extraInDoc(jobNames []string, list string) []string {
+	realJobs := map[string]bool{}
+	for _, n := range jobNames {
+		realJobs[n] = true
+	}
+	seen := map[string]bool{}
+	var extra []string
+	for _, m := range backtickTokenRe.FindAllStringSubmatch(list, -1) {
+		token := m[1]
+		if !jobIDShapeRe.MatchString(token) || nonJobBacktickTokens[token] || realJobs[token] || seen[token] {
+			continue
+		}
+		seen[token] = true
+		extra = append(extra, token)
+	}
+	sort.Strings(extra)
+	return extra
+}
+
+// runRunnerStateExtras is run's mirror image (issue #302): it flags a
+// backtick-quoted, job-id-shaped name in the runner-state list that
+// doesn't correspond to any real self-hosted-macOS job today. Duplicates
+// run's file-reading and section/list resolution rather than sharing a
+// helper — a deliberate choice to avoid restructuring run's own shape
+// mid-fix; a shared helper is a reasonable follow-up once both directions
+// have landed.
+func runRunnerStateExtras(workflowsDir, threatModelPath string) ([]string, error) {
+	jobNames, err := selfHostedMacOSJobs(workflowsDir)
+	if err != nil {
+		return nil, fmt.Errorf("scan workflows: %w", err)
+	}
+	doc, err := os.ReadFile(threatModelPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", threatModelPath, err)
+	}
+	section, err := runnerStateSection(doc)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", threatModelPath, err)
+	}
+	list, err := runnerStateListSection(section)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", threatModelPath, err)
+	}
+	return extraInDoc(jobNames, list), nil
 }

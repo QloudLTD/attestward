@@ -256,6 +256,128 @@ func TestMissingFromDoc_SubstringCollisionDoesNotSatisfy(t *testing.T) {
 	}
 }
 
+// TestRunnerStateListSection_ScopesPastTheListsOwnClose is issue #286's
+// structural fix, reproduced directly: a job name backtick-quoted after
+// the list's own parenthetical closes — the shape of moving `sign-verify`
+// into the spyros-ionos-ssdf clause of the real bullet — must not be part
+// of the text runnerStateListSection returns, even though it's still
+// inside the bullet runnerStateSection scopes to.
+func TestRunnerStateListSection_ScopesPastTheListsOwnClose(t *testing.T) {
+	section := "  - **Shared, persistent runner state is not wiped.** (every macOS-labeled " +
+		"job in this repo: `lint`, `test`), `spyros-ionos-ssdf` (`sign-verify`, `test-linux`)."
+	list, err := runnerStateListSection(section)
+	if err != nil {
+		t.Fatalf("runnerStateListSection: %v", err)
+	}
+	for _, want := range []string{"`lint`", "`test`"} {
+		if !strings.Contains(list, want) {
+			t.Errorf("list missing %s: %q", want, list)
+		}
+	}
+	for _, mustNotContain := range []string{"`sign-verify`", "`test-linux`"} {
+		if strings.Contains(list, mustNotContain) {
+			t.Errorf("list leaked content past its own closing paren (%s): %q", mustNotContain, list)
+		}
+	}
+}
+
+// TestRunnerStateListSection_TracksNestedParens confirms depth tracking,
+// not a bare "up to the first )" — every real list item has its own aside.
+func TestRunnerStateListSection_TracksNestedParens(t *testing.T) {
+	section := "  - **Shared, persistent runner state is not wiped.** (every macOS-labeled " +
+		"job in this repo: `lint`, `gomod-tidy-drift` (added with issue #249's drift guard), " +
+		"`test`), `spyros-ionos-ssdf` (`test-linux`)."
+	list, err := runnerStateListSection(section)
+	if err != nil {
+		t.Fatalf("runnerStateListSection: %v", err)
+	}
+	if !strings.Contains(list, "`test`") {
+		t.Errorf("list ended at the nested aside's own close instead of the list's, missing `test`: %q", list)
+	}
+	if strings.Contains(list, "`test-linux`") {
+		t.Errorf("list leaked past its own close: %q", list)
+	}
+}
+
+func TestRunnerStateListSection_Absent(t *testing.T) {
+	if _, err := runnerStateListSection("no marker here at all"); err == nil {
+		t.Error("expected an error when the marker doesn't exist, got nil")
+	}
+}
+
+func TestRunnerStateListSection_UnclosedParenthetical(t *testing.T) {
+	section := "(every macOS-labeled job in this repo: `lint`, `test` — never actually closes"
+	if _, err := runnerStateListSection(section); err == nil {
+		t.Error("expected an error when the parenthetical never closes, got nil")
+	}
+}
+
+// TestExtraInDoc pins #302's reverse check: a ghost name is flagged; a
+// filename aside, a multi-word phrase, and the one known non-job keyword
+// are not.
+func TestExtraInDoc(t *testing.T) {
+	list := "(every macOS-labeled job in this repo: `lint`, `ghostjob`, `gomod-tidy-drift` " +
+		"(its own `go mod tidy` step, see `ci.yaml`) — all only when that " +
+		"`workflow_dispatch`-only workflow runs)"
+	got := extraInDoc([]string{"lint", "gomod-tidy-drift"}, list)
+	if len(got) != 1 || got[0] != "ghostjob" {
+		t.Errorf("extraInDoc = %v, want exactly [ghostjob]", got)
+	}
+}
+
+// TestRunRunnerStateExtras_MutationProof is #302's mutation-proof
+// requirement, the same shape as #260's TestRun_MutationProof.
+func TestRunRunnerStateExtras_MutationProof(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "workflows", "ci.yaml"), fixtureWorkflow)
+
+	t.Run("flags a ghost name in the list", func(t *testing.T) {
+		writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
+			"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+			"in this repo: `documented-job`, `undocumented-job`, `ghostjob`).\n\n"+
+			"## See also\n")
+		extra, err := runRunnerStateExtras(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
+		if err != nil {
+			t.Fatalf("runRunnerStateExtras: %v", err)
+		}
+		if len(extra) != 1 || extra[0] != "ghostjob" {
+			t.Errorf("extra = %v, want exactly [ghostjob]", extra)
+		}
+	})
+
+	t.Run("silent once every listed name is a real job", func(t *testing.T) {
+		writeFile(t, filepath.Join(dir, "threat-model.md"), "## Residual risks\n\n"+
+			"  - **Shared, persistent runner state is not wiped.** (every macOS-labeled job "+
+			"in this repo: `documented-job`, `undocumented-job`).\n\n"+
+			"## See also\n")
+		extra, err := runRunnerStateExtras(filepath.Join(dir, "workflows"), filepath.Join(dir, "threat-model.md"))
+		if err != nil {
+			t.Fatalf("runRunnerStateExtras: %v", err)
+		}
+		if len(extra) != 0 {
+			t.Errorf("expected no findings once every listed name is real, got %v", extra)
+		}
+	})
+}
+
+// TestRunRunnerStateExtras_SilentOnRealRepo proves the job-id-shape filter
+// and denylist are enough to keep the real list's own asides from
+// false-flagging as ghosts.
+func TestRunRunnerStateExtras_SilentOnRealRepo(t *testing.T) {
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(dir, "..", "..")
+	extra, err := runRunnerStateExtras(filepath.Join(root, ".github", "workflows"), filepath.Join(root, "docs", "threat-model.md"))
+	if err != nil {
+		t.Fatalf("runRunnerStateExtras: %v", err)
+	}
+	if len(extra) != 0 {
+		t.Errorf("expected no ghost names in the real threat-model.md's list, got: %v", extra)
+	}
+}
+
 // repoWorkflowsDir locates .github/workflows relative to this test file's
 // own module root, independent of `go test`'s working directory (always
 // the package directory, tools/threatmodelguard here).

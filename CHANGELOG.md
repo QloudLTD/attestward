@@ -172,6 +172,34 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`tools/threatmodelguard`'s runner-state guard verified mention, not membership —
+  closed the structural half of #286, plus this list's share of #302's reverse-check
+  gap** (#286, #302). `missingFromDoc` substring-searched the whole "Shared, persistent
+  runner state" bullet, so a name backtick-quoted anywhere in it — even in a clause
+  claiming something else entirely — satisfied the check: moving `sign-verify` out of
+  the exhaustive list into the `spyros-ionos-ssdf` clause of the same bullet still
+  passed, reproduced against the real doc before fixing.
+
+  New `runnerStateListSection` narrows the bullet down to just the parenthetical
+  opened by "(every macOS-labeled job in this repo:", tracking paren depth rather than
+  stopping at the first `)` since nearly every list item has its own explanatory aside
+  — the same anchor-on-a-real-construct idea as `collectors.go`'s `adoCollectorListRe`
+  (#274), adapted to prose instead of a brace list. `missingFromDoc` now runs against
+  that narrower text.
+
+  Also closes this list's own #302 reverse-check gap: a name left in it after its job
+  is deleted, renamed, or moves off macOS produced no signal, since the forward check
+  only ever walks discovered jobs looking for a mention. New `extraInDoc` walks the
+  list instead, flagging any backtick-quoted, job-id-shaped token with no matching
+  real job (a small denylist excludes the one non-job keyword, `workflow_dispatch`,
+  that shape alone doesn't). #302's identical gap on the sibling ADO collector-list
+  check is the separate fix in the entry below.
+
+  New tests mutation-prove both directions: a mention outside the list, a mention in
+  a different section, and a name absent from the list but mentioned three times
+  elsewhere all still flag; a ghost list entry with no matching job is flagged and
+  named. `go run ./tools/threatmodelguard` stays green against the real, unmodified
+  doc throughout.
 - **`runner-maintenance.yaml`'s `clean` job — the mitigation #260's own entry below calls
   "the one job whose whole purpose is bounding this exact risk" — had never once
   succeeded** (#301). Its first run (2026-07-19, a manual `workflow_dispatch` against the
