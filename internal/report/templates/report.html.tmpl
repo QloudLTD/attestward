@@ -249,7 +249,6 @@
     scroll-margin-top: 1rem;
   }
 
-  /* Tables */
   .table-wrap {
     max-width: 100%;
     margin: 0 0 1.25rem;
@@ -403,7 +402,6 @@
     font-size: inherit;
   }
 
-  /* Status badges: text and border pattern remain meaningful without color. */
   .badge {
     display: inline-flex;
     align-items: center;
@@ -488,7 +486,6 @@
     content: "?";
   }
 
-  /* Per-check evidence cards */
   .check-list {
     display: grid;
     gap: 0.9rem;
@@ -639,7 +636,6 @@
     font-style: italic;
   }
 
-  /* Gaps and appendix */
   .gaps-table tbody th[scope="row"] {
     border-left: 3px solid var(--fail-border);
   }
@@ -653,7 +649,6 @@
     box-shadow: none;
   }
 
-  /* Methodology/status legend */
   .status-legend {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
@@ -761,9 +756,6 @@
     }
 
     @page {
-      /* US Letter (8.5in × 11in) — this is a US federal compliance artifact
-         filed alongside the CISA SSDA form, so pin the sheet rather than
-         inheriting the reader's locale default (A4 elsewhere). */
       size: Letter;
       margin: 15mm 14mm 17mm;
     }
@@ -883,11 +875,6 @@
     }
   }
 
-  /* Not one of the design's tokens above: cmd/attestward/report.go's
-     tamper-warning banner (withTamperBanner) and this template's own
-     mapping-version-mismatch note both hardcode class="note" for an
-     out-of-band advisory. Styled here so neither ever renders as an
-     invisible, unstyled div. */
   .note {
     margin: 0 0 1.5rem;
     padding: 0.65rem 0.85rem;

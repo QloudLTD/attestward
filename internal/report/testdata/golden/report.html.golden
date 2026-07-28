@@ -249,7 +249,6 @@
     scroll-margin-top: 1rem;
   }
 
-   
   .table-wrap {
     max-width: 100%;
     margin: 0 0 1.25rem;
@@ -403,7 +402,6 @@
     font-size: inherit;
   }
 
-   
   .badge {
     display: inline-flex;
     align-items: center;
@@ -488,7 +486,6 @@
     content: "?";
   }
 
-   
   .check-list {
     display: grid;
     gap: 0.9rem;
@@ -639,7 +636,6 @@
     font-style: italic;
   }
 
-   
   .gaps-table tbody th[scope="row"] {
     border-left: 3px solid var(--fail-border);
   }
@@ -653,7 +649,6 @@
     box-shadow: none;
   }
 
-   
   .status-legend {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
@@ -761,7 +756,6 @@
     }
 
     @page {
-       
       size: Letter;
       margin: 15mm 14mm 17mm;
     }
@@ -881,7 +875,6 @@
     }
   }
 
-   
   .note {
     margin: 0 0 1.5rem;
     padding: 0.65rem 0.85rem;

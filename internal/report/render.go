@@ -16,6 +16,42 @@ import (
 //go:embed templates/*.tmpl
 var templatesFS embed.FS
 
+// report.html.tmpl's stylesheet annotations live here rather than as CSS
+// comments inside its <style> block, because html/template runs a CSS-context
+// lexer over literal <style> content as part of contextual autoescaping and
+// that lexer discards /* ... */ bodies (issue #227). A comment written there
+// reaches neither the rendered report.html nor anyone reading it — it is
+// replaced by blank whitespace — so the annotation silently evaporates while
+// still looking present in the template source.
+//
+// Section markers, in stylesheet order:
+//
+//	Tables
+//	Status badges
+//	Per-check evidence cards
+//	Gaps and appendix
+//	Methodology/status legend
+//
+// The three that carry reasoning rather than navigation:
+//
+//   - .badge — text and border pattern remain meaningful without color, so
+//     the status is readable to a color-blind reader and in a monochrome
+//     print of the pack.
+//
+//   - @page { size: Letter } — report.html is a US federal compliance
+//     artifact filed alongside the CISA SSDA form, so the sheet is pinned
+//     rather than inheriting the reader's locale default (A4 elsewhere).
+//
+//   - .note — not one of the design's tokens. cmd/attestward/report.go's
+//     tamper-warning banner (withTamperBanner) and the template's own
+//     mapping-version-mismatch note both hardcode class="note" for an
+//     out-of-band advisory; it is styled so neither ever renders as an
+//     invisible, unstyled div.
+//
+// Keep this list in step with the stylesheet. Nothing enforces that, which is
+// the cost of the move — the alternative was annotations that are silently
+// discarded, which is worse.
+
 // statusOrder is the display order for the status-counts summary — most
 // urgent first, matching mapping.Rollup's own precedence for the same
 // "worst first" reasoning.
