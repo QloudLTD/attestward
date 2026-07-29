@@ -60,7 +60,7 @@ make tidy          # go mod tidy
   `internal/collect/github/client_test.go`'s `newTestClient` helper does, so collector
   tests exercise the real auth/provenance/rate-limit transport chain, not a bypass of it.
 - **Integration tests:** run against the public demo org (`Qloud-LTD` — see
-  `hack/demo-org-setup.sh`, `fixtures.yaml`, and DECISIONS.md's D5 entry), gated
+  `hack/demo-org-setup.sh` and `fixtures.yaml`), gated
   behind `//go:build integration` so `go test ./...` stays offline-safe. Run
   locally with a `GITHUB_TOKEN` in the environment:
   ```
@@ -148,13 +148,13 @@ an action slug or regex).
 - Significant design choices get an ADR (`docs/adr/`).
 - `CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com); add your entry
   under `Unreleased`.
-- **State current status, not history.** `CLAUDE.md`, `DECISIONS.md`, `README.md`, and
+- **State current status, not history.** `README.md`, `CONTRIBUTING.md`, and
   other docs describe *what is true now*, not the sequence of PRs/issues that got there
   — readers don't care how a decision was reached, only what it is; git history and
   issue threads are where the "how we got here" story already lives, and duplicating it
   in prose just goes stale. This means cutting the *event sequence* ("we first tried X,
   then switched to Y"), not the *rationale* — keep whatever constraint or tradeoff makes
-  a decision (especially in `DECISIONS.md`) what it is, since that's the part a reader
+  a decision what it is, since that's the part a reader
   actually needs to judge or revisit it later. Exception: a genuinely major change worth
   calling out explicitly (e.g. a regulatory shift the tool's own claims depend on) — use
   judgment, but default to terse and current.

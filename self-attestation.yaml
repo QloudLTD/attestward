@@ -56,7 +56,7 @@ answers:
     # answer_type: yes_no_evidence -- answer must be "yes" or "no"
     # evidence_prompt: Describe the mechanism (e.g. SIEM export, third-party log retention) and its retention period
     answer: "no"
-    evidence_ref: "DECISIONS.md D11 — solo-maintainer repo, no SIEM/webhook export exists; GitHub's own audit-log API is the only record and this is an accepted, deliberate gap, not an oversight"
+    evidence_ref: "Solo-maintainer repo, no SIEM/webhook export exists; GitHub's own audit-log API is the only record and this is an accepted, deliberate gap, not an oversight"
     attested_by: "sioakim (repo owner)"
     date: "2026-07-19"
 

@@ -88,7 +88,7 @@ release:
     If verification fails, do not run the binary. Full guide: [SECURITY.md](https://github.com/sioakim/attestward/blob/main/SECURITY.md).
 
 # Keyless signing (Sigstore/Fulcio OIDC) over the checksums file — no key
-# material for us to manage. Resolves DECISIONS.md D6. Requires id-token:
+# material for us to manage. Requires id-token:
 # write in the calling workflow (see .github/workflows/release.yaml); cosign
 # auto-detects the GitHub Actions ambient OIDC token.
 #

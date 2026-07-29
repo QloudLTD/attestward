@@ -3,7 +3,7 @@ name: Self-scan
 # Issue #32: the repo is the first case study. Runs attestward against
 # sioakim/attestward itself and publishes the evidence pack as an artifact.
 # Since issue #36 this workflow is also the first consumer (and the live
-# end-to-end test) of the sioakim/attestward-action composite action: the
+# end-to-end test) of this repo's own composite action (action.yml): the
 # scan runs the pinned, signature-verified *release* binary rather than a
 # HEAD build (HEAD correctness is ci.yaml's job; this workflow validates
 # the artifact users actually run), and every run diffs against the pack
@@ -119,7 +119,17 @@ jobs:
           TRIGGER_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
         run: hack/fetch-drift-baseline.sh
 
-      - uses: sioakim/attestward-action@45e3861d57f503a2b7362253d4c924de3158ed87 # v1.0.0
+      # The action now lives in this repo (action.yml at the root), so this is
+      # a local path rather than a cross-repo pin. That change was forced: a
+      # PUBLIC repo cannot resolve an action from a PRIVATE one, so the moment
+      # attestward went public this step failed at "Set up job" — before any
+      # step ran — and self-scan was broken until the action moved here.
+      #
+      # `./` still means "the action as checked out at this commit", so this
+      # workflow remains the action's first consumer and live end-to-end test.
+      # The pinned RELEASE BINARY the action downloads is a separate thing,
+      # controlled by the `version:` input below and deliberately not floating.
+      - uses: ./
         id: attestward
         with:
           version: "0.2.0"
@@ -156,18 +166,18 @@ jobs:
       #     so this solo-maintainer repo can still merge without a second
       #     reviewer who doesn't exist; C02.branch.required-reviews itself
       #     was fixed (required_approving_review_count raised to 1) and no
-      #     longer needs this exception. See DECISIONS.md D10, issue #105.
+      #     longer needs this exception. See issue #105.
       #   - C09.repo.webhooks: needs a real receiving endpoint that
       #     doesn't exist yet — accepted and documented via a self-attested
       #     "no" for SA.audit-log-export-fallback instead (see
-      #     self-attestation.yaml, DECISIONS.md D11, issue #106).
+      #     self-attestation.yaml, issue #106).
       #   - C05.sast.ran-per-release: semgrep landed (#157); the exception
       #     remains only until every release in the lookback window
       #     postdates it — same rolling-window logic as the tags-signed
       #     entry below.
       #   - C07.release.tags-signed: v0.1.0/v0.2.0 tags are annotated but
-      #     unsigned; the key-identity decision is RESOLVED (DECISIONS.md
-      #     D12, issue #158) and tags are signed from v0.3.0 onward — this
+      #     unsigned; the key-identity decision is RESOLVED (issue #158)
+      #     and tags are signed from v0.3.0 onward — this
       #     entry outlives the fix until every tag in the 5-release/
       #     12-month window is signed, then it comes off the list.
       - name: Evaluate gaps against the documented exception list

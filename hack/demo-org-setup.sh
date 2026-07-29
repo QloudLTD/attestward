@@ -141,8 +141,8 @@ jobs:
 # pushed (v1.0.0 as of issue #19), which this script can't do: creating
 # one requires a real SSH/GPG signing key registered with a GitHub
 # account, an operation with security implications this script
-# deliberately doesn't automate — see DECISIONS.md's D8 for how demo-good's
-# actual v1.0.0 tag was created and signed.
+# deliberately doesn't automate. demo-good's actual v1.0.0 tag was created
+# and signed by hand with a dedicated Ed25519 SSH signing key.
 put_file "$GOOD_REPO" ".github/workflows/release.yaml" \
 "name: release
 on:

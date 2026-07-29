@@ -1,7 +1,7 @@
 //go:build integration
 
 // Integration test (issue #15): runs a real `attestward scan` against the
-// public demo org (see hack/demo-org-setup.sh, DECISIONS.md's D5) and
+// public demo org (see hack/demo-org-setup.sh) and
 // asserts every result against fixtures.yaml — the API-drift tripwire the
 // scheduled integration-scan.yaml workflow runs weekly. Requires
 // GITHUB_TOKEN in the environment (a low-privilege, read-only PAT scoped

@@ -1,8 +1,8 @@
 # fixtures.yaml — expected check results for the demo org integration test
 # (issue #15). Grows as C05-C10 land — each collector issue appends its own
 # entries here. See hack/demo-org-setup.sh for how the org and repos are
-# configured, and DECISIONS.md's D5/D8 entries for why Qloud-LTD and how
-# demo-good's signed release fixture was built.
+# configured. demo-good's signed release fixture uses a dedicated Ed25519 SSH
+# key registered to the org owner's account, not a personal identity.
 #
 # Every value below was captured from a REAL scan of the actual org
 # (`attestward scan --org Qloud-LTD --repo demo-good --repo demo-bad`), not
@@ -158,7 +158,7 @@ repo_checks:
       status: verified-pass
       note: >-
         v1.0.0's annotated tag is signed with an SSH key registered to the
-        org owner's GitHub account (see DECISIONS.md's D8) and GitHub
+        org owner's GitHub account and GitHub
         reports the signature verified.
     - {check_id: C07.release.checksums, status: verified-pass, note: "v1.0.0 ships checksums.txt."}
     - check_id: C07.release.signatures

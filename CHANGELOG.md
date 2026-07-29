@@ -8,6 +8,18 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **The GitHub Action now lives in this repo** (`action.yml` at the root). It was a
+  separate repository, `sioakim/attestward-action`, and that stopped working the moment
+  this repo went public: **a public repo cannot resolve an action from a private one**,
+  so `self-scan.yaml` failed at "Set up job" — before a single step ran — and the
+  README's self-scan badge went red. Consolidating fixes that and removes a class of
+  problem rather than the instance: the action is a *composite* action whose `version:`
+  input already pins an attestward release, so the two were versioned together in
+  practice while living apart. Root placement is deliberate — GitHub Marketplace listing
+  requires `action.yml` at the repository root, so a subdirectory would have been usable
+  (`owner/repo/path@ref`) but never listable. `self-scan.yaml` now uses `./`, which keeps
+  it the action's first consumer and live end-to-end test. One stale input doc fixed on
+  the way in: `token:` still said "while the attestward repo is private".
 - **`agents/` — agent skills for working with this tool.** `agents/attestward-scan/SKILL.md`
   takes a newcomer from nothing to a rendered evidence pack: prerequisite checks, clone,
   build, an interactive pass to gather platform/org/scope, the scan itself, and how to read
@@ -195,6 +207,28 @@ All notable changes to this project are documented here. Format follows
 
 ### Removed
 
+- **`CLAUDE.md` and `DECISIONS.md` are no longer tracked** (#138). Both documented
+  internal reasoning — CI gotchas, defect-class tells, drift-guard caveats, and the
+  decision log with its rationale — which is working material for the maintainer rather
+  than something a public repo needs to publish. `CLAUDE.md` is merged into the
+  gitignored `CLAUDE.local.md`.
+
+  **Nothing load-bearing was lost, and this was checked rather than assumed.** Both of
+  `CLAUDE.md`'s hard rules already live in tracked docs: read-only-forever in `README.md`
+  and `docs/adr/0004-read-only-local-first.md` (and enforced structurally in both
+  `transport.go` files), the never-invent-SSDF/CISA-IDs rule in `CONTRIBUTING.md`,
+  `docs/adr/0003-mappings-as-data.md` and each mapping file's own header. `DECISIONS.md`'s
+  one genuinely user-facing entry — the commitment that everything a single local scan
+  produces stays free and open source, plus the Apache-2.0 patent-grant reasoning — is
+  now a **"What stays free"** section in the README, where a user will actually find it.
+  All 19 inbound `DECISIONS.md` references across 13 files were rewritten so the fact
+  survives without the pointer; most already stated their reason inline.
+
+  **One deliberate exception:** `docs/adr/0001-record-architecture-decisions.md` still
+  says open questions live in a root `DECISIONS.md`. It is left unedited, because this
+  repo's convention is that accepted ADRs are superseded rather than rewritten — so it
+  remains an accurate record of what was decided then, not of what is true now. The ADR
+  index says so explicitly rather than leaving a reader to trip over it.
 - **Obsolete documentation deleted at the public flip** (#138). `docs/archive/`
   (`product-brief.md`, `roadmap.md`, `progress-narrative.md`) and
   `docs/handoff-2026-07-28.md` are gone. All four were explicitly marked

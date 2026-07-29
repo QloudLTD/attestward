@@ -4,7 +4,7 @@ name: Dependency Review
 # GitHub's dependency-review API, which requires GitHub Advanced Security on a
 # private repository and is free on a public one — so this could not exist here
 # before 2026-07-29. It is the last piece of the accepted `C06.sca.dependency-review`
-# verified-fail gap on this repo's own self-scan (DECISIONS.md D7).
+# verified-fail gap on this repo's own self-scan.
 #
 # What it does: on every pull request, diffs the dependency manifest against the
 # base branch and fails if the PR introduces a dependency with a known

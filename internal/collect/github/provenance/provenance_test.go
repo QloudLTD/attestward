@@ -652,7 +652,7 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 // GPG keys" settings page — GitHub only supports registering signing keys
 // on a personal user account (tag/commit signature verification is always
 // attributed to the individual tagger's account, never an org). Confirmed
-// against this repo's own C07 demo-fixture setup (DECISIONS.md D8), which
+// against this repo's own C07 demo-fixture setup, which
 // registered its signing key via `gh api user/ssh_signing_keys`, not any
 // org-scoped endpoint.
 func TestTagsSignedRemediationDoesNotClaimOrgLevelKeyPage(t *testing.T) {

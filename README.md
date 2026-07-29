@@ -9,7 +9,7 @@
 
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
-**CLI binary:** `attestward`. **Product name:** Attestward (see [DECISIONS.md](DECISIONS.md) D1).
+**CLI binary:** `attestward`. **Product name:** Attestward.
 **Status:** pre-1.0, under active development — see [CHANGELOG.md](CHANGELOG.md) for
 the current release; CLI flags and output formats may still change between 0.x versions.
 **License:** [Apache-2.0](LICENSE)
@@ -72,6 +72,21 @@ report) plus a **gap analysis** and a **draft POA&M** for anything that fails.
 5. **Mappings are data, not code.** SSDF/CISA-form mappings live in versioned YAML so the
    community can extend to other frameworks without touching Go.
 6. **Boring, auditable code.** Minimal dependencies, no clever magic, everything reviewable.
+
+### What stays free
+
+Anything a single local scan produces is free and open source, permanently: all ten
+collectors, the full evidence pack, pack integrity and signing, self-attestation intake,
+and every mapping. There is no paid tier of this CLI and no feature behind a licence key.
+
+A separate commercial hosted product exists for things a local scan cannot do by
+definition — a server, persistent storage across scans, multi-tenancy. That boundary is
+not a pricing decision that could be moved later; [ADR-0004](docs/adr/0004-read-only-local-first.md)
+rules those capabilities out of this tool on architectural grounds.
+
+Apache-2.0 was chosen over MIT/BSD for its explicit patent grant and retaliation clause
+(§3), which matters for a tool enterprises run inside their own CI. §6 withholds
+trademark rights: the code is yours to use and fork, the name is not.
 
 ## What it verifies (GitHub and Azure DevOps)
 
@@ -421,7 +436,6 @@ review came off it once the repo went public and the check could actually run.
 - [Architecture](docs/architecture.md) — components, data flow, extension seams
 - [Threat model](docs/threat-model.md) — what the tool accesses, what it never does
 - [Architecture decision records](docs/adr/) — permanent, Nygard-format; superseded rather than edited
-- [DECISIONS.md](DECISIONS.md) — resolved product/technical decisions and their rationale
 - [CHANGELOG.md](CHANGELOG.md) — what shipped in each release
 
 ## Contributing

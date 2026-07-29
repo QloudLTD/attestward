@@ -15,5 +15,10 @@ acceptance (superseded instead).
 | [0006](0006-exec-cosign-not-sigstore-go.md) | Exec cosign, don't embed sigstore-go | Accepted |
 | [0007](0007-continuous-mode-write-boundary.md) | Continuous mode's writes live in workflow steps, never the CLI | Accepted |
 
-To add one: copy the newest file, increment the number, open a PR. Decisions that are
-still open questions belong in [DECISIONS.md](../../DECISIONS.md) until resolved.
+To add one: copy the newest file, increment the number, open a PR.
+
+Note: ADR-0001 refers to a root `DECISIONS.md` for open questions. That file was removed
+when the repo went public (#138) — its resolved entries were either folded into the docs
+that needed them or dropped as internal reasoning. ADR-0001 is left unedited on purpose:
+accepted ADRs are superseded, never rewritten, so it stands as an accurate record of what
+was decided at the time rather than of what is true now.

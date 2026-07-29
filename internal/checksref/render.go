@@ -45,7 +45,7 @@ type context struct {
 // generation timestamp: which version of which mapping this reference was
 // built from, and when that mapping's own source was retrieved (both
 // already recorded in the YAML itself). A wall-clock "generated at" value
-// was considered and rejected — see DECISIONS.md's entry for issue #30 —
+// was considered and rejected (issue #30) —
 // because it would make two consecutive `attestward checks docs` runs over
 // identical input produce different bytes, defeating the CI drift check's
 // whole purpose.
