@@ -380,11 +380,14 @@ diagram doesn't redraw per platform.
     VM.** `release.yaml`'s `goreleaser` job (which publishes real artifacts with
     `contents: write` and keyless-signs real checksums) selects `runs-on: [self-hosted,
     macOS]` — a label, not a pinned machine, so it lands on whichever self-hosted macOS
-    runner carries that label, never a name pinned in this file. Exactly one does today,
-    `spyros-mac-mini-ssdf` (`spyros-mac-studio-ssdf`, this bullet's prior co-attribution,
-    is decommissioned — issue #301 has the accounting). The selection is still by label,
-    though: a second macOS-labeled runner would make this job's landing machine
-    non-deterministic again without one word of `release.yaml` changing.
+    runner carries that label, never a name pinned in this file. Six registrations carry
+    that label today — `spyros-mac-mini-ssdf` plus `-2` through `-6` — and all six are
+    the *same physical Mac mini* (`spyros-mac-studio-ssdf`, this bullet's prior
+    co-attribution, is decommissioned — issue #301 has the accounting). Which
+    *registration* a release lands on is therefore already non-deterministic; which
+    *machine* it lands on is not. That distinction cuts both ways: the label no longer
+    identifies a host, but compromising the one host compromises every release
+    regardless of which of the six runners picked the job up.
     If that machine were compromised during a release run, tampered binaries could get
     published *and* validly Sigstore-signed with the exact workflow identity
     [SECURITY.md](../SECURITY.md) tells consumers to verify — keyless signing attests
@@ -393,15 +396,45 @@ diagram doesn't redraw per platform.
     hold for this specific job today. Mitigation (not yet done): move the release job
     specifically to a hosted or dedicated hardened runner before public launch — tracked
     on #138 (the v1.0 public-flip issue; DECISIONS.md D7).
-  - **Shared, persistent runner state is not wiped between jobs or workflows.**
-    `actions/checkout`'s default clean only resets the checked-out source tree — it
-    doesn't touch `~/go/pkg/mod`, `~/Library/Caches/go-build`, or a runner's Go
-    toolcache, all of which persist across every job/workflow sharing one physical
-    machine. That's `spyros-mac-mini-ssdf`, this repo's only self-hosted macOS runner
-    as of `spyros-mac-studio-ssdf`'s decommissioning (issue #301 has the accounting).
+  - **Shared, persistent runner state is not wiped between jobs or workflows, and six
+    jobs can now share it concurrently.** `actions/checkout`'s default clean only resets
+    the checked-out source tree — it doesn't touch `~/go/pkg/mod`,
+    `~/Library/Caches/go-build`, or a runner's Go toolcache, all of which persist across
+    every job/workflow sharing one physical machine. That machine is a single Mac mini
+    carrying **six runner registrations** — `spyros-mac-mini-ssdf` plus `-2` through
+    `-6` (`spyros-mac-studio-ssdf` is decommissioned; issue #301 has the accounting).
+
+    Going from one registration to six (issue #313) moved isolation in two opposite
+    directions at once, and the net effect is not a simple improvement:
+
+    - **Less isolation between concurrent jobs.** One registration runs one job at a
+      time, so jobs were serialised and the only question this section had to answer
+      was what the *previous* job left behind. Six registrations run up to six jobs
+      *simultaneously*, as the same macOS user, on one filesystem — sharing `$HOME`,
+      the login keychain, that user's credentials, and every process-visible resource
+      on the box. The question is now also what six concurrent jobs can observe or do
+      to each other *while running*.
+    - **More isolation of the Go caches specifically.** Each registration has its own
+      `GOCACHE`/`GOMODCACHE`, so the six concurrent builds do not share a build cache.
+      That separation is configured per-runner *on the machine* and is **invisible from
+      this repository**: nothing here records or enforces it, and a reader cannot
+      verify it from the source tree. It exists because sharing one `GOCACHE` across
+      concurrent registrations corrupted builds on the other host (issue #307). Treat
+      it as an operational property that could silently regress, not a guarantee.
+    - **The host is not dedicated to this repository.** The same Mac mini carries
+      twelve runner registrations in total, serving eight different repositories under
+      the same account — this repo's six plus six belonging to unrelated projects. They
+      all run as the same macOS user against the same `$HOME` and login keychain. So a
+      job from a repository with its own contributors, its own dependencies and its own
+      review standards can be executing at the same moment as this repo's release job,
+      on the same machine, with only process separation between them. Nothing in this
+      repository declares, constrains or can even observe that arrangement: it is not
+      visible from any workflow file here, and it widens the blast radius of the
+      release-integrity bullet above well beyond this project's own supply chain.
+
     Every job below still selects `runs-on: [self-hosted, macOS]`, a label rather than
-    a pinned machine, so that attribution is a fact about today's runner fleet, not a
-    guarantee the label enforces: a second macOS-labeled runner registered tomorrow
+    a pinned machine, so the attribution above is a fact about today's runner fleet, not
+    a guarantee the label enforces: another macOS-labeled runner registered tomorrow
     would be an equally eligible target for every job in the list below, silently,
     without a line of any workflow changing — (every
     macOS-labeled job in this repo:
@@ -439,15 +472,22 @@ diagram doesn't redraw per platform.
     Low-severity today (private repo, single collaborator with full access already has
     every capability this risk would grant), but a distinct mechanism from "an
     untrusted fork PR executes arbitrary code" (already covered on #138): even *trusted*
-    code — a compromised upstream Go dependency, for instance — building once on a
+    code — a compromised upstream Go dependency, for instance — building on a
     shared runner could in principle leave state a later job (one doing keyless
     signing, or one with `DEMO_ORG_PAT`/`AZURE_DEVOPS_EXT_PAT` in integration-scan.yaml)
-    then trusts. Go's own
+    then trusts. With six concurrent registrations that is no longer only a *later*
+    job: a job holding a scan PAT can be running at the same moment as a job building
+    unreviewed dependency code, under the same user, with nothing between them but
+    process separation. Go's own
     module/build-cache content-addressing (go.sum-verified, hash-keyed) meaningfully
-    bounds this relative to ecosystems with less integrity-checked caches, but it isn't
-    zero. Mitigation options (isolate via ephemeral/containerized self-hosted runners,
-    or periodic cache resets) belong in the same pre-public-launch bucket as #138's
-    other self-hosted-runner items — not solved by anything in this document.
+    bounds the cache-poisoning half of this relative to ecosystems with less
+    integrity-checked caches, and the per-runner `GOCACHE` split bounds it further —
+    but neither does anything for the shared `$HOME`, keychain, and user account, which
+    is the part concurrency made worse. Mitigation options (isolate via
+    ephemeral/containerized self-hosted runners, the weekly `clean` cache reset already
+    in `runner-maintenance.yaml`, or moving CI to GitHub-hosted runners once the repo is
+    public and they are free again) belong in the same pre-public-launch bucket as
+    #138's other self-hosted-runner items — not solved by anything in this document.
 
 ## See also
 

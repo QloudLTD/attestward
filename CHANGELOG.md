@@ -1350,6 +1350,31 @@ All notable changes to this project are documented here. Format follows
 
 ### Changed
 
+- **`docs/threat-model.md`'s self-hosted-runner section rewritten for the six-runner
+  fleet** (#316). Both bullets described a single macOS registration; the Mac mini now
+  carries six (`spyros-mac-mini-ssdf` plus `-2` through `-6`, issue #313). A count
+  correction alone would have been worse than the stale text, because the section's
+  load-bearing claim is about what jobs *share*, and that moved in two opposite
+  directions at once: Go build caches became **more** isolated (a per-registration
+  `GOCACHE`/`GOMODCACHE`, added after shared-cache corruption on the other host, #307),
+  while `$HOME`, the login keychain and the user account became **less** isolated — six
+  jobs now run concurrently as one macOS user where a single registration previously
+  serialised them. The residual-risk paragraph rested on that serialisation ("state a
+  *later* job then trusts") and now also covers the concurrent case: a job holding a
+  scan PAT can run alongside a job building unreviewed dependency code, with only
+  process separation between them. Also records that the `GOCACHE` split is configured
+  on the machine and is **unverifiable from this repository** — an operational property
+  that can silently regress, not a guarantee. The release-integrity bullet gains the
+  matching distinction: which *registration* a release lands on is non-deterministic,
+  which *machine* is not. Verifying the cache claim against the machine rather than
+  trusting the issue text also turned up a previously undocumented fact worth more than
+  the one being fixed: the host carries **twelve** runner registrations serving **eight**
+  repositories, so a job from an unrelated project can run alongside this repo's release
+  job under the same user, `$HOME` and login keychain — now recorded, since nothing in
+  this repository declares or can observe it. No guard change — `threatmodelguard`
+  enumerates job names, not
+  runner counts, so nothing in CI would have caught this (the fourth drift in this same
+  section in two days: #286, #301, #310, now #316).
 - **`DECISIONS.md` D4/D13 trimmed of internal commercial framing ahead of the public
   flip** (#138). D13's copyleft rationale described AGPL as raising "questions their
   counsel would rather not answer" and framed the OSS CLI as feeding "the adoption D4's
