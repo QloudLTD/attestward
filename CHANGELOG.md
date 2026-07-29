@@ -1350,6 +1350,18 @@ All notable changes to this project are documented here. Format follows
 
 ### Changed
 
+- **`DECISIONS.md` D4/D13 trimmed of internal commercial framing ahead of the public
+  flip** (#138). D13's copyleft rationale described AGPL as raising "questions their
+  counsel would rather not answer" and framed the OSS CLI as feeding "the adoption D4's
+  hosted tier depends on", with the open-core split described as a "moat". The decisions
+  themselves are unchanged and every user-relevant reason is kept — Apache-2.0 for its
+  patent grant and retaliation clause, §6's trademark reservation, and the standing
+  commitment that anything a single local scan produces stays free and open source.
+  Only the internal strategy framing is gone. D4's boundary statement was assessed and
+  **kept deliberately**: it is a promise to users about what stays free, not internal
+  reasoning, and reads better published than withheld. Its pointer to the closed
+  hosted-tier placeholders (#121–#126) is corrected to note that work now lives in a
+  separate repository.
 - **`docs/threat-model.md`'s "outside any collector" endpoint table drops its
   line-number citations** (#274, option 3 of that issue's four). The table's `Call
   site` column cited exact lines in `cmd/attestward/scanrepos.go` (`:122`/`:46`/`:75`)
