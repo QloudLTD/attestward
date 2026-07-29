@@ -16,13 +16,11 @@ jobs:
   # `v*` tag push produces *no release at all* while Actions billing is
   # blocked, silently, unless someone happens to check the run.
   goreleaser:
-    runs-on: [self-hosted, macOS]
-    # A hung release job now blocks whichever of the six shared self-hosted
-    # runner registrations it lands on (issue #313) — down from blocking the
-    # one shared registration this repo used to have, but still a real cost,
-    # unlike on a hosted runner where it only wasted its own VM —
-    # integration-scan.yaml's jobs already set a timeout for the same
-    # reason.
+    runs-on: ubuntu-latest
+    # On a hosted runner a hung release job only wastes its own ephemeral VM
+    # rather than blocking a shared machine, so this timeout is cheap
+    # insurance rather than the contention guard it used to be —
+    # integration-scan.yaml's jobs set one for the same reason.
     timeout-minutes: 15
     permissions:
       contents: write # create the GitHub release and upload assets
@@ -31,9 +29,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history for the conventional-commit changelog
-      # cache: false — see ci.yaml's matching comment (issue #313): this
-      # runner is self-hosted, so GOMODCACHE/GOCACHE already persist in
-      # $HOME across jobs.
+      # cache: false — see ci.yaml's matching comment (issue #313). The
+      # runner is ephemeral, so the build is cold either way; this keeps the
+      # release build resolving from go.sum against the real proxy.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod

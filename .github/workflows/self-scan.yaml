@@ -53,14 +53,18 @@ name: Self-scan
 # seconds to minutes) lands in that release's pack. Mostly benign for
 # this repo's cadence, but a real difference from what `on: release`
 # would have given.
+# Triggers deliberately: RELEASES ONLY, plus manual dispatch. A weekly
+# `schedule:` ran here until 2026-07-29 and was removed — this workflow's
+# output is a release artifact (the evidence pack attached to a release, and
+# the drift baseline the next release diffs against), so a run between
+# releases produced a pack nothing consumed and diffed against a baseline
+# that hadn't moved. `workflow_dispatch` stays because it fires only when
+# somebody asks: it's the escape hatch for re-cutting a baseline or scanning
+# ad hoc, not a recurring job.
 on:
   workflow_run:
     workflows: ["Release"]
     types: [completed]
-  schedule:
-    # Monday 06:00 UTC — arbitrary but fixed, so drift is visible weekly
-    # even between releases.
-    - cron: "0 6 * * 1"
   workflow_dispatch: {}
 
 concurrency:
@@ -76,18 +80,18 @@ jobs:
   # A workflow_run event fires on every "Release" completion, including a
   # failed or cancelled one (e.g. the goreleaser job errors before
   # publishing) — there's no fresh release to scan against in that case, so
-  # this run is a no-op rather than a scan that would just repeat the last
-  # scheduled/dispatched one. schedule/workflow_dispatch are unaffected
-  # (short-circuits on the event_name check).
+  # this run is a no-op rather than a scan of a release that never shipped.
+  # workflow_dispatch is unaffected (short-circuits on the event_name check).
   self-scan:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
-      # Default clean:true is quietly load-bearing on this self-hosted
-      # runner: it wipes any evidence/ left behind by a prior run, so a
-      # catastrophically-failed scan step can't have the evaluate step
-      # below accidentally read stale evidence.json from a previous run
-      # and pass against it.
+      # Default clean:true used to be load-bearing here: on the old
+      # self-hosted runner the workspace persisted, so a failed scan step
+      # could leave an evidence/ directory for the evaluate step below to
+      # read stale evidence.json from and pass against. A hosted runner is
+      # ephemeral, so that hazard is gone by construction — the default is
+      # left explicit-by-omission rather than relied on.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Drift baseline: the evidence.json attached to the latest release
@@ -141,9 +145,12 @@ jobs:
       #
       # Every entry here must cite why it's here and where the real fix
       # (not the exception) is tracked:
-      #   - C06.sca.dependency-review: GHAS-gated on a private repo (same
-      #     as DECISIONS.md D7's CodeQL entry) — resolves when this repo
-      #     goes public or GHAS is purchased, not before.
+      #   (C06.sca.dependency-review was removed from this list on
+      #   2026-07-29. It was GHAS-gated on a private repo; the repo went
+      #   public (issue #138) and dependency-review.yaml now runs the real
+      #   action on every PR, so the gap is fixed rather than excepted. If
+      #   this check fails now, that is a genuine regression and should
+      #   redden the self-scan.)
       #   - C02.branch.admin-enforced: real, accepted gap — an Admin-role
       #     "always" bypass actor is deliberately kept on the main ruleset
       #     so this solo-maintainer repo can still merge without a second
@@ -168,7 +175,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f evidence/evidence.json || { echo "::error::no evidence.json was written — the scan itself failed; see the action step above"; exit 1; }
-          allowed='["C06.sca.dependency-review","C02.branch.admin-enforced","C09.repo.webhooks","C05.sast.ran-per-release","C07.release.tags-signed"]'
+          allowed='["C02.branch.admin-enforced","C09.repo.webhooks","C05.sast.ran-per-release","C07.release.tags-signed"]'
           unexpected=$(jq --argjson allowed "$allowed" '
             [.results[] | select(.status == "verified-fail" or .status == "partial") | select(.check_id as $id | $allowed | index($id) | not)]
           ' evidence/evidence.json)
@@ -185,9 +192,11 @@ jobs:
           # verified-fail), so a broken token, an API outage, or a runner
           # misconfiguration could silently turn every single check
           # not-checkable and still reach this line with nothing to
-          # complain about. For an unattended weekly cron, that's a green
-          # badge that verified nothing — worse than a red one, since
+          # complain about. For an unattended release-triggered run, that's a
+          # green badge that verified nothing — worse than a red one, since
           # nobody's watching to notice (found in code review of PR #108).
+          # The floor matters more now that runs are release-only: they are
+          # rarer, so a silently-empty one goes unnoticed for longer.
           # This floor doesn't assert a specific expected count (this
           # workflow's own GITHUB_TOKEN has narrower reach than the
           # broader token this workflow was developed against, so the
@@ -221,11 +230,11 @@ jobs:
       # lost baseline is the same class of failure the pass_count floor below
       # exists to catch: a green run that verified less than it appears to.
       #
-      # continue-on-error is still right, with an honest scope. On schedule and
-      # workflow_dispatch runs — the large majority — attach-to-release is
-      # skipped by its own `if:`, nothing consumes the artifact, and this stops a
-      # storage-quota failure from reddening a badge-visible run whose scan
-      # actually succeeded. On RELEASE runs it does not save the badge: the
+      # continue-on-error is still right, with an honest scope. On
+      # workflow_dispatch runs attach-to-release is skipped by its own `if:`,
+      # nothing consumes the artifact, and this stops an upload failure from
+      # reddening a badge-visible run whose scan actually succeeded. On RELEASE
+      # runs it does not save the badge: the
       # download in attach-to-release fails instead and the run still goes red.
       # It fails loudly in the one case where the artifact genuinely matters,
       # which is the correct trade, not an oversight.
@@ -280,7 +289,7 @@ jobs:
   attach-to-release:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     needs: self-scan
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:

@@ -141,15 +141,6 @@ mean and what API evidence backs them.
 
 ## 5-minute quickstart
 
-> **This repo is currently private** (see [DECISIONS.md](DECISIONS.md) D7 for the
-> public-launch plan). Until it flips public, the install steps below only work for
-> invited collaborators with GitHub access to it — `go install` needs `GOPRIVATE` plus a
-> configured git credential for a private module, and downloading a release asset needs
-> an authenticated request. Nothing here is usable by a true "cold visitor" yet; this
-> section documents the intended post-launch experience and is being written and tested
-> ahead of that, not claimed as already validated end-to-end by someone with no prior
-> context (see issue #138 for that gate).
-
 ### 1. Install
 
 **Download a release** (see the [releases page](../../releases) for the current version):
@@ -162,7 +153,7 @@ shasum -a 256 -c checksums.txt --ignore-missing   # macOS; use sha256sum -c on L
 tar -xzf attestward_<version>_<os>_<arch>.tar.gz
 ```
 
-**Or with Go installed** (works today, pre-release):
+**Or with Go installed:**
 
 ```bash
 go install github.com/sioakim/attestward/cmd/attestward@latest
@@ -413,31 +404,30 @@ Full detail, trust boundaries, and residual risks: [docs/threat-model.md](docs/t
 ## Self-scan
 
 The repo is its own first case study: [`self-scan.yaml`](.github/workflows/self-scan.yaml)
-runs `attestward scan` against `sioakim/attestward` on every release, weekly, and on manual
-dispatch, then publishes the evidence pack and rendered `report.html` as a downloadable
+runs `attestward scan` against `sioakim/attestward` on every release (plus manual dispatch),
+then publishes the evidence pack and rendered `report.html` as a downloadable
 workflow artifact — see the [latest self-scan runs](../../actions/workflows/self-scan.yaml)
 for a real (not demo-org) sample pack. The workflow fails the build on any gap outside a
-small, deliberately documented exception list (see the workflow file's own comments for
-what's on it and why — mostly controls this repo can't satisfy while private, like
-GitHub Advanced Security-gated dependency review), rather than silently ignoring
-failures.
+small, deliberately documented exception list — each entry on it cites why it is there and
+where the real fix is tracked (see the workflow file's own comments) — rather than
+silently ignoring failures. The list is deliberately short and shrinking: dependency
+review came off it once the repo went public and the check could actually run.
 
 ## Documentation
 
-- [v0.1 epic](../../issues/1) — canonical scope and build-phase tracking (GitHub Issues)
 - [Checks Reference](docs/checks-reference.md) — every check's rubric, API evidence, SSDF/CISA
   citations, and remediation, generated from `mappings/*.yaml` and the collector registry
   (never hand-edited — regenerate with `make checks-docs`)
 - [Architecture](docs/architecture.md) — components, data flow, extension seams
 - [Threat model](docs/threat-model.md) — what the tool accesses, what it never does
-- [Architecture decision records](docs/adr/)
-- [Archived planning docs](docs/archive/) — original product brief and roadmap, superseded by GitHub Issues
+- [Architecture decision records](docs/adr/) — permanent, Nygard-format; superseded rather than edited
+- [DECISIONS.md](DECISIONS.md) — resolved product/technical decisions and their rationale
+- [CHANGELOG.md](CHANGELOG.md) — what shipped in each release
 
 ## Contributing
 
-Work is tracked entirely in [GitHub Issues](../../issues) — see the
-[v0.1 epic](../../issues/1) for the full build plan. Read [CONTRIBUTING.md](CONTRIBUTING.md)
-before opening a PR. New verification checks and scanner signatures have dedicated
+Work is tracked entirely in [GitHub Issues](../../issues). Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. New verification checks and scanner signatures have dedicated
 [issue templates](../../issues/new/choose).
 
 ## Security

@@ -1,0 +1,60 @@
+name: CodeQL
+
+# Restored at the public flip (issue #138). This workflow existed until PR #51
+# removed it: CodeQL needs GitHub Advanced Security on a *private* repo, so it
+# failed on every run and was deleted rather than left red. The repo is public
+# as of 2026-07-29, where CodeQL is free — the original blocker is gone, not
+# worked around.
+#
+# Runs on GitHub-hosted `ubuntu-latest` rather than this repo's self-hosted
+# runners, deliberately, and as the one documented exception to the
+# self-hosted-by-default rule:
+#
+#   1. `pull_request` from a fork is the exact case docs/threat-model.md's
+#      "Shared, persistent runner state" bullet warns about. That machine
+#      carries twelve runner registrations serving eight repositories under one
+#      macOS user and login keychain (issue #316); a scanning job triggered by
+#      arbitrary external contributors is the last thing that should land there.
+#   2. The rule's original reason was billing — GitHub-hosted minutes were
+#      exhausted. Standard hosted runners are free and unmetered on public
+#      repositories, so that reason no longer applies to this repo.
+#
+# Fork-PR runs additionally require maintainer approval
+# (`all_external_contributors`), set at the flip.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, offset off the hour to avoid GitHub's cron congestion.
+    - cron: "19 3 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required to upload results to the Security tab. GitHub withholds write
+      # permissions from fork-PR tokens regardless of what is requested here,
+      # so a fork PR still gets analysis without the ability to write alerts.
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          languages: go
+      # `autobuild` is kept rather than a manual `go build`: this module builds
+      # with plain `go build ./...` and has no generate step, so autobuild's Go
+      # path does exactly that with less to drift.
+      - uses: github/codeql-action/autobuild@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3

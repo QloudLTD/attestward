@@ -14,31 +14,41 @@ concurrency:
 permissions:
   contents: read
 
-# lint/test/build/goreleaser-dry-run all run on the self-hosted Mac mini
-# (spyros-mac-mini-ssdf) rather than a GitHub-hosted runner — cross-compilation
-# (see `build`'s own comment below) means none of them need a specific OS to
-# produce or check a binary, so there's no technical reason to spend
-# GitHub-hosted Actions minutes running plain Go tooling. `runs-on:
-# [self-hosted, macOS]` is a label, not a pinned machine — it now resolves to
-# any of six runner registrations on that one Mac mini (issue #313), so these
-# jobs can run concurrently across up to six of them rather than queuing
-# serially behind a single registration the way they used to.
+# Every job here runs on GitHub-hosted `ubuntu-latest`. The repo went public on
+# 2026-07-29 (issue #138), which made hosted runners free and unmetered and
+# removed the only reason this repo used self-hosted machines: hosted minutes
+# had been exhausted, not any technical requirement. All self-hosted runners
+# were deregistered at the same time.
 #
-# Issue #313: every `actions/setup-go` step below sets `cache: false`. On a
-# self-hosted runner GOMODCACHE/GOCACHE already persist in $HOME across jobs
-# (that's the actual reason repeat runs are fast), so the action's own
-# default (`cache: true`) uploads/restores a redundant ~2GB copy through
-# GitHub's Actions cache service on every run — duplicating what's already
-# on local disk. Those redundant caches had grown to 8.65GB against the 10GB
-# per-repo ceiling and were evicting each other. Disabling it also makes
-# `go build`/`go test` prove what they claim to: that the module graph
-# resolves from `go.sum` against the real proxy, not from a warm cache —
-# see #313 for the full reasoning. `runner-maintenance.yaml`'s weekly
-# `clean` job is what actually empties the persistent local cache; without
-# it, "cold" here is aspirational, not proven.
+# Nothing here needs a specific OS. The binary is `CGO_ENABLED=0` pure Go, so
+# one Linux runner cross-compiles every published target (see `build`'s own
+# comment below). The one deliberate exception is `test-macos`, which exists to
+# keep real darwin test coverage for the darwin binaries this project ships —
+# see that job's own comment.
+#
+# This also retires a standing supply-chain risk rather than merely relocating
+# it: `docs/threat-model.md` recorded that CI shared a persistent machine, user
+# account and login keychain with runners for seven unrelated repositories, and
+# that `pull_request` jobs from forks would execute there once the repo was
+# public. Hosted runners are ephemeral and per-job, so that entire class of
+# residual risk is gone by construction.
+#
+# Issue #313 — every `actions/setup-go` step below still sets `cache: false`,
+# but the reasoning inverted with the migration and is worth restating, because
+# the old rationale is now false. On the self-hosted runners GOMODCACHE/GOCACHE
+# persisted in $HOME across jobs, so the action's default (`cache: true`)
+# uploaded a redundant ~2GB copy of what was already on local disk; those
+# caches had grown to 8.65GB against the 10GB per-repo ceiling and were
+# evicting each other. A hosted runner has no persistent local cache at all —
+# every job starts genuinely cold — so `cache: false` no longer avoids
+# redundancy. It is kept because it still buys the property #313 actually
+# wanted: `go build`/`go test` prove the module graph resolves from `go.sum`
+# against the real proxy rather than from a warm cache. What used to require a
+# weekly `clean` job to be even approximately true is now guaranteed by the
+# runner being thrown away after every job.
 jobs:
   lint:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Deliberately NOT go-version-file: golangci-lint v2.12.2 requires Go
@@ -53,10 +63,10 @@ jobs:
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
       - run: golangci-lint run
 
-  # The required check — macOS, self-hosted (see the self-hosted comment
-  # above).
+  # The required check. Runs on ubuntu-latest; `test-macos` below covers the
+  # other shipped OS and is deliberately non-required.
   test:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -78,22 +88,25 @@ jobs:
       # hand-edited THIRD-PARTY-NOTICES.md, not just that it runs.
       - run: hack/check-third-party-notices-drift_test.sh
 
-  # Issue #83: restores the Linux-specific test coverage `test` above can't
-  # provide on its own — case-sensitive filesystem, path/rename semantics,
-  # the race-detector runtime — for a tool whose primary deployment target
-  # is Linux CI. Runs on spyros-ionos-ssdf (self-hosted, amd64) rather than
-  # falling back to a GitHub-hosted ubuntu-latest runner (issue #83's other
-  # proposed option) — this repo already had a self-hosted Linux amd64
-  # machine, it just wasn't running the test suite on it yet. `build` no
-  # longer has a linux/amd64 leg of its own to share this machine with (it
-  # cross-compiles everything from spyros-mac-mini-ssdf now), so this is the
-  # only job that still touches spyros-ionos-ssdf. Deliberately NOT added to
-  # this repo's required-checks list (a new job is non-required by default
-  # unless explicitly added there): if this specific runner ever goes
-  # offline, that must never be able to block a merge the way a required
-  # check would, matching the same reasoning that keeps `build` non-required.
-  test-linux:
-    runs-on: [self-hosted, Linux, X64]
+  # Issue #83 originally added this as `test-linux`, to restore Linux-specific
+  # coverage that `test` above couldn't provide while `test` ran on a
+  # self-hosted macOS machine. The runner migration inverted that: `test` now
+  # runs on `ubuntu-latest`, so a second Linux job would be an exact duplicate.
+  #
+  # The coverage worth keeping is the *other* OS, not the other machine. This
+  # tool ships darwin/amd64 and darwin/arm64 binaries, so it renames to
+  # `test-macos` and runs the same suite on hosted macOS — case-insensitive
+  # filesystem, different path/rename semantics, a different race-detector
+  # runtime. Dropping the job outright would have silently ended all macOS test
+  # coverage at the same moment the last macOS runner was deregistered.
+  #
+  # Kept deliberately OUT of the required-checks list, exactly as `test-linux`
+  # was: hosted macOS minutes are slower and scarcer than Linux, and a queue
+  # there must never block a merge. `test` on ubuntu-latest remains the
+  # required check, and its name is unchanged — a matrix would have renamed it
+  # to `test (ubuntu-latest)` and silently broken the ruleset.
+  test-macos:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -107,7 +120,7 @@ jobs:
   # file's own header). A PR that changes either without regenerating fails
   # here rather than letting the reference silently go stale.
   checks-docs-drift:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -149,7 +162,7 @@ jobs:
   # mean the code is wrong" pattern the coverage-upload step above already
   # documents.
   gomod-tidy-drift:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -166,7 +179,7 @@ jobs:
   # visitors at this pack, so it's the one rendered artifact a reader
   # compares against the real binary's output.
   examples-drift:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -181,7 +194,7 @@ jobs:
   # never hand-edited — see hack/gen-third-party-notices.sh's own header
   # comment, including why it's not enough to run this on one platform.
   third-party-notices-drift:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -224,7 +237,7 @@ jobs:
   # job existing at all narrows the gap #202 hit by chance; it doesn't
   # close it.
   rubric-drift-check:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -298,12 +311,14 @@ jobs:
         run: |
           echo "::warning::possible rubric drift found on this push to main (issue #209) — see the 'Check for rubric drift' step's own output above; this doesn't fail the build here since there's no PR context left to review or waive it in, but it's worth a look"
 
-  # Issue #260: keeps docs/threat-model.md's self-hosted-macOS job
-  # enumeration current — see tools/threatmodelguard/scan.go's own doc
-  # comment. Not diff-based like rubric-drift-check above, so no
-  # merge-base/range step is needed.
+  # Issue #260: keeps docs/threat-model.md's ADO-collector enumeration
+  # current — see tools/threatmodelguard/scan.go's own doc comment. Its
+  # former self-hosted-runner check was retired with the runner migration
+  # (issue #138): with no self-hosted job left to enumerate, the check had
+  # nothing to compare and its expected list was pure drift. Not diff-based
+  # like rubric-drift-check above, so no merge-base/range step is needed.
   threat-model-drift:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -312,12 +327,13 @@ jobs:
           cache: false
       - run: go run ./tools/threatmodelguard
 
-  # Cross-compiles every target platform from spyros-mac-mini-ssdf in one job,
-  # instead of round-tripping through 4 different self-hosted runners
-  # (previously: ionos for linux/amd64, parallels for linux/arm64, mac-mini
-  # for both darwin arches, plus a wake/sleep cycle on the physical AORUS box
-  # for windows/amd64 — several minutes of pure machine-management overhead
-  # on top of the actual build, every single run). Go's own GOOS/GOARCH
+  # Cross-compiles every target platform in one job on one Linux runner,
+  # instead of round-tripping through four separate machines the way this
+  # repo once did (a Linux VM for linux/amd64, a second for linux/arm64, a
+  # Mac mini for both darwin arches, plus a wake/sleep cycle on a physical
+  # Windows box for windows/amd64 — several minutes of pure machine
+  # management on top of the actual build, every single run). Go's own
+  # GOOS/GOARCH
   # cross-compilation makes native per-arch runners unnecessary for a
   # CGO_ENABLED=0 pure-Go binary — this is exactly what goreleaser-dry-run
   # below already does, and a local `goreleaser release --snapshot`
@@ -335,7 +351,7 @@ jobs:
   # cross-compile).
   build:
     needs: [lint, test]
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -356,10 +372,12 @@ jobs:
             echo "building $out"
             # Issue #232: $GITHUB_SHA is one of GitHub's own default
             # environment variables, ambiently exported into every step —
-            # no env: plumbing needed, and unlike ${{ github.sha }} it's a
-            # genuine runtime env var the shell reads, never a context
-            # expression textually substituted into this script before it
-            # runs. Not a live risk either way (github.sha is a GitHub-
+            # no env: plumbing needed, and unlike the github.sha context
+            # expression it replaced, it's a genuine runtime env var the
+            # shell reads, never textually substituted into this script
+            # before it runs. (Named rather than written: GitHub substitutes
+            # a context expression inside a run: block even within a #
+            # comment, so writing one here would silently interpolate.) Not a live risk either way (github.sha is a GitHub-
             # generated hex SHA, not attacker-influenceable) but the
             # rule's whole value is not needing that judgement call per
             # site.
@@ -367,14 +385,22 @@ jobs:
               -ldflags "-X main.version=$GITHUB_SHA -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               -o "$out" ./cmd/attestward
           done
-      - name: Verify the darwin/arm64 build runs (matches this runner's own arch)
-        run: ./attestward-darwin-arm64 version
+      # Smoke-test whichever cross-compiled binary matches THIS runner's own
+      # architecture — the only one it can actually execute. That used to be
+      # darwin/arm64 (the self-hosted Apple Silicon machine); on ubuntu-latest
+      # it is linux/amd64, and running the darwin binary here fails with
+      # "cannot execute binary file: Exec format error". The step proves the
+      # cross-compile produced a *runnable* binary rather than merely an
+      # artifact that links; `multi-arch-build-sample.yaml` is the workflow
+      # that verifies all five targets natively.
+      - name: Verify the linux/amd64 build runs (matches this runner's own arch)
+        run: ./attestward-linux-amd64 version
 
   # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
   # push or cosign's OIDC signing context. Informational only (not a required
   # check) since it duplicates build's compile coverage.
   goreleaser-dry-run:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

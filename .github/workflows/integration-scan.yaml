@@ -86,20 +86,18 @@ on:
 permissions:
   contents: read
 
-# All three jobs run on the self-hosted Mac mini (spyros-mac-mini-ssdf)
-# rather than a GitHub-hosted runner — plain Go tooling plus cosign, no
-# OS-specific execution requirement (see ci.yaml's matching comment).
-# id-token: write below still works identically on a self-hosted runner:
-# GitHub's Actions service mints the OIDC token, not the runner itself.
+# All three jobs run on GitHub-hosted `ubuntu-latest` — plain Go tooling
+# plus cosign, no OS-specific execution requirement (see ci.yaml's matching
+# comment for the migration). `id-token: write` below is unaffected either
+# way: GitHub's Actions service mints the OIDC token, not the runner.
 #
 # Every `actions/setup-go` step below sets `cache: false` — see ci.yaml's
-# matching comment (issue #313) for why: this repo's runners are
-# self-hosted, so GOMODCACHE/GOCACHE already persist in $HOME across jobs,
-# and setup-go's own cache just duplicates that through GitHub's Actions
-# cache service.
+# matching comment (issue #313). On an ephemeral runner the build is cold
+# regardless; the flag keeps the dependency graph resolving from go.sum
+# against the real proxy rather than a restored cache.
 jobs:
   integration-scan:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -173,7 +171,7 @@ jobs:
             }
 
   sign-verify:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
@@ -228,7 +226,7 @@ jobs:
   # independent failure modes, so this job runs regardless of whether the
   # GitHub job passed, failed, or is still running.
   integration-scan-ado:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read

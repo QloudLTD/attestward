@@ -18,10 +18,11 @@ on:
     branches: [main]
   schedule:
     # Weekly, catches new/updated Semgrep rules landing between merges —
-    # Tuesday, off-the-hour, a day distinct from every other weekly cron
-    # in this repo (self-scan/integration-scan: Monday, runner-maintenance:
-    # Wednesday, aorus-keepalive: Thursday) to avoid GitHub Actions'
-    # documented cron pile-up at shared times.
+    # Tuesday, off-the-hour, a day distinct from every other weekly cron in
+    # this repo (integration-scan: Monday, codeql: Monday 03:19) to
+    # avoid GitHub Actions' documented cron pile-up at shared times. The
+    # Wednesday and Thursday slots freed up when runner-maintenance.yaml and
+    # aorus-keepalive.yaml were deleted with the self-hosted runners (#138).
     - cron: "42 5 * * 2"
   workflow_dispatch: {}
 
@@ -43,11 +44,8 @@ permissions:
   contents: read
 
 jobs:
-  # Self-hosted per ci.yaml's own rule (see its matching comment): a
-  # Python-venv-plus-CLI job has no GitHub-hosted-runner-specific
-  # requirement, so there's no reason to spend Actions minutes on it.
   semgrep:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,72 +65,34 @@ jobs:
       # there's no coverage reason to prefer a deprecated action just for
       # the higher confidence tier.
       #
-      # Interpreter selection is deliberate, not incidental (found live,
-      # 2026-07-23): this runner-service's default `python3` on PATH is
-      # Apple Command Line Tools' 3.9.6, and semgrep 1.171.0 requires
-      # >=3.10 — `python3 -m venv` against 3.9.6 builds a py39 venv, pip
-      # then silently resolves the pin down to the last py39-compatible
-      # wheel (1.136.0), and the exact pin this workflow asks for can
-      # never be satisfied. That's not a PEP 668 issue (see below) — it's
-      # a version-floor issue, and it failed this exact step on this exact
-      # runner the first time this workflow ran for real, which a local
-      # run on an authoring machine with a newer ambient python3 never
-      # surfaces. The step below resolves an explicit >=3.10 interpreter
-      # first and fails loudly if it can't find one, rather than silently
-      # falling back to whatever unversioned `python3` happens to be
-      # first on PATH.
+      # Interpreter selection used to be the fiddly part of this step and no
+      # longer is. On the old self-hosted macOS runner the default `python3`
+      # was Apple Command Line Tools' 3.9.6, below semgrep's >=3.10 floor, so
+      # pip silently resolved the pin down to the last py39-compatible wheel
+      # and the requested version could never be installed — a real failure,
+      # found live on 2026-07-23. `ubuntu-latest` ships a python3 well above
+      # that floor, so the interpreter-resolution logic that guarded against it
+      # is deleted rather than carried forward as cargo. The version check
+      # below keeps the guarantee without the machine-specific search.
       #
-      # Separately: installing into a venv at all (rather than a bare
-      # `pip install` against the resolved interpreter directly) is about
-      # PEP 668, a different hazard — Apple's CLT python3 carries no
-      # EXTERNALLY-MANAGED marker (its own problem is the version floor
-      # above, nothing to do with PEP 668), but Homebrew's python3 (the
-      # >=3.10 interpreter this runner actually has available) IS
-      # externally managed and would refuse a bare `pip install` outright
-      # without `--break-system-packages` or a venv. A venv sidesteps
-      # that restriction cleanly and keeps this pin from touching
-      # anything else installed on the shared self-hosted runner.
+      # The venv is kept: `ubuntu-latest`'s system python is PEP 668
+      # externally-managed and would refuse a bare `pip install` without
+      # `--break-system-packages`. It lives under $RUNNER_TEMP rather than the
+      # workspace so it can't be picked up as repo content by the scan itself.
       #
-      # The venv lives under $RUNNER_TEMP (a job-scoped, auto-cleaned
-      # temp directory), not the checked-out workspace: this runner is
-      # self-hosted and its workspace persists between runs, so a venv
-      # left in the repo tree would linger indefinitely instead of being
-      # thrown away with the job. Version pinned to the exact release
-      # verified against PyPI's own API at the time this workflow was
-      # written (1.171.0) — bump deliberately, not left floating.
+      # Version pinned to a release verified against PyPI's own API when this
+      # workflow was written (1.171.0) — bump deliberately, not left floating.
       - name: Install semgrep (pinned)
         run: |
           set -euo pipefail
 
-          resolve_python() {
-            # Preferred: Homebrew's python3 — confirmed >=3.10 on this
-            # runner (2026-07-23 live finding). Checked by absolute path
-            # rather than relying on PATH order, since the runner
-            # service's own PATH puts Apple's older CLT python3 first.
-            if [ -x /opt/homebrew/bin/python3 ]; then
-              echo /opt/homebrew/bin/python3
-              return 0
-            fi
-            # Fallback: search PATH for any versioned python3.10-3.14
-            # binary (an unversioned `python3` is deliberately NOT
-            # accepted here — that's exactly the ambiguous name that
-            # resolved to 3.9.6 and broke this step the first time).
-            for v in 3.14 3.13 3.12 3.11 3.10; do
-              if command -v "python$v" >/dev/null 2>&1; then
-                command -v "python$v"
-                return 0
-              fi
-            done
-            return 1
-          }
-
-          PYTHON="$(resolve_python)" || {
-            echo "::error::no python3 interpreter >=3.10 found (checked /opt/homebrew/bin/python3, then python3.10-python3.14 on PATH) — semgrep 1.171.0 requires >=3.10, and this runner's default 'python3' (Apple Command Line Tools, 3.9.6) does not meet that floor; see this step's own comment for the 2026-07-23 live finding that proved it"
+          python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' || {
+            echo "::error::python3 is $(python3 --version), but semgrep 1.171.0 requires >=3.10"
             exit 1
           }
-          echo "resolved interpreter: $PYTHON ($("$PYTHON" --version))"
+          echo "interpreter: $(python3 --version)"
 
-          "$PYTHON" -m venv "$RUNNER_TEMP/semgrep-venv"
+          python3 -m venv "$RUNNER_TEMP/semgrep-venv"
           "$RUNNER_TEMP/semgrep-venv/bin/pip" install --quiet "semgrep==1.171.0"
 
       # Config choice — a NAMED registry ruleset (p/golang, matching this

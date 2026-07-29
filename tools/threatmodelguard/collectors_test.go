@@ -213,7 +213,7 @@ func TestRunADOCollectors_SilentOnRealRepo(t *testing.T) {
 
 // repoADOCollectDir locates internal/collect/azuredevops relative to this
 // test file's own module root, independent of `go test`'s working
-// directory — mirrors scan_test.go's repoWorkflowsDir.
+// directory, resolved from this test file's own location.
 func repoADOCollectDir(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

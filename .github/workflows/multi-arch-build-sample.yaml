@@ -1,27 +1,29 @@
 # SAMPLE — not part of required CI, not triggered on pull_request/push.
 #
 # This is a reference pipeline, not a maintained one: it demonstrates the
-# "one native runner per target platform/arch" pattern that ci.yaml's own
-# `build` job used until it was replaced with a single cross-compiling job
-# on spyros-mac-mini-ssdf (see that job's own comment in ci.yaml for why —
-# short version: Go's GOOS/GOARCH cross-compilation makes native per-arch
-# runners unnecessary for a CGO_ENABLED=0 pure-Go binary like this one, and
-# doing so eliminates several minutes of pure machine-management overhead
-# per run, most of it the AORUS wake/sleep cycle below).
+# "one native runner per target platform/arch" pattern, which ci.yaml's own
+# `build` job deliberately does NOT use — it cross-compiles all five targets
+# in a single job instead (see that job's own comment for why: Go's
+# GOOS/GOARCH cross-compilation makes native per-arch runners unnecessary for
+# a CGO_ENABLED=0 pure-Go binary like this one).
 #
 # Kept here, `workflow_dispatch`-only, for anyone who genuinely needs
-# execution-verified native builds on every real target OS/arch again — for
+# execution-verified native builds on every real target OS/arch — for
 # example if this project ever adds a CGO dependency that can't
-# cross-compile cleanly, or a platform-specific syscall path that a
-# cross-compiled binary can't actually exercise even with QEMU-style
-# emulation. Run it manually (`gh workflow run multi-arch-build-sample.yaml`
-# or the Actions UI) to confirm the pattern still works before reaching for
-# it in anger; it is not run on a schedule and nothing alerts if it silently
-# bit-rots.
+# cross-compile cleanly, or a platform-specific syscall path a
+# cross-compiled binary can't actually exercise even under emulation. Run it
+# manually (`gh workflow run multi-arch-build-sample.yaml` or the Actions UI)
+# to confirm the pattern still works before reaching for it in anger; it is
+# not run on a schedule and nothing alerts if it silently bit-rots.
 #
-# Both `actions/setup-go` steps below set `cache: false` — see ci.yaml's
-# matching comment (issue #313) for why: these runners are self-hosted, so
-# GOMODCACHE/GOCACHE already persist in $HOME across jobs.
+# Every runner here is GitHub-hosted, so this sample is directly reusable by
+# anyone reading it — which it was not while it depended on this project's
+# own self-hosted machines. It used to need three extra sequenced jobs to
+# wake a physical Windows box over the network, build on it, and power it
+# back down; windows/amd64 is now just another matrix entry.
+#
+# `actions/setup-go` below sets `cache: false` — see ci.yaml's matching
+# comment (issue #313).
 name: Multi-arch build (sample — native runners, manual only)
 
 on:
@@ -31,36 +33,34 @@ permissions:
   contents: read
 
 jobs:
-  # One matrix entry per target platform/arch, each on a runner that can
+  # One matrix entry per published platform/arch, each on a runner that can
   # execute the binary natively (no cross-arch execution gaps) — this job
-  # proves `attestward version` actually runs on linux and macOS, not just
-  # that it compiles. windows/amd64 is handled separately below (the
-  # wake/sleep dance a physical, normally-powered-off runner needs).
+  # proves `attestward version` actually runs on each target, not merely
+  # that it compiles for it. All five legs now fit in one matrix: windows
+  # used to need three sequenced jobs to wake, use and power down a physical
+  # self-hosted machine, and is just another hosted runner.
   build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          # linux/amd64 on the self-hosted Ubuntu VM (spyros-ionos-ssdf,
-          # x86_64, an IONOS-hosted Proxmox guest — always-on, unlike the
-          # power-cycled local machines).
           - goos: linux
             goarch: amd64
-            os: [self-hosted, Linux, X64]
-          # linux/arm64 on spyros-parallels-ssdf, a Parallels-hosted Ubuntu
-          # 24.04 arm64 VM (10.0.0.159).
+            os: ubuntu-latest
           - goos: linux
             goarch: arm64
-            os: [self-hosted, Linux, ARM64]
-          # Both darwin builds run on the self-hosted Apple Silicon runner
-          # (spyros-mac-mini-ssdf): amd64 executes fine there too since it
-          # has Rosetta 2 installed.
+            os: ubuntu-24.04-arm
+          # macos-15-intel is a current Intel image (macos-13 was retired);
+          # macos-latest is Apple Silicon.
           - goos: darwin
             goarch: amd64
-            os: [self-hosted, macOS]
+            os: macos-15-intel
           - goos: darwin
             goarch: arm64
-            os: [self-hosted, macOS]
+            os: macos-latest
+          - goos: windows
+            goarch: amd64
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,6 +87,15 @@ jobs:
           # for the same reason as $GITHUB_SHA below — no context
           # expressions inside a run: block.
           out="attestward-${GOOS}-${GOARCH}"
+          # windows binaries need the suffix to be executable at all — the
+          # "Verify it runs" step below invokes this path directly. Written as
+          # an if rather than `[ ... ] && out=...`: under `set -e` that idiom
+          # only survives because a non-final command in a && list is exempt,
+          # which stops being true the moment it becomes the last line of a
+          # block. Not worth leaving a trap that springs on an edit.
+          if [ "$GOOS" = "windows" ]; then
+            out="${out}.exe"
+          fi
           # Issue #232: $GITHUB_SHA is one of GitHub's own default
           # environment variables, ambiently exported into every step —
           # no env: plumbing needed, and unlike the github.sha context
@@ -141,114 +150,3 @@ jobs:
           ARTIFACT_NAME: attestward-${{ matrix.goos }}-${{ matrix.goarch }}
         run: |
           echo "::warning::upload of $ARTIFACT_NAME failed — likely the artifact storage quota (issue #217); the build itself succeeded, only the archival upload was lost"
-
-  # windows/amd64's native-execution leg runs on a physical self-hosted
-  # runner (spyros-aorus-ssdf) that's kept powered off between uses (~300W
-  # draw) — three sequenced jobs instead of one matrix entry: wake it,
-  # build+verify on it, power it back off.
-  wake-aorus:
-    runs-on: [self-hosted, macOS]
-    concurrency:
-      group: aorus-windows-runner
-      cancel-in-progress: false
-    outputs:
-      cold_woke: ${{ steps.wake.outputs.cold_woke }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Wake AORUS
-        id: wake
-        run: |
-          output=$(tools/aorus.sh on)
-          echo "$output"
-          cold_woke=$(echo "$output" | grep -o 'COLD_WOKE=.*' | cut -d= -f2)
-          echo "cold_woke=$cold_woke" >> "$GITHUB_OUTPUT"
-
-  build-windows:
-    needs: [wake-aorus]
-    runs-on: [self-hosted, Windows, X64]
-    concurrency:
-      group: aorus-windows-runner
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # This runner also has WSL's bash.exe launcher stub on PATH (no
-      # installed distribution), and GitHub's `shell: bash` resolution
-      # picked that one over Git for Windows' real bash — confirmed
-      # directly in a real CI run ("Windows Subsystem for Linux has no
-      # installed distributions"). Pointing `shell:` at Git's bash.exe by
-      # full path doesn't work either — the runner's own internal
-      # path-combining logic throws ("Second path fragment must not be a
-      # drive or UNC name") when the shell command starts with a drive
-      # letter, also confirmed directly. Prepending Git's bin directory to
-      # PATH via GITHUB_PATH instead — the documented, supported way to
-      # influence which binary a later `shell: bash` step resolves to.
-      - name: Prefer Git's bash over the WSL launcher stub
-        run: echo "C:\Program Files\Git\bin" >> $env:GITHUB_PATH
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: Build
-        shell: bash
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: 0
-        run: |
-          # set -u for the same reason as the matrix leg: an unset
-          # GITHUB_SHA would otherwise stamp an empty version rather than
-          # fail. GitHub's `shell: bash` gives -eo pipefail but not -u.
-          set -euo pipefail
-          # Issue #232: shell: bash is forced above (see the "Prefer
-          # Git's bash" step's own comment for why), so $GITHUB_SHA — an
-          # ambient env var, not a PowerShell one — resolves the same way
-          # it does on the non-Windows legs; see that leg's identical
-          # comment for the full rationale.
-          go build -trimpath -ldflags "-X main.version=$GITHUB_SHA -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o attestward-windows-amd64.exe ./cmd/attestward
-      - name: Verify it runs
-        shell: bash
-        run: ./attestward-windows-amd64.exe version
-      # Archival only: "Verify it runs" above has already proven this binary
-      # compiles and executes on its target. A storage-quota failure on the
-      # upload must not retract that proof by reddening the job.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        id: upload-windows
-        continue-on-error: true
-        with:
-          name: attestward-windows-amd64
-          path: attestward-windows-amd64.exe
-          # Issue #242: see the native-runner leg's identical retention-days
-          # comment above — same reasoning, same 1-day value.
-          retention-days: 1
-      # Issue #217: same visibility gap as the native-runner leg above —
-      # continue-on-error is right, but made a real quota exhaustion
-      # invisible. shell: bash to match every other run: step in this
-      # job (this runner's default-shell bash resolution is unreliable —
-      # see the "Prefer Git's bash" step's own comment above).
-      - name: Warn if the build-artifact upload failed
-        shell: bash
-        if: steps.upload-windows.outcome == 'failure'
-        run: |
-          echo "::warning::upload of attestward-windows-amd64 failed — likely the artifact storage quota (issue #217); the build itself succeeded, only the archival upload was lost"
-
-  # Runs regardless of build-windows's outcome (if: always()) — a failed
-  # Windows build must not leave the box powered on indefinitely. Only
-  # actually shuts down if wake-aorus cold-woke it: if AORUS was already up
-  # when this run started, something else is using it, and powering it off
-  # out from under that isn't this pipeline's call to make (see
-  # tools/aorus.sh's own doc comment).
-  sleep-aorus:
-    needs: [wake-aorus, build-windows]
-    if: always()
-    runs-on: [self-hosted, macOS]
-    concurrency:
-      group: aorus-windows-runner
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Power off AORUS
-        if: needs.wake-aorus.outputs.cold_woke == 'true'
-        run: tools/aorus.sh off
-      - name: Leave AORUS running (was already up before this run)
-        if: needs.wake-aorus.outputs.cold_woke != 'true'
-        run: echo "AORUS was already up when wake-aorus ran — leaving it as-is"

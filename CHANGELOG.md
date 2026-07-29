@@ -8,6 +8,29 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **`agents/` — agent skills for working with this tool.** `agents/attestward-scan/SKILL.md`
+  takes a newcomer from nothing to a rendered evidence pack: prerequisite checks, clone,
+  build, an interactive pass to gather platform/org/scope, the scan itself, and how to read
+  the result. Written against the real CLI surface rather than a plausible-looking one —
+  every flag, command and the `diff` exit-code contract (0 none / 2 regressions / 1 error)
+  was verified against `cmd/attestward` before being written down. Three rules are baked in
+  because an agent following a skill will do exactly what it says: never handle or echo the
+  user's token (Attestward reads it from the environment and nowhere else), never suggest a
+  workflow implying a write (ADR-0004), and never invent a check or SSDF ID. It also has the
+  skill explain `not-checkable` as an honest degradation rather than a failure, which is the
+  distinction first-time users most reliably misread.
+- **CodeQL and `dependency-review-action` restored** (#138). Both were removed or never
+  added because they require GitHub Advanced Security on a *private* repository: PR #51
+  deleted the CodeQL workflow rather than leave it failing on every run, and
+  dependency-review was carried as an accepted `verified-fail` on this repo's own
+  self-scan (DECISIONS.md D7). The repo went public on 2026-07-29, where both are free,
+  so the original blocker is gone rather than worked around. `C06.sca.dependency-review`
+  is **removed from `self-scan.yaml`'s exception list** in the same change — the gap is
+  fixed, so a failure there is now a real regression and should redden the self-scan
+  rather than be tolerated. `dependency-review.yaml` fails a PR on a newly-introduced
+  moderate-or-worse advisory, deliberately stricter than the action's `low` default is
+  loose, since this module has eight direct dependencies and near-zero churn.
+
 - **Release archives now carry third-party attribution and our own `NOTICE`** (#282).
   `.goreleaser.yaml`'s `archives.files` was just `LICENSE`/`README.md` — every published
   `attestward_<version>_<os>_<arch>` archive shipped without the copyright-notice
@@ -169,6 +192,35 @@ All notable changes to this project are documented here. Format follows
   can wave off a false positive; silence is what #202 hit), verified against this
   repo's own history: correctly silent across 40 real merged PRs, and correctly flags
   #202's actual pre-fix commit (all three collectors it originally missed).
+
+### Removed
+
+- **Obsolete documentation deleted at the public flip** (#138). `docs/archive/`
+  (`product-brief.md`, `roadmap.md`, `progress-narrative.md`) and
+  `docs/handoff-2026-07-28.md` are gone. All four were explicitly marked
+  historical/not-maintained, all four described a project state that no longer exists,
+  and the product brief still carried the pre-rename working name and a "check trademark
+  before publishing" note. `CHANGELOG.md`, the issue tracker and the ADRs are the record
+  now. Note this reverses part of #276, which deliberately *kept* `progress-narrative.md`
+  as institutional memory — that reasoning was sound while the repo was private and an
+  internal build narrative cost nothing; on a public repo it is stale noise. Every
+  referring file was updated in the same change (`README.md`, `CLAUDE.md`,
+  `tools/progress/generate.py`); zero dangling links remain.
+- **Every self-hosted runner, and the tooling that existed only to serve them** (#138).
+  `runner-maintenance.yaml` (a weekly `go clean` across six macOS registrations),
+  `aorus-keepalive.yaml` (woke a physical Windows box weekly so GitHub wouldn't
+  deregister it after 14 days offline) and `tools/aorus.sh` (wake-on-LAN and power
+  management for that machine) are deleted: all three managed hardware this project no
+  longer uses. `.github/actionlint.yaml`'s six custom `mini-N` runner labels are cleared
+  to an empty list.
+- **`threatmodelguard`'s self-hosted-macOS job enumeration check** (#260, #286, #302),
+  along with `scan.go`, `scan_test.go` and `main_test.go`. With no self-hosted job left
+  in any workflow the check had nothing to compare against, and its expected list in
+  `docs/threat-model.md` was pure drift waiting to happen — that section had already
+  drifted four times in two days (#286, #301, #310, #316). The ADO-collector check
+  (#274) is untouched and still runs in CI's `threat-model-drift` job. This is a
+  retirement, not a coverage loss: the residual risk the enumeration existed to *bound*
+  no longer exists.
 
 ### Fixed
 
@@ -1349,6 +1401,75 @@ All notable changes to this project are documented here. Format follows
   that label today.
 
 ### Changed
+
+- **`self-scan.yaml` runs on releases only; the weekly schedule is removed** (#138). It
+  ran on release completion, weekly, and on manual dispatch. The weekly cron is gone
+  because this workflow's output is a *release* artifact — the evidence pack attached to
+  a release, and the drift baseline the next release diffs against — so a run between
+  releases produced a pack nothing consumed and diffed against a baseline that hadn't
+  moved. `workflow_dispatch` stays: it fires only when somebody asks, and it is the
+  escape hatch for re-cutting a baseline or scanning ad hoc. Five dependent comments were
+  rewritten rather than left describing triggers that no longer exist, including the
+  `pass_count` floor's justification ("for an unattended weekly cron...") — that floor
+  now matters *more*, since release-only runs are rarer and a silently-empty one goes
+  unnoticed for longer. `semgrep.yaml`'s cron-collision comment drops the freed Monday
+  slot.
+- **README rewritten for a public, post-v0.3 reader** (#138). The quickstart opened with a
+  blockquote stating *"This repo is currently private"* and explaining that the install
+  steps only worked for invited collaborators needing `GOPRIVATE` — flatly wrong the
+  moment the repo went public, and in the section a first-time visitor reads first. The
+  Go install step no longer says "works today, pre-release". Both remaining pointers to
+  the v0.1 epic are gone: v0.1 shipped three releases ago, so directing a new reader
+  there as "canonical scope" described a project two versions stale. The Documentation
+  section now points at the ADRs, `DECISIONS.md` and `CHANGELOG.md` instead of deleted
+  archive files. The self-scan section no longer claims its exception list is "mostly
+  controls this repo can't satisfy while private" — dependency review came off that list
+  in this same change.
+- **All CI, release and scanning workflows moved from self-hosted runners to
+  GitHub-hosted `ubuntu-latest`** (#138). 17 `runs-on: [self-hosted, macOS]` sites
+  across `ci.yaml`, `release.yaml`, `self-scan.yaml`, `semgrep.yaml` and
+  `integration-scan.yaml`, plus the sample pipeline's five native legs. Hosted runners
+  are free and unmetered on a public repo, which removes the reason self-hosted machines
+  were used here: exhausted hosted minutes, never a technical requirement. Nothing
+  needed a specific OS — the binary is `CGO_ENABLED=0` pure Go, so one Linux runner
+  cross-compiles all five published targets.
+  - **This retires a documented supply-chain risk rather than relocating it.** The
+    threat model recorded that CI shared one persistent Mac mini — twelve runner
+    registrations serving eight repositories under a single macOS user, `$HOME` and
+    login keychain — and that fork `pull_request` jobs would execute there once the repo
+    went public. Hosted runners are ephemeral and per-job, so that class of risk is gone
+    by construction. `docs/threat-model.md`'s self-hosted section is rewritten
+    accordingly, keeping what is still true: keyless signing attests *which workflow*
+    signed, not that the build host was clean.
+  - **`test-linux` becomes `test-macos`.** It existed only because `test` ran on
+    self-hosted macOS, leaving Linux uncovered; with `test` on `ubuntu-latest` a second
+    Linux job would be an exact duplicate. The coverage worth keeping is the other *OS*,
+    not the other machine — this project ships darwin binaries, and deleting the job
+    outright would have silently ended all macOS test coverage at the moment the last
+    macOS runner was deregistered. Kept non-required, as `test-linux` was. `test` keeps
+    its exact name: a matrix would have renamed it to `test (ubuntu-latest)` and broken
+    the required-check ruleset.
+  - **Fork pull requests now require maintainer approval from all external
+    contributors.** GitHub's default (`first_time_contributors`) exempts anyone with one
+    previously-merged PR.
+  - `multi-arch-build-sample.yaml` drops from 254 lines and four jobs to one matrix of
+    five hosted runners: windows/amd64 needed three sequenced jobs to wake, build on and
+    power down a physical machine, and is now just another entry. The sample is also
+    reusable by anyone reading it for the first time, which it was not while it depended
+    on this project's own hardware. `actionlint` caught a retired `macos-13` label in
+    the first draft; the Intel leg uses `macos-15-intel`.
+  - `semgrep.yaml`'s interpreter-resolution block is deleted. It searched Homebrew and
+    versioned `python3.N` paths to dodge the Apple Command Line Tools 3.9.6 that broke
+    this step live on 2026-07-23; `ubuntu-latest` is well above semgrep's 3.10 floor, so
+    a version assertion replaces the search. The venv stays — the system python is PEP
+    668 externally-managed.
+  - **`cache: false` stays on every `setup-go`, but its reasoning inverted.** It was
+    there because self-hosted runners already persisted `GOMODCACHE`/`GOCACHE` in `$HOME`
+    so the action's cache duplicated ~2GB per run. A hosted runner has no persistent
+    cache at all, so the flag no longer avoids redundancy — it is kept because it still
+    buys what #313 actually wanted: proof the module graph resolves from `go.sum` against
+    the real proxy. What used to need a weekly `clean` job to be approximately true is now
+    guaranteed by the runner being destroyed after every job.
 
 - **`docs/threat-model.md`'s self-hosted-runner section rewritten for the six-runner
   fleet** (#316). Both bullets described a single macOS registration; the Mac mini now

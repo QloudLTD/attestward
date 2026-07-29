@@ -14,11 +14,9 @@ from pathlib import Path
 
 REPO = "sioakim/attestward"
 
-# Mirrors the phase breakdown in the v0.1 epic (issue #1) — the only other place
-# this exact grouping is hand-maintained since CLAUDE.md's own copy was cut (issue
-# #276; the history it once held moved to docs/archive/progress-narrative.md, which
-# doesn't need this grouping kept in sync since it's prose, not a live table).
-# Update here when issue scope changes.
+# Mirrors the phase breakdown in the v0.1 epic (issue #1) — the only place this
+# exact grouping is still hand-maintained, since CLAUDE.md's own copy was cut in
+# issue #276. Update here when issue scope changes.
 PHASES = [
     ("Phase 0 — Skeleton", [2, 3, 4]),
     ("Phase 1 — Model + mappings", [5, 6, 7, 8]),

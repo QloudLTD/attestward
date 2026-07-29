@@ -1,11 +1,20 @@
-// threatmodelguard is a CI guard for issue #260 (usage: `go run
-// ./tools/threatmodelguard`): flags any self-hosted-macOS job whose name
-// isn't backtick-quoted inside docs/threat-model.md's "Shared, persistent
-// runner state" bullet's own exhaustive list (issue #286), plus its
-// reverse (issue #302): a name in that list with no matching real job. See
-// scan.go's doc comment for the precision this accepts and why. Also
-// covers issue #274's collector-list check — see collectors.go's doc
-// comment.
+// threatmodelguard is a CI guard (usage: `go run ./tools/threatmodelguard`)
+// that keeps docs/threat-model.md's machine-checkable enumerations honest.
+//
+// It checks the "ADO collector packages" list in both directions (issue
+// #274, and #302 for the reverse): every package under
+// internal/collect/azuredevops exposing a Collect(ctx...) method must be
+// named in the list, and every name in the list must correspond to such a
+// package. See collectors.go's doc comment for how that list is anchored.
+//
+// It previously also guarded the "Shared, persistent runner state" bullet's
+// enumeration of self-hosted macOS jobs (issues #260, #286, #302). That check
+// was removed when the repo went public (issue #138) and every self-hosted
+// runner was deregistered: with no self-hosted job left in any workflow it had
+// nothing to compare against, and its expected list was pure drift waiting to
+// happen. The threat-model section it guarded was rewritten in the same change
+// to describe ephemeral GitHub-hosted runners — so the residual risk that
+// enumeration existed to bound is retired, not merely left unguarded.
 package main
 
 import (
@@ -15,38 +24,6 @@ import (
 
 func main() {
 	failed := false
-
-	missing, err := run(".github/workflows", "docs/threat-model.md")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "threatmodelguard: "+err.Error())
-		os.Exit(2)
-	}
-	if len(missing) > 0 {
-		failed = true
-		fmt.Fprintln(os.Stderr, "threatmodelguard: docs/threat-model.md's \"Shared, persistent runner state\" "+
-			"bullet doesn't name these self-hosted macOS jobs (issue #260):")
-		for _, name := range missing {
-			fmt.Fprintf(os.Stderr, "  - %s\n", name)
-		}
-		fmt.Fprintln(os.Stderr, "\nAdd each to that bullet, backtick-quoted, or confirm it's genuinely not "+
-			"self-hosted macOS and fix the workflow/guard instead.")
-	}
-
-	extraRunnerState, err := runRunnerStateExtras(".github/workflows", "docs/threat-model.md")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "threatmodelguard: "+err.Error())
-		os.Exit(2)
-	}
-	if len(extraRunnerState) > 0 {
-		failed = true
-		fmt.Fprintln(os.Stderr, "threatmodelguard: docs/threat-model.md's \"Shared, persistent runner state\" "+
-			"bullet's list names these, but no such self-hosted macOS job exists (issue #302):")
-		for _, name := range extraRunnerState {
-			fmt.Fprintf(os.Stderr, "  - %s\n", name)
-		}
-		fmt.Fprintln(os.Stderr, "\nRemove each from that list, or confirm it's a real self-hosted macOS job "+
-			"and fix the workflow/guard instead.")
-	}
 
 	missingCollectors, extraCollectors, err := runADOCollectors("internal/collect/azuredevops", "docs/threat-model.md")
 	if err != nil {
@@ -78,27 +55,4 @@ func main() {
 	if failed {
 		os.Exit(1)
 	}
-}
-
-// run does the actual scan and returns what's missing — it never calls
-// os.Exit itself, so it's directly testable without exec'ing a
-// subprocess (mirrors tools/rubricguard's identically-shaped run).
-func run(workflowsDir, threatModelPath string) ([]string, error) {
-	jobNames, err := selfHostedMacOSJobs(workflowsDir)
-	if err != nil {
-		return nil, fmt.Errorf("scan workflows: %w", err)
-	}
-	doc, err := os.ReadFile(threatModelPath)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", threatModelPath, err)
-	}
-	section, err := runnerStateSection(doc)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", threatModelPath, err)
-	}
-	list, err := runnerStateListSection(section)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", threatModelPath, err)
-	}
-	return missingFromDoc(jobNames, list), nil
 }

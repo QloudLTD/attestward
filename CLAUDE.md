@@ -48,7 +48,6 @@ signature backed by a real fixture workflow, or for ADO, a fixture pipeline).
 | `docs/architecture.md` | Living architecture doc — update in the same PR as any structural change |
 | `docs/threat-model.md` | Living threat model — finalized in issue #31, update as claims change |
 | `docs/adr/` | Permanent decision records (Nygard format) — never edited after acceptance, superseded instead |
-| `docs/archive/` | Superseded planning docs (product-brief.md, roadmap.md) and the relocated build narrative (progress-narrative.md, issue #276) — historical context only, do not update; GitHub Issues are canonical |
 | `DECISIONS.md` | Open questions needing the owner's call — resolve here, promote to an ADR if architectural |
 | `mappings/` | SSDF/CISA-form mappings + scanner-signature registry as versioned YAML (issues #6, #7, #16) |
 | `CONTRIBUTING.md` | Full workflow rules — branch naming, commit format, PR size, testing conventions |
@@ -59,8 +58,9 @@ signature backed by a real fixture workflow, or for ADO, a fixture pipeline).
 | `fixtures-ado.yaml` | Azure DevOps twin of `fixtures.yaml` (issue #155) — all 81 entries captured from the definitive 2026-07-23 live scan, kept as a separate file so `fixtures.yaml`/its integration test stay untouched |
 | `hack/fetch-drift-baseline.sh` | self-scan.yaml's drift-baseline resolution (issue #211), factored out of the workflow YAML so it's testable against a mocked `gh` — see `fetch-drift-baseline_test.sh`, wired into `ci.yaml`'s `test` job |
 | `examples/demo-org-pack/` | Rendered output (`report.md`/`report.html`/`poam.md`) is generated from the pack's own `evidence.json` — never hand-edit; regenerate with `make examples`, CI enforces via `make examples-check` (issue #228, `hack/check-examples-drift.sh`) |
+| `agents/` | Agent skills (`<name>/SKILL.md`, YAML frontmatter with `name`/`description`) for AI coding agents working with this tool — `attestward-scan` takes a newcomer from clone to a rendered evidence pack. Documentation, not shipped code; skills must respect ADR-0004's read-only rule like everything else |
 | `tools/rubricguard/` | CI guard (issue #209) — flags a collector package whose status-assignment code changed without its own `checkRubrics` following along in the same diff; dev/CI tooling, not part of the shipped `attestward` binary, wired into `ci.yaml`'s `rubric-drift-check` job |
-| `tools/threatmodelguard/` | CI guard (issues #260, #274, #302) — two independent checks against `docs/threat-model.md`: flags any self-hosted-macOS job in `.github/workflows/*.yaml`/`*.yml` not backtick-quoted in the "Shared, persistent runner state" bullet, and flags any `internal/collect/azuredevops` package with a `Collect(ctx...)` method missing from — or any name with no matching package in — the "ADO collector packages" brace list; dev/CI tooling, not part of the shipped `attestward` binary, wired into `ci.yaml`'s `threat-model-drift` job |
+| `tools/threatmodelguard/` | CI guard (issues #274, #302) — checks `docs/threat-model.md`'s "ADO collector packages" brace list in both directions: flags any `internal/collect/azuredevops` package with a `Collect(ctx...)` method missing from the list, and any name in the list with no matching package. Its second check (self-hosted-macOS job enumeration, issues #260/#286) was removed when the runners were deregistered at the public flip — see `main.go`'s doc comment. Dev/CI tooling, not part of the shipped `attestward` binary, wired into `ci.yaml`'s `threat-model-drift` job |
 
 Work is tracked entirely in [GitHub Issues](../../issues) — see the
 [v0.1 epic (#1)](../../issues/1) for the full build plan across Phases 0–6. There is no
@@ -88,7 +88,7 @@ make tidy    # go mod tidy
 
 make checks-docs-check examples-check tidy-check notices-check   # drift guards, all wired into CI
 go run ./tools/rubricguard <base> <head>           # status-vs-checkRubrics drift
-go run ./tools/threatmodelguard                    # threat-model job enumeration
+go run ./tools/threatmodelguard                    # threat-model ADO-collector enumeration
 gh workflow run integration-scan.yaml              # live demo-org scan (otherwise weekly, plus push-to-main on collector-relevant paths, issue #278)
 ```
 
@@ -110,7 +110,7 @@ fixing, but don't weight it as if it shipped inside the attestation artifact.
 The tell for the recurring defect class is `x := err == nil && resp.Field`: a value that
 silently defaults on error, then gets asserted as a confirmed observation. The same false
 inference was found on five separate surfaces because fixing one reached none of the
-others — see `docs/handoff-2026-07-28.md`.
+others — see issues #226, #235, #244, #268 and #287 for the individual instances.
 
 `rubricguard` is also blind to cross-package drift: a change in `cmd/attestward` can
 invalidate rubrics in six collector packages without flagging.
@@ -155,8 +155,6 @@ one does.
 For current work: the [issue tracker](../../issues) directly, or
 `python3 tools/progress/generate.py` for a live visual dashboard
 (`tools/progress/index.html`) that pulls issue state itself and so can't go stale the
-way a hand-typed table did. For how development actually unfolded — review rounds,
-live-verification steps, bugs found along the way, the texture no API can
-reconstruct from issue titles alone —
-[docs/archive/progress-narrative.md](docs/archive/progress-narrative.md) preserves it,
-marked historical/not-maintained the same way `docs/archive/roadmap.md` already is.
+way a hand-typed table did. For how development actually unfolded, `CHANGELOG.md` and
+the issue/PR history are the record — the archived planning docs and the point-in-time
+handoff note were deleted at the public flip (#138) as obsolete.
