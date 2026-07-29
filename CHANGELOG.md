@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-29
+
 This is the release the repository went public in. Entries are condensed; the full
 reasoning for any of them is in the linked issue and its pull request.
 
@@ -177,7 +179,8 @@ Pre-1.0 caveat: CLI flags and output formats may still change between 0.x versio
   architecture doc, threat model, generated checks reference, ADRs, community health
   files, and a worked example pack from the public demo org in `examples/`.
 
-[Unreleased]: https://github.com/sioakim/attestward/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/sioakim/attestward/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/sioakim/attestward/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/sioakim/attestward/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sioakim/attestward/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sioakim/attestward/releases/tag/v0.1.0

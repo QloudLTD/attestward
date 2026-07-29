@@ -10,8 +10,9 @@
 > **Everyone else helps you fill in the CISA attestation form. This tool proves what you're signing.**
 
 **CLI binary:** `attestward`. **Product name:** Attestward.
-**Status:** pre-1.0, under active development — see [CHANGELOG.md](CHANGELOG.md) for
-the current release; CLI flags and output formats may still change between 0.x versions.
+**Status:** 1.0 — see [CHANGELOG.md](CHANGELOG.md) for what shipped. From here the CLI
+surface and the evidence-pack schema follow [SemVer](https://semver.org/): breaking
+changes to either mean a major version, so a pinned `v1` is safe to build against.
 **License:** [Apache-2.0](LICENSE)
 
 [![CI](https://github.com/sioakim/attestward/actions/workflows/ci.yaml/badge.svg)](https://github.com/sioakim/attestward/actions/workflows/ci.yaml)

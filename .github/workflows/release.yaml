@@ -9,12 +9,17 @@ permissions:
   contents: read
 
 jobs:
-  # Self-hosted per the same rule as ci.yaml/integration-scan.yaml (see
-  # their matching comments): pure cross-compiled Go, no docker/nfpm
-  # stanzas in .goreleaser.yaml, so no OS-specific build requirement. This
-  # one matters more than most — a GitHub-hosted goreleaser job means a
-  # `v*` tag push produces *no release at all* while Actions billing is
-  # blocked, silently, unless someone happens to check the run.
+  # GitHub-hosted, like every other job in this repo since the public flip.
+  # Pure cross-compiled Go with no docker/nfpm stanzas in .goreleaser.yaml, so
+  # there is no OS-specific build requirement.
+  #
+  # This comment used to say the opposite, and warned that a hosted runner
+  # meant a `v*` tag push would produce no release at all while Actions billing
+  # was blocked. That was true of a private repo with exhausted minutes; it is
+  # not true here. Hosted minutes are free and unmetered on a public repo, and
+  # the ephemeral-per-job environment is worth more on THIS job than any other:
+  # it is the one that publishes real artifacts and keyless-signs real
+  # checksums.
   goreleaser:
     runs-on: ubuntu-latest
     # On a hosted runner a hung release job only wastes its own ephemeral VM
