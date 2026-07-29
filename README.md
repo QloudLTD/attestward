@@ -430,6 +430,8 @@ review came off it once the repo went public and the check could actually run.
 
 ## Documentation
 
+- [GitHub Action](docs/action.md) — run scans in your own CI with a pinned,
+  cosign-verified release binary; drift detection against a baseline pack
 - [Checks Reference](docs/checks-reference.md) — every check's rubric, API evidence, SSDF/CISA
   citations, and remediation, generated from `mappings/*.yaml` and the collector registry
   (never hand-edited — regenerate with `make checks-docs`)
