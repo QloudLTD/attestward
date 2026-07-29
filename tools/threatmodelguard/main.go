@@ -9,7 +9,7 @@
 //
 // It previously also guarded the "Shared, persistent runner state" bullet's
 // enumeration of self-hosted macOS jobs (issues #260, #286, #302). That check
-// was removed when the repo went public (issue #138) and every self-hosted
+// was removed when the repo went public and every self-hosted
 // runner was deregistered: with no self-hosted job left in any workflow it had
 // nothing to compare against, and its expected list was pure drift waiting to
 // happen. The threat-model section it guarded was rewritten in the same change

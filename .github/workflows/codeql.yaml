@@ -1,6 +1,6 @@
 name: CodeQL
 
-# Restored at the public flip (issue #138). This workflow existed until PR #51
+# Restored at the public flip. This workflow existed until PR #51
 # removed it: CodeQL needs GitHub Advanced Security on a *private* repo, so it
 # failed on every run and was deleted rather than left red. The repo is public
 # as of 2026-07-29, where CodeQL is free — the original blocker is gone, not

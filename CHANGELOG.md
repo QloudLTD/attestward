@@ -14,12 +14,12 @@ reasoning for any of them is in the linked issue and its pull request.
 - **The GitHub Action now lives in this repo** (`action.yml` at the root, docs in
   [docs/action.md](docs/action.md)). It was a separate private repository, which stopped
   resolving the moment this one went public — a public repo cannot use an action from a
-  private one (#138).
+  private one.
 - **`agents/`** — agent skills for AI coding agents working with this tool.
-  `attestward-scan` takes a newcomer from clone to a rendered evidence pack (#138).
+  `attestward-scan` takes a newcomer from clone to a rendered evidence pack.
 - **CodeQL and `dependency-review-action` restored.** Both need GitHub Advanced Security
   on a private repo and are free on a public one, so the original blocker is gone rather
-  than worked around (#138).
+  than worked around.
 - **Release archives carry third-party attribution and our own `NOTICE`.** Five of the
   binary's statically-linked dependencies require notice with binary redistribution and
   were shipping without it. New generated `THIRD-PARTY-NOTICES.md` with a CI drift guard
@@ -39,12 +39,12 @@ reasoning for any of them is in the linked issue and its pull request.
   self-hosted runner was deregistered. Hosted runners are free on a public repo, which
   was the only reason self-hosted machines were used here. This retires a documented
   supply-chain risk rather than relocating it: CI had shared one persistent machine, user
-  account and login keychain with runners for seven unrelated repositories (#138, #316).
+  account and login keychain with runners for seven unrelated repositories (#316).
 - **`self-scan.yaml` runs on releases only.** Its output is a release artifact, so the
-  weekly cron produced packs nothing consumed (#138).
+  weekly cron produced packs nothing consumed.
 - **README rewritten for a public reader.** The quickstart opened by telling visitors the
   repo was private and that install only worked for invited collaborators; both v0.1-epic
-  pointers are gone (#138).
+  pointers are gone.
 - **`docs/threat-model.md`'s runner and endpoint sections rewritten** for the hosted-runner
   reality, and the endpoint table drops line-number citations that could drift (#274, #316).
 - **`C04.vars.secret-hygiene`'s sensitive-name pattern widened**, and report/POA&M's `Repo`
@@ -58,12 +58,12 @@ reasoning for any of them is in the linked issue and its pull request.
 - **`CLAUDE.md` and `DECISIONS.md` are no longer tracked.** Both documented internal
   reasoning. Nothing load-bearing was lost — both hard rules already live in `README.md`,
   `CONTRIBUTING.md` and the ADRs, and `DECISIONS.md`'s one user-facing commitment (what
-  stays free) is now a README section (#138).
+  stays free) is now a README section.
 - **Obsolete documentation deleted:** `docs/archive/` and the point-in-time handoff note,
-  all marked historical and describing a project state that no longer exists (#138).
+  all marked historical and describing a project state that no longer exists.
 - **Every self-hosted runner and its supporting tooling** — `runner-maintenance.yaml`,
   `aorus-keepalive.yaml`, `tools/aorus.sh` — plus `threatmodelguard`'s self-hosted job
-  enumeration, which had nothing left to compare against (#138).
+  enumeration, which had nothing left to compare against.
 
 ### Fixed
 

@@ -374,7 +374,7 @@ diagram doesn't redraw per platform.
   the cosign-trust risk above.
 - **CI and releases run on GitHub-hosted runners, which is a trust dependency on
   GitHub — and, as of 2026-07-29, no longer one on a personal machine.** Until the
-  public flip (issue #138) this repo built and released on self-hosted runners, and
+  public flip this repo built and released on self-hosted runners, and
   this section documented the residual risks that created. Every self-hosted runner
   was deregistered at the flip and all workflows moved to GitHub-hosted runners, so
   those risks are retired rather than merely relocated. The specifics are recorded

@@ -1,6 +1,6 @@
 name: Dependency Review
 
-# Added at the public flip (issue #138). `dependency-review-action` calls
+# Added at the public flip. `dependency-review-action` calls
 # GitHub's dependency-review API, which requires GitHub Advanced Security on a
 # private repository and is free on a public one — so this could not exist here
 # before 2026-07-29. It is the last piece of the accepted `C06.sca.dependency-review`

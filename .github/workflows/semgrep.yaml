@@ -1,7 +1,7 @@
 name: Semgrep SAST
 
 # Issue #157: adopt an OSS SAST now rather than wait for CodeQL at the
-# public flip (#138) — C05.sast.ran-per-release has been verified-fail
+# public flip — C05.sast.ran-per-release has been verified-fail
 # since the first release entered the self-scan's lookback window,
 # because no registry-recognized SAST (mappings/scanner-signatures.yaml's
 # codeql/semgrep/sonarqube set) covered it. `push: branches: [main]`
@@ -22,7 +22,7 @@ on:
     # this repo (integration-scan: Monday, codeql: Monday 03:19) to
     # avoid GitHub Actions' documented cron pile-up at shared times. The
     # Wednesday and Thursday slots freed up when runner-maintenance.yaml and
-    # aorus-keepalive.yaml were deleted with the self-hosted runners (#138).
+    # aorus-keepalive.yaml were deleted with the self-hosted runners.
     - cron: "42 5 * * 2"
   workflow_dispatch: {}
 

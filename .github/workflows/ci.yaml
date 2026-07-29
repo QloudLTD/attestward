@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 # Every job here runs on GitHub-hosted `ubuntu-latest`. The repo went public on
-# 2026-07-29 (issue #138), which made hosted runners free and unmetered and
+# 2026-07-29, which made hosted runners free and unmetered and
 # removed the only reason this repo used self-hosted machines: hosted minutes
 # had been exhausted, not any technical requirement. All self-hosted runners
 # were deregistered at the same time.
@@ -313,8 +313,8 @@ jobs:
 
   # Issue #260: keeps docs/threat-model.md's ADO-collector enumeration
   # current — see tools/threatmodelguard/scan.go's own doc comment. Its
-  # former self-hosted-runner check was retired with the runner migration
-  # (issue #138): with no self-hosted job left to enumerate, the check had
+  # former self-hosted-runner check was retired with the runner migration:
+  # with no self-hosted job left to enumerate, the check had
   # nothing to compare and its expected list was pure drift. Not diff-based
   # like rubric-drift-check above, so no merge-base/range step is needed.
   threat-model-drift:

@@ -1,7 +1,7 @@
 self-hosted-runner:
   # No custom runner labels remain. This repo used six per-runner labels
   # (mini-1..mini-6) while it ran on self-hosted machines; every runner was
-  # deregistered when the repo went public (issue #138) and all workflows now
+  # deregistered when the repo went public and all workflows now
   # use GitHub-hosted runners, whose labels actionlint knows natively.
   # Kept as an empty list rather than deleted so a future custom label has an
   # obvious home.
