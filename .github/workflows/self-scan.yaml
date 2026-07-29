@@ -155,12 +155,29 @@ jobs:
       #
       # Every entry here must cite why it's here and where the real fix
       # (not the exception) is tracked:
-      #   (C06.sca.dependency-review was removed from this list on
-      #   2026-07-29. It was GHAS-gated on a private repo; the repo went
-      #   public (issue #138) and dependency-review.yaml now runs the real
-      #   action on every PR, so the gap is fixed rather than excepted. If
-      #   this check fails now, that is a genuine regression and should
-      #   redden the self-scan.)
+      #   - C06.sca.dependency-review: the control IS in place — the first
+      #     live run after dependency-review.yaml landed reports "dependency
+      #     review runs on pull requests". It reads `partial` only because
+      #     this workflow's GITHUB_TOKEN gets 403 on
+      #     /branches/main/protection, so the required-status-check half
+      #     can't be confirmed. That's a token-reach limit, not a missing
+      #     control. (It was briefly removed from this list on 2026-07-29 on
+      #     the assumption that going public would make it pass outright;
+      #     the first real run disproved that. Restored with the accurate
+      #     reason.) Resolves if this workflow ever gets a fine-grained PAT
+      #     with Administration: read.
+      #   - C06.sca.ran-per-release: the exact twin of C05's entry below —
+      #     Dependabot/SCA coverage starts from the releases that postdate
+      #     it, and v0.1.0/v0.2.0 are still inside the 5-release/12-month
+      #     window. Rolls off on the same schedule, for the same reason.
+      #   - C07.provenance.commit-linkage: self-inflicted and permanent for
+      #     the releases already cut. All 866 workflow runs were deleted on
+      #     2026-07-28 before the public flip, which destroyed the run
+      #     history this check traces a release back through — see issue
+      #     #319 for the full accounting. v0.1.0/v0.2.0/v0.3.0 can never
+      #     resolve again; releases cut from now on will, since CI history
+      #     is accumulating normally. Comes off this list once the lookback
+      #     window contains only post-purge releases.
       #   - C02.branch.admin-enforced: real, accepted gap — an Admin-role
       #     "always" bypass actor is deliberately kept on the main ruleset
       #     so this solo-maintainer repo can still merge without a second
@@ -185,7 +202,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f evidence/evidence.json || { echo "::error::no evidence.json was written — the scan itself failed; see the action step above"; exit 1; }
-          allowed='["C02.branch.admin-enforced","C09.repo.webhooks","C05.sast.ran-per-release","C07.release.tags-signed"]'
+          allowed='["C02.branch.admin-enforced","C09.repo.webhooks","C05.sast.ran-per-release","C06.sca.dependency-review","C06.sca.ran-per-release","C07.provenance.commit-linkage","C07.release.tags-signed"]'
           unexpected=$(jq --argjson allowed "$allowed" '
             [.results[] | select(.status == "verified-fail" or .status == "partial") | select(.check_id as $id | $allowed | index($id) | not)]
           ' evidence/evidence.json)

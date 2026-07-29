@@ -258,6 +258,28 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **`self-scan.yaml`'s exception list corrected against a real run, and three repo
+  security features enabled** (#211, #319). The first self-scan after the public flip
+  produced honest data that contradicted an assumption made earlier the same day:
+  - **`C06.sca.dependency-review` was removed from the exception list prematurely.** The
+    assumption was that going public would make it pass outright. The live run reports
+    the control *is* configured — *"dependency review runs on pull requests"* — but reads
+    `partial`, because this workflow's `GITHUB_TOKEN` gets 403 on
+    `/branches/main/protection` and cannot confirm the required-status-check half. A
+    token-reach limit, not a missing control. Restored with the accurate reason.
+  - **`C06.sca.ran-per-release` and `C07.provenance.commit-linkage` added.** The first is
+    the exact twin of C05's existing entry (coverage starts from releases postdating the
+    tooling). The second is the permanent damage from #319's deleted run history, and its
+    entry says so plainly, including that it rolls off once the lookback window holds only
+    post-purge releases.
+  - **Three security features enabled on the repo itself**, all free on a public repo and
+    all previously off: secret scanning, secret-scanning push protection, and Dependabot
+    security updates — plus private vulnerability reporting, which cleared
+    `C10.vdp.private-reporting` outright rather than needing an exception. Worth noting
+    where this came from: the tool found these on its own repository, which is the entire
+    premise, and a project shipping a C04 secrets-hygiene collector had all of C04's
+    subjects switched off.
+
 - **`tools/threatmodelguard`'s runner-state section scope missed two Markdown shapes,
   both disclosed rather than silent since #298** (#309). `runnerStateSection`'s
   terminator set was four literal prefixes (`"\n  - **"`, `"\n- **"`, `"\n## "`,
