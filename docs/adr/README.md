@@ -17,8 +17,15 @@ acceptance (superseded instead).
 
 To add one: copy the newest file, increment the number, open a PR.
 
-Note: ADR-0001 refers to a root `DECISIONS.md` for open questions. That file was removed
-when the repo went public (#138) — its resolved entries were either folded into the docs
-that needed them or dropped as internal reasoning. ADR-0001 is left unedited on purpose:
-accepted ADRs are superseded, never rewritten, so it stands as an accurate record of what
-was decided at the time rather than of what is true now.
+Two accepted ADRs now name things that no longer exist. Both are left **unedited on
+purpose**: accepted ADRs are superseded, never rewritten, so each stands as an accurate
+record of what was decided at the time rather than of what is true today.
+
+- **ADR-0001** refers to a root `DECISIONS.md` for open questions. That file was removed
+  when the repo went public (#138) — its resolved entries were either folded into the
+  docs that needed them or dropped as internal reasoning.
+- **ADR-0007** refers to the `sioakim/attestward-action` repository. That action now
+  lives in this repo as `action.yml` at the root, documented in
+  [docs/action.md](../action.md); the separate repository was deleted (#138). The ADR's
+  actual decision — the write boundary continuous mode may not cross — is unaffected by
+  where the code sits.
