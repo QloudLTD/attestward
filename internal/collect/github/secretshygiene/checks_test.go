@@ -1,10 +1,10 @@
 package secretshygiene
 
 import (
-	"github.com/sioakim/attestward/internal/collect"
 	"strings"
 	"testing"
 
+	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
