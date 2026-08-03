@@ -164,3 +164,36 @@ func TestGateReason_LicenceNamesNoCause(t *testing.T) {
 		t.Errorf("reason drops the observed version, which is the one real fact available: %q", reason)
 	}
 }
+
+// TestGatedRepoReason_DistinguishesTheHosts guards the helper that seven
+// collectors route through — and which, when introduced, had zero test
+// callers, so its entire GHES branch could be deleted with the suite green.
+// That is the third consecutive round in which a fix for this class was
+// itself unguarded, which is why it is pinned here directly rather than only
+// through the collectors that call it.
+func TestGatedRepoReason_DistinguishesTheHosts(t *testing.T) {
+	githubCom := GatedRepoReason(false, "", "the environments API", "acme", "widgets")
+	if !strings.Contains(githubCom, "plan-gated") {
+		t.Errorf("github.com reason = %q, want the unchanged plan-gated wording", githubCom)
+	}
+
+	ghes := GatedRepoReason(true, "3.12.4", "the environments API", "acme", "widgets")
+	if strings.Contains(ghes, "plan-gated") {
+		t.Errorf("GHES reason claims a plan gate: %q — GHES has no per-org or per-repo plan tier", ghes)
+	}
+	if !strings.Contains(ghes, "Enterprise Server") {
+		t.Errorf("GHES reason does not name the host type: %q", ghes)
+	}
+	if !strings.Contains(ghes, "3.12.4") {
+		t.Errorf("GHES reason drops the observed version, the one real fact available: %q", ghes)
+	}
+
+	noVersion := GatedRepoReason(true, "", "the environments API", "acme", "widgets")
+	if strings.Contains(noVersion, "version )") || strings.Contains(noVersion, "reporting version ") {
+		t.Errorf("reason claims a version that was never observed: %q", noVersion)
+	}
+
+	if ghes == githubCom {
+		t.Error("both hosts produce the identical reason — the branch is dead")
+	}
+}

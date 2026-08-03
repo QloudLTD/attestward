@@ -24,23 +24,41 @@ const statusEnabled = "enabled"
 // feature is free (GitHub, 2024+), so "off" is a real gap; on a private
 // repo without a GHAS license, "off" is not-checkable (can't fault an
 // unlicensed feature); "off" with GHAS licensed is a real gap.
-func evalGHASGatedFeature(featureName string, status *string, isPrivate bool, ghasStatus *string) (model.Status, string) {
+func evalGHASGatedFeature(featureName string, status *string, isPrivate bool, ghasStatus *string, scope collect.Scope) (model.Status, string) {
 	if status != nil && *status == statusEnabled {
 		return model.StatusVerifiedPass, featureName + " is enabled"
 	}
-	if !isPrivate {
+	// The public-repo free tier is a github.com pricing policy, and it does
+	// not exist on GitHub Enterprise Server: there, secret scanning
+	// requires a licence regardless of repository visibility. Reporting
+	// verified-fail here on GHES faulted a producer for not enabling a
+	// feature their install may not be licensed for — a fabricated finding
+	// in a signed pack, flowing into the SSDF rollup and poam.md, and
+	// contradicting this very collector's own GHESNoteLicenceGated
+	// promise that an unlicensed install yields not-checkable and "never a
+	// false verified-fail".
+	if !isPrivate && !scope.IsGHES {
 		return model.StatusVerifiedFail, featureName + " is not enabled (freely available on public repos)"
 	}
+	if !isPrivate {
+		return model.StatusNotCheckable, featureName + " is not enabled, but GitHub Enterprise Server has no " +
+			"free public-repository tier for it — whether this install is licensed for the feature cannot be " +
+			"determined from the repository response, so this is not reported as a confirmed gap"
+	}
 	if ghasStatus == nil || *ghasStatus != statusEnabled {
+		if scope.IsGHES {
+			return model.StatusNotCheckable, "requires GitHub Advanced Security, which this GitHub Enterprise " +
+				"Server install does not report as enabled for this repository"
+		}
 		return model.StatusNotCheckable, "requires GitHub Advanced Security, not licensed on this private repo"
 	}
 	return model.StatusVerifiedFail, featureName + " is not enabled"
 }
 
-func checkSecretScanning(org, repo string, sa *ghgithub.SecurityAndAnalysis, isPrivate bool, prov []model.Provenance) model.CheckResult {
+func checkSecretScanning(org, repo string, sa *ghgithub.SecurityAndAnalysis, isPrivate bool, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C04.secrets.scanning-enabled"
 	if sa == nil {
-		return securityAndAnalysisAbsent(id, org, repo, prov)
+		return securityAndAnalysisAbsent(id, org, repo, scope, prov)
 	}
 	var status *string
 	if sa.SecretScanning != nil {
@@ -50,7 +68,7 @@ func checkSecretScanning(org, repo string, sa *ghgithub.SecurityAndAnalysis, isP
 	if sa.AdvancedSecurity != nil {
 		ghasStatus = sa.AdvancedSecurity.Status
 	}
-	resultStatus, reason := evalGHASGatedFeature("secret scanning", status, isPrivate, ghasStatus)
+	resultStatus, reason := evalGHASGatedFeature("secret scanning", status, isPrivate, ghasStatus, scope)
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: resultStatus, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
@@ -58,10 +76,10 @@ func checkSecretScanning(org, repo string, sa *ghgithub.SecurityAndAnalysis, isP
 	}
 }
 
-func checkPushProtection(org, repo string, sa *ghgithub.SecurityAndAnalysis, isPrivate bool, prov []model.Provenance) model.CheckResult {
+func checkPushProtection(org, repo string, sa *ghgithub.SecurityAndAnalysis, isPrivate bool, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C04.secrets.push-protection"
 	if sa == nil {
-		return securityAndAnalysisAbsent(id, org, repo, prov)
+		return securityAndAnalysisAbsent(id, org, repo, scope, prov)
 	}
 	var status *string
 	if sa.SecretScanningPushProtection != nil {
@@ -71,7 +89,7 @@ func checkPushProtection(org, repo string, sa *ghgithub.SecurityAndAnalysis, isP
 	if sa.AdvancedSecurity != nil {
 		ghasStatus = sa.AdvancedSecurity.Status
 	}
-	resultStatus, reason := evalGHASGatedFeature("secret scanning push protection", status, isPrivate, ghasStatus)
+	resultStatus, reason := evalGHASGatedFeature("secret scanning push protection", status, isPrivate, ghasStatus, scope)
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: resultStatus, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
@@ -83,17 +101,17 @@ func checkPushProtection(org, repo string, sa *ghgithub.SecurityAndAnalysis, isP
 // verified-pass/fail: GHAS as a licensing construct specifically gates
 // private-repo features, so the question "is it enabled" doesn't apply the
 // same way to a public repo (which gets the equivalent features free).
-func checkAdvancedSecurity(org, repo string, sa *ghgithub.SecurityAndAnalysis, isPrivate bool, prov []model.Provenance) model.CheckResult {
+func checkAdvancedSecurity(org, repo string, sa *ghgithub.SecurityAndAnalysis, isPrivate bool, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C04.secrets.advanced-security"
 	if !isPrivate {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: "not applicable to public repositories (GHAS licensing only gates private-repo features)",
+			Reason: advancedSecurityPublicRepoReason(scope),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		}
 	}
 	if sa == nil {
-		return securityAndAnalysisAbsent(id, org, repo, prov)
+		return securityAndAnalysisAbsent(id, org, repo, scope, prov)
 	}
 	var status *string
 	if sa.AdvancedSecurity != nil {
@@ -138,10 +156,10 @@ func checkDependabotAlerts(org, repo string, enabled bool, resp *ghgithub.Respon
 	}
 }
 
-func securityAndAnalysisAbsent(id, org, repo string, prov []model.Provenance) model.CheckResult {
+func securityAndAnalysisAbsent(id, org, repo string, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-		Reason: "the repository API response did not include security_and_analysis (older org, or plan-gated) — never assumed off",
+		Reason: securityAndAnalysisAbsentReason(scope),
 		Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 	}
 }
@@ -215,4 +233,30 @@ func checkOrgSecurityDefaults(ctx context.Context, client *ghcollect.Client, org
 			"advanced_security_enabled_for_new_repositories":               advancedSecurity,
 		},
 	}
+}
+
+// securityAndAnalysisAbsentReason explains a repository response with no
+// security_and_analysis block. The github.com wording names a plan gate;
+// GitHub Enterprise Server has no plan tier, so saying so there would be
+// the same false claim this epic exists to remove.
+func securityAndAnalysisAbsentReason(scope collect.Scope) string {
+	if !scope.IsGHES {
+		return "the repository API response did not include security_and_analysis (older org, or plan-gated) — never assumed off"
+	}
+	return "the repository API response did not include security_and_analysis. On GitHub Enterprise Server this " +
+		"means the install is not licensed for these features, or its version predates the field — never assumed off"
+}
+
+// advancedSecurityPublicRepoReason: on github.com, Advanced Security gates
+// only private-repo features, so it is genuinely not applicable to a public
+// repo. GitHub Enterprise Server licenses it per active committer across the
+// whole install, with no public-repo exemption, so the github.com wording
+// would state a licensing rule that does not hold there.
+func advancedSecurityPublicRepoReason(scope collect.Scope) string {
+	if !scope.IsGHES {
+		return "not applicable to public repositories (GHAS licensing only gates private-repo features)"
+	}
+	return "GitHub Enterprise Server licenses Advanced Security across the install rather than exempting public " +
+		"repositories, so this repository's visibility does not determine whether the feature is available; the " +
+		"repository response alone cannot establish the install's licensing"
 }

@@ -228,7 +228,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
-		return collectRepo(ctx, client, scope.Org, repo), nil
+		return collectRepo(ctx, client, scope.Org, repo, scope), nil
 	})
 
 	all := []model.CheckResult{orgResult}
@@ -253,7 +253,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // repo fetch, and dependabot-alerts depends only on the second call;
 // giving either group the other's provenance would misrepresent what
 // evidence actually backs each claim.
-func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string) []model.CheckResult {
+func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string, scope collect.Scope) []model.CheckResult {
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
 		return allRepoNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
@@ -263,9 +263,9 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 	isPrivate := repository.GetPrivate()
 	sa := repository.SecurityAndAnalysis
 
-	scanning := checkSecretScanning(org, repo, sa, isPrivate, repoProv)
-	pushProtection := checkPushProtection(org, repo, sa, isPrivate, repoProv)
-	advSecurity := checkAdvancedSecurity(org, repo, sa, isPrivate, repoProv)
+	scanning := checkSecretScanning(org, repo, sa, isPrivate, scope, repoProv)
+	pushProtection := checkPushProtection(org, repo, sa, isPrivate, scope, repoProv)
+	advSecurity := checkAdvancedSecurity(org, repo, sa, isPrivate, scope, repoProv)
 
 	depEnabled, depResp, depErr := client.REST.Repositories.GetVulnerabilityAlerts(ctx, org, repo)
 	depProv := tailProvenance(client.Provenance(), len(repoProv))
