@@ -41,6 +41,15 @@ templates run against a live download — before this tag.
 
 ### Added
 
+- **GitHub Enterprise Server support** (`--github-url` / `github_url:` / `GITHUB_URL`).
+  The same `github` platform against a self-hosted install: REST `/api/v3/` and GraphQL
+  `/api/graphql` derived from the browser-facing URL, `GITHUB_CA_CERT` for private roots,
+  and the resolved host recorded as `scope.github_url` so a pack says which install
+  produced it. Gating now distinguishes a plan tier (github.com) from a licence or version
+  limitation (GHES) instead of claiming a plan that self-hosted installs do not have.
+  **Not verified against a real GHES install** — no instance was available, so routing and
+  gating are proven against fixtures only. See the README.
+
 - **Gogs support** (`--platform gogs`). A third platform behind the ADR-0005 collector
   seam, for self-hosted Gogs instances: a read-only client with its own base URL
   (`--gogs-url`, `GOGS_TOKEN`), the C10 vulnerability-disclosure collector, the C02
@@ -59,11 +68,15 @@ templates run against a live download — before this tag.
   transport, below Go's redirect machinery, so its cross-domain header stripping cannot
   see it: a redirecting instance would have handed a third-party host a valid token and
   had its response body accepted as the API's answer. Found in review of the first
-  platform package to take a user-supplied base URL; the GitHub and Azure DevOps
-  packages target constant hosts and are unaffected.
-- **Credentials in `--gogs-url` are rejected.** `BaseURL()` is recorded as a pack fact,
-  and `url.URL.String()` prints a password verbatim, so a `https://user:pass@host` base
-  URL would have written the password into a signed evidence pack.
+  platform package to take a user-supplied base URL. **The same fix now applies to
+  the GitHub client**, which became reachable the moment `--github-url` made its base
+  URL user-supplied too; Azure DevOps still targets constant hosts and is unaffected.
+- **Credentials in `--gogs-url` and `--github-url` are rejected.** Both URLs are recorded
+  into the evidence pack — `scope.github_url` for GHES — and `EvidencePack.Scrub` walks
+  results only, never scope, so a `https://user:pass@host` base URL would have written the
+  password into a signed artifact verbatim. No error from either validator echoes the URL
+  back either, since a scheme-less paste (`user:pass@host`) parses with the username as
+  the scheme and would otherwise leak through the scheme error.
 
 ### Fixed
 

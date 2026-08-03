@@ -276,7 +276,7 @@ func TestCollect_GHESHost_DefaultSetupGatedNamesLicenceNotPlan(t *testing.T) {
 	})
 
 	c := newGHESCollectorForServer(t, newTestServer(t, mux))
-	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"bad-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12, GHESVersion: "3.9.0"}
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"bad-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12, GHESVersion: "3.9.0", IsGHES: true}
 	results, err := c.Collect(context.Background(), scope)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)

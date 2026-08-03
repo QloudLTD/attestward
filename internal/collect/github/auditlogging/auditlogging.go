@@ -222,7 +222,7 @@ func (c *Collector) ID() string { return collectorID }
 // top-level error for a per-repo API failure — see org-security's Collect
 // doc comment for why that matters for the rollup.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
-	orgResults := collectOrg(ctx, c.newClient(), scope.Org, scope.AccountType, scope.GHESVersion)
+	orgResults := collectOrg(ctx, c.newClient(), scope.Org, scope.AccountType, scope.GHESVersion, scope.IsGHES)
 
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
@@ -247,9 +247,9 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // checkRetentionAwareness are fixed, evidence-free results regardless of
 // account type (see their own doc comments for why no call could ever
 // change their answer).
-func collectOrg(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType, ghesVersion string) []model.CheckResult {
+func collectOrg(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType, ghesVersion string, isGHES bool) []model.CheckResult {
 	return []model.CheckResult{
-		checkOrgLogAvailable(ctx, client, org, accountType, ghesVersion),
+		checkOrgLogAvailable(ctx, client, org, accountType, ghesVersion, isGHES),
 		checkLogStreaming(org),
 		checkRetentionAwareness(org),
 	}
@@ -282,7 +282,7 @@ func notCheckableResult(id, org, repo, reason string, prov []model.Provenance) m
 // GHES there's no plan tier at all, so ghcollect.ClassifyGate/GateReason
 // produce the licence/version-flavored Reason instead (never "plan," which
 // would simply be wrong there).
-func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType, ghesVersion string) model.CheckResult {
+func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType, ghesVersion string, isGHES bool) model.CheckResult {
 	const id = orgLogAvailableID
 
 	if accountType == collect.AccountTypeUser {
@@ -321,7 +321,7 @@ func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org str
 		statusCode = resp.StatusCode
 	}
 	reason := fmt.Sprintf("could not query the organization audit log: %v", err)
-	switch gate := ghcollect.ClassifyGate(statusCode, ghesVersion, ""); {
+	switch gate := ghcollect.ClassifyGate(statusCode, isGHES, ghesVersion, ""); {
 	case gate == ghcollect.GateKindLicence || gate == ghcollect.GateKindVersion:
 		reason = ghcollect.GateReason(gate, "the organization audit log", ghesVersion, "")
 	case gate == ghcollect.GateKindPlan:

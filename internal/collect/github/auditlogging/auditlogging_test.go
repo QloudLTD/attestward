@@ -148,7 +148,7 @@ func TestCollect_AuditLogNotFoundOnGHES_NamesLicenceNotPlan(t *testing.T) {
 	registerWebhooks(t, mux, org, "widgets", nil)
 
 	c := newCollectorForServer(t, newTestServer(t, mux))
-	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{"widgets"}, GHESVersion: "3.9.0"})
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{"widgets"}, GHESVersion: "3.9.0", IsGHES: true})
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

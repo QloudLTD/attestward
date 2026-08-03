@@ -405,7 +405,7 @@ func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *gh
 // version) lets ghcollect.ClassifyGate override notCheckableReason's
 // github.com-flavored "plan-gated" default with an accurate GHES reason
 // when this specific endpoint is what gated.
-func checkDefaultSetup(org, repo string, ds *ghgithub.DefaultSetupConfiguration, resp *ghgithub.Response, err error, ghesVersion string, prov []model.Provenance) model.CheckResult {
+func checkDefaultSetup(org, repo string, ds *ghgithub.DefaultSetupConfiguration, resp *ghgithub.Response, err error, ghesVersion string, isGHES bool, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.default-setup"
 	if err != nil {
 		reason := notCheckableReason(resp, err, org, repo)
@@ -414,7 +414,7 @@ func checkDefaultSetup(org, repo string, ds *ghgithub.DefaultSetupConfiguration,
 			statusCode = resp.StatusCode
 		}
 		var facts map[string]any
-		if gate := ghcollect.ClassifyGate(statusCode, ghesVersion, ""); gate == ghcollect.GateKindLicence || gate == ghcollect.GateKindVersion {
+		if gate := ghcollect.ClassifyGate(statusCode, isGHES, ghesVersion, ""); gate == ghcollect.GateKindLicence || gate == ghcollect.GateKindVersion {
 			reason = ghcollect.GateReason(gate, fmt.Sprintf("CodeQL default setup for %s/%s", org, repo), ghesVersion, "")
 			facts = map[string]any{"ghes_version": ghesVersion}
 		}

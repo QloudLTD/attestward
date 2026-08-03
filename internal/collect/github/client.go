@@ -53,7 +53,33 @@ func NewClient(token string, cfg ClientConfig) *Client {
 
 	prov := newProvenanceTransport(token, base)
 	rl := newRateLimitTransport(prov)
-	httpClient := &http.Client{Transport: rl}
+	httpClient := &http.Client{
+		Transport: rl,
+		// Redirects are never followed, and this is a security boundary
+		// rather than a preference.
+		//
+		// Auth is injected inside provenanceTransport, which sits BELOW
+		// http.Client's redirect machinery. Go strips sensitive headers on
+		// a cross-domain redirect only for headers set on the original
+		// request, so it never sees ours: every hop would get a freshly
+		// minted "Authorization: Bearer <t>" for whatever host the
+		// redirect names, and the redirect target's body would come back
+		// as the API's answer with a nil error — a verified-pass in a
+		// signed pack sourced from a machine nobody chose.
+		//
+		// This package was genuinely safe without the policy for as long
+		// as it talked only to api.github.com. GHES support made the base
+		// URL user-supplied (see hostconfig.go), which is exactly the
+		// precondition that makes it reachable — the same reasoning, and
+		// the same fix, as internal/collect/gogs. An http:// base URL
+		// against an on-path attacker needs only an injected 302.
+		//
+		// The GraphQL client shares this http.Client, so it is covered by
+		// the same policy.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 
 	rest := github.NewClient(httpClient)
 	// go-github has its own built-in rate-limit tracking/blocking, but
@@ -65,7 +91,14 @@ func NewClient(token string, cfg ClientConfig) *Client {
 	graphQL := githubv4.NewClient(httpClient)
 	if cfg.RESTBaseURL != nil {
 		rest.BaseURL = cfg.RESTBaseURL
-		rest.UploadURL = cfg.RESTBaseURL
+		// UploadURL is deliberately left at its default. It was previously
+		// set to RESTBaseURL, which is both the wrong value (go-github's
+		// own WithEnterpriseURLs derives /api/uploads/) and a pointer
+		// shared across every concurrently-constructed per-repo client.
+		// Nothing in this tool uploads — the transport refuses any method
+		// other than GET or HEAD — so the honest choice is not to set a
+		// value at all rather than set a wrong one that happens never to
+		// be dereferenced.
 	}
 	if cfg.GraphQLURL != "" {
 		graphQL = githubv4.NewEnterpriseClient(cfg.GraphQLURL, httpClient)

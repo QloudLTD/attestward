@@ -488,7 +488,11 @@ func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, er
 
 	hostConfig, err := ghcollect.ResolveHostConfig(cfg.GitHubURL, os.Getenv("GITHUB_CA_CERT"))
 	if err != nil {
-		return scanDeps{}, fmt.Errorf("--github-url: %w", err)
+		// Not prefixed with "--github-url": ResolveHostConfig also loads
+		// GITHUB_CA_CERT, and a bad certificate path surfaced as
+		// "--github-url: GITHUB_CA_CERT /path: no such file", pointing at
+		// the wrong knob. Its own errors already name which input failed.
+		return scanDeps{}, err
 	}
 
 	client := ghcollect.NewClient(token, hostConfig)
@@ -596,6 +600,7 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		LookbackReleases:  cfg.LookbackReleases,
 		LookbackMonths:    cfg.LookbackMonths,
 		GHESVersion:       ghesVersion,
+		IsGHES:            cfg.GitHubURL != "",
 	}
 	accountTypeLabel := string(scope.AccountType)
 	if accountTypeLabel == "" {

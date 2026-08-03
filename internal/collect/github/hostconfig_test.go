@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -84,17 +85,46 @@ func TestResolveHostConfig_RejectsMissingScheme(t *testing.T) {
 }
 
 func TestResolveHostConfig_RejectsNonHTTPScheme(t *testing.T) {
-	_, err := ResolveHostConfig("ftp://ghe.example.com", "")
-	if err == nil {
-		t.Fatal("ResolveHostConfig(\"ftp://...\", \"\") = nil error, want a rejection (non-http(s) scheme)")
-	}
-	if !strings.Contains(err.Error(), "ftp") {
-		t.Errorf("error %q does not mention the offending scheme", err)
+	// The message deliberately does NOT name the offending scheme, and
+	// that is the point rather than an omission: a scheme-shaped paste
+	// like "svc:hunter2@ghe.example.com" parses with Scheme "svc" — the
+	// username — so quoting the scheme would leak part of a credential.
+	// No error from this function echoes any part of the input.
+	for _, raw := range []string{"ftp://ghe.example.com", "svc:hunter2@ghe.example.com"} {
+		_, err := ResolveHostConfig(raw, "")
+		if err == nil {
+			t.Errorf("ResolveHostConfig(%q) = nil error, want a refusal", raw)
+			continue
+		}
+		for _, secret := range []string{"hunter2", "svc:", "ftp"} {
+			if strings.Contains(err.Error(), secret) {
+				t.Errorf("ResolveHostConfig(%q) echoed %q back: %v", raw, secret, err)
+			}
+		}
 	}
 }
 
-// TestResolveHostConfig_LoadsCACertPool proves GITHUB_CA_CERT is read and
-// parsed into a non-nil pool that actually contains the given cert.
+// TestResolveHostConfig_RejectsCredentials: the resolved URL is written into
+// the pack as scope.github_url, and EvidencePack.Scrub walks Results only —
+// Scope is never scrubbed — so a password here reaches a signed artifact
+// verbatim. ScrubBytes is no backstop: it matches known token shapes, and an
+// ordinary password has none.
+func TestResolveHostConfig_RejectsCredentials(t *testing.T) {
+	for _, raw := range []string{
+		"https://svc:hunter2@ghe.example.com",
+		"https://svc@ghe.example.com",
+	} {
+		cfg, err := ResolveHostConfig(raw, "")
+		if err == nil {
+			t.Errorf("ResolveHostConfig(%q) = nil error; REST base would be %v", raw, cfg.RESTBaseURL)
+			continue
+		}
+		if strings.Contains(err.Error(), "hunter2") {
+			t.Errorf("ResolveHostConfig(%q) echoed the password back: %v", raw, err)
+		}
+	}
+}
+
 func TestResolveHostConfig_LoadsCACertPool(t *testing.T) {
 	pemPath := writeTestCACert(t)
 
@@ -205,4 +235,56 @@ func writeTestCACert(t *testing.T) string {
 		t.Fatalf("pem.Encode: %v", err)
 	}
 	return path
+}
+
+// TestNewClient_NeverFollowsRedirects is the regression test for the defect
+// this package inherited the moment its base URL became user-supplied. Auth
+// is injected inside the transport, below Go's redirect machinery, so its
+// cross-domain header stripping never sees it: before the CheckRedirect
+// policy, a GHES URL answering 302 handed a third-party host a valid PAT and
+// its response body came back as the API's answer with a nil error — a
+// verified-pass in a signed pack, sourced from a machine nobody chose.
+//
+// The sibling Gogs package has the identical test for the identical reason.
+func TestNewClient_NeverFollowsRedirects(t *testing.T) {
+	var mu sync.Mutex
+	var thirdPartyHits int
+	var thirdPartyAuth string
+	thirdParty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		thirdPartyHits++
+		thirdPartyAuth = r.Header.Get("Authorization")
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"login":"pwned","type":"Organization"}`))
+	}))
+	defer thirdParty.Close()
+
+	instance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, thirdParty.URL+"/evil", http.StatusFound)
+	}))
+	defer instance.Close()
+
+	cfg, err := ResolveHostConfig(instance.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	client := NewClient("super-secret-ghes-token", cfg)
+
+	org, _, err := client.REST.Organizations.Get(context.Background(), "acme")
+	if err == nil {
+		t.Errorf("Organizations.Get followed a redirect and returned no error (org = %v)", org)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if thirdPartyHits != 0 {
+		t.Errorf("the redirect target was contacted %d times, want 0", thirdPartyHits)
+	}
+	if thirdPartyAuth != "" {
+		t.Errorf("the token was sent to the redirect target: %q", thirdPartyAuth)
+	}
+	if org != nil && org.GetLogin() == "pwned" {
+		t.Error("the redirect target's body was returned as the API answer")
+	}
 }

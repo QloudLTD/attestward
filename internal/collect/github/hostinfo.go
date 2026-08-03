@@ -25,8 +25,21 @@ func (h *hostVersionTracker) observe(resp *http.Response) {
 	if h.seen {
 		return
 	}
+	// Latch only on a response that actually carried the header. Latching
+	// on the first response regardless meant a headerless one — an
+	// LB-generated 502 arriving first, a redirect hop, a reverse proxy
+	// stripping unknown X-* headers, which is the default posture in the
+	// networks GHES lives in — pinned the version to "" for the whole
+	// scan, even though every subsequent response announced it. That is
+	// this codebase's named defect class wearing a new costume: a value
+	// that silently defaults on a NON-observation and is then read as a
+	// confirmed observation.
+	version := resp.Header.Get("X-GitHub-Enterprise-Version")
+	if version == "" {
+		return
+	}
 	h.seen = true
-	h.version = resp.Header.Get("X-GitHub-Enterprise-Version")
+	h.version = version
 }
 
 // Version returns the GHES version observed so far, or "" if either no

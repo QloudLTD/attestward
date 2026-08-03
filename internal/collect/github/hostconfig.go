@@ -67,12 +67,31 @@ func ResolveHostConfig(rawURL, caCertPath string) (ClientConfig, error) {
 		return cfg, nil
 	}
 
+	// No error below quotes rawURL, and none wraps url.Parse's own error
+	// (which embeds the original string). A GHES base URL can carry
+	// credentials — see the userinfo rejection below — and an error
+	// message goes to stderr and into CI logs. The sibling Gogs client
+	// reached the same conclusion for the same reason: enumerating the
+	// parse shapes that leak is a losing game, so the input is simply
+	// never echoed.
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return ClientConfig{}, fmt.Errorf("--github-url %q: not a valid absolute URL (need a scheme and host, e.g. https://ghe.example.com)", rawURL)
+		return ClientConfig{}, fmt.Errorf("--github-url: not a valid absolute URL (need a scheme and host, e.g. https://ghe.example.com)")
+	}
+	// Credentials are rejected rather than stripped. The resolved URL is
+	// recorded into the evidence pack as scope.github_url, and
+	// EvidencePack.Scrub walks Results only — Scope is never scrubbed — so
+	// a basic-auth password would be written into a signed artifact
+	// verbatim. ScrubBytes is no backstop either: it matches known token
+	// shapes, and an ordinary password has none. A GHES install behind an
+	// authenticating reverse proxy is exactly the deployment this feature
+	// exists for, which makes user:pass@host a realistic paste rather than
+	// a hypothetical one.
+	if parsed.User != nil {
+		return ClientConfig{}, fmt.Errorf("--github-url must not contain credentials — the URL is recorded in the evidence pack; authenticate with GITHUB_TOKEN, and put any proxy credentials in the proxy configuration")
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return ClientConfig{}, fmt.Errorf("--github-url %q: scheme must be http or https, got %q", rawURL, parsed.Scheme)
+		return ClientConfig{}, fmt.Errorf("--github-url must use http or https (e.g. https://ghe.example.com)")
 	}
 
 	// WithEnterpriseURLs both re-validates the URL and applies go-github's
@@ -80,7 +99,7 @@ func ResolveHostConfig(rawURL, caCertPath string) (ClientConfig, error) {
 	// present) — reused via a throwaway client rather than reimplemented.
 	enterprise, err := github.NewClient(nil).WithEnterpriseURLs(rawURL, rawURL)
 	if err != nil {
-		return ClientConfig{}, fmt.Errorf("--github-url %q: %w", rawURL, err)
+		return ClientConfig{}, fmt.Errorf("--github-url could not be resolved to a GitHub Enterprise Server API base")
 	}
 	cfg.RESTBaseURL = enterprise.BaseURL
 	cfg.GraphQLURL = deriveGraphQLURL(enterprise.BaseURL)
@@ -107,8 +126,17 @@ func loadCACertPool(pemPath string) (*x509.CertPool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GITHUB_CA_CERT %s: %w", pemPath, err)
 	}
+	// A failure to read the system store is reported, not absorbed.
+	// Falling back to an empty pool would silently narrow trust to the
+	// supplied PEM alone — every other certificate chain in the process
+	// would start failing verification for a reason nothing announced.
+	// Near-unreachable on the platforms this ships for, which is exactly
+	// why a silent degradation here would be so hard to diagnose.
 	pool, err := x509.SystemCertPool()
-	if err != nil || pool == nil {
+	if err != nil {
+		return nil, fmt.Errorf("GITHUB_CA_CERT: could not read the system certificate store, so the supplied certificate cannot be added to it: %w", err)
+	}
+	if pool == nil {
 		pool = x509.NewCertPool()
 	}
 	if ok := pool.AppendCertsFromPEM(data); !ok {

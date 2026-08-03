@@ -49,18 +49,33 @@ const (
 // audit fills a real one in for it).
 //
 // Only a genuinely known minGHESVersion greater than installedGHESVersion
-// produces GateKindVersion; every other GHES case is GateKindLicence. This
+// produces GateKindVersion; every other GHES case is GateKindLicence.
+//
+// As of this writing NO check supplies a minGHESVersion — both call sites
+// pass "" — so GateKindVersion is unreachable in practice. That is
+// deliberate rather than unfinished: inventing a minimum version this
+// project has not verified would be exactly the fabricated claim the rest
+// of this file exists to prevent. The branch stays because supplying real
+// per-endpoint data is a data change, not a code change. This
 // is a deliberate, honest simplification: absent real per-endpoint
 // minimum-version data, this tool cannot actually tell "not licensed" and
 // "too old to have this endpoint" apart from the response alone — GitHub
 // returns the same 402/404 either way. See docs/checks-reference.md's
 // per-check GHES notes (issue #13) for which checks have real minimum-
 // version data and which are still using this fallback.
-func ClassifyGate(statusCode int, installedGHESVersion, minGHESVersion string) GateKind {
+func ClassifyGate(statusCode int, isGHES bool, installedGHESVersion, minGHESVersion string) GateKind {
 	if !IsPlanGated(statusCode) {
 		return GateKindNone
 	}
-	if installedGHESVersion == "" {
+	// Keyed on the configured target, NOT on whether a version was
+	// observed. Keying on the version meant a GHES scan whose version
+	// header never arrived — stripped by a proxy, or missing from a
+	// front-end error — reported the github.com reason, so a single signed
+	// pack could assert "the org's plan doesn't include GitHub Enterprise
+	// Cloud's audit-log API" while its own scope.github_url named a
+	// self-hosted install with no plan tier at all. The target is known at
+	// preflight; the version is a bonus.
+	if !isGHES {
 		return GateKindPlan
 	}
 	if minGHESVersion != "" && versionLess(installedGHESVersion, minGHESVersion) {
@@ -78,9 +93,27 @@ func ClassifyGate(statusCode int, installedGHESVersion, minGHESVersion string) G
 func GateReason(kind GateKind, feature, installedGHESVersion, minGHESVersion string) string {
 	switch kind {
 	case GateKindLicence:
-		return fmt.Sprintf("%s is not available on this GitHub Enterprise Server install — most likely not "+
-			"licensed (e.g. GitHub Advanced Security), though a version limitation can't be fully ruled out "+
-			"from the response alone", feature)
+		// Deliberately names no cause. The code established exactly one
+		// fact — a 402/404 came back — and GitHub returns the same status
+		// for a licensing gap, a version that predates the endpoint, and a
+		// token without the required scope. An earlier version of this
+		// string said "most likely not licensed (e.g. GitHub Advanced
+		// Security)", which was a fabricated causal claim: it is simply
+		// untrue for the organization audit log, which has no Advanced
+		// Security dependency, and it dropped the token-scope alternative
+		// that the github.com reason is careful to keep. Listing the
+		// possibilities without ranking them is what the response actually
+		// supports.
+		if installedGHESVersion != "" {
+			return fmt.Sprintf("%s is not available on this GitHub Enterprise Server install (reporting version %s). "+
+				"The response cannot distinguish between a feature that is not licensed, one this version does not "+
+				"have, and a token without the required scope — GitHub returns the same status for all three",
+				feature, installedGHESVersion)
+		}
+		return fmt.Sprintf("%s is not available on this GitHub Enterprise Server install. The response cannot "+
+			"distinguish between a feature that is not licensed, one this version does not have, and a token "+
+			"without the required scope — GitHub returns the same status for all three. This install did not "+
+			"report its version, so the version possibility could not be narrowed further", feature)
 	case GateKindVersion:
 		return fmt.Sprintf("%s requires GitHub Enterprise Server %s or later (this install reports %s)",
 			feature, minGHESVersion, installedGHESVersion)
