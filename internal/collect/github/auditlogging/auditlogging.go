@@ -132,6 +132,23 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/auditlogging/auditlogging_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit.
+// orgLogAvailableID is deliberately GHESNoteUnverified rather than guessed
+// at either way: "Enterprise-only in practice" on github.com refers to a
+// per-org PLAN tier, a concept that doesn't obviously carry over to GHES
+// (every GHES org already runs inside an Enterprise-licensed install), but
+// this tool's authors have not independently confirmed whether that makes
+// the endpoint universally available there or whether it still needs
+// enterprise-owner permission/a different path — see checkOrgLogAvailable's
+// own doc comment for how Collect() already handles this honestly at
+// runtime via ghcollect.ClassifyGate rather than assuming either way
+// statically. logStreamingID/retentionAwarenessID register no Endpoints
+// (fixed facts, no API call), so neither needs an entry here.
+var checkGHESNotes = map[string]string{
+	orgLogAvailableID: ghcollect.GHESNoteUnverified,
+	webhooksID:        ghcollect.GHESNoteSupported,
+}
+
 func init() {
 	for _, id := range orgCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -146,6 +163,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}
@@ -159,6 +177,7 @@ func init() {
 		Remediation: checkRemediations[webhooksID],
 		Rubric:      checkRubrics[webhooksID],
 		Endpoints:   checkEndpoints[webhooksID],
+		GHESNote:    checkGHESNotes[webhooksID],
 		FixtureRef:  fixtureRef,
 	})
 }

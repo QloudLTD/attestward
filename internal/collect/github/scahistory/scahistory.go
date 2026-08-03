@@ -225,6 +225,25 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/scahistory/scahistory_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit. The other
+// four checks only ever call sharedEvidenceEndpoints plus other basic
+// repo/branch/release reads, none of them GHAS/Enterprise-license-gated.
+// alerts-triaged is the one exception, and deliberately GHESNoteUnverified
+// rather than guessed at: checkAlertsTriaged's own 403-message-substring
+// gating (see alertsDisabledMessageSubstring's doc comment) was
+// empirically confirmed against github.com specifically, and Dependabot
+// alerts on GHES additionally depend on GitHub Connect syncing github.com's
+// advisory database (or an airgapped alternative) — neither of which this
+// tool's authors have independently confirmed produces the same
+// status-code/message shape this collector reads.
+var checkGHESNotes = map[string]string{
+	"C06.sca.tool-configured":   ghcollect.GHESNoteSupported,
+	"C06.sca.dependabot-config": ghcollect.GHESNoteSupported,
+	"C06.sca.ran-per-release":   ghcollect.GHESNoteSupported,
+	"C06.sca.dependency-review": ghcollect.GHESNoteSupported,
+	"C06.sca.alerts-triaged":    ghcollect.GHESNoteUnverified,
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -236,6 +255,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}

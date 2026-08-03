@@ -214,7 +214,18 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
-			FixtureRef:  fixtureRef,
+			// GHESNoteLicenceGated for all four (issue #13): every one of
+			// checkEndpoints[id] above includes defaultSetupAPIEndpoint
+			// (CodeQL default setup), which depends on GitHub Advanced
+			// Security being licensed on this GHES install — the other
+			// endpoints each check also calls (workflow/contents/releases
+			// evidence) are basic REST surface and unaffected, but an
+			// unlicensed install still changes what each of these four
+			// checks can conclude (see unconfirmedDSFailure's own doc
+			// comment for how the collector already treats a gated
+			// default-setup response as a confirmed signal, not an error).
+			GHESNote:   ghcollect.GHESNoteLicenceGated,
+			FixtureRef: fixtureRef,
 		})
 	}
 }

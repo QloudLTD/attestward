@@ -227,7 +227,12 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
-			FixtureRef:  fixtureRef,
+			// GHESNoteSupported for all five (issue #13): repo fetch,
+			// workflow listing, and workflow-file contents are basic REST
+			// API surface, not gated by GitHub Advanced Security or any
+			// other Enterprise license.
+			GHESNote:   ghcollect.GHESNoteSupported,
+			FixtureRef: fixtureRef,
 		})
 	}
 }

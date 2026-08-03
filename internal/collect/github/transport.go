@@ -30,6 +30,21 @@ var ErrWriteMethodRejected = fmt.Errorf("collect/github: this tool is read-only,
 // an evidence pack through this path — avoiding the leak is preferred over
 // relying on model.Scrub to catch it downstream.
 //
+// GHES provenance paths (issue #13's GHES epic, settling the question its
+// own acceptance criteria pose): Endpoint records req.URL.Path completely
+// unmodified — the REAL path, not a github.com-normalized one. On a GHES
+// scan this naturally comes out prefixed "/api/v3" (e.g.
+// "/api/v3/orgs/{org}"), because go-github's request builder resolves
+// every relative endpoint path against Client.BaseURL (see
+// ghcollect.NewClient/ResolveHostConfig, issue #11), and BaseURL already
+// carries that prefix for a GHES target. No special-casing was needed here
+// to make that happen, and none should be added to normalize it away: a
+// provenance entry should record what was ACTUALLY called, since that's
+// what a reader (or `attestward diff`, comparing provenance across two
+// packs) needs to trust the evidence — normalizing away the "/api/v3"
+// prefix would make a GHES pack's provenance describe a request that
+// never actually happened.
+//
 // Read-only enforcement (issue #31): RoundTrip rejects any request whose
 // method isn't GET or HEAD, before auth injection or the network call —
 // ADR-0004's "read-only, forever" rule enforced structurally, not just by

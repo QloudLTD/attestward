@@ -150,6 +150,24 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/secretshygiene/secretshygiene_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit for this
+// collector. secrets.scanning-enabled/push-protection/advanced-security
+// all read security_and_analysis, the same GitHub Advanced Security
+// licensed feature github.com gates on private repos — GHESNoteLicenceGated
+// applies identically. deps.dependabot-alerts and org.security-defaults
+// are both left GHESNoteUnverified rather than guessed at: Dependabot on
+// GHES depends on GitHub Connect syncing github.com's advisory database
+// (or an airgapped alternative), which this tool's authors have not
+// independently confirmed behaves the same way at the API-response level
+// this collector reads.
+var checkGHESNotes = map[string]string{
+	"C04.secrets.scanning-enabled":  ghcollect.GHESNoteLicenceGated,
+	"C04.secrets.push-protection":   ghcollect.GHESNoteLicenceGated,
+	"C04.secrets.advanced-security": ghcollect.GHESNoteLicenceGated,
+	"C04.deps.dependabot-alerts":    ghcollect.GHESNoteUnverified,
+	"C04.org.security-defaults":     ghcollect.GHESNoteUnverified,
+}
+
 func init() {
 	for _, id := range allCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -161,6 +179,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}

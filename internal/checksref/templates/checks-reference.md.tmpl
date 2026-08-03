@@ -38,7 +38,8 @@ against inventing SSDF citations).
 - **CISA form cluster(s):** {{if .Clusters}}{{range $i, $c := .Clusters}}{{if $i}}, {{end}}{{$c}}{{end}}{{else}}(none cited){{end}}
 - **Fixture:** `{{$p.FixtureRef}}`
 - **API endpoint(s):** {{if $p.Endpoints}}{{range $i, $e := $p.Endpoints}}{{if $i}}, {{end}}`{{$e}}`{{end}}{{else}}none — this check's result is a fixed fact, not derived from an API call (see rubric below){{end}}
-
+{{if $p.GHESNote}}- **GitHub Enterprise Server:** {{$p.GHESNote}}
+{{end}}
 **Status rubric:**
 
 {{range $p.Rubric}}- **{{.Status}}:** {{.Text}}
@@ -62,7 +63,8 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** {{.TokenScope}}
 - **Fixture:** `{{.FixtureRef}}`
 - **API endpoint(s):** {{if .Endpoints}}{{range $i, $e := .Endpoints}}{{if $i}}, {{end}}`{{$e}}`{{end}}{{else}}none — this check's result is a fixed fact, not derived from an API call (see rubric below){{end}}
-
+{{if .GHESNote}}- **GitHub Enterprise Server:** {{.GHESNote}}
+{{end}}
 **Status rubric:**
 
 {{range .Rubric}}- **{{.Status}}:** {{.Text}}

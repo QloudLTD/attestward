@@ -132,6 +132,20 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/vdp/vdp_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit.
+// privateReportingID is the one exception: private-vulnerability-reporting
+// reached general availability on github.com only in 2023-2024 — recent
+// enough that this tool's authors have no verified knowledge of whether or
+// from which version it shipped to GHES, so this is GHESNoteUnverified
+// rather than a guess. The other three checks only read SECURITY.md
+// contents and the repo/org objects themselves, all basic REST surface.
+var checkGHESNotes = map[string]string{
+	securityMDID:        ghcollect.GHESNoteSupported,
+	intakeChannelID:     ghcollect.GHESNoteSupported,
+	privateReportingID:  ghcollect.GHESNoteUnverified,
+	securityPolicyOrgID: ghcollect.GHESNoteSupported,
+}
+
 func init() {
 	for _, id := range repoCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -145,6 +159,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}
@@ -158,6 +173,7 @@ func init() {
 		Remediation: checkRemediations[securityPolicyOrgID],
 		Rubric:      checkRubrics[securityPolicyOrgID],
 		Endpoints:   checkEndpoints[securityPolicyOrgID],
+		GHESNote:    checkGHESNotes[securityPolicyOrgID],
 		FixtureRef:  fixtureRef,
 	})
 }

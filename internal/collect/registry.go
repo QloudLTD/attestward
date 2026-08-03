@@ -68,6 +68,26 @@ type CheckMeta struct {
 	// not-checkable unconditionally because no org-scoped endpoint for
 	// that control exists at all (see that check's own doc comment).
 	Endpoints []string
+	// GHESNote records this check's per-collector GHES divergence audit
+	// (issue #13's GHES epic): whether the endpoint(s) above are expected
+	// to work unmodified on GitHub Enterprise Server, are gated by a
+	// licensed/Enterprise-only add-on (GitHub Advanced Security, GitHub
+	// Connect-dependent Dependabot data, etc.), or — honestly — haven't
+	// been confirmed either way because the feature is new enough on
+	// github.com that this tool's authors don't have verified knowledge of
+	// its GHES availability. GitHub-only: azuredevops checks never set
+	// this (Azure DevOps has no GHES-equivalent self-hosted/cloud split
+	// this tool models). Every real github collector package sets this for
+	// every check it registers that has Endpoints — a convention this
+	// field's own generator (internal/checksref) does NOT enforce at
+	// render time (unlike Rubric/FixtureRef/Remediation/Title/TokenScope),
+	// since retrofitting that gate would also require updating every
+	// existing render_test.go fixture; left empty, the reference simply
+	// omits the line rather than failing. This is a documented judgment
+	// call, not something exercised against a real GHES install — see
+	// docs/architecture.md's GHES section for the caveat this reference
+	// inherits.
+	GHESNote string
 	// FixtureRef is the path (repo-relative, no "#TestFunc" suffix — as
 	// of this writing every collector package's tests are scenario-based
 	// across the whole Collect() call, not one test per check, so a

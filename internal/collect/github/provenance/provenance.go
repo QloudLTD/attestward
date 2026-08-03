@@ -180,6 +180,21 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/provenance/provenance_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit.
+// release.signatures is the one exception: attestationsAPIEndpoint (GitHub
+// Artifact Attestations) reached general availability on github.com only
+// in 2024 — recent enough that this tool's authors have no verified
+// knowledge of whether or from which version it shipped to GHES, so this
+// is GHESNoteUnverified rather than a guess. Every other check here only
+// reads releases/git-refs/git-tags/workflow-runs, all basic REST surface.
+var checkGHESNotes = map[string]string{
+	"C07.release.tags-signed":       ghcollect.GHESNoteSupported,
+	"C07.release.checksums":         ghcollect.GHESNoteSupported,
+	"C07.release.signatures":        ghcollect.GHESNoteUnverified,
+	"C07.provenance.workflow":       ghcollect.GHESNoteSupported,
+	"C07.provenance.commit-linkage": ghcollect.GHESNoteSupported,
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -191,6 +206,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}

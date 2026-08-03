@@ -135,7 +135,11 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
-			FixtureRef:  fixtureRef,
+			// GHESNoteSupported for all four (issue #13): Environments is
+			// a long-standing GHES feature, not gated by GitHub Advanced
+			// Security or any other Enterprise license.
+			GHESNote:   ghcollect.GHESNoteSupported,
+			FixtureRef: fixtureRef,
 		})
 	}
 }

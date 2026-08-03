@@ -105,7 +105,12 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
-			FixtureRef:  fixtureRef,
+			// GHESNoteSupported for all four (issue #13): GET /orgs/{org}
+			// and GET /orgs/{org}/members are basic REST API surface, not
+			// gated by GitHub Advanced Security or any other Enterprise
+			// license — see checkEndpoints' own doc comment.
+			GHESNote:   ghcollect.GHESNoteSupported,
+			FixtureRef: fixtureRef,
 		})
 	}
 }
