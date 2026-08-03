@@ -38,7 +38,7 @@ func TestFetchWorkflowRuns_SendsServerSideCreatedFilter(t *testing.T) {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	client := ghcollect.NewClient("ghp_test-token")
+	client := ghcollect.NewClient("ghp_test-token", ghcollect.ClientConfig{})
 	baseURL, err := url.Parse(server.URL + "/")
 	if err != nil {
 		t.Fatalf("parse test server URL: %v", err)

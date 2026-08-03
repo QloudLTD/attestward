@@ -83,7 +83,7 @@ func TestFilterCollectors(t *testing.T) {
 // drifting out of the "C01.<name>" convention the whole --check filter
 // mechanism depends on.
 func TestFilterCollectors_RealOrgSecurityMatchesItsOwnDocumentedExample(t *testing.T) {
-	c := orgsecurity.New(ghcollect.NewClient("ghp_test-token"))
+	c := orgsecurity.New(ghcollect.NewClient("ghp_test-token", ghcollect.ClientConfig{}))
 	all := []collect.Collector{c}
 
 	got := filterCollectors(all, []string{"C01"})
@@ -555,6 +555,33 @@ func TestRunScan_PackScopeRecordsPlatformAndProject(t *testing.T) {
 	}
 	if result.pack.Scope.Project != "my-project" {
 		t.Errorf("pack.Scope.Project = %q, want my-project", result.pack.Scope.Project)
+	}
+}
+
+// TestRunScan_PackScopeRecordsGitHubURL proves cfg.GitHubURL — as resolved
+// by runScanCmd (issue #11's --github-url/github_url:/GITHUB_URL) — lands
+// on the pack's Scope.GitHubURL, so a reader of a signed pack can tell
+// which GitHub install produced it. runScan itself doesn't resolve
+// GITHUB_URL or validate the value; it just carries whatever cfg.GitHubURL
+// already holds through to the pack — that resolution is runScanCmd's job
+// (resolveGitHubURL), covered separately in scanconfig_test.go.
+func TestRunScan_PackScopeRecordsGitHubURL(t *testing.T) {
+	collectors := []collect.Collector{fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
+		{CheckID: "DEMO.pass", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo"}},
+	}}}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", GitHubURL: "https://ghe.example.com"}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if result.pack.Scope.GitHubURL != "https://ghe.example.com" {
+		t.Errorf("pack.Scope.GitHubURL = %q, want https://ghe.example.com", result.pack.Scope.GitHubURL)
 	}
 }
 

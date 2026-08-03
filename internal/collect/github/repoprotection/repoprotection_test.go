@@ -70,13 +70,13 @@ func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 	// no client to redirect at the test server directly — instead this
 	// override makes every freshly constructed client point at it, mirroring
 	// how a real token would authenticate against api.github.com.
-	c := New("ghp_test-token")
+	c := New("ghp_test-token", ghcollect.ClientConfig{})
 	c.newClientForTest = func(token string) *ghcollect.Client {
 		// Runs inside ForEachRepo's worker goroutines, never the test's own
 		// goroutine — t.Fatalf there would only abort that worker (via
 		// runtime.Goexit), not the test, so a genuine parse failure must be
 		// reported with Errorf instead.
-		client := ghcollect.NewClient(token)
+		client := ghcollect.NewClient(token, ghcollect.ClientConfig{})
 		baseURL, err := url.Parse(server.URL + "/")
 		if err != nil {
 			t.Errorf("parse test server URL: %v", err)

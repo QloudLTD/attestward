@@ -382,3 +382,69 @@ func TestMergeScanConfig_PlatformProjectFlagsDoNotClobberFileWhenUnset(t *testin
 		t.Errorf("Project = %q, want file-proj (from file, no flag override)", merged.Project)
 	}
 }
+
+// TestScanConfigValidate_GitHubURLRejectedForAzureDevOps mirrors
+// TestScanConfigValidate_PlatformProjectMatrix for issue #11's --github-url:
+// valid (optional) for github, rejected outright for azuredevops.
+func TestScanConfigValidate_GitHubURLRejectedForAzureDevOps(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     scanConfig
+		wantErr bool
+	}{
+		{"github, github-url given", scanConfig{Org: "x", Platform: "github", GitHubURL: "https://ghe.example.com"}, false},
+		{"empty platform, github-url given", scanConfig{Org: "x", GitHubURL: "https://ghe.example.com"}, false},
+		{"azuredevops, github-url given", scanConfig{Org: "x", Platform: "azuredevops", Project: "proj", GitHubURL: "https://ghe.example.com"}, true},
+		{"azuredevops, no github-url", scanConfig{Org: "x", Platform: "azuredevops", Project: "proj"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cfg.validate()
+			if tc.wantErr && err == nil {
+				t.Errorf("validate() = nil error, want an error")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("validate() = %v, want nil", err)
+			}
+		})
+	}
+}
+
+// TestMergeScanConfig_GitHubURLFlagOverridesFileWhenSetAndDoesNotClobberOtherwise
+// mirrors TestMergeScanConfig_PlatformProjectFlagsDoNotClobberFileWhenUnset
+// for the new field.
+func TestMergeScanConfig_GitHubURLFlagOverridesFileWhenSetAndDoesNotClobberOtherwise(t *testing.T) {
+	file := scanConfig{Org: "x", GitHubURL: "https://file.example.com"}
+
+	merged := mergeScanConfig(file, scanConfig{}, nil)
+	if merged.GitHubURL != "https://file.example.com" {
+		t.Errorf("GitHubURL = %q, want https://file.example.com (from file, no flag override)", merged.GitHubURL)
+	}
+
+	merged = mergeScanConfig(file, scanConfig{GitHubURL: "https://flag.example.com"}, map[string]bool{"github-url": true})
+	if merged.GitHubURL != "https://flag.example.com" {
+		t.Errorf("GitHubURL = %q, want https://flag.example.com (flag was set)", merged.GitHubURL)
+	}
+}
+
+// TestResolveGitHubURL_FlagOrConfigWinsOverEnv, together with the empty
+// case below, pins issue #11's precedence: --github-url/github_url: (both
+// already merged into cfg.GitHubURL by mergeScanConfig) beats GITHUB_URL,
+// and GITHUB_URL is used only when cfg.GitHubURL is empty.
+func TestResolveGitHubURL_FlagOrConfigWinsOverEnv(t *testing.T) {
+	t.Setenv("GITHUB_URL", "https://from-env.example.com")
+
+	if got := resolveGitHubURL(scanConfig{GitHubURL: "https://from-config.example.com"}); got != "https://from-config.example.com" {
+		t.Errorf("resolveGitHubURL = %q, want the config/flag value to win over GITHUB_URL", got)
+	}
+	if got := resolveGitHubURL(scanConfig{}); got != "https://from-env.example.com" {
+		t.Errorf("resolveGitHubURL = %q, want the GITHUB_URL fallback", got)
+	}
+}
+
+func TestResolveGitHubURL_EmptyWhenNeitherSet(t *testing.T) {
+	t.Setenv("GITHUB_URL", "")
+	if got := resolveGitHubURL(scanConfig{}); got != "" {
+		t.Errorf("resolveGitHubURL = %q, want empty (github.com default)", got)
+	}
+}

@@ -91,6 +91,7 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 			ReleaseTagPattern: "v*",
 			LookbackReleases:  5,
 			Platform:          "github",
+			GitHubURL:         "https://ghe.example.com",
 		},
 		ScanStartedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 		ScanEndedAt:   time.Date(2026, 7, 13, 12, 0, 5, 0, time.UTC),
@@ -139,6 +140,9 @@ func TestEvidencePackRoundTripsAndValidates(t *testing.T) {
 	}
 	if roundTripped.Scope.Platform != "github" {
 		t.Errorf("round trip lost Scope.Platform: got %q, want %q", roundTripped.Scope.Platform, "github")
+	}
+	if roundTripped.Scope.GitHubURL != "https://ghe.example.com" {
+		t.Errorf("round trip lost Scope.GitHubURL: got %q, want %q", roundTripped.Scope.GitHubURL, "https://ghe.example.com")
 	}
 	if roundTripped.Results[0].Scope.Platform != "github" {
 		t.Errorf("round trip lost Results[0].Scope.Platform: got %q, want %q", roundTripped.Results[0].Scope.Platform, "github")

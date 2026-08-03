@@ -39,9 +39,9 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {
 
 func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 	t.Helper()
-	c := New("ghp_test-token")
+	c := New("ghp_test-token", ghcollect.ClientConfig{})
 	c.newClientForTest = func(token string) *ghcollect.Client {
-		client := ghcollect.NewClient(token)
+		client := ghcollect.NewClient(token, ghcollect.ClientConfig{})
 		baseURL, err := url.Parse(server.URL + "/")
 		if err != nil {
 			t.Errorf("parse test server URL: %v", err)
