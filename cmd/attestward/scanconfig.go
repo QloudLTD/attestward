@@ -94,6 +94,13 @@ type scanConfig struct {
 	// empty value means gitlab.com rather than an ambiguous target. It is
 	// only meaningful for a self-managed install.
 	GitLabURL string `yaml:"gitlab_url"`
+
+	// GitHubURL is the GitHub Enterprise Server base URL (GHES issue #11)
+	// — only valid when Platform is "github". Empty keeps today's
+	// behaviour (api.github.com) unchanged; resolveGitHubURL in scan.go
+	// additionally falls back to the GITHUB_URL environment variable when
+	// this is unset.
+	GitHubURL string `yaml:"github_url"`
 }
 
 // loadScanConfigFile strictly parses a config file: unknown keys are
@@ -175,6 +182,9 @@ func mergeScanConfig(file scanConfig, flags scanConfig, flagsSet map[string]bool
 	if flags.GitLabURL != "" {
 		merged.GitLabURL = flags.GitLabURL
 	}
+	if flagsSet["github-url"] {
+		merged.GitHubURL = flags.GitHubURL
+	}
 
 	if merged.ReleaseTagPattern == "" {
 		merged.ReleaseTagPattern = defaultReleaseTagPattern
@@ -240,6 +250,17 @@ func (c scanConfig) validate() error {
 
 	if effectivePlatform(c.Platform) != platformGitLab && c.GitLabURL != "" {
 		return fmt.Errorf("--gitlab-url (or config file's gitlab_url:) is only valid when platform is %q (got platform %q)", platformGitLab, effectivePlatform(c.Platform))
+	}
+
+	// --github-url is only meaningful for a github scan. The GHES branch
+	// expressed this as "not azuredevops", because gogs did not exist when
+	// it was written, and the gogs branch never learned about --github-url
+	// at all; neither is wrong alone, and together they would have let
+	// --github-url pass silently on a gogs scan. Anchoring on "is github"
+	// rather than enumerating the platforms it is not means the next
+	// platform cannot reopen the same hole.
+	if effectivePlatform(c.Platform) != platformGitHub && c.GitHubURL != "" {
+		return fmt.Errorf("--github-url (or config file's github_url:) is only valid when platform is %q (got platform %q)", platformGitHub, effectivePlatform(c.Platform))
 	}
 	return nil
 }

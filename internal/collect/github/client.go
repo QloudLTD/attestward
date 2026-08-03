@@ -1,6 +1,7 @@
 package github
 
 import (
+	"crypto/tls"
 	"net/http"
 
 	"github.com/google/go-github/v75/github"
@@ -25,9 +26,32 @@ type Client struct {
 // NewClient builds a Client authenticated with token (typically read from
 // the GITHUB_TOKEN environment variable by the caller — this package never
 // reads the environment itself, keeping token sourcing the orchestrator's
-// responsibility per the threat model).
-func NewClient(token string) *Client {
-	prov := newProvenanceTransport(token, http.DefaultTransport)
+// responsibility per the threat model), targeting cfg's host — github.com
+// with the system trust store for the zero value, or a GitHub Enterprise
+// Server install when cfg was built from ResolveHostConfig with a non-empty
+// URL/CA cert (issue #11).
+//
+// cfg.RESTBaseURL and cfg.GraphQLURL are assigned directly rather than
+// re-derived via github.Client.WithEnterpriseURLs here: that call already
+// ran once, in ResolveHostConfig, at preflight — re-running it per Client
+// (several collectors build one per repo) would mean re-validating and
+// re-parsing the exact same already-normalized URL on every call for no
+// benefit, and would reintroduce an error return this constructor is
+// deliberately free of.
+func NewClient(token string, cfg ClientConfig) *Client {
+	base := http.RoundTripper(http.DefaultTransport)
+	if cfg.CACertPool != nil {
+		// http.DefaultTransport is a shared global — clone it rather than
+		// mutating its TLSClientConfig in place, which would silently
+		// affect every other user of http.DefaultTransport in the process.
+		// Clone() preserves DefaultTransport's own Proxy:
+		// http.ProxyFromEnvironment, so HTTPS_PROXY still applies here too.
+		custom := http.DefaultTransport.(*http.Transport).Clone()
+		custom.TLSClientConfig = &tls.Config{RootCAs: cfg.CACertPool}
+		base = custom
+	}
+
+	prov := newProvenanceTransport(token, base)
 	rl := newRateLimitTransport(prov)
 	httpClient := &http.Client{Transport: rl}
 
@@ -38,9 +62,18 @@ func NewClient(token string) *Client {
 	// rateLimitTransport handles both uniformly, so go-github's is disabled.
 	rest.DisableRateLimitCheck = true
 
+	graphQL := githubv4.NewClient(httpClient)
+	if cfg.RESTBaseURL != nil {
+		rest.BaseURL = cfg.RESTBaseURL
+		rest.UploadURL = cfg.RESTBaseURL
+	}
+	if cfg.GraphQLURL != "" {
+		graphQL = githubv4.NewEnterpriseClient(cfg.GraphQLURL, httpClient)
+	}
+
 	return &Client{
 		REST:    rest,
-		GraphQL: githubv4.NewClient(httpClient),
+		GraphQL: graphQL,
 		prov:    prov,
 	}
 }

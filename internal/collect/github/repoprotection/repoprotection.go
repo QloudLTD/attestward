@@ -192,6 +192,11 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every per-repo Client this collector builds —
+	// see ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each repo's Client is constructed —
 	// production code never sets it (New leaves it nil and Collect falls
 	// back to ghcollect.NewClient); tests use it to point every per-repo
@@ -200,23 +205,25 @@ type Collector struct {
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C02 collector authenticated with token. Unlike a collector
-// that makes one call per Collect() (e.g. org-security), this one fans out
-// per-repo via ghcollect.ForEachRepo's concurrent worker pool — so a single
-// shared *ghcollect.Client would interleave different repos' calls into one
+// New returns a C02 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). Unlike a collector that makes one call per Collect()
+// (e.g. org-security), this one fans out per-repo via
+// ghcollect.ForEachRepo's concurrent worker pool — so a single shared
+// *ghcollect.Client would interleave different repos' calls into one
 // Provenance() log, making a "snapshot before, diff after" attribution (the
 // pattern org-security uses) attribute the wrong entries to the wrong repo.
 // Each repo gets its own freshly constructed Client instead, so its
 // provenance is naturally isolated and needs no slicing.
-func New(token string) *Collector {
-	return &Collector{token: token}
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.

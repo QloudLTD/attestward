@@ -170,25 +170,32 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every Client this collector builds — see
+	// ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each Client is constructed — see
 	// repoprotection.Collector's identical field for why.
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C04 collector authenticated with token. Like repoprotection
-// and envseparation, per-repo checks fan out via ForEachRepo's concurrent
-// worker pool, so each repo constructs its own Client. The org-level check
+// New returns a C04 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). Like repoprotection and envseparation, per-repo
+// checks fan out via ForEachRepo's concurrent worker pool, so each repo
+// constructs its own Client. The org-level check
 // (C04.org.security-defaults) additionally gets its own dedicated Client,
 // separate from any per-repo one, for the same provenance-isolation reason.
-func New(token string) *Collector {
-	return &Collector{token: token}
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.

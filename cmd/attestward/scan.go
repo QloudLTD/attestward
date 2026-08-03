@@ -113,6 +113,7 @@ func init() {
 	scanCmd.Flags().StringVar(&scanFlags.Project, "project", "", "Azure DevOps project name (required iff --platform azuredevops; rejected otherwise)")
 	scanCmd.Flags().StringVar(&scanFlags.GogsURL, "gogs-url", "", "base URL of the Gogs instance, e.g. https://gogs.example.com (required iff --platform gogs; rejected otherwise)")
 	scanCmd.Flags().StringVar(&scanFlags.GitLabURL, "gitlab-url", "", "base URL of a self-managed GitLab, e.g. https://gitlab.example.com (optional with --platform gitlab, which defaults to gitlab.com; rejected otherwise)")
+	scanCmd.Flags().StringVar(&scanFlags.GitHubURL, "github-url", "", "GitHub Enterprise Server base URL (issue #11; --platform github only; e.g. https://ghe.example.com); falls back to GITHUB_URL if unset, then api.github.com")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -129,18 +130,18 @@ func init() {
 // sasthistory/scahistory/provenance/actionssecurity/auditlogging/vdp take
 // the token directly rather than a pre-built Client since they construct a
 // fresh Client per repo internally (see their own doc comments for why).
-func defaultGitHubCollectors(token string) []collect.Collector {
+func defaultGitHubCollectors(token string, hostConfig ghcollect.ClientConfig) []collect.Collector {
 	return append(collect.Collectors(),
-		orgsecurity.New(ghcollect.NewClient(token)),
-		repoprotection.New(token),
-		envseparation.New(token),
-		secretshygiene.New(token),
-		sasthistory.New(token),
-		scahistory.New(token),
-		provenance.New(token),
-		actionssecurity.New(token),
-		auditlogging.New(token),
-		vdp.New(token),
+		orgsecurity.New(ghcollect.NewClient(token, hostConfig)),
+		repoprotection.New(token, hostConfig),
+		envseparation.New(token, hostConfig),
+		secretshygiene.New(token, hostConfig),
+		sasthistory.New(token, hostConfig),
+		scahistory.New(token, hostConfig),
+		provenance.New(token, hostConfig),
+		actionssecurity.New(token, hostConfig),
+		auditlogging.New(token, hostConfig),
+		vdp.New(token, hostConfig),
 	)
 }
 
@@ -277,6 +278,19 @@ func runScanCmd(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+
+	// Fold in GITHUB_URL (issue #11) only for a github scan, and only after
+	// validate() has already rejected an explicit --github-url/github_url:
+	// against --platform azuredevops — a stray GITHUB_URL left in the
+	// environment from an unrelated github.com session must not affect an
+	// azuredevops scan. cfg is mutated (not just a local variable) so both
+	// buildScanDeps below and runScan see the same resolved value, and the
+	// pack's recorded Scope.GitHubURL (runScan) reflects what actually
+	// authenticated the scan, not just what --github-url/github_url: said.
+	if effectivePlatform(cfg.Platform) == platformGitHub {
+		cfg.GitHubURL = resolveGitHubURL(cfg)
+	}
+
 	deps, err := buildScanDeps(cfg, token, cmd.OutOrStdout())
 	if err != nil {
 		return err
@@ -360,6 +374,20 @@ func resolveScanToken(platform string) (string, error) {
 		return "", fmt.Errorf("GITHUB_TOKEN is not set")
 	}
 	return token, nil
+}
+
+// resolveGitHubURL picks the GHES base URL for a --platform github scan
+// (issue #11): --github-url / config file's github_url: (already merged
+// into cfg.GitHubURL by mergeScanConfig) wins if set, else GITHUB_URL from
+// the environment, else "" — which ghcollect.ResolveHostConfig treats as
+// "github.com, unchanged". Only called for a github scan; validate()
+// already rejects an explicit --github-url/github_url: for azuredevops, so
+// this never needs to guard against that itself.
+func resolveGitHubURL(cfg scanConfig) string {
+	if cfg.GitHubURL != "" {
+		return cfg.GitHubURL
+	}
+	return os.Getenv("GITHUB_URL")
 }
 
 // buildScanDeps wires the real dependencies runScanCmd passes to runScan,
@@ -458,12 +486,17 @@ func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, er
 		return deps, nil
 	}
 
-	client := ghcollect.NewClient(token)
+	hostConfig, err := ghcollect.ResolveHostConfig(cfg.GitHubURL, os.Getenv("GITHUB_CA_CERT"))
+	if err != nil {
+		return scanDeps{}, fmt.Errorf("--github-url: %w", err)
+	}
+
+	client := ghcollect.NewClient(token, hostConfig)
 	return scanDeps{
 		repoLister: &restRepoLister{client: client.REST},
 		orgChecker: &restOrgChecker{client: client.REST},
 		client:     client,
-		collectors: defaultGitHubCollectors(token),
+		collectors: defaultGitHubCollectors(token, hostConfig),
 		stdout:     stdout,
 		signer:     integrity.CosignSigner{},
 	}, nil
@@ -678,6 +711,14 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 			LookbackMonths:    scope.LookbackMonths,
 			Platform:          effectivePlatform(cfg.Platform),
 			Project:           cfg.Project,
+			// GitHubURL is cfg.GitHubURL as resolved by runScanCmd
+			// (--github-url/github_url:/GITHUB_URL, in that precedence —
+			// issue #11), empty for a github.com scan or any azuredevops
+			// scan (validate() already rejects an explicit --github-url
+			// there) — so a reader of a signed pack can tell which GitHub
+			// install actually produced it, rather than assuming
+			// api.github.com.
+			GitHubURL: cfg.GitHubURL,
 		},
 		ScanStartedAt: startedAt,
 		ScanEndedAt:   endedAt,
