@@ -216,6 +216,13 @@ func TestScanConfigValidate_PlatformProjectMatrix(t *testing.T) {
 		{"github, gogs url given", scanConfig{Org: "x", Platform: "github", GogsURL: "https://gogs.example.com"}, true},
 		{"empty platform, gogs url given", scanConfig{Org: "x", GogsURL: "https://gogs.example.com"}, true},
 		{"azuredevops, gogs url given", scanConfig{Org: "x", Platform: "azuredevops", Project: "proj", GogsURL: "https://gogs.example.com"}, true},
+		// --github-url belongs to a github scan only. The GHES branch
+		// expressed that as "not azuredevops" (gogs did not exist yet) and
+		// the gogs branch never learned about --github-url, so together
+		// they would have let it pass silently on a gogs scan.
+		{"gogs, github url given", scanConfig{Org: "x", Platform: "gogs", GogsURL: "https://gogs.example.com", GitHubURL: "https://ghe.example.com"}, true},
+		{"azuredevops, github url given", scanConfig{Org: "x", Platform: "azuredevops", Project: "proj", GitHubURL: "https://ghe.example.com"}, true},
+		{"github, github url given", scanConfig{Org: "x", Platform: "github", GitHubURL: "https://ghe.example.com"}, false},
 		// These two exist to prove validate() actually calls
 		// validateGogsURL. Without them, deleting that call left the whole
 		// suite green (mutation-verified) — so the URL rules, including
