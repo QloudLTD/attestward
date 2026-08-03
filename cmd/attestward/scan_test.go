@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -480,6 +482,51 @@ func TestRunScan_AccountTypeFlowsIntoScope(t *testing.T) {
 	}
 	if gotScope.AccountType != collect.AccountTypeUser {
 		t.Errorf("scope.AccountType = %q, want user (CheckAccount reported user)", gotScope.AccountType)
+	}
+}
+
+// TestRunScan_GHESVersionFlowsIntoScope mirrors
+// TestRunScan_AccountTypeFlowsIntoScope for issue #12: the GHES version
+// Client.GHESVersion observed from preflight's own CheckAccount call (the
+// guaranteed first authenticated request — see runScan's own comment) must
+// reach collect.Scope.GHESVersion, not just compile. Uses a real
+// httptest.Server and a real ghcollect.Client (rather than a fake) because
+// the version is genuinely observed from a response header, not injected.
+func TestRunScan_GHESVersionFlowsIntoScope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-GitHub-Enterprise-Version", "3.9.0")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"login":"attestward-demo","type":"Organization"}`))
+	}))
+	defer server.Close()
+
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	client := ghcollect.NewClient("ghp_test-token", cfg)
+
+	var gotScope collect.Scope
+	collectors := []collect.Collector{
+		fakeScanCollectorFunc{id: "DEMO.check", fn: func(_ context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+			gotScope = scope
+			return []model.CheckResult{{CheckID: "DEMO.check", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: scope.Org}}}, nil
+		}},
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "widgets"}}},
+		orgChecker: &restOrgChecker{client: client.REST},
+		client:     client,
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	scanCfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Repos: []string{"widgets"}}, scanConfig{}, nil)
+
+	if _, err := runScan(context.Background(), scanCfg, nil, deps); err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if gotScope.GHESVersion != "3.9.0" {
+		t.Errorf("scope.GHESVersion = %q, want 3.9.0", gotScope.GHESVersion)
 	}
 }
 

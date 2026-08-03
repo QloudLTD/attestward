@@ -577,6 +577,16 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		return scanResult{}, fmt.Errorf("resolve repos: %w", err)
 	}
 
+	// GHESVersion (issue #12): read after preflight's CheckAccount call
+	// above, the same guaranteed-first-authenticated-call reasoning
+	// HasWriteScope's own comment gives — deps.client is nil in every test
+	// that doesn't exercise preflight directly, matching accountType's own
+	// nil guard.
+	var ghesVersion string
+	if deps.client != nil {
+		ghesVersion = deps.client.GHESVersion()
+	}
+
 	scope := collect.Scope{
 		Org:               cfg.Org,
 		AccountType:       accountType,
@@ -585,6 +595,7 @@ func runScan(ctx context.Context, cfg scanConfig, checkFilter []string, deps sca
 		ReleaseTagPattern: cfg.ReleaseTagPattern,
 		LookbackReleases:  cfg.LookbackReleases,
 		LookbackMonths:    cfg.LookbackMonths,
+		GHESVersion:       ghesVersion,
 	}
 	accountTypeLabel := string(scope.AccountType)
 	if accountTypeLabel == "" {

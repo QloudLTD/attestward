@@ -99,3 +99,14 @@ func (c *Client) Scopes() []string {
 func (c *Client) HasWriteScope() bool {
 	return c.prov.scopes.HasWriteScope()
 }
+
+// GHESVersion returns the GitHub Enterprise Server version this Client's
+// target reported on its first authenticated response, or "" if either no
+// authenticated response has completed yet or the target is github.com
+// (which never sends the X-GitHub-Enterprise-Version header — see
+// hostVersionTracker). Resolved once and meant to be carried the way
+// collect.Scope.AccountType already is (issue #12's GHES epic) — a
+// collector should read it from collect.Scope, not call this directly.
+func (c *Client) GHESVersion() string {
+	return c.prov.hostVersion.Version()
+}

@@ -134,6 +134,40 @@ func TestCollect_AuditLogNotFound_NotCheckableNamesPlanAndScope(t *testing.T) {
 	}
 }
 
+// TestCollect_AuditLogNotFoundOnGHES_NamesLicenceNotPlan proves issue #12's
+// core fix: the exact same 404 TestCollect_AuditLogNotFound_
+// NamesPlanAndScope above produces "plan" for must instead name a GHES
+// licence limitation when scope.GHESVersion is set — github.com's "plan"
+// framing would simply be wrong on a GHES install, which has no per-org
+// plan tier at all.
+func TestCollect_AuditLogNotFoundOnGHES_NamesLicenceNotPlan(t *testing.T) {
+	org := "acme"
+	mux := http.NewServeMux()
+	registerAuditLogStatus(t, mux, org, http.StatusNotFound)
+	registerOrgPlan(t, mux, org, "free")
+	registerWebhooks(t, mux, org, "widgets", nil)
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{"widgets"}, GHESVersion: "3.9.0"})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	got := byID(results)[orgLogAvailableID]
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("org-log-available = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if strings.Contains(got.Reason, "plan") {
+		t.Errorf("Reason = %q, want no mention of \"plan\" on a GHES install", got.Reason)
+	}
+	if !strings.Contains(got.Reason, "GitHub Enterprise Server") {
+		t.Errorf("Reason = %q, want it to name GitHub Enterprise Server", got.Reason)
+	}
+	if got.Facts["ghes_version"] != "3.9.0" {
+		t.Errorf("ghes_version fact = %v, want %q", got.Facts["ghes_version"], "3.9.0")
+	}
+}
+
 func TestCollect_AuditLogForbidden_NotCheckablePermissionReason(t *testing.T) {
 	org := "acme"
 	mux := http.NewServeMux()

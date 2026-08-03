@@ -450,7 +450,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
 		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, hasMatchedWorkflows, skippedWorkflows, runsErr, sharedProv),
 		checkCadence(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, cadence, runsErr, sharedProv),
-		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, dsProv),
+		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, scope.GHESVersion, dsProv),
 	}
 }
 

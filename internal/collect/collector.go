@@ -59,6 +59,16 @@ type Scope struct {
 	ReleaseTagPattern string
 	LookbackReleases  int
 	LookbackMonths    int
+	// GHESVersion is the GitHub Enterprise Server version this scan's
+	// target reported (via the X-GitHub-Enterprise-Version response
+	// header — see ghcollect.Client.GHESVersion), resolved once during
+	// preflight the same way AccountType is. Empty for a github.com scan,
+	// or a GHES scan whose version couldn't be determined yet (no
+	// authenticated response has completed) — both cases mean the same
+	// thing to a collector: "assume github.com behavior" (issue #12's
+	// GHES epic). Azure DevOps collectors ignore this field entirely, the
+	// same way they ignore AccountType.
+	GHESVersion string
 }
 
 // Collector is the seam every platform-specific implementation satisfies

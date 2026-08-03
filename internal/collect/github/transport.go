@@ -46,9 +46,10 @@ var ErrWriteMethodRejected = fmt.Errorf("collect/github: this tool is read-only,
 // Building that allow-list now, before anything needs it, would be
 // speculative engineering for a code path this project doesn't use.
 type provenanceTransport struct {
-	base   http.RoundTripper
-	token  string
-	scopes *scopeTracker
+	base        http.RoundTripper
+	token       string
+	scopes      *scopeTracker
+	hostVersion *hostVersionTracker
 
 	mu         sync.Mutex
 	provenance []model.Provenance
@@ -58,7 +59,7 @@ func newProvenanceTransport(token string, base http.RoundTripper) *provenanceTra
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	return &provenanceTransport{base: base, token: token, scopes: &scopeTracker{}}
+	return &provenanceTransport{base: base, token: token, scopes: &scopeTracker{}, hostVersion: &hostVersionTracker{}}
 }
 
 func (t *provenanceTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -78,6 +79,7 @@ func (t *provenanceTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	}
 
 	t.scopes.observe(resp)
+	t.hostVersion.observe(resp)
 
 	body, readErr := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()

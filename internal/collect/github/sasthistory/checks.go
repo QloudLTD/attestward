@@ -397,13 +397,31 @@ func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *gh
 	}
 }
 
-func checkDefaultSetup(org, repo string, ds *ghgithub.DefaultSetupConfiguration, resp *ghgithub.Response, err error, prov []model.Provenance) model.CheckResult {
+// checkDefaultSetup probes GET /repos/{owner}/{repo}/code-scanning/default-setup
+// — one of the endpoints issue #12's GHES epic names as licence/version-
+// gated on GHES, unlike the shared repo/workflow/releases fetches
+// notCheckableReason otherwise serves, which aren't GHAS-licensed
+// features. ghesVersion (empty for github.com or an undetected GHES
+// version) lets ghcollect.ClassifyGate override notCheckableReason's
+// github.com-flavored "plan-gated" default with an accurate GHES reason
+// when this specific endpoint is what gated.
+func checkDefaultSetup(org, repo string, ds *ghgithub.DefaultSetupConfiguration, resp *ghgithub.Response, err error, ghesVersion string, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.default-setup"
 	if err != nil {
+		reason := notCheckableReason(resp, err, org, repo)
+		statusCode := 0
+		if resp != nil {
+			statusCode = resp.StatusCode
+		}
+		var facts map[string]any
+		if gate := ghcollect.ClassifyGate(statusCode, ghesVersion, ""); gate == ghcollect.GateKindLicence || gate == ghcollect.GateKindVersion {
+			reason = ghcollect.GateReason(gate, fmt.Sprintf("CodeQL default setup for %s/%s", org, repo), ghesVersion, "")
+			facts = map[string]any{"ghes_version": ghesVersion}
+		}
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: notCheckableReason(resp, err, org, repo),
-			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
+			Reason: reason,
+			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov, Facts: facts,
 		}
 	}
 
