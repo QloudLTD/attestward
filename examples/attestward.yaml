@@ -19,6 +19,23 @@
 # org-level API has no equivalent for one.
 org: my-org
 
+# Point the scan at a GitHub Enterprise Server install instead of github.com
+# (issue #11's GHES epic) — still --platform github (the default), not a
+# separate platform. Accepts either the install's browser-facing URL (as
+# below) or an already-API URL ("https://ghe.example.com/api/v3/"), without
+# double-appending "/api/v3". Leave commented out (or omit) for github.com —
+# every existing setup is unaffected. Falls back to the GITHUB_URL
+# environment variable if both this and --github-url are unset; a flag
+# always wins over either.
+#
+# A private/self-signed CA is common on a GHES install — set that via the
+# GITHUB_CA_CERT environment variable (no config-file key for it) rather
+# than here. See README.md's "GitHub Enterprise Server" section for token-
+# scope and network-reachability guidance specific to a GHES scan, and
+# docs/checks-reference.md for which checks' GHES behavior is confirmed
+# versus honestly unverified.
+# github_url: https://ghe.example.com
+
 # The "product line" being attested for. Leave empty (or omit entirely) to
 # scan every non-archived, non-fork repo in the account — attestward prints a
 # warning when it falls back to this, since scanning "everything" instead

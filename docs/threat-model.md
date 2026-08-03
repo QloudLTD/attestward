@@ -157,18 +157,33 @@ by API surface instead of by check.
 
 ### No network egress besides the platform API
 
-**Enforcement:** `internal/collect/github/client.go`'s `NewClient` never calls
-`WithEnterpriseURLs` or otherwise overrides `BaseURL`, so go-github's own default
-(`https://api.github.com/`, `github.go`'s `defaultBaseURL`) is the only host the REST
-client ever targets; the GraphQL client shares the same underlying `http.Client`.
+**Enforcement:** `internal/collect/github/client.go`'s `NewClient` only ever targets
+go-github's own default (`https://api.github.com/`, `github.go`'s `defaultBaseURL`)
+**unless** the operator explicitly configures a GitHub Enterprise Server host via
+`--github-url`/`github_url:`/`GITHUB_URL` (issue #11's GHES epic) — itself still "the
+platform API," just a self-hosted instance of it the operator names, not an
+attestward-initiated egress to some third host. `ResolveHostConfig`
+(`internal/collect/github/hostconfig.go`) is the only place a raw URL is parsed and
+turned into a `ClientConfig`; every collector's `ghcollect.NewClient` call site carries
+that same config rather than each independently deciding a host (`rg 'NewClient\('
+internal/collect/github cmd/attestward` shows none built without it). The GraphQL
+client shares the same underlying `http.Client` and the same resolved host.
 `internal/collect/azuredevops/client.go`'s `NewClient` builds its own `http.Client`
 too, but only ever targets its four hardcoded `HostXxx` constants (`dev.azure.com`,
 `vssps.dev.azure.com`, `advsec.dev.azure.com`, `auditservice.dev.azure.com`) — nothing
-in that package accepts a caller-supplied host or reads one from the environment.
-`git grep -rln 'http.Client\|net/http"' --include=*.go | grep -v _test | grep -v
-internal/collect/github/ | grep -v internal/collect/azuredevops/` returns nothing — no
-package in this codebase other than these two platform clients constructs an HTTP
-client or makes a direct HTTP call.
+in that package accepts a caller-supplied host or reads one from the environment; the
+GHES host seam is GitHub-only. `git grep -rln 'http.Client\|net/http"' --include=*.go
+| grep -v _test | grep -v internal/collect/github/ | grep -v
+internal/collect/azuredevops/` returns nothing — no package in this codebase other
+than these two platform clients constructs an HTTP client or makes a direct HTTP call.
+
+**`GITHUB_CA_CERT`** (env-only, no flag/config key) is the one way this codebase loads
+external material into the TLS trust store used for that egress — a PEM file path,
+read once at preflight (`ResolveHostConfig`) and appended to a copy of the system trust
+store (never replacing it, never mutating the shared `http.DefaultTransport`). This is
+squarely inside "the platform API": it changes which certificate authorities are
+trusted to authenticate the one host attestward talks to, not what host that is or
+whether anything else gets contacted.
 
 **Signing egress is a distinct, opt-in exception, not a violation of this claim:**
 `attestward scan --sign` and `attestward verify` (when a `.bundle` is present) shell out to
@@ -369,6 +384,28 @@ diagram doesn't redraw per platform.
   an accepted, unavoidable trust dependency of "verify via the platform API" as a
   strategy; the alternative (asking the producer, self-attestation) is *less* reliable,
   not more, which is the tool's whole premise.
+- **A self-hosted GHES is operated by the same party being attested — say so plainly.**
+  Every trust dependency in the bullet above still holds for a github.com scan (GitHub,
+  as the platform operator, is a party independent of whoever is being attested); a GHES
+  scan removes that independence, since the org signing the CISA form also controls the
+  install its own evidence comes from — administers the API, the database it reads
+  from, and the audit-log retention behind it. This does **not** invalidate the
+  evidence attestward collects (a GHES admin willing to falsify API responses to pass
+  this tool's checks could just as easily falsify a self-attestation answer, or any
+  other producer-supplied claim — this isn't a new risk this tool introduces), but a
+  reader of a GHES-sourced pack should know the verifying party and the attested party
+  share an operator in a way a github.com-sourced pack's do not, and weight the evidence
+  accordingly. `EvidencePack.Scope.GitHubURL` (issue #11) records which install produced
+  the pack precisely so a reader can make this judgment rather than assuming
+  `api.github.com`.
+- **GHES support is fixture-only, never exercised against a real install.** Issues
+  #11-#14's entire GHES epic — URL/CA resolution, host/version detection,
+  licence-vs-version gating, the per-check divergence audit — is proven with
+  `httptest`/`ghfixture` standing in for a GHES host, because no real GHES instance
+  exists in this project's CI or test infrastructure. The routing and gating logic
+  itself is real and tested; whether it matches a genuine GHES install's actual
+  behavior in every particular (see the `GHESNoteUnverified` checks in
+  [docs/checks-reference.md](checks-reference.md)) is not independently confirmed.
 - **A user with a tampered binary defeats pack signing.** Users should verify release
   signatures/checksums on install (see SECURITY.md) — the same bootstrapping caveat as
   the cosign-trust risk above.

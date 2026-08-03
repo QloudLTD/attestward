@@ -323,6 +323,84 @@ what the token couldn't read (diffing the degraded pack against the full one sho
 silently wrong verified result), and only a token that can't see the target account at
 all fails preflight outright.
 
+### GitHub Enterprise Server (GHES)
+
+`attestward scan` can target a GHES install instead of github.com — it's still
+`--platform github` (the default), not a separate platform: same checks, same mappings,
+same collector code, only the host and feature-availability gating differ.
+
+```bash
+export GITHUB_TOKEN=ghp_...
+attestward scan --org my-org --github-url https://ghe.example.com --out ./evidence/
+```
+
+`--github-url` (config file: `github_url:`; env: `GITHUB_URL`, checked only if neither the
+flag nor the config file set it) accepts either the install's browser-facing URL (as
+above) or an already-API URL (`https://ghe.example.com/api/v3/`) — both work, without
+double-appending `/api/v3`. Leaving it unset is a no-op: every existing github.com setup
+is unaffected. It's rejected outright for `--platform azuredevops`, the same way
+`--project` is rejected for `--platform github`.
+
+**Private CA:** set `GITHUB_CA_CERT=/path/to/ca.pem` (environment variable only — no
+flag or config-file key) if the install uses a self-signed or internal CA, common for a
+GHES install. It's appended to the system trust store, not a replacement for it, and
+loaded once at preflight — a bad or unreadable path fails the scan immediately with an
+actionable error, rather than a confusing TLS failure deep into the run.
+
+**Outbound proxy:** `HTTPS_PROXY`/`https_proxy` (Go's standard environment-variable
+proxy convention) is honored the same way it always was — the custom transport GHES
+support adds doesn't bypass it.
+
+**Network reachability, and how that affects CI:** a GHES install is almost always
+inside a private network, not reachable from the public internet the way github.com
+is — which means a **GitHub-hosted CI runner cannot reach it at all**. Running
+`attestward scan --github-url ...` inside your own CI pipeline against your own GHES
+install requires a runner that's actually on that network (a self-hosted runner, or one
+peered/VPNed into it) — the same constraint any other tool talking to an internal GHES
+API faces, not something specific to attestward. A github.com scan has no such
+requirement; every hosted CI runner can already reach `api.github.com`.
+
+**Token scopes differ from github.com.** GHES generally supports the same classic
+PAT scopes this README's [token table](#required-token-permissions) already documents
+(`repo`, `read:org`, `read:audit_log`, etc.) — those are the safest choice for a GHES
+scan. Two things genuinely differ and are worth calling out rather than silently
+assuming github.com behavior:
+- **Fine-grained PATs are version-gated on GHES** — they didn't exist on early GHES
+  releases at all, and where they do exist, coverage of the same fine-grained
+  permission categories github.com has isn't guaranteed to match exactly. If your GHES
+  version doesn't offer fine-grained PATs (or you're unsure), issue a classic PAT with
+  the scopes from the token table instead — least-privilege there means the narrowest
+  *classic* scope set the collectors you're running actually need, not necessarily
+  fine-grained.
+- **Scope introspection may behave differently.** `HasWriteScope`'s least-privilege
+  warning reads the `X-OAuth-Scopes` response header classic PATs send on every
+  authenticated response — this tool has not independently confirmed GHES sends the
+  identical header in every version its authors could plausibly still be running. If
+  the warning never fires against your GHES install even with a broad token, that's a
+  known, honestly-stated gap in this signal, not proof the token is actually narrow —
+  scope the token deliberately rather than relying on the warning to catch an overbroad one.
+
+**What changes about the results, and what's actually been verified:** every check ID,
+status meaning, and remediation is identical to a github.com scan.
+[docs/checks-reference.md](docs/checks-reference.md) documents each check's own GHES
+divergence — most are basic REST endpoints expected to work unmodified
+(`GHESNoteSupported`); a handful depend on GitHub Advanced Security being licensed on
+the install, the same dependency github.com already has for a private repo
+(`GHESNoteLicenceGated`, e.g. code scanning, secret scanning, push protection); a few
+are recent or unusual enough on github.com (Artifact Attestations, Private
+Vulnerability Reporting, Dependabot's GitHub Connect dependency) that this tool's
+authors genuinely don't know their GHES availability (`GHESNoteUnverified`) — stated
+honestly rather than guessed at. **None of this has been exercised against a real GHES
+instance**: there is no GHES install in this project's CI or test infrastructure, so
+every scenario above is proven with recorded-fixture tests standing in for a GHES host,
+never a live one. The mechanism is real and tested; whether it matches an actual GHES
+install's behavior in every particular is not independently confirmed.
+
+See [examples/attestward.yaml](examples/attestward.yaml) for the config-file form
+(`github_url:` — `GITHUB_CA_CERT` is env-only, with no config-file equivalent), and
+[docs/architecture.md](docs/architecture.md)'s GHES section for the implementation-level
+detail (host/version detection, licence-vs-version gating, the per-check audit).
+
 ### Azure DevOps: required token scopes
 
 `attestward scan --platform azuredevops` reads `AZURE_DEVOPS_EXT_PAT` from the
