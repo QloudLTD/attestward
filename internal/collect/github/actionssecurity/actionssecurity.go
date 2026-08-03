@@ -277,7 +277,7 @@ func (c *Collector) ID() string { return collectorID }
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
-		return collectRepo(ctx, client, scope.Org, repo), nil
+		return collectRepo(ctx, client, scope.Org, repo, scope), nil
 	})
 
 	var all []model.CheckResult
@@ -300,7 +300,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // five checks needs its own additional API call except token-permissions'
 // context fact. It never returns an error; every failure becomes a
 // not-checkable result for the affected check(s).
-func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string) []model.CheckResult {
+func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string, scope collect.Scope) []model.CheckResult {
 	// prevLen starts at 0, not len(client.Provenance()) after the Get call
 	// below — client is freshly constructed per repo, so Provenance() is
 	// empty at this point anyway, and starting here means the first
@@ -316,14 +316,14 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, scope), client.Provenance())
 	}
 	defaultBranch := repository.GetDefaultBranch()
 	private := repository.GetPrivate()
 
 	units, skippedDirect, wfResp, err := fetchWorkflows(ctx, client, org, repo, defaultBranch)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo, scope), client.Provenance())
 	}
 
 	reusable, unresolvedExternal, skippedReusable := resolveReusableWorkflows(ctx, client, org, repo, units)
@@ -362,13 +362,13 @@ func fetchDefaultWorkflowPermissions(ctx context.Context, client *ghcollect.Clie
 	return perm.GetDefaultWorkflowPermissions(), true
 }
 
-func notCheckableReason(resp *ghgithub.Response, err error, org, repo string) string {
+func notCheckableReason(resp *ghgithub.Response, err error, org, repo string, scope collect.Scope) string {
 	if resp != nil {
 		switch {
 		case resp.StatusCode == http.StatusForbidden:
 			return fmt.Sprintf("token lacks permission to read %s/%s", org, repo)
 		case ghcollect.IsPlanGated(resp.StatusCode):
-			return fmt.Sprintf("feature not available for %s/%s (plan-gated, or repository not found)", org, repo)
+			return ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion, "feature", org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query %s/%s: %v", org, repo, err)

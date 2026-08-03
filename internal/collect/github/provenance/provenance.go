@@ -285,7 +285,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mapping.ScannerSignatureRegistry, org, repo string, scope collect.Scope) []model.CheckResult {
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, scope), client.Provenance())
 	}
 	defaultBranch := repository.GetDefaultBranch()
 
@@ -303,7 +303,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	allWorkflows, wfResp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo, scope), client.Provenance())
 	}
 	// The skipped return now feeds checkProvenanceWorkflow directly (issue
 	// #207 — this was the one tool-configured-shaped check on either
@@ -316,7 +316,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	tagPattern := scope.ReleaseTagPattern
 	rawReleases, relResp, relErr := runhistory.FetchReleases(ctx, client, org, repo)
 	if relErr != nil {
-		return allNotCheckable(org, repo, notCheckableReason(relResp, relErr, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(relResp, relErr, org, repo, scope), client.Provenance())
 	}
 	rawByTag := make(map[string]*ghgithub.RepositoryRelease, len(rawReleases))
 	releaseInfos := make([]runhistory.ReleaseInfo, 0, len(rawReleases))

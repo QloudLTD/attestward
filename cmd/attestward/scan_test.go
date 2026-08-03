@@ -1266,3 +1266,55 @@ func TestRunScan_DeterministicAcrossRunsWithFixedClock(t *testing.T) {
 		t.Error("two on-disk evidence.json files from identical fixtures are not byte-identical")
 	}
 }
+
+// TestRunScan_IsGHESComesFromTheConfiguredTarget pins the load-bearing line
+// of the GHES gating fix, which previously survived full reversion —
+// including hardcoding IsGHES to false, silently undoing the entire
+// user-visible change — with the suite staying green.
+//
+// It must come from the configured --github-url, NOT from whether a version
+// header happened to arrive: a GHES install behind a proxy that strips
+// unknown X-* headers reports no version, and inferring "github.com" from
+// that produced packs asserting a GitHub Enterprise Cloud plan tier
+// alongside their own scope.github_url naming the self-hosted install.
+func TestRunScan_IsGHESComesFromTheConfiguredTarget(t *testing.T) {
+	var gotScope collect.Scope
+	spy := scopeCapturingCollector{captured: &gotScope}
+
+	for _, tc := range []struct {
+		name      string
+		githubURL string
+		want      bool
+	}{
+		{"github.com scan", "", false},
+		{"GHES scan, no version header observed", "https://ghe.example.com", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mergeScanConfig(scanConfig{Org: "acme", GitHubURL: tc.githubURL}, scanConfig{}, nil)
+			deps := scanDeps{
+				repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "widgets"}}},
+				collectors: []collect.Collector{spy},
+				stdout:     &bytes.Buffer{},
+			}
+			if _, err := runScan(context.Background(), cfg, nil, deps); err != nil {
+				t.Fatalf("runScan: %v", err)
+			}
+			if gotScope.IsGHES != tc.want {
+				t.Errorf("Scope.IsGHES = %v, want %v — it must follow the configured target, not an observed version", gotScope.IsGHES, tc.want)
+			}
+			if gotScope.GHESVersion != "" {
+				t.Errorf("Scope.GHESVersion = %q, want empty in this test (no live client observed a header)", gotScope.GHESVersion)
+			}
+		})
+	}
+}
+
+// scopeCapturingCollector records the Scope it was handed, so a test can
+// assert on fields no rendered output exposes.
+type scopeCapturingCollector struct{ captured *collect.Scope }
+
+func (c scopeCapturingCollector) ID() string { return "SPY.scope" }
+func (c scopeCapturingCollector) Collect(_ context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+	*c.captured = scope
+	return nil, nil
+}

@@ -2,7 +2,9 @@ package github
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/google/go-github/v75/github"
 	"github.com/shurcooL/githubv4"
@@ -21,6 +23,35 @@ type Client struct {
 	GraphQL *githubv4.Client
 
 	prov *provenanceTransport
+}
+
+// sameHostRedirectPolicy returns an http.Client CheckRedirect that follows
+// a redirect only while it stays on the same host as base (api.github.com
+// when base is nil, i.e. an unconfigured github.com scan), and refuses any
+// hop that would change host.
+//
+// Comparing Host rather than the full URL is deliberate: a rename redirect
+// changes the path, which is exactly the case that must keep working. Scheme
+// is compared too, so an https -> http downgrade on the same host is refused
+// — that would put the token on the wire in plaintext, which is the same
+// harm by a quieter route.
+func sameHostRedirectPolicy(base *url.URL) func(*http.Request, []*http.Request) error {
+	wantHost := "api.github.com"
+	wantScheme := "https"
+	if base != nil {
+		wantHost = base.Host
+		wantScheme = base.Scheme
+	}
+	return func(req *http.Request, via []*http.Request) error {
+		if req.URL.Host != wantHost || req.URL.Scheme != wantScheme {
+			return fmt.Errorf("collect/github: refusing a redirect from %s://%s to %s://%s — following it would re-send the token to a host the scan did not target",
+				wantScheme, wantHost, req.URL.Scheme, req.URL.Host)
+		}
+		if len(via) >= 10 {
+			return fmt.Errorf("collect/github: refusing to follow more than %d redirects", len(via))
+		}
+		return nil
+	}
 }
 
 // NewClient builds a Client authenticated with token (typically read from
@@ -55,30 +86,29 @@ func NewClient(token string, cfg ClientConfig) *Client {
 	rl := newRateLimitTransport(prov)
 	httpClient := &http.Client{
 		Transport: rl,
-		// Redirects are never followed, and this is a security boundary
-		// rather than a preference.
+		// Redirects are followed only when they stay on the host the
+		// caller configured. Both halves matter.
 		//
-		// Auth is injected inside provenanceTransport, which sits BELOW
-		// http.Client's redirect machinery. Go strips sensitive headers on
-		// a cross-domain redirect only for headers set on the original
-		// request, so it never sees ours: every hop would get a freshly
-		// minted "Authorization: Bearer <t>" for whatever host the
-		// redirect names, and the redirect target's body would come back
-		// as the API's answer with a nil error — a verified-pass in a
-		// signed pack sourced from a machine nobody chose.
+		// Refusing cross-host hops is a security boundary: auth is
+		// injected inside provenanceTransport, which sits BELOW this
+		// machinery, so Go's cross-domain header stripping never sees it.
+		// Before this policy existed, a --github-url answering
+		// 302 -> http://attacker/ handed that host a valid PAT and its
+		// body came back as the API's answer with a nil error — a
+		// verified-pass in a signed pack, sourced from a machine nobody
+		// chose. Reproduced before the fix.
 		//
-		// This package was genuinely safe without the policy for as long
-		// as it talked only to api.github.com. GHES support made the base
-		// URL user-supplied (see hostconfig.go), which is exactly the
-		// precondition that makes it reachable — the same reasoning, and
-		// the same fix, as internal/collect/gogs. An http:// base URL
-		// against an on-path attacker needs only an injected 302.
+		// Following same-host hops is a correctness requirement, and
+		// refusing them outright was a regression found in review:
+		// GitHub documents 301 for renamed or transferred repositories
+		// and organizations, which net/http had always followed
+		// transparently. A flat refusal broke every scan naming a repo by
+		// its old name — on github.com, where nothing about GHES applies.
+		// The sibling Gogs client does refuse outright, and that remains
+		// right there: Gogs has no rename-redirect semantics to preserve.
 		//
-		// The GraphQL client shares this http.Client, so it is covered by
-		// the same policy.
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+		// The GraphQL client shares this http.Client and is covered too.
+		CheckRedirect: sameHostRedirectPolicy(cfg.RESTBaseURL),
 	}
 
 	rest := github.NewClient(httpClient)

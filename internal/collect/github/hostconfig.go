@@ -93,6 +93,15 @@ func ResolveHostConfig(rawURL, caCertPath string) (ClientConfig, error) {
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return ClientConfig{}, fmt.Errorf("--github-url must use http or https (e.g. https://ghe.example.com)")
 	}
+	// Rejected rather than silently dropped, matching validateGogsURL.
+	// URL.Parse's reference resolution discards these from every actual
+	// request, but the raw string is recorded verbatim into
+	// scope.github_url — so a "?token=…" paste would be dropped from the
+	// wire and kept in the signed pack, which is the worst of both.
+	// ForceQuery catches a bare trailing "?", which leaves RawQuery empty.
+	if parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" {
+		return ClientConfig{}, fmt.Errorf("--github-url must be a base URL, without a query string or fragment")
+	}
 
 	// WithEnterpriseURLs both re-validates the URL and applies go-github's
 	// own "/api/v3/" suffixing rule (a no-op when the suffix is already

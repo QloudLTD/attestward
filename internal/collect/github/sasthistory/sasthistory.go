@@ -315,13 +315,13 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mapping.ScannerSignatureRegistry, org, repo string, scope collect.Scope) []model.CheckResult {
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, scope), client.Provenance())
 	}
 	defaultBranch := repository.GetDefaultBranch()
 
 	allWorkflows, wfResp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo, scope), client.Provenance())
 	}
 
 	// Split out the CodeQL default-setup virtual entry (if present) from
@@ -357,7 +357,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	rawReleases, relResp, err := runhistory.FetchReleases(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(relResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(relResp, err, org, repo, scope), client.Provenance())
 	}
 	// The tag-pattern filter runs here, before resolution, so an
 	// unresolvable tag only counts as a "drop" (below) when it's plausibly
@@ -458,10 +458,10 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	hasMatchedWorkflows := len(matchedWorkflows) > 0
 
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
+		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, scope, sharedProv),
 		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, hasMatchedWorkflows, skippedWorkflows, runsErr, sharedProv),
 		checkCadence(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, cadence, runsErr, sharedProv),
-		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, scope.GHESVersion, scope.IsGHES, dsProv),
+		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, scope, dsProv),
 	}
 }
 

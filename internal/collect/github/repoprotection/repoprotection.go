@@ -183,11 +183,21 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
-			// GHESNoteSupported for all six (issue #13): repo fetch,
+			// GHESNoteUnverified for all six, corrected in review: the
+			// original audit marked them Supported ("expected to work
+			// unmodified on GHES"), but that conflated licence-gating with
+			// version availability. The repository-rulesets endpoints
+			// (/rules/branches/{branch}, /rulesets/{id}) are recent enough
+			// that whether a given GHES release ships them at all is
+			// genuinely unknown to this project — and an endpoint that
+			// does not exist answers 404 exactly as a licence gate would.
+			// Claiming "expected to work" would be an availability
+			// assertion with nothing behind it. Original note follows:
+			// repo fetch,
 			// branch-protection, and rulesets are basic REST API surface,
 			// not gated by GitHub Advanced Security or any other
 			// Enterprise license.
-			GHESNote:   ghcollect.GHESNoteSupported,
+			GHESNote:   ghcollect.GHESNoteUnverified,
 			FixtureRef: fixtureRef,
 		})
 	}
@@ -241,7 +251,7 @@ func (c *Collector) ID() string { return collectorID }
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
-		return collectRepo(ctx, client, scope.Org, repo), nil
+		return collectRepo(ctx, client, scope.Org, repo, scope), nil
 	})
 
 	var all []model.CheckResult
@@ -266,10 +276,10 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // collectRepo resolves effective branch protection for one repo's default
 // branch and emits all six CheckResults. It never returns an error; every
 // failure becomes a not-checkable result for the affected check(s).
-func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string) []model.CheckResult {
+func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string, scope collect.Scope) []model.CheckResult {
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, false, scope), client.Provenance())
 	}
 	branch := repository.GetDefaultBranch()
 	if branch == "" {
@@ -284,14 +294,14 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 			// on this endpoint and which this collector treats as a
 			// legitimate, non-error input to the merge below (many repos
 			// are ruleset-only, with zero legacy protection).
-			return allNotCheckable(org, repo, notCheckableReason(legacyResp, legacyErr, org, repo), client.Provenance())
+			return allNotCheckable(org, repo, notCheckableReason(legacyResp, legacyErr, org, repo, true, scope), client.Provenance())
 		}
 		legacy = nil
 	}
 
 	rules, rulesResp, rulesErr := client.REST.Repositories.GetRulesForBranch(ctx, org, repo, branch, nil)
 	if rulesErr != nil {
-		return allNotCheckable(org, repo, notCheckableReason(rulesResp, rulesErr, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(rulesResp, rulesErr, org, repo, true, scope), client.Provenance())
 	}
 
 	rulesets, bypassLookupErr := fetchRulesetsForBypassActors(ctx, client, org, repo, rules)
@@ -362,12 +372,29 @@ func relevantRulesetIDs(rules *ghgithub.BranchRules) map[int64]struct{} {
 	return ids
 }
 
-func notCheckableReason(resp *ghgithub.Response, err error, org, repo string) string {
+// notCheckableReason explains why protection could not be read.
+//
+// repoFound records whether an earlier call in the same Collect already
+// proved the repository exists. It matters because a 404 here means two
+// different things: on a first call it may genuinely be a missing or
+// invisible repo, but once the repo has been fetched successfully, a later
+// 404 cannot be "repo not found" — the successful fetch is in the same
+// result's own Provenance, which would flatly contradict the claim.
+//
+// That is not hypothetical. On a GitHub Enterprise Server release without
+// the repository-rulesets API, GetRulesForBranch 404s on a repo that was
+// just read successfully, and all six C02 checks went not-checkable saying
+// the repo was not found.
+func notCheckableReason(resp *ghgithub.Response, err error, org, repo string, repoFound bool, scope collect.Scope) string {
 	if resp != nil {
-		switch resp.StatusCode {
-		case http.StatusForbidden:
+		switch {
+		case resp.StatusCode == http.StatusForbidden:
 			return fmt.Sprintf("token lacks permission to read protection settings on %s/%s", org, repo)
-		case http.StatusNotFound:
+		case resp.StatusCode == http.StatusNotFound && repoFound:
+			return ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion,
+				"the branch-protection or rulesets API", org, repo) +
+				". This repository was read successfully earlier in the same scan, so it is not a missing repository"
+		case resp.StatusCode == http.StatusNotFound:
 			return fmt.Sprintf("%s/%s not found, or not visible to this token", org, repo)
 		}
 	}

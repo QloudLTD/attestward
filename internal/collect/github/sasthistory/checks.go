@@ -7,19 +7,20 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
+	"gitlab.com/sioakeim/attestward/internal/collect"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/runhistory"
 	"gitlab.com/sioakeim/attestward/internal/mapping"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
-func notCheckableReason(resp *ghgithub.Response, err error, org, repo string) string {
+func notCheckableReason(resp *ghgithub.Response, err error, org, repo string, scope collect.Scope) string {
 	if resp != nil {
 		switch {
 		case resp.StatusCode == http.StatusForbidden:
 			return fmt.Sprintf("token lacks permission to read %s/%s", org, repo)
 		case ghcollect.IsPlanGated(resp.StatusCode):
-			return fmt.Sprintf("feature not available for %s/%s (plan-gated, or repository not found)", org, repo)
+			return ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion, "feature", org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query %s/%s: %v", org, repo, err)
@@ -98,7 +99,7 @@ func matchConfidence(matched []runhistory.MatchedWorkflow) (hasAny, hasHighOrMed
 // couldn't fully inspect means "no SAST tool configured" rests on
 // incomplete evidence, not a confirmed absence. Mirrors the identical
 // treatment already shipped for azuredevops/scahistory's checkToolConfigured.
-func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, skipped []runhistory.SkippedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, prov []model.Provenance) model.CheckResult {
+func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, skipped []runhistory.SkippedWorkflow, ds *ghgithub.DefaultSetupConfiguration, dsResp *ghgithub.Response, dsErr error, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.tool-configured"
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
@@ -124,7 +125,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	if !hasAny && unconfirmedDS {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("no SAST tool detected in any workflow, and the CodeQL default-setup query itself failed: %s", notCheckableReason(dsResp, dsErr, org, repo)),
+			Reason: fmt.Sprintf("no SAST tool detected in any workflow, and the CodeQL default-setup query itself failed: %s", notCheckableReason(dsResp, dsErr, org, repo, scope)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 			Facts: map[string]any{"skipped_workflows": skipDetails},
 		}
@@ -405,18 +406,24 @@ func checkCadence(org, repo string, matched []runhistory.MatchedWorkflow, ds *gh
 // version) lets ghcollect.ClassifyGate override notCheckableReason's
 // github.com-flavored "plan-gated" default with an accurate GHES reason
 // when this specific endpoint is what gated.
-func checkDefaultSetup(org, repo string, ds *ghgithub.DefaultSetupConfiguration, resp *ghgithub.Response, err error, ghesVersion string, isGHES bool, prov []model.Provenance) model.CheckResult {
+func checkDefaultSetup(org, repo string, ds *ghgithub.DefaultSetupConfiguration, resp *ghgithub.Response, err error, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C05.sast.default-setup"
 	if err != nil {
-		reason := notCheckableReason(resp, err, org, repo)
+		reason := notCheckableReason(resp, err, org, repo, scope)
 		statusCode := 0
 		if resp != nil {
 			statusCode = resp.StatusCode
 		}
 		var facts map[string]any
-		if gate := ghcollect.ClassifyGate(statusCode, isGHES, ghesVersion, ""); gate == ghcollect.GateKindLicence || gate == ghcollect.GateKindVersion {
-			reason = ghcollect.GateReason(gate, fmt.Sprintf("CodeQL default setup for %s/%s", org, repo), ghesVersion, "")
-			facts = map[string]any{"ghes_version": ghesVersion}
+		if gate := ghcollect.ClassifyGate(statusCode, scope.IsGHES, scope.GHESVersion, ""); gate == ghcollect.GateKindLicence || gate == ghcollect.GateKindVersion {
+			reason = ghcollect.GateReason(gate, fmt.Sprintf("CodeQL default setup for %s/%s", org, repo), scope.GHESVersion, "")
+			// Only recorded when it was actually observed. Writing
+			// "ghes_version": "" would assert an empty observation into a
+			// signed pack, directly contradicting the Reason this same
+			// branch produces when the version is unknown.
+			if scope.GHESVersion != "" {
+				facts = map[string]any{"ghes_version": scope.GHESVersion}
+			}
 		}
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,

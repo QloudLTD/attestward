@@ -68,6 +68,12 @@ type Scope struct {
 	// thing to a collector: "assume github.com behavior" (issue #12's
 	// GHES epic). Azure DevOps collectors ignore this field entirely, the
 	// same way they ignore AccountType.
+	// Captured at preflight, from the first response that carried the
+	// header — so an install that announces its version only on later
+	// responses reads as "did not report a version" here. Every collector
+	// builds its own Client with its own tracker, so nothing observed
+	// mid-scan flows back into this field. Reasons built from it should
+	// say the version was not reported, never that the install has none.
 	GHESVersion string
 	// IsGHES is whether this scan targets a GitHub Enterprise Server
 	// install, resolved from the configured --github-url at preflight

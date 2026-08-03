@@ -217,7 +217,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
-		return collectRepo(ctx, client, scope.Org, repo), nil
+		return collectRepo(ctx, client, scope.Org, repo, scope), nil
 	})
 
 	all := []model.CheckResult{orgResult}
@@ -237,7 +237,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // resolution, so its own failure must never block the other two, and vice
 // versa. Provenance is attributed per group via snapshot-diff, matching
 // secretshygiene's identical two-call pattern.
-func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string) []model.CheckResult {
+func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string, scope collect.Scope) []model.CheckResult {
 	resolved, resolveErr := resolveSecurityMD(ctx, client, org, repo)
 	securityMDProv := client.Provenance()
 
@@ -246,7 +246,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 
 	enabled, prResp, prErr := client.REST.Repositories.IsPrivateReportingEnabled(ctx, org, repo)
 	privateReportingProv := tailProvenance(client.Provenance(), len(securityMDProv))
-	privateReporting := checkPrivateReporting(org, repo, enabled, prResp, prErr, privateReportingProv)
+	privateReporting := checkPrivateReporting(org, repo, enabled, prResp, prErr, scope, privateReportingProv)
 
 	return []model.CheckResult{securityMD, intakeChannel, privateReporting}
 }
@@ -362,7 +362,7 @@ func checkIntakeChannel(org, repo string, resolved resolvedSecurityMD, resolveEr
 // are — hedged as not-checkable rather than asserted as verified-fail,
 // consistent with this codebase's "never assert on an ambiguous signal"
 // pattern (e.g. C09's IsPlanGated treatment).
-func checkPrivateReporting(org, repo string, enabled bool, resp *ghgithub.Response, err error, prov []model.Provenance) model.CheckResult {
+func checkPrivateReporting(org, repo string, enabled bool, resp *ghgithub.Response, err error, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = privateReportingID
 	if err == nil {
 		status := model.StatusVerifiedFail
@@ -380,11 +380,18 @@ func checkPrivateReporting(org, repo string, enabled bool, resp *ghgithub.Respon
 	reason := fmt.Sprintf("could not query private-vulnerability-reporting status for %s/%s: %v", org, repo, err)
 	switch {
 	case resp != nil && ghcollect.IsPlanGated(resp.StatusCode):
-		reason = fmt.Sprintf(
-			"private-vulnerability-reporting status returned %d — this repo's plan may not include the feature "+
-				"(observed on private repos without GHAS, mirroring C04's secret-scanning plan gate) or it may not "+
-				"be visible to this token; GitHub's docs don't confirm this status code for this endpoint, so this "+
-				"is reported as not-checkable rather than a confirmed disabled state", resp.StatusCode)
+		// Routed through the shared helper rather than hand-written: this
+		// site previously asserted that "this repo's plan may not include
+		// the feature", citing research done entirely on github.com, and
+		// said it on GitHub Enterprise Server installs too — which have no
+		// per-repo plan tier for it to be about. GitHub's own docs do not
+		// confirm this status code for this endpoint either way, which is
+		// why the result stays not-checkable rather than a confirmed
+		// disabled state on either host.
+		reason = fmt.Sprintf("%s (GitHub's documentation does not confirm status %d for this endpoint, so this is "+
+			"not reported as a confirmed disabled state)",
+			ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion, "private vulnerability reporting", org, repo),
+			resp.StatusCode)
 	case resp != nil && resp.StatusCode == http.StatusForbidden:
 		reason = fmt.Sprintf("token lacks permission to read private-vulnerability-reporting status on %s/%s", org, repo)
 	}

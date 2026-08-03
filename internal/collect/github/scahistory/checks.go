@@ -9,6 +9,7 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
+	"gitlab.com/sioakeim/attestward/internal/collect"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/runhistory"
 	"gitlab.com/sioakeim/attestward/internal/mapping"
@@ -27,13 +28,13 @@ const dependencyReviewSignatureID = "dependency-review-action"
 // single knob.
 const criticalTriageThresholdDays = 30.0
 
-func notCheckableReason(resp *ghgithub.Response, err error, org, repo string) string {
+func notCheckableReason(resp *ghgithub.Response, err error, org, repo string, scope collect.Scope) string {
 	if resp != nil {
 		switch {
 		case resp.StatusCode == http.StatusForbidden:
 			return fmt.Sprintf("token lacks permission to read %s/%s", org, repo)
 		case ghcollect.IsPlanGated(resp.StatusCode):
-			return fmt.Sprintf("feature not available for %s/%s (plan-gated, or repository not found)", org, repo)
+			return ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion, "feature", org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query %s/%s: %v", org, repo, err)
@@ -72,7 +73,7 @@ func matchConfidence(matched []runhistory.MatchedWorkflow) (hasAny, hasHighOrMed
 // couldn't fully inspect means "no SCA tool configured" rests on
 // incomplete evidence, not a confirmed absence. Mirrors the identical
 // treatment already shipped for azuredevops/scahistory's checkToolConfigured.
-func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, skipped []runhistory.SkippedWorkflow, dependabotConfigured bool, dependabotResp *ghgithub.Response, dependabotErr error, prov []model.Provenance) model.CheckResult {
+func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow, skipped []runhistory.SkippedWorkflow, dependabotConfigured bool, dependabotResp *ghgithub.Response, dependabotErr error, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.tool-configured"
 
 	hasAny, hasHighOrMedium := matchConfidence(matched)
@@ -94,7 +95,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 	if !hasAny && dependabotErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("no SCA tool detected in any workflow, and the Dependabot config fetch itself failed: %s", notCheckableReason(dependabotResp, dependabotErr, org, repo)),
+			Reason: fmt.Sprintf("no SCA tool detected in any workflow, and the Dependabot config fetch itself failed: %s", notCheckableReason(dependabotResp, dependabotErr, org, repo, scope)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 			Facts: map[string]any{"skipped_workflows": skipDetails},
 		}
@@ -183,7 +184,7 @@ func checkToolConfigured(org, repo string, matched []runhistory.MatchedWorkflow,
 // this check can actually verify. In that case the check is honestly
 // not-checkable, pointing at C06.sca.alerts-triaged as the check that DOES
 // have real Dependabot-sourced evidence (open alert counts/ages).
-func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly, dependabotUnknown, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, relResp *ghgithub.Response, relErr error, runsErr error, prov []model.Provenance) model.CheckResult {
+func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseInfo, coverage []runhistory.ReleaseCoverage, droppedTags int, dependabotOnly, dependabotUnknown, hasMatchedWorkflows bool, skipped []runhistory.SkippedWorkflow, relResp *ghgithub.Response, relErr error, runsErr error, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.ran-per-release"
 
 	// dependabotUnknown (no workflow-based SCA evidence, and the
@@ -234,7 +235,7 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 	if relErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("could not list releases: %s", notCheckableReason(relResp, relErr, org, repo)),
+			Reason: fmt.Sprintf("could not list releases: %s", notCheckableReason(relResp, relErr, org, repo, scope)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		}
 	}
@@ -320,13 +321,13 @@ func checkRanPerRelease(org, repo string, filteredReleases []runhistory.ReleaseI
 // a false verified-pass (config exists, zero known ecosystems, so
 // "covers everything") or a false "no manifests" not-checkable, neither
 // of which reflects what was actually verified.
-func checkDependabotConfig(org, repo string, cfg *dependabotConfig, configExists bool, detectedEcosystems []string, rootResp *ghgithub.Response, rootErr error, dependabotResp *ghgithub.Response, dependabotErr error, prov []model.Provenance) model.CheckResult {
+func checkDependabotConfig(org, repo string, cfg *dependabotConfig, configExists bool, detectedEcosystems []string, rootResp *ghgithub.Response, rootErr error, dependabotResp *ghgithub.Response, dependabotErr error, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.dependabot-config"
 
 	if rootErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("could not list the repository's root directory to detect dependency manifests: %s", notCheckableReason(rootResp, rootErr, org, repo)),
+			Reason: fmt.Sprintf("could not list the repository's root directory to detect dependency manifests: %s", notCheckableReason(rootResp, rootErr, org, repo, scope)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		}
 	}
@@ -339,7 +340,7 @@ func checkDependabotConfig(org, repo string, cfg *dependabotConfig, configExists
 	if dependabotErr != nil {
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: fmt.Sprintf("could not fetch the repository's Dependabot config: %s", notCheckableReason(dependabotResp, dependabotErr, org, repo)),
+			Reason: fmt.Sprintf("could not fetch the repository's Dependabot config: %s", notCheckableReason(dependabotResp, dependabotErr, org, repo, scope)),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		}
 	}
@@ -538,7 +539,7 @@ const alertsDisabledMessageSubstring = "disabled"
 // permission denial, a 404, a transient failure) is not-checkable — this
 // collector can't distinguish "disabled" from "not found" from "no
 // access" for those without GitHub confirming it via the message text.
-func checkAlertsTriaged(org, repo string, resp *ghgithub.Response, err error, summary alertSummary, prov []model.Provenance) model.CheckResult {
+func checkAlertsTriaged(org, repo string, resp *ghgithub.Response, err error, summary alertSummary, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C06.sca.alerts-triaged"
 
 	if err != nil {
@@ -553,7 +554,7 @@ func checkAlertsTriaged(org, repo string, resp *ghgithub.Response, err error, su
 		}
 		return model.CheckResult{
 			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable,
-			Reason: notCheckableReason(resp, err, org, repo),
+			Reason: notCheckableReason(resp, err, org, repo, scope),
 			Scope:  model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		}
 	}

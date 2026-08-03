@@ -16,8 +16,10 @@ const (
 	// etc.) with no GitHub Advanced Security or other Enterprise-license
 	// dependency — expected to behave the same on GHES as on github.com.
 	GHESNoteSupported = "a basic REST endpoint, not gated by GitHub Advanced Security or any other " +
-		"licensed add-on — expected to work unmodified on GHES. Not independently verified against a " +
-		"real GHES install (issue #13; this epic is fixture-only, per its own acceptance)."
+		"licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a " +
+		"licensing statement, not an availability one: an endpoint introduced after a given GHES release " +
+		"simply does not exist there, and answers 404 exactly as a licence gate would. Not independently " +
+		"verified against a real GHES install (this epic is fixture-only, per its own acceptance)."
 
 	// GHESNoteLicenceGated is for a check whose endpoint depends on GitHub
 	// Advanced Security or another Enterprise-licensed add-on (code

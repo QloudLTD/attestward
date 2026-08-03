@@ -66,7 +66,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -132,7 +132,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -199,7 +199,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -265,7 +265,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** read:org
 - **Fixture:** `internal/collect/github/orgsecurity/orgsecurity_test.go`
 - **API endpoint(s):** `GET /orgs/{org}/members?filter=2fa_disabled`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -331,7 +331,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`, `GET /repos/{owner}/{repo}/rulesets/{ruleset_id}?includes_parents=true`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** recent or unusual enough on github.com (or dependent on GitHub Connect syncing github.com data to the install) that this tool's authors do not have verified knowledge of its GHES availability or minimum version. Treat any GHES result for this check with extra scrutiny until a real install confirms it (issue #13).
 
 **Status rubric:**
 
@@ -396,7 +396,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** recent or unusual enough on github.com (or dependent on GitHub Connect syncing github.com data to the install) that this tool's authors do not have verified knowledge of its GHES availability or minimum version. Treat any GHES result for this check with extra scrutiny until a real install confirms it (issue #13).
 
 **Status rubric:**
 
@@ -462,7 +462,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** recent or unusual enough on github.com (or dependent on GitHub Connect syncing github.com data to the install) that this tool's authors do not have verified knowledge of its GHES availability or minimum version. Treat any GHES result for this check with extra scrutiny until a real install confirms it (issue #13).
 
 **Status rubric:**
 
@@ -530,7 +530,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** recent or unusual enough on github.com (or dependent on GitHub Connect syncing github.com data to the install) that this tool's authors do not have verified knowledge of its GHES availability or minimum version. Treat any GHES result for this check with extra scrutiny until a real install confirms it (issue #13).
 
 **Status rubric:**
 
@@ -599,7 +599,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** recent or unusual enough on github.com (or dependent on GitHub Connect syncing github.com data to the install) that this tool's authors do not have verified knowledge of its GHES availability or minimum version. Treat any GHES result for this check with extra scrutiny until a real install confirms it (issue #13).
 
 **Status rubric:**
 
@@ -668,7 +668,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Administration: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** recent or unusual enough on github.com (or dependent on GitHub Connect syncing github.com data to the install) that this tool's authors do not have verified knowledge of its GHES availability or minimum version. Treat any GHES result for this check with extra scrutiny until a real install confirms it (issue #13).
 
 **Status rubric:**
 
@@ -740,7 +740,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -807,7 +807,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -876,7 +876,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -947,7 +947,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only (fine-grained)
 - **Fixture:** `internal/collect/github/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/environments`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -1749,7 +1749,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -1816,7 +1816,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`, `GET /repos/{owner}/{repo}/branches/{branch}/protection`, `GET /repos/{owner}/{repo}/rules/branches/{branch}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -1884,7 +1884,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`, `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/git/ref/{ref}`, `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`, `GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -1956,7 +1956,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Actions: read-only + Contents: read-only (fine-grained), plus Administration: read-only (shared with C02, for the dependency-review required-status-check cross-check) and whatever fine-grained category gates Dependabot alerts specifically — not independently verified against GitHub's docs, same kind of hedge as C05's TokenScope
 - **Fixture:** `internal/collect/github/scahistory/scahistory_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2030,7 +2030,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/git/ref/{ref}`, `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`, `GET /repos/{owner}/{repo}/actions/runs?head_sha={sha}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2098,7 +2098,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2163,7 +2163,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/releases`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2297,7 +2297,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) — plus whatever fine-grained category gates git ref/tag reads and the attestations endpoint specifically, not independently verified against GitHub's docs (see C05's TokenScope for the same kind of hedge, and why)
 - **Fixture:** `internal/collect/github/provenance/provenance_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/releases`, `GET /repos/{owner}/{repo}/git/ref/{ref}`, `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2370,7 +2370,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2438,7 +2438,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2506,7 +2506,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2575,7 +2575,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2644,7 +2644,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Contents: read-only (fine-grained) for workflow file content — plus Administration: read-only (fine-grained) for the repo default-workflow-permissions context fact, which this collector tolerates failing to read rather than treating as fatal; exact fine-grained category for that one unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/actionssecurity/actionssecurity_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/actions/workflows`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2808,7 +2808,7 @@ This check is registered under more than one platform — details for each below
 - **not-checkable:** the call failed — a plan-gated response (402/404: the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the `read:audit_log` scope; GitHub returns the same status for both, so this can't be told apart from the response alone), a 403 (token lacks org-owner status or the `read:audit_log` scope), or another API error
 - **verified-pass:** GET /orgs/{org}/audit-log succeeded — the endpoint is reachable; this check never inspects the returned entries themselves, only whether the call succeeded
 
-**Remediation:** This check can only ever report verified-pass or not-checkable, never a fail — if it's not-checkable, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token isn't an org owner with the read:audit_log scope. Upgrading the plan or granting that scope is what would make this check verifiable.
+**Remediation:** This check can only ever report verified-pass or not-checkable, never a fail — if it's not-checkable on github.com, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token isn't an org owner with the read:audit_log scope. On GitHub Enterprise Server there is no plan tier at all, so the same status means a licensing, version or token-scope limitation instead — see the result's own Reason, which distinguishes the two hosts. Upgrading the plan (github.com) or granting that scope is what would make this check verifiable.
 
 #### gitlab — Organization audit log is reachable via the API
 
@@ -2927,7 +2927,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** repo (classic) or Webhooks: read-only (fine-grained) — exact fine-grained category not independently verified against GitHub's docs, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/hooks`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -2998,7 +2998,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/vdp/vdp_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -3136,7 +3136,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained) for SECURITY.md content — private-reporting additionally needs whatever category gates that endpoint; exact fine-grained category unverified, see C05's TokenScope for the same kind of hedge
 - **Fixture:** `internal/collect/github/vdp/vdp_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 
@@ -3204,7 +3204,7 @@ This check is registered under more than one platform — details for each below
 - **Token permission:** public_repo/repo (classic) or Contents: read-only (fine-grained), against the org's own ".github" repo if one exists
 - **Fixture:** `internal/collect/github/vdp/vdp_test.go`
 - **API endpoint(s):** `GET /repos/{owner}/{repo}`, `GET /repos/{owner}/{repo}/contents/{path}`
-- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on — expected to work unmodified on GHES. Not independently verified against a real GHES install (issue #13; this epic is fixture-only, per its own acceptance).
+- **GitHub Enterprise Server:** a basic REST endpoint, not gated by GitHub Advanced Security or any other licensed add-on. Expected to work on GHES releases that ship the endpoint at all — note that is a licensing statement, not an availability one: an endpoint introduced after a given GHES release simply does not exist there, and answers 404 exactly as a licence gate would. Not independently verified against a real GHES install (this epic is fixture-only, per its own acceptance).
 
 **Status rubric:**
 

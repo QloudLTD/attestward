@@ -185,7 +185,7 @@ func (c *Collector) ID() string { return collectorID }
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
-		return collectRepo(ctx, client, scope.Org, repo), nil
+		return collectRepo(ctx, client, scope.Org, repo, scope), nil
 	})
 
 	var all []model.CheckResult
@@ -205,13 +205,13 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // collectRepo resolves env-separation posture for one repo and emits all
 // four CheckResults. It never returns an error; every failure becomes a
 // not-checkable result for the affected check(s).
-func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string) []model.CheckResult {
+func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string, scope collect.Scope) []model.CheckResult {
 	var envs []*ghgithub.Environment
 	opts := &ghgithub.EnvironmentListOptions{ListOptions: ghgithub.ListOptions{PerPage: 100}}
 	for {
 		resp, httpResp, err := client.REST.Repositories.ListEnvironments(ctx, org, repo, opts)
 		if err != nil {
-			return allNotCheckable(org, repo, notCheckableReason(httpResp, err, org, repo), client.Provenance())
+			return allNotCheckable(org, repo, notCheckableReason(httpResp, err, org, repo, scope), client.Provenance())
 		}
 		if resp != nil {
 			envs = append(envs, resp.Environments...)
@@ -267,13 +267,13 @@ func prodLikeEnvs(envs []*ghgithub.Environment) []*ghgithub.Environment {
 	return out
 }
 
-func notCheckableReason(resp *ghgithub.Response, err error, org, repo string) string {
+func notCheckableReason(resp *ghgithub.Response, err error, org, repo string, scope collect.Scope) string {
 	if resp != nil {
 		switch {
 		case resp.StatusCode == http.StatusForbidden:
 			return fmt.Sprintf("token lacks permission to read environments on %s/%s", org, repo)
 		case ghcollect.IsPlanGated(resp.StatusCode):
-			return fmt.Sprintf("environments API not available for %s/%s (plan-gated feature, or repository not found)", org, repo)
+			return ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion, "the environments API", org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query environments for %s/%s: %v", org, repo, err)

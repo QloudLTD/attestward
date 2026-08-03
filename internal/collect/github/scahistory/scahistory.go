@@ -356,13 +356,13 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, scope), client.Provenance())
 	}
 	defaultBranch := repository.GetDefaultBranch()
 
 	allWorkflows, wfResp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo, scope), client.Provenance())
 	}
 	workflowMatches, skippedWorkflows := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategorySCA)
 	workflowMatchProv := snapshot()
@@ -477,11 +477,11 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	summary := summarizeAlerts(alerts, now)
 
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, workflowMatches, skippedWorkflows, dependabotConfigured, dependabotResp, dependabotErr, toolConfiguredProv),
-		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, runsErr, ranPerReleaseProv),
-		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, dependabotConfigProv),
+		checkToolConfigured(org, repo, workflowMatches, skippedWorkflows, dependabotConfigured, dependabotResp, dependabotErr, scope, toolConfiguredProv),
+		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, runsErr, scope, ranPerReleaseProv),
+		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, scope, dependabotConfigProv),
 		checkDependencyReview(org, repo, depReviewFound, skippedWorkflows, depReviewWorkflow, depReviewFetchErr, statusCheckNames, statusErr, dependencyReviewProv),
-		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, alertsProv),
+		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, scope, alertsProv),
 	}
 }
 

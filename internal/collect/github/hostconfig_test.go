@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,12 +76,20 @@ func TestResolveHostConfig_ExplicitAPIURLDoesNotDoubleAppend(t *testing.T) {
 // no scheme, or a non-http(s) scheme, is rejected with an actionable
 // error" acceptance criterion.
 func TestResolveHostConfig_RejectsMissingScheme(t *testing.T) {
-	_, err := ResolveHostConfig("ghe.example.com", "")
-	if err == nil {
-		t.Fatal("ResolveHostConfig(\"ghe.example.com\", \"\") = nil error, want a rejection (no scheme)")
-	}
-	if !strings.Contains(err.Error(), "ghe.example.com") {
-		t.Errorf("error %q does not mention the offending value", err)
+	// The input is deliberately NOT the example URL the message contains,
+	// because the previous version of this test asserted the error *did*
+	// mention the offending value — the inverse of the anti-echo
+	// invariant — and passed only because the message's own example
+	// happened to equal the test input.
+	for _, raw := range []string{"internal.corp/ghe", "ghe.example.com"} {
+		_, err := ResolveHostConfig(raw, "")
+		if err == nil {
+			t.Errorf("ResolveHostConfig(%q) = nil error, want a refusal", raw)
+			continue
+		}
+		if strings.Contains(err.Error(), "internal.corp") {
+			t.Errorf("ResolveHostConfig(%q) echoed the input back: %v", raw, err)
+		}
 	}
 }
 
@@ -237,54 +246,95 @@ func writeTestCACert(t *testing.T) string {
 	return path
 }
 
-// TestNewClient_NeverFollowsRedirects is the regression test for the defect
-// this package inherited the moment its base URL became user-supplied. Auth
-// is injected inside the transport, below Go's redirect machinery, so its
-// cross-domain header stripping never sees it: before the CheckRedirect
-// policy, a GHES URL answering 302 handed a third-party host a valid PAT and
-// its response body came back as the API's answer with a nil error — a
-// verified-pass in a signed pack, sourced from a machine nobody chose.
+// TestNewClient_RedirectPolicy pins both halves of the host-scoped policy.
 //
-// The sibling Gogs package has the identical test for the identical reason.
-func TestNewClient_NeverFollowsRedirects(t *testing.T) {
-	var mu sync.Mutex
-	var thirdPartyHits int
-	var thirdPartyAuth string
-	thirdParty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// Cross-host is refused: auth is injected inside the transport, below Go's
+// redirect machinery, so its cross-domain header stripping never sees it.
+// Before this policy, a --github-url answering 302 handed a third-party host
+// a valid PAT and its body came back as the API's answer with a nil error.
+//
+// Same-host IS followed: GitHub documents 301 for renamed or transferred
+// repositories and organizations, and net/http had always followed those.
+// Refusing them outright — the first version of this fix — broke every scan
+// naming a repo by its old name, on github.com, where nothing about GHES
+// applies.
+func TestNewClient_RedirectPolicy(t *testing.T) {
+	t.Run("cross-host is refused and the token never leaves", func(t *testing.T) {
+		var mu sync.Mutex
+		var hits int
+		var gotAuth string
+		thirdParty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			hits++
+			gotAuth = r.Header.Get("Authorization")
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"login":"pwned","type":"Organization"}`))
+		}))
+		defer thirdParty.Close()
+
+		instance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, thirdParty.URL+"/evil", http.StatusFound)
+		}))
+		defer instance.Close()
+
+		cfg, err := ResolveHostConfig(instance.URL, "")
+		if err != nil {
+			t.Fatalf("ResolveHostConfig: %v", err)
+		}
+		org, _, err := NewClient("super-secret-ghes-token", cfg).REST.Organizations.Get(context.Background(), "acme")
+		if err == nil {
+			t.Errorf("cross-host redirect was followed (org = %v)", org)
+		}
+
 		mu.Lock()
-		thirdPartyHits++
-		thirdPartyAuth = r.Header.Get("Authorization")
-		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"login":"pwned","type":"Organization"}`))
-	}))
-	defer thirdParty.Close()
+		defer mu.Unlock()
+		if hits != 0 {
+			t.Errorf("the redirect target was contacted %d times, want 0", hits)
+		}
+		if gotAuth != "" {
+			t.Errorf("the token was sent to the redirect target: %q", gotAuth)
+		}
+		if org != nil && org.GetLogin() == "pwned" {
+			t.Error("the redirect target's body was returned as the API answer")
+		}
+	})
 
-	instance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, thirdParty.URL+"/evil", http.StatusFound)
-	}))
-	defer instance.Close()
+	t.Run("same-host rename redirect is followed", func(t *testing.T) {
+		var served int
+		instance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, "/orgs/old-name") {
+				http.Redirect(w, r, strings.Replace(r.URL.Path, "old-name", "new-name", 1), http.StatusMovedPermanently)
+				return
+			}
+			served++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"login":"new-name","type":"Organization"}`))
+		}))
+		defer instance.Close()
 
-	cfg, err := ResolveHostConfig(instance.URL, "")
-	if err != nil {
-		t.Fatalf("ResolveHostConfig: %v", err)
-	}
-	client := NewClient("super-secret-ghes-token", cfg)
+		cfg, err := ResolveHostConfig(instance.URL, "")
+		if err != nil {
+			t.Fatalf("ResolveHostConfig: %v", err)
+		}
+		org, _, err := NewClient("t", cfg).REST.Organizations.Get(context.Background(), "old-name")
+		if err != nil {
+			t.Fatalf("same-host rename redirect was refused: %v", err)
+		}
+		if org.GetLogin() != "new-name" {
+			t.Errorf("login = %q, want the renamed org", org.GetLogin())
+		}
+		if served != 1 {
+			t.Errorf("target served %d times, want 1", served)
+		}
+	})
 
-	org, _, err := client.REST.Organizations.Get(context.Background(), "acme")
-	if err == nil {
-		t.Errorf("Organizations.Get followed a redirect and returned no error (org = %v)", org)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	if thirdPartyHits != 0 {
-		t.Errorf("the redirect target was contacted %d times, want 0", thirdPartyHits)
-	}
-	if thirdPartyAuth != "" {
-		t.Errorf("the token was sent to the redirect target: %q", thirdPartyAuth)
-	}
-	if org != nil && org.GetLogin() == "pwned" {
-		t.Error("the redirect target's body was returned as the API answer")
-	}
+	t.Run("same-host scheme downgrade is refused", func(t *testing.T) {
+		base, _ := url.Parse("https://ghe.example.com/api/v3/")
+		policy := sameHostRedirectPolicy(base)
+		req, _ := http.NewRequest(http.MethodGet, "http://ghe.example.com/api/v3/orgs/acme", nil)
+		if err := policy(req, nil); err == nil {
+			t.Error("an https -> http downgrade on the same host was allowed, putting the token on the wire in plaintext")
+		}
+	})
 }

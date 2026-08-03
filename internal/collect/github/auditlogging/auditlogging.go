@@ -60,8 +60,11 @@ var checkIDs = append(append([]string{}, orgCheckIDs...), webhooksID)
 // though this tool can't verify it directly.
 var checkRemediations = map[string]string{
 	orgLogAvailableID: "This check can only ever report verified-pass or not-checkable, never a fail — " +
-		"if it's not-checkable, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log " +
-		"API, or the token isn't an org owner with the read:audit_log scope. Upgrading the plan or " +
+		"if it's not-checkable on github.com, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log " +
+		"API, or the token isn't an org owner with the read:audit_log scope. On GitHub Enterprise Server " +
+		"there is no plan tier at all, so the same status means a licensing, version or token-scope " +
+		"limitation instead — see the result's own Reason, which distinguishes the two hosts. " +
+		"Upgrading the plan (github.com) or " +
 		"granting that scope is what would make this check verifiable.",
 	logStreamingID: "Not remediable via this tool's own checks: audit-log streaming/export only exists " +
 		"at the GitHub Enterprise account level (Enterprise Settings -> Audit log -> Log streaming), not " +

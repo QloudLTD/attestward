@@ -7,19 +7,20 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
+	"gitlab.com/sioakeim/attestward/internal/collect"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/runhistory"
 	"gitlab.com/sioakeim/attestward/internal/mapping"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
-func notCheckableReason(resp *ghgithub.Response, err error, org, repo string) string {
+func notCheckableReason(resp *ghgithub.Response, err error, org, repo string, scope collect.Scope) string {
 	if resp != nil {
 		switch {
 		case resp.StatusCode == http.StatusForbidden:
 			return fmt.Sprintf("token lacks permission to read %s/%s", org, repo)
 		case ghcollect.IsPlanGated(resp.StatusCode):
-			return fmt.Sprintf("feature not available for %s/%s (plan-gated, or repository not found)", org, repo)
+			return ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion, "feature", org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query %s/%s: %v", org, repo, err)

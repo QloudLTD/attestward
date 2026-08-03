@@ -147,3 +147,34 @@ func versionLess(a, b string) bool {
 	}
 	return false
 }
+
+// GatedRepoReason is the one place a repo-scoped gated status (402/404)
+// becomes prose. Every collector that reports "this feature isn't available
+// here" routes through it, so the github.com-versus-GHES distinction is
+// made once rather than re-derived — badly — at each site.
+//
+// It exists because the first attempt at this epic wired the distinction
+// into two of seven call sites. The other five kept saying "plan-gated" on
+// self-hosted installs that have no plan tier, and one asserted a per-repo
+// plan outright while citing github.com-only research as its basis. A
+// helper that every site must call is the difference between fixing the
+// class and fixing two instances of it.
+//
+// feature names what could not be read ("the environments API", "private
+// vulnerability reporting"). The github.com wording is unchanged from what
+// each site said before, deliberately: this is not the moment to reword
+// results that were already correct.
+func GatedRepoReason(isGHES bool, ghesVersion, feature, org, repo string) string {
+	if !isGHES {
+		return fmt.Sprintf("%s not available for %s/%s (plan-gated, or repository not found)", feature, org, repo)
+	}
+	version := ""
+	if ghesVersion != "" {
+		version = fmt.Sprintf(" (reporting version %s)", ghesVersion)
+	}
+	return fmt.Sprintf("%s not available for %s/%s on this GitHub Enterprise Server install%s. "+
+		"GitHub Enterprise Server has no per-org or per-repo plan tier, so this is not a plan gate: the response "+
+		"cannot distinguish between a feature that is not licensed, one this version does not have, a repository "+
+		"that does not exist, and one this token cannot see",
+		feature, org, repo, version)
+}
