@@ -229,6 +229,83 @@ func TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable(t *testi
 	}
 }
 
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_DefaultSetupGatedNamesLicenceNotPlan is issue #13's
+// GHES fixture scenario for this collector, proving two things together:
+// GHES routing (every provenance Endpoint prefixed "/api/v3", the same as
+// TestCollect_NoSASTToolAtAll_ToolConfiguredFailsCadenceNotCheckable's own
+// scenario below but against a GHES base URL), and issue #12's own
+// checkDefaultSetup wiring — a 404 on code-scanning/default-setup, which
+// notCheckableReason alone would call "plan-gated" (github.com's own
+// concept), instead names a GHES licence limitation once scope.GHESVersion
+// is set, via ghcollect.ClassifyGate/GateReason.
+func TestCollect_GHESHost_DefaultSetupGatedNamesLicenceNotPlan(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/attestward-demo/bad-repo/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+	// registerRepo/registerNoWorkflows/registerNoReleases's own helpers
+	// register bare (non-prefixed) paths, so this scenario's GHES-routed
+	// Client needs the "/api/v3"-prefixed equivalents registered directly
+	// instead of reusing those helpers.
+	mux.HandleFunc("/api/v3/repos/attestward-demo/bad-repo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
+	})
+	mux.HandleFunc("/api/v3/repos/attestward-demo/bad-repo/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 0, "workflows": []any{}})
+	})
+	mux.HandleFunc("/api/v3/repos/attestward-demo/bad-repo/releases", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []any{})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: "attestward-demo", Repos: []string{"bad-repo"}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12, GHESVersion: "3.9.0"}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	got := m["C05.sast.default-setup"]
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("default-setup status = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if strings.Contains(got.Reason, "plan") {
+		t.Errorf("Reason = %q, want no mention of \"plan\" on a GHES install", got.Reason)
+	}
+	if !strings.Contains(got.Reason, "GitHub Enterprise Server") {
+		t.Errorf("Reason = %q, want it to name GitHub Enterprise Server", got.Reason)
+	}
+	if got.Facts["ghes_version"] != "3.9.0" {
+		t.Errorf("ghes_version fact = %v, want 3.9.0", got.Facts["ghes_version"])
+	}
+
+	for _, r := range results {
+		for _, p := range r.Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", r.CheckID, p.Endpoint)
+			}
+		}
+	}
+}
+
 // TestCollect_OnlyWorkflowUnreadable_ToolConfiguredNotCheckableNotFail is
 // issue #178's regression case: a repo whose only workflow can't be
 // fetched (content 404) and has no CodeQL default setup must NOT read

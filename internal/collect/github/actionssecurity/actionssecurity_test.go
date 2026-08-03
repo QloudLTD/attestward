@@ -101,6 +101,66 @@ func registerContent(t *testing.T, mux *http.ServeMux, org, repo, path, fixtureF
 	})
 }
 
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_NoWorkflows_AllChecksNotCheckable mirrors
+// TestCollect_NoWorkflows_AllChecksNotCheckable against a GHES-shaped base
+// URL (issue #13's GHES epic) — see actionssecurity.go's init(): every
+// endpoint this package calls (repo, default-workflow-permissions,
+// workflow listing/contents) was audited as ghcollect.GHESNoteSupported,
+// basic REST surface unaffected by GitHub Advanced Security licensing.
+// registerRepo's own helpers register bare (non-prefixed) paths, so this
+// scenario's GHES-routed Client needs the "/api/v3"-prefixed equivalents
+// registered directly instead of reusing them. Alongside (not replacing)
+// the github.com scenario, so both drift together.
+func TestCollect_GHESHost_NoWorkflows_AllChecksNotCheckable(t *testing.T) {
+	org, repoName, branch := "acme", "empty-repo", "main"
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repoName, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": branch, "private": true})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repoName+"/actions/permissions/workflow", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_workflow_permissions": "read"})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repoName+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 0, "workflows": []any{}})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	for _, id := range checkIDs {
+		if got := m[id].Status; got != model.StatusNotCheckable {
+			t.Errorf("%s = %q, want not-checkable (no workflow files at all); reason=%q", id, got, m[id].Reason)
+		}
+		for _, p := range m[id].Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", id, p.Endpoint)
+			}
+		}
+	}
+}
+
 func TestCollect_UnpinnedThirdPartyAction_PinnedFails(t *testing.T) {
 	org, repoName, branch := "acme", "widgets", "main"
 	mux := http.NewServeMux()

@@ -48,6 +48,69 @@ func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 	return c
 }
 
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_ProdEnvFullyProtectedAllPass mirrors
+// TestCollect_ProdEnvFullyProtectedAllPass against a GHES-shaped base URL
+// (issue #13's GHES epic) — this collector's own endpoint
+// (GET /repos/{owner}/{repo}/environments) was audited as
+// ghcollect.GHESNoteSupported (see envseparation.go's init()): a
+// long-standing GHES feature, not GitHub Advanced Security gated. Alongside
+// (not replacing) the github.com scenario, so both drift together.
+func TestCollect_GHESHost_ProdEnvFullyProtectedAllPass(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/attestward-demo/good-repo/environments", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"environments": []map[string]any{
+				{
+					"name": "production",
+					"protection_rules": []map[string]any{
+						{"type": "required_reviewers", "reviewers": []map[string]any{{"type": "Team", "id": 1}}},
+						{"type": "wait_timer", "wait_timer": 30},
+					},
+					"deployment_branch_policy": map[string]any{"protected_branches": true, "custom_branch_policies": false},
+				},
+			},
+		})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(results) != 4 {
+		t.Fatalf("len(results) = %d, want 4", len(results))
+	}
+	for _, r := range results {
+		if r.Status != model.StatusVerifiedPass {
+			t.Errorf("%s status = %q, want verified-pass; reason=%q", r.CheckID, r.Status, r.Reason)
+		}
+		for _, p := range r.Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", r.CheckID, p.Endpoint)
+			}
+		}
+	}
+}
+
 func TestCollect_NoEnvironmentsAllNotCheckable(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/attestward-demo/lib-repo/environments", func(w http.ResponseWriter, _ *http.Request) {

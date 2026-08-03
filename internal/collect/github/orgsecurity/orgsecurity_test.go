@@ -39,6 +39,23 @@ func newTestCollector(t *testing.T, handler http.Handler) *Collector {
 	return New(client)
 }
 
+// newGHESTestCollector mirrors newTestCollector, but resolves the Client
+// through ghcollect.ResolveHostConfig the way a real --github-url scan
+// would (issue #13's GHES epic) — so the mux below must route requests
+// under the "/api/v3" prefix go-github's request builder adds for a GHES
+// base URL, exactly as a real GHES install would receive them.
+func newGHESTestCollector(t *testing.T, handler http.Handler) *Collector {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	return New(ghcollect.NewClient("ghp_test-token", cfg))
+}
+
 // writeJSON runs inside an httptest.Server handler goroutine, never the
 // test's own goroutine — t.Fatalf there would only abort that handler
 // goroutine (via runtime.Goexit), not the test, so a genuine encode failure
@@ -618,4 +635,46 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 	}
 
 	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
+}
+
+// TestCollect_GHESHost_GoodOrgAllChecksPass mirrors
+// TestCollect_GoodOrgAllChecksPass exactly, but against a GHES-shaped
+// base URL (issue #13's GHES epic) — this collector's own endpoints
+// (GET /orgs/{org}, GET /orgs/{org}/members) were audited as
+// ghcollect.GHESNoteSupported (see the checkGHESNotes registration in
+// orgsecurity.go): basic REST surface expected to work unmodified on
+// GHES, unaffected by GitHub Advanced Security licensing. This proves
+// that expectation against a real GHES-prefixed route, alongside (not
+// replacing) the github.com scenario above, so both drift together.
+func TestCollect_GHESHost_GoodOrgAllChecksPass(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"two_factor_requirement_enabled":         true,
+			"default_repository_permission":          "read",
+			"members_can_create_public_repositories": false,
+		})
+	})
+	mux.HandleFunc("/api/v3/orgs/attestward-demo/members", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []map[string]any{})
+	})
+
+	c := newGHESTestCollector(t, mux)
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo"})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(results) != 4 {
+		t.Fatalf("len(results) = %d, want 4", len(results))
+	}
+	for _, r := range results {
+		if r.Status != model.StatusVerifiedPass {
+			t.Errorf("%s status = %q, want verified-pass; reason=%q", r.CheckID, r.Status, r.Reason)
+		}
+		for _, p := range r.Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", r.CheckID, p.Endpoint)
+			}
+		}
+	}
 }

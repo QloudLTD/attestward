@@ -176,6 +176,110 @@ func registerWorkflowRunsForCommit(t *testing.T, mux *http.ServeMux, org, repo s
 	})
 }
 
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_SignedTagChecksumsSignaturesWorkflowLinkage_AllChecksPass
+// mirrors TestCollect_SignedTagChecksumsSignaturesWorkflowLinkage_AllChecksPass
+// against a GHES-shaped base URL (issue #13's GHES epic) — this scenario
+// deliberately supplies a signature-bundle release asset (so C07.release.
+// signatures resolves from that alone) rather than relying on
+// attestationsAPIEndpoint, the one check in this package's checkGHESNotes
+// marked ghcollect.GHESNoteUnverified (see provenance.go's init()). Every
+// other endpoint here — repo, workflow listing/contents, releases, git
+// ref/tag, and workflow runs by commit — was audited as
+// ghcollect.GHESNoteSupported. registerRepo's own helpers register bare
+// (non-prefixed) paths, so this scenario's GHES-routed Client needs the
+// "/api/v3"-prefixed equivalents registered directly instead of reusing
+// them. Alongside (not replacing) the github.com scenario, so both drift
+// together.
+func TestCollect_GHESHost_SignedTagChecksumsSignaturesWorkflowLinkage_AllChecksPass(t *testing.T) {
+	org, repo, tag := "attestward-demo", "good-repo", "v1.0.0"
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows": []map[string]any{
+				{"id": 1, "name": "Sign release", "path": ".github/workflows/sign.yml", "state": "active"},
+			},
+		})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/contents/.github/workflows/sign.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": cosignWorkflowYAML, "sha": "content-sha"})
+	})
+	publishedAt := time.Now().UTC().AddDate(0, 0, -1)
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []map[string]any{
+			{"tag_name": tag, "target_commitish": "main", "published_at": publishedAt.Format(time.RFC3339), "assets": []map[string]any{
+				{"name": "myapp_linux_amd64.tar.gz", "digest": "sha256:aaa"},
+				{"name": "checksums.txt", "digest": "sha256:bbb"},
+				{"name": "checksums.txt.bundle", "digest": "sha256:ccc"},
+			}},
+		})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/git/ref/tags/"+tag, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"ref":    "refs/tags/" + tag,
+			"object": map[string]any{"type": "tag", "sha": "tag-obj-sha"},
+		})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/git/tags/tag-obj-sha", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"object": map[string]any{"type": "commit", "sha": "commit-sha-1"},
+			"verification": map[string]any{
+				"verified":  true,
+				"reason":    "valid",
+				"signature": "-----BEGIN SIGNATURE-----...",
+			},
+		})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		sha := r.URL.Query().Get("head_sha")
+		var runs []map[string]any
+		if sha == "commit-sha-1" {
+			runs = []map[string]any{{"id": 1, "head_sha": sha, "conclusion": "success"}}
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"total_count": len(runs), "workflow_runs": runs})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	for _, id := range []string{"C07.release.tags-signed", "C07.release.checksums", "C07.release.signatures", "C07.provenance.workflow", "C07.provenance.commit-linkage"} {
+		if got := m[id].Status; got != model.StatusVerifiedPass {
+			t.Errorf("%s = %q, want verified-pass; reason=%q", id, got, m[id].Reason)
+		}
+		for _, p := range m[id].Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", id, p.Endpoint)
+			}
+		}
+	}
+}
+
 func TestCollect_SignedTagChecksumsSignaturesWorkflowLinkage_AllChecksPass(t *testing.T) {
 	org, repo, branch, tag := "attestward-demo", "good-repo", "main", "v1.0.0"
 	mux := http.NewServeMux()

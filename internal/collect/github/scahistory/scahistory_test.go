@@ -482,6 +482,81 @@ func TestCollect_NoSCAToolAtAll_ToolConfiguredFails(t *testing.T) {
 	}
 }
 
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_NoSCAToolAtAll_ToolConfiguredFails mirrors
+// TestCollect_NoSCAToolAtAll_ToolConfiguredFails against a GHES-shaped
+// base URL (issue #13's GHES epic) — see scahistory.go's checkGHESNotes:
+// every endpoint this scenario exercises (repo/workflows/releases/
+// branch-protection/rules) was audited as ghcollect.GHESNoteSupported,
+// basic REST surface unaffected by GitHub Advanced Security licensing
+// (alerts-triaged, the one GHESNoteUnverified check in this package, isn't
+// exercised here — see its own doc comment for why). registerRepo's own
+// helpers register bare (non-prefixed) paths, so this scenario's
+// GHES-routed Client needs the "/api/v3"-prefixed equivalents registered
+// directly instead of reusing them. Alongside (not replacing) the
+// github.com scenario, so both drift together.
+func TestCollect_GHESHost_NoSCAToolAtAll_ToolConfiguredFails(t *testing.T) {
+	org, repo, branch := "attestward-demo", "bare-repo", "main"
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": branch})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 0, "workflows": []any{}})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []any{})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/dependabot/alerts", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []any{})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/branches/"+branch+"/protection", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/rules/branches/"+branch, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []any{})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+	results, err := c.Collect(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	if got := m["C06.sca.tool-configured"].Status; got != model.StatusVerifiedFail {
+		t.Errorf("tool-configured = %q, want verified-fail", got)
+	}
+	if got := m["C06.sca.dependabot-config"].Status; got != model.StatusNotCheckable {
+		t.Errorf("dependabot-config = %q, want not-checkable (no manifests, nothing to cover)", got)
+	}
+	for _, r := range results {
+		for _, p := range r.Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", r.CheckID, p.Endpoint)
+			}
+		}
+	}
+}
+
 func TestCollect_DependabotConfigMissingWithManifests_VerifiedFail(t *testing.T) {
 	org, repo, branch := "attestward-demo", "uncovered-repo", "main"
 	mux := http.NewServeMux()
