@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg" />
-    <img src="docs/assets/logo.svg" alt="Attestward" height="96" />
-  </picture>
+  <img src="docs/assets/logo.svg" alt="Attestward" height="96" />
 </p>
 
 # Attestward
@@ -14,9 +11,6 @@
 surface and the evidence-pack schema follow [SemVer](https://semver.org/): breaking
 changes to either mean a major version, so a pinned `v1` is safe to build against.
 **License:** [Apache-2.0](LICENSE)
-
-[![CI](https://gitlab.com/sioakeim/attestward/actions/workflows/ci.yaml/badge.svg)](https://gitlab.com/sioakeim/attestward/actions/workflows/ci.yaml)
-[![Self-scan](https://gitlab.com/sioakeim/attestward/actions/workflows/self-scan.yaml/badge.svg)](https://gitlab.com/sioakeim/attestward/actions/workflows/self-scan.yaml)
 
 ---
 
