@@ -460,9 +460,9 @@ review came off it once the repo went public and the check could actually run.
 
 ## Contributing
 
-Work is tracked entirely in [GitLab Issues](https://gitlab.com/sioakeim/attestward/-/issues). Read
+Work is tracked entirely in [GitLab Issues](https://gitlab.com/sioakeim/attestward/-/work_items). Read
 [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. New verification checks and scanner signatures have dedicated
-[issue templates](https://gitlab.com/sioakeim/attestward/-/issues/new).
+[issue templates](https://gitlab.com/sioakeim/attestward/-/work_items/new).
 
 ## Security
 

@@ -13,7 +13,7 @@ publicly scans itself with its own tool.
 
 **Please do not open a public issue for security vulnerabilities.**
 
-- Preferred: [open a **confidential** issue](https://gitlab.com/sioakeim/attestward/-/issues/new) — tick
+- Preferred: [open a **confidential** issue](https://gitlab.com/sioakeim/attestward/-/work_items/new) — tick
   **"This issue is confidential"** before submitting, so the report is visible only to
   project members. Do not submit without that box ticked; an untick is a public disclosure.
 - You will receive an acknowledgment within **3 business days** and a triage decision
