@@ -1,0 +1,246 @@
+name: "Attestward Scan"
+description: >-
+  Run a read-only Attestward scan against a GitHub org/repo set using a
+  pinned, signature-verified release binary; publish the evidence pack;
+  optionally compare against a baseline pack and surface posture drift.
+author: "sioakim"
+
+branding:
+  icon: "shield"
+  color: "gray-dark"
+
+inputs:
+  version:
+    description: >-
+      Attestward release version to run, without the leading v (e.g.
+      "0.1.0"). Pinned on purpose — this action never floats to "latest";
+      bumping the scanner version should be a reviewed change in your
+      workflow. Drift mode (baseline) needs >= 0.2.0 for `attestward diff`.
+    required: true
+  org:
+    description: "GitHub account to scan — an org or a personal user account."
+    required: true
+  repos:
+    description: >-
+      Repos to scan, one per line. Empty scans all non-archived, non-fork
+      repos the token can see.
+    required: false
+    default: ""
+  token:
+    description: >-
+      Token the scan reads with. Also used to download the release binary,
+      though attestward is a public repo so that needs no authentication.
+      The default GITHUB_TOKEN
+      gives honest-degradation coverage: checks needing permissions it
+      cannot carry report not-checkable, never a fake pass. See the
+      attestward README's token table for a deeper-coverage fine-grained PAT.
+    required: false
+    default: ${{ github.token }}
+  self-attestation-file:
+    description: "Path to a self-attestation answers YAML, if you keep one."
+    required: false
+    default: ""
+  out:
+    description: "Directory the evidence pack is written into."
+    required: false
+    default: "evidence"
+  baseline:
+    description: >-
+      Path to a baseline evidence.json to diff the fresh scan against
+      (fetch it yourself in an earlier step — e.g. from your latest
+      release's assets). Empty disables drift detection.
+    required: false
+    default: ""
+  fail-on-drift:
+    description: >-
+      Fail the step when the diff against baseline finds regressions
+      (verified posture worsened). Coverage changes and checker changes
+      never fail. Only meaningful with baseline set.
+    required: false
+    default: "true"
+  fail-on-gaps:
+    description: >-
+      Fail the step when the scan itself exits 2 (any verified-fail or
+      partial). Default off: a scan finding gaps is a result to publish,
+      not a broken pipeline — drift against your own baseline (see
+      baseline) is the signal that something got worse.
+    required: false
+    default: "false"
+  attach-to-release:
+    description: >-
+      On release events, upload evidence.json + report.html as assets of
+      the triggering release (needs `contents: write`). This is the
+      recommended durable baseline location — artifacts expire, release
+      assets do not.
+    required: false
+    default: "false"
+
+outputs:
+  pack-path:
+    description: "Path to the written evidence.json."
+    value: ${{ steps.scan.outputs.pack-path }}
+  scan-exit-code:
+    description: "attestward scan's exit code: 0 clean, 2 gaps found."
+    value: ${{ steps.scan.outputs.exit-code }}
+  drift:
+    description: "\"true\" if drift mode ran and found regressions, else \"false\"."
+    value: ${{ steps.drift.outputs.drift }}
+  drift-summary-path:
+    description: "Path to the rendered Markdown drift summary (empty when drift mode is off)."
+    value: ${{ steps.drift.outputs.summary-path }}
+
+runs:
+  using: "composite"
+  steps:
+    # Cosign verifies the release's checksums signature before anything
+    # runs. Pinned by SHA and to the cosign release the attestward
+    # pipeline itself signs with (SECURITY.md documents the v3 bundle
+    # flow) — this action must hold the bar C08 checks for.
+    - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      with:
+        cosign-release: "v3.1.1"
+
+    - name: Download and verify attestward ${{ inputs.version }}
+      id: fetch
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        case "${RUNNER_OS}_${RUNNER_ARCH}" in
+          Linux_X64)    target="linux_amd64" ;;
+          Linux_ARM64)  target="linux_arm64" ;;
+          macOS_X64)    target="darwin_amd64" ;;
+          macOS_ARM64)  target="darwin_arm64" ;;
+          *) echo "::error::unsupported runner ${RUNNER_OS}/${RUNNER_ARCH} (this action supports the linux/darwin release targets)"; exit 1 ;;
+        esac
+        archive="attestward_${VERSION}_${target}.tar.gz"
+        # Under RUNNER_TEMP so the runner purges it between jobs —
+        # composite actions have no post: step to clean up after
+        # themselves, and self-hosted runners accumulate otherwise.
+        workdir="$(mktemp -d "${RUNNER_TEMP}/attestward.XXXXXX")"
+        echo "workdir=$workdir" >> "$GITHUB_OUTPUT"
+        cd "$workdir"
+        gh release download "v${VERSION}" --repo sioakim/attestward \
+          --pattern "$archive" --pattern checksums.txt --pattern checksums.txt.bundle
+        cosign verify-blob \
+          --bundle checksums.txt.bundle \
+          --certificate-identity-regexp '^https://gitlab.com/sioakeim/attestward/\.github/workflows/release\.yaml@refs/tags/v.*$' \
+          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+          checksums.txt
+        shasum -a 256 --ignore-missing -c checksums.txt
+        tar xzf "$archive" attestward
+        ./attestward version
+
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        WORKDIR: ${{ steps.fetch.outputs.workdir }}
+        ORG: ${{ inputs.org }}
+        REPOS: ${{ inputs.repos }}
+        SELF_ATTESTATION: ${{ inputs.self-attestation-file }}
+        OUT: ${{ inputs.out }}
+        FAIL_ON_GAPS: ${{ inputs.fail-on-gaps }}
+      run: |
+        set -euo pipefail
+        args=(--org "$ORG" --out "$OUT")
+        while IFS= read -r repo; do
+          # Trim surrounding whitespace and CRs so a CRLF-authored or
+          # padded workflow file doesn't produce --repo "attestward ".
+          repo="$(printf '%s' "$repo" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          [ -n "$repo" ] && args+=(--repo "$repo")
+        done <<< "$REPOS"
+        [ -n "$SELF_ATTESTATION" ] && args+=(--self-attestation-file "$SELF_ATTESTATION")
+        set +e
+        "$WORKDIR/attestward" scan "${args[@]}"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "pack-path=$OUT/evidence.json" >> "$GITHUB_OUTPUT"
+        if [ "$code" -eq 1 ]; then
+          echo "::error::attestward scan failed (exit 1) — see the log above"
+          exit 1
+        fi
+        if [ "$code" -eq 2 ] && [ "$FAIL_ON_GAPS" = "true" ]; then
+          echo "::error::scan found gaps (exit 2) and fail-on-gaps is enabled"
+          exit 1
+        fi
+
+    - name: Render reports
+      shell: bash
+      env:
+        WORKDIR: ${{ steps.fetch.outputs.workdir }}
+        OUT: ${{ inputs.out }}
+      run: |
+        set -euo pipefail
+        "$WORKDIR/attestward" report "$OUT/evidence.json"
+
+    - name: Diff against baseline
+      id: drift
+      shell: bash
+      env:
+        WORKDIR: ${{ steps.fetch.outputs.workdir }}
+        BASELINE: ${{ inputs.baseline }}
+        OUT: ${{ inputs.out }}
+        FAIL_ON_DRIFT: ${{ inputs.fail-on-drift }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        if [ -z "$BASELINE" ]; then
+          echo "drift=false" >> "$GITHUB_OUTPUT"
+          echo "summary-path=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ ! -f "$BASELINE" ]; then
+          echo "::error::baseline $BASELINE does not exist — fetch it in an earlier step"
+          exit 1
+        fi
+        case "$VERSION" in
+          0.0.*|0.1.*)
+            echo "::error::drift mode (baseline) needs attestward >= 0.2.0 (the diff command); version is $VERSION"
+            exit 1
+            ;;
+        esac
+        set +e
+        "$WORKDIR/attestward" diff "$BASELINE" "$OUT/evidence.json" --format md > "$OUT/drift.md"
+        code=$?
+        set -e
+        echo "summary-path=$OUT/drift.md" >> "$GITHUB_OUTPUT"
+        cat "$OUT/drift.md" >> "$GITHUB_STEP_SUMMARY"
+        case "$code" in
+          0) echo "drift=false" >> "$GITHUB_OUTPUT" ;;
+          2)
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            if [ "$FAIL_ON_DRIFT" = "true" ]; then
+              echo "::error::posture drift: regressions against the baseline pack (see the step summary)"
+              exit 1
+            fi
+            ;;
+          *) echo "::error::attestward diff failed (exit $code)"; exit 1 ;;
+        esac
+
+    # Release-asset upload is the one write this action performs, and it
+    # is a workflow-level write under the consumer's explicit
+    # `contents: write` — never the attestward binary, whose transport
+    # rejects write methods outright (attestward ADR-0004).
+    - name: Attach pack to release
+      if: ${{ inputs.attach-to-release == 'true' && github.event_name == 'release' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        OUT: ${{ inputs.out }}
+        # Event context goes through env, never direct interpolation into
+        # the script: a release tag name may legally contain shell
+        # metacharacters ($(...), backticks, ;), and this is the one step
+        # holding a write-capable token — exactly where injection must be
+        # structurally impossible (GitHub's own hardening guidance).
+        TAG: ${{ github.event.release.tag_name }}
+        REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        gh release upload "$TAG" \
+          --repo "$REPO" --clobber \
+          "$OUT/evidence.json" "$OUT/report.html"

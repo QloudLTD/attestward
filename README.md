@@ -453,6 +453,8 @@ review came off it once the repo went public and the check could actually run.
 
 ## Documentation
 
+- [CI templates](docs/ci-templates.md) — copy-paste pipeline templates per provider
+  (`examples/ci/github/`, `examples/ci/gitlab/`) running a pinned, signature-verified binary
 - [Checks Reference](docs/checks-reference.md) — every check's rubric, API evidence, SSDF/CISA
   citations, and remediation, generated from `mappings/*.yaml` and the collector registry
   (never hand-edited — regenerate with `make checks-docs`)
