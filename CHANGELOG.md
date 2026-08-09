@@ -171,7 +171,7 @@ reasoning for any of them is in the linked issue and its pull request.
   informational changes; volatile fields ignored; tool/mapping/scope changes surfaced
   as context. `--format text|md|json`. The foundation for continuous-mode drift
   detection (#36); consumed by the new
-  [attestward-action](https://github.com/sioakim/attestward-action), which runs
+  `attestward-action` (since folded into this repository; see `docs/action.md`), which runs
   pinned, signature-verified release binaries in CI and fails on posture drift.
 
 ## [0.1.0] - 2026-07-21
