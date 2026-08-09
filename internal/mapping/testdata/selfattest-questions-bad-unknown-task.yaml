@@ -1,0 +1,6 @@
+version: "1.0.0"
+questions:
+  - id: SA.test-question
+    question: "test?"
+    ssdf_tasks: [PO.999.999]
+    answer_type: yes_no

@@ -1,0 +1,131 @@
+# Expected check status per check, per repo, for the live Gogs integration
+# test (Gogs issue #9) — the Gogs twin of fixtures.yaml and fixtures-ado.yaml.
+#
+# Captured from a real scan of gogs.ioakeim.com on 2026-08-03 against
+# sioakim/attestward, the repo this project's own source lives in. Unlike the
+# GitHub and Azure DevOps fixtures, this table is NOT backed by a purpose-built
+# demo org with deliberately good and deliberately bad repos: no such Gogs demo
+# estate exists, and building one would mostly demonstrate the same 44
+# not-checkable results, since Gogs cannot evidence those controls for any repo.
+#
+# What this table is therefore good for: catching a change in what the scanner
+# claims, and catching a Gogs API change that turns a verified result into an
+# error. What it is NOT good for: proving the scanner distinguishes a
+# well-configured repo from a badly configured one — on this platform there are
+# only two checks where that distinction can even exist.
+#
+# The two verified-pass entries are the whole of the platform's positive
+# evidence: this repo has a SECURITY.md, and that file advertises a URL.
+platform: gogs
+org: sioakim
+repos:
+  - attestward
+
+org_checks:
+  - check_id: C01.org.2fa-required
+    status: not-checkable
+  - check_id: C01.org.default-repo-permission
+    status: not-checkable
+  - check_id: C01.org.members-can-create-public
+    status: not-checkable
+  - check_id: C01.org.members-without-2fa
+    status: not-checkable
+  - check_id: C04.org.security-defaults
+    status: not-checkable
+  - check_id: C09.audit.log-streaming
+    status: not-checkable
+  - check_id: C09.audit.org-log-available
+    status: not-checkable
+  - check_id: C09.audit.retention-awareness
+    status: not-checkable
+  - check_id: SA.agency-notification-process
+    status: not-checkable
+  - check_id: SA.audit-log-export-fallback
+    status: not-checkable
+  - check_id: SA.dev-security-training
+    status: not-checkable
+  - check_id: SA.threat-modeling
+    status: not-checkable
+  - check_id: SA.vuln-remediation-sla
+    status: not-checkable
+  - check_id: SA.vuln-triage-sla
+    status: not-checkable
+
+repo_checks:
+  attestward:
+    - check_id: C02.branch.admin-enforced
+      status: not-checkable
+    - check_id: C02.branch.deletion-blocked
+      status: not-checkable
+    - check_id: C02.branch.force-push-blocked
+      status: not-checkable
+    - check_id: C02.branch.protection-exists
+      status: not-checkable
+    - check_id: C02.branch.required-reviews
+      status: not-checkable
+    - check_id: C02.branch.required-status-checks
+      status: not-checkable
+    - check_id: C03.env.branch-policy
+      status: not-checkable
+    - check_id: C03.env.exists
+      status: not-checkable
+    - check_id: C03.env.protection-rules
+      status: not-checkable
+    - check_id: C03.env.required-reviewers
+      status: not-checkable
+    - check_id: C04.deps.dependabot-alerts
+      status: not-checkable
+    - check_id: C04.secrets.advanced-security
+      status: not-checkable
+    - check_id: C04.secrets.push-protection
+      status: not-checkable
+    - check_id: C04.secrets.scanning-enabled
+      status: not-checkable
+    - check_id: C05.sast.cadence
+      status: not-checkable
+    - check_id: C05.sast.default-setup
+      status: not-checkable
+    - check_id: C05.sast.ran-per-release
+      status: not-checkable
+    - check_id: C05.sast.tool-configured
+      status: not-checkable
+    - check_id: C06.sca.alerts-triaged
+      status: not-checkable
+    - check_id: C06.sca.dependabot-config
+      status: not-checkable
+    - check_id: C06.sca.dependency-review
+      status: not-checkable
+    - check_id: C06.sca.ran-per-release
+      status: not-checkable
+    - check_id: C06.sca.tool-configured
+      status: not-checkable
+    - check_id: C07.provenance.commit-linkage
+      status: not-checkable
+    - check_id: C07.provenance.workflow
+      status: not-checkable
+    - check_id: C07.release.checksums
+      status: not-checkable
+    - check_id: C07.release.signatures
+      status: not-checkable
+    - check_id: C07.release.tags-signed
+      status: not-checkable
+    - check_id: C08.actions.oidc-vs-secrets
+      status: not-checkable
+    - check_id: C08.actions.pinned
+      status: not-checkable
+    - check_id: C08.actions.pull-request-target
+      status: not-checkable
+    - check_id: C08.actions.self-hosted
+      status: not-checkable
+    - check_id: C08.actions.token-permissions
+      status: not-checkable
+    - check_id: C09.repo.webhooks
+      status: not-checkable
+    - check_id: C10.vdp.intake-channel
+      status: verified-pass
+    - check_id: C10.vdp.private-reporting
+      status: not-checkable
+    - check_id: C10.vdp.security-md
+      status: verified-pass
+    - check_id: C10.vdp.security-policy-org
+      status: not-checkable

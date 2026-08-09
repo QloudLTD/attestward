@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "tool_version": "<script>alert('toolversion')</script>",
+  "mapping_versions": {
+    "ssdf": "<script>alert('ssdfversion')</script>",
+    "cisa_form": "<script>alert('cisaversion')</script>",
+    "scanner_signatures": "<script>alert('scannerversion')</script>",
+    "self_attestation": "<script>alert('selfattestversion')</script>"
+  },
+  "scope": {
+    "org": "<script>alert('org')</script>",
+    "repos": ["<script>alert('repo')</script>"],
+    "project": "pack-project\" onmouseover=\"alert('pack-project')|`code-span-break`\nsecond-line-pack-project",
+    "release_tag_pattern": "<script>alert('releasetag')</script>"
+  },
+  "scan_started_at": "2026-07-13T12:00:00Z",
+  "scan_ended_at": "2026-07-13T12:00:05Z",
+  "results": [
+    {
+      "check_id": "C02.branch.protection-exists",
+      "title": "<script>alert('title')</script>",
+      "status": "verified-fail",
+      "reason": "found [click here](javascript:alert('reason')) and <img src=x onerror=alert('reason2')> in a file",
+      "scope": { "org": "attestward-demo", "repo": "<script>alert('scope-repo')</script>" },
+      "provenance": [
+        {
+          "endpoint": "/repos/attestward-demo/<script>alert('endpoint')</script>",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:01Z",
+          "http_status": 200,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": {
+        "hostile_scalar": "<script>alert('scalar')</script>",
+        "hostile_list": ["<script>alert('list1')</script>", "[bomb](javascript:alert(1))"],
+        "hostile_table": [
+          {"file": "<script>alert('table')</script>", "detail": "[click](javascript:alert('t2'))"}
+        ]
+      }
+    },
+    {
+      "check_id": "SA.hostile-question`<script>alert('sa-checkid')</script>",
+      "title": "hostile self-attested question?",
+      "status": "self-attested",
+      "reason": "self-attested (not independently verified): <script>alert('sa-reason')</script>",
+      "scope": { "org": "attestward-demo" },
+      "provenance": [],
+      "facts": {
+        "answer": "<script>alert('sa-answer')</script>",
+        "evidence_ref": "javascript:alert('sa-evidence')"
+      }
+    },
+    {
+      "check_id": "C99.hostile.project-scope",
+      "title": "hostile project-scope check",
+      "status": "verified-fail",
+      "reason": "exercises the \"(project: \" + Project + \")\" concatenation in scopeLabel/scopeLabelVerbose with a hostile Project value — no repo, so the label is computed, not a literal Scope.Repo passthrough",
+      "scope": {
+        "org": "attestward-demo",
+        "platform": "azuredevops",
+        "project": "scope-project\" onmouseover=\"alert('scope-project')|`code-span-break`\nsecond-line-scope-project"
+      },
+      "provenance": []
+    },
+    {
+      "check_id": "C88.hostile.gaps`<script>alert('gaps-checkid')</script>",
+      "title": "hostile check_id reaching the Gaps table and POA&M Findings",
+      "status": "verified-fail",
+      "reason": "issue #239 — CheckID rendered raw inside a code span at report.md.tmpl's Gaps table and poam.md.tmpl's Findings heading; a backtick here used to break out of that span",
+      "scope": { "org": "attestward-demo" },
+      "provenance": []
+    },
+    {
+      "check_id": "C88.hostile.notcheckable`<script>alert('notcheckable-checkid')</script>",
+      "title": "hostile check_id reaching the Not Checkable table and poam.md's Outside Tool list",
+      "status": "not-checkable",
+      "reason": "issue #239 — the sibling not-checkable/self-attested render path (report.md.tmpl's Not Checkable table, poam.md.tmpl's Outside Tool list) had the identical unescaped-code-span bug",
+      "scope": { "org": "attestward-demo" },
+      "provenance": []
+    }
+  ]
+}

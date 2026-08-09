@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.0.0-test",
+  "mapping_versions": {
+    "ssdf": "TEST-SSDF-1.0.0",
+    "cisa_form": "TEST-CISA-1.0.0"
+  },
+  "scope": {
+    "org": "attestward-demo",
+    "repos": ["good-repo"],
+    "release_tag_pattern": "v*",
+    "lookback_releases": 5,
+    "lookback_months": 12
+  },
+  "scan_started_at": "2026-07-13T12:00:00Z",
+  "scan_ended_at": "2026-07-13T12:00:05Z",
+  "results": [
+    {
+      "check_id": "C02.branch.required-reviews",
+      "title": "Branch protection requires reviews",
+      "status": "verified-pass",
+      "reason": "main requires 1 approving review and passing status checks",
+      "scope": { "org": "attestward-demo", "repo": "good-repo" },
+      "provenance": [
+        {
+          "endpoint": "/repos/attestward-demo/good-repo/rulesets",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:01Z",
+          "http_status": 200,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "check_id": "C09.audit.org-log-available",
+      "title": "Organization audit log is reachable via the API",
+      "status": "not-checkable",
+      "reason": "GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit_log scope",
+      "scope": { "org": "attestward-demo" },
+      "provenance": [
+        {
+          "endpoint": "/orgs/attestward-demo/audit-log",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:02Z",
+          "http_status": 404,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    }
+  ]
+}

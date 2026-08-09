@@ -1,0 +1,328 @@
+# fixtures.yaml — expected check results for the demo org integration test
+# (issue #15). Grows as C05-C10 land — each collector issue appends its own
+# entries here. See hack/demo-org-setup.sh for how the org and repos are
+# configured. demo-good's signed release fixture uses a dedicated Ed25519 SSH
+# key registered to the org owner's account, not a personal identity.
+#
+# Every value below was captured from a REAL scan of the actual org
+# (`attestward scan --org Qloud-LTD --repo demo-good --repo demo-bad`), not
+# hand-derived — a couple of entries reflect real GitHub platform/plan
+# quirks discovered only by running the setup script and observing the
+# result; see each one's `note`.
+#
+# The C05/C06/C07 entries below were backfilled together (issue #19):
+# neither #17 (C05) nor #18 (C06) had added their own entries when they
+# landed, which meant `TestIntegration_DemoOrgMatchesFixtures` had been
+# failing since C05 merged on any real run — every check the scan produces
+# with no matching fixtures.yaml expectation is a test failure by design
+# (see integration_test.go), not a silent skip. demo-good was built as a
+# C01-C04 fixture only; it doesn't run a SAST/SCA tool, so its C05/C06
+# results are honestly verified-fail/not-checkable too — fixtures.yaml
+# records reality, not an aspirational "everything passes."
+
+org: Qloud-LTD
+repos: [demo-good, demo-bad]
+
+# Org-scoped checks (Scope.Repo is empty) — evaluated once per scan,
+# independent of which repos are in scope, so demo-good and demo-bad share
+# the same expectation.
+org_checks:
+  - check_id: C01.org.2fa-required
+    status: verified-fail
+    note: >-
+      two_factor_requirement_enabled could not be toggled true via
+      PATCH /orgs/{org} despite the org owner having personal 2FA enabled —
+      the API call returns 200 but silently leaves the field false rather
+      than erroring, a real observed platform quirk, not a setup-script
+      bug. If GitHub's behavior here ever changes (or the org owner flips
+      it manually via the org's web UI security settings), this becomes
+      verified-pass and this fixture must be updated to match.
+  - check_id: C01.org.members-without-2fa
+    status: verified-pass
+  - check_id: C01.org.default-repo-permission
+    status: verified-pass
+  - check_id: C01.org.members-can-create-public
+    status: verified-fail
+    note: >-
+      members_can_create_public_repositories cannot be set to false
+      ("private-only repository creation") on a GitHub Free-plan org —
+      PATCH /orgs/{org} rejects it outright ("Private-only repository
+      creation policy is not allowed for this organization"). A real
+      plan constraint, not a config mistake; upgrading the org's plan is
+      out of scope for this fixture.
+  - check_id: C04.org.security-defaults
+    status: verified-fail
+    note: >-
+      advanced_security_enabled_for_new_repositories cannot be forced true
+      on a Free-plan org (GHAS is a paid, private-repo-only feature) — one
+      of the four underlying "for new repositories" flags this check
+      requires is permanently false here, so it can never show
+      verified-pass against this org regardless of the other three.
+  - check_id: C09.audit.org-log-available
+    status: not-checkable
+    note: >-
+      GET /orgs/Qloud-LTD/audit-log returns 404 — this is a Free-plan org
+      (org_plan fact confirms it), and the org audit-log REST API is
+      Enterprise Cloud-only; GitHub returns the same 404 whether the
+      cause is the plan or a missing read:audit_log scope, so the check's
+      reason honestly names both rather than picking one.
+  - check_id: C09.audit.log-streaming
+    status: not-checkable
+    note: >-
+      Always not-checkable, unconditionally — audit-log streaming
+      configuration exists only at the GitHub Enterprise account level,
+      which this tool has no scope concept for at all. No fixture value
+      could ever differ from this.
+  - check_id: C09.audit.retention-awareness
+    status: not-checkable
+    note: >-
+      Always not-checkable, unconditionally — fact-only informational
+      check surfacing GitHub's documented 180-day audit-log retention
+      window, never a verified claim about this specific org.
+  - check_id: C10.vdp.security-policy-org
+    status: not-checkable
+    note: >-
+      Qloud-LTD has no .github repo (the org-wide default
+      community-health-file mechanism), so there's no org-level policy to
+      resolve — a genuinely different, softer signal than "the org failed
+      to set one up," since most orgs never create a .github repo at all.
+  - check_id: SA.dev-security-training
+    status: not-checkable
+    note: >-
+      The integration test never supplies --self-attestation-file, so
+      every self-attestation question is honestly not-checkable — "no
+      self-attestation provided," never assumed, matching issue #23's own
+      requirement. This is true unconditionally for all six SA.* checks
+      below, regardless of what org is scanned.
+  - {check_id: SA.threat-modeling, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.vuln-triage-sla, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.vuln-remediation-sla, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.agency-notification-process, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+  - {check_id: SA.audit-log-export-fallback, status: not-checkable, note: "No --self-attestation-file supplied to the integration scan."}
+
+# Per-repo checks, keyed by repo name.
+repo_checks:
+  demo-good:
+    - {check_id: C02.branch.protection-exists, status: verified-pass}
+    - {check_id: C02.branch.required-reviews, status: verified-pass}
+    - {check_id: C02.branch.required-status-checks, status: verified-pass}
+    - {check_id: C02.branch.force-push-blocked, status: verified-pass}
+    - {check_id: C02.branch.deletion-blocked, status: verified-pass}
+    - {check_id: C02.branch.admin-enforced, status: verified-pass}
+    - {check_id: C03.env.exists, status: verified-pass}
+    - {check_id: C03.env.protection-rules, status: verified-pass}
+    - {check_id: C03.env.required-reviewers, status: verified-pass}
+    - {check_id: C03.env.branch-policy, status: verified-pass}
+    - {check_id: C04.secrets.scanning-enabled, status: verified-pass}
+    - {check_id: C04.secrets.push-protection, status: verified-pass}
+    - {check_id: C04.deps.dependabot-alerts, status: verified-pass}
+    - check_id: C04.secrets.advanced-security
+      status: not-checkable
+      note: >-
+        Both demo repos are public (required so secret scanning/push
+        protection are free per GitHub's 2024+ policy, matching this
+        fixture's Free-plan org) — GHAS licensing only gates private-repo
+        features, so this check is not-checkable on any public repo by
+        design, not a gap in demo-good's configuration.
+    - check_id: C05.sast.tool-configured
+      status: verified-fail
+      note: >-
+        demo-good was built as a C01-C04 fixture (issue #15); no SAST tool
+        or CodeQL default setup was ever configured on it. Honestly
+        verified-fail, not a bug — C05/C06/C07 fixtures land together with
+        issue #19, well after demo-good's original C01-C04 scope.
+    - check_id: C05.sast.ran-per-release
+      status: verified-fail
+      note: >-
+        The v1.0.0 release added for the C07 fixture (issue #19) gives
+        this check a release to evaluate for the first time — since no
+        SAST tool is configured (see tool-configured above), that release
+        has zero matched SAST runs, a real gap, honestly reported.
+    - {check_id: C05.sast.cadence, status: not-checkable, note: "No SAST tool configured — nothing to compute cadence for."}
+    - {check_id: C05.sast.default-setup, status: verified-fail, note: "CodeQL default setup was never enabled on this fixture."}
+    - {check_id: C06.sca.tool-configured, status: verified-fail, note: "Same reason as C05.sast.tool-configured — out of demo-good's original C01-C04 scope."}
+    - check_id: C06.sca.ran-per-release
+      status: verified-fail
+      note: "Same reason as C05.sast.ran-per-release — the v1.0.0 release has no matched SCA run."
+    - check_id: C06.sca.dependabot-config
+      status: verified-fail
+      note: >-
+        No .github/dependabot.yml exists, and this repo does have a
+        detected ecosystem (its own GitHub Actions workflows) that would
+        need covering — a real, honestly-reported gap.
+    - {check_id: C06.sca.dependency-review, status: verified-fail, note: "No dependency-review-action (or equivalent) workflow configured."}
+    - check_id: C06.sca.alerts-triaged
+      status: verified-pass
+      note: "Dependabot alerts are enabled (C04.deps.dependabot-alerts) with zero open alerts."
+    - check_id: C07.release.tags-signed
+      status: verified-pass
+      note: >-
+        v1.0.0's annotated tag is signed with an SSH key registered to the
+        org owner's GitHub account and GitHub
+        reports the signature verified.
+    - {check_id: C07.release.checksums, status: verified-pass, note: "v1.0.0 ships checksums.txt."}
+    - check_id: C07.release.signatures
+      status: verified-pass
+      note: "v1.0.0 ships checksums.txt.bundle — a cosign keyless sign-blob bundle."
+    - check_id: C07.provenance.workflow
+      status: verified-pass
+      note: "release.yaml uses sigstore/cosign-installer + cosign sign-blob, matching the cosign scanner signature."
+    - check_id: C07.provenance.commit-linkage
+      status: verified-pass
+      note: "The release.yaml workflow run that built v1.0.0's assets ran directly on the tagged commit."
+    - check_id: C08.actions.pinned
+      status: partial
+      note: >-
+        release.yaml's actions/checkout@v5 step is a first-party actions/*
+        reference on a mutable major-version tag rather than a full SHA —
+        tolerated by the rubric but not ideal, capping the result at
+        partial. Every third-party reference (cosign-installer) is
+        SHA-pinned.
+    - check_id: C08.actions.token-permissions
+      status: partial
+      note: >-
+        ci.yaml (built for the original C01-C04 fixture scope, issue #15,
+        before this check existed) declares no permissions: block at all;
+        release.yaml does. One of two jobs/workflows is explicit, honestly
+        capping the result at partial rather than a clean pass.
+    - {check_id: C08.actions.pull-request-target, status: verified-pass, note: "Neither workflow triggers on pull_request_target."}
+    - check_id: C08.actions.oidc-vs-secrets
+      status: not-checkable
+      note: "Neither workflow contains a recognized cloud-deployment login action (AWS/Azure/GCP) — nothing for this check to evaluate."
+    - {check_id: C08.actions.self-hosted, status: verified-pass, note: "No self-hosted runner usage in any workflow."}
+    - check_id: C09.repo.webhooks
+      status: verified-fail
+      note: >-
+        demo-good has no webhooks configured at all — a real gap, out of
+        this repo's original C01-C04 fixture scope (issue #15).
+    - check_id: C10.vdp.security-md
+      status: verified-fail
+      note: >-
+        demo-good has no SECURITY.md anywhere (repo or org fallback) —
+        out of this repo's original C01-C04 fixture scope (issue #15), a
+        real, honestly-reported gap like C05/C06/C08/C09 before it.
+    - check_id: C10.vdp.intake-channel
+      status: verified-fail
+      note: "No SECURITY.md exists to advertise an intake channel."
+    - check_id: C10.vdp.private-reporting
+      status: verified-fail
+      note: >-
+        GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting
+        returns 200 with enabled:false (a public repo, so this is a real
+        "off" answer, not the plan-gated-404 case this check also
+        handles).
+  demo-bad:
+    - {check_id: C02.branch.protection-exists, status: verified-fail}
+    - {check_id: C02.branch.required-reviews, status: verified-fail}
+    - {check_id: C02.branch.required-status-checks, status: verified-fail}
+    - {check_id: C02.branch.force-push-blocked, status: verified-fail}
+    - {check_id: C02.branch.deletion-blocked, status: verified-fail}
+    - {check_id: C02.branch.admin-enforced, status: verified-fail}
+    - check_id: C03.env.exists
+      status: verified-pass
+      note: >-
+        A "production"-named environment exists (matching the prod*/
+        production heuristic) even though it's deliberately left
+        completely unprotected — C03.env.exists only asks whether a
+        production-like environment exists, not whether it's protected;
+        the other three C03 checks below cover that.
+    - {check_id: C03.env.protection-rules, status: verified-fail}
+    - {check_id: C03.env.required-reviewers, status: verified-fail}
+    - {check_id: C03.env.branch-policy, status: verified-fail}
+    - {check_id: C04.secrets.scanning-enabled, status: verified-fail}
+    - {check_id: C04.secrets.push-protection, status: verified-fail}
+    - {check_id: C04.deps.dependabot-alerts, status: verified-fail}
+    - check_id: C04.secrets.advanced-security
+      status: not-checkable
+      note: "Same reason as demo-good's entry above — public repo, not applicable."
+    - {check_id: C05.sast.tool-configured, status: verified-fail, note: "No SAST tool or CodeQL default setup configured."}
+    - check_id: C05.sast.ran-per-release
+      status: not-checkable
+      note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."
+    - {check_id: C05.sast.cadence, status: not-checkable, note: "No SAST tool configured — nothing to compute cadence for."}
+    - {check_id: C05.sast.default-setup, status: verified-fail, note: "CodeQL default setup was never enabled."}
+    - {check_id: C06.sca.tool-configured, status: verified-fail, note: "No SCA tool or Dependabot config configured."}
+    - {check_id: C06.sca.ran-per-release, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - check_id: C06.sca.dependabot-config
+      status: verified-fail
+      note: >-
+        Updated for issue #20: demo-bad now has .github/workflows/ files
+        (the C08 pull_request_target/unpinned-action fixtures), so it has
+        a detected ecosystem (github-actions) with no .github/dependabot.yml
+        covering it — a real gap now that this repo has workflows at all,
+        not the "nothing to cover" not-checkable it was before #20 landed.
+    - {check_id: C06.sca.dependency-review, status: verified-fail, note: "No dependency-review-action (or equivalent) workflow configured."}
+    - check_id: C06.sca.alerts-triaged
+      status: verified-fail
+      note: >-
+        Dependabot alerts are deliberately disabled on demo-bad
+        (C04.deps.dependabot-alerts) — a real, honestly-reported gap.
+    - check_id: C07.release.tags-signed
+      status: not-checkable
+      note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."
+    - {check_id: C07.release.checksums, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - {check_id: C07.release.signatures, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - check_id: C07.provenance.workflow
+      status: verified-fail
+      note: >-
+        Updated for issue #21: demo-bad now has two workflow files
+        (deploy-fixture.yaml, pr-target-fixture.yaml — the C08 fixtures
+        added in issue #20), but neither uses cosign, SLSA generator, or
+        GitHub Attestations, so the status is unchanged, just the reason
+        it's honestly still verified-fail rather than not-checkable.
+    - {check_id: C07.provenance.commit-linkage, status: not-checkable, note: "demo-bad has no releases at all — nothing in the lookback window to evaluate."}
+    - check_id: C08.actions.pinned
+      status: verified-fail
+      note: >-
+        deploy-fixture.yaml's docker/build-push-action@v6 and
+        aws-actions/configure-aws-credentials@v4 are both third-party
+        references on mutable tags, not SHAs — a real, deliberately
+        unpinned gap (issue #20's fixture).
+    - check_id: C08.actions.token-permissions
+      status: partial
+      note: >-
+        deploy-fixture.yaml declares no permissions: block at all (a
+        deliberate gap); pr-target-fixture.yaml does. One of two
+        jobs/workflows is explicit.
+    - check_id: C08.actions.pull-request-target
+      status: verified-fail
+      note: >-
+        pr-target-fixture.yaml triggers on pull_request_target and checks
+        out the PR head commit — the deliberate "pwn request" fixture for
+        this check (issue #20). Its steps are checkout + a no-op echo only:
+        no secrets referenced, `permissions: contents: read`, so a real
+        external PR triggering it does nothing beyond a read-only
+        checkout.
+    - check_id: C08.actions.oidc-vs-secrets
+      status: verified-fail
+      note: >-
+        deploy-fixture.yaml's aws-actions/configure-aws-credentials step
+        sets aws-access-key-id/aws-secret-access-key (long-lived static
+        credentials) rather than role-to-assume (OIDC) — a deliberate
+        gap. This workflow triggers only on workflow_dispatch, which
+        requires repo write access, so it cannot run from an external
+        contributor's PR; the referenced secrets don't exist in this org
+        either way.
+    - check_id: C08.actions.self-hosted
+      status: partial
+      note: >-
+        deploy-fixture.yaml's job runs on [self-hosted, linux, x64] and
+        the repo is public — the exact risk this check flags. No
+        self-hosted runner is actually registered to this org, so the job
+        would simply queue forever if triggered.
+    - check_id: C09.repo.webhooks
+      status: verified-fail
+      note: "demo-bad has no webhooks configured at all — a real, deliberately-off gap."
+    - check_id: C10.vdp.security-md
+      status: verified-fail
+      note: "demo-bad has no SECURITY.md anywhere (repo or org fallback) — a real, deliberately-off gap."
+    - check_id: C10.vdp.intake-channel
+      status: verified-fail
+      note: "No SECURITY.md exists to advertise an intake channel."
+    - check_id: C10.vdp.private-reporting
+      status: verified-fail
+      note: >-
+        GET /repos/Qloud-LTD/demo-bad/private-vulnerability-reporting
+        returns 200 with enabled:false (a public repo, so this is a real
+        "off" answer, not the plan-gated-404 case this check also
+        handles).

@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  # GitHub-hosted, like every other job in this repo since the public flip.
+  # Pure cross-compiled Go with no docker/nfpm stanzas in .goreleaser.yaml, so
+  # there is no OS-specific build requirement.
+  #
+  # This comment used to say the opposite, and warned that a hosted runner
+  # meant a `v*` tag push would produce no release at all while Actions billing
+  # was blocked. That was true of a private repo with exhausted minutes; it is
+  # not true here. Hosted minutes are free and unmetered on a public repo, and
+  # the ephemeral-per-job environment is worth more on THIS job than any other:
+  # it is the one that publishes real artifacts and keyless-signs real
+  # checksums.
+  goreleaser:
+    runs-on: ubuntu-latest
+    # On a hosted runner a hung release job only wastes its own ephemeral VM
+    # rather than blocking a shared machine, so this timeout is cheap
+    # insurance rather than the contention guard it used to be —
+    # integration-scan.yaml's jobs set one for the same reason.
+    timeout-minutes: 15
+    permissions:
+      contents: write # create the GitHub release and upload assets
+      id-token: write # ambient OIDC token for cosign keyless signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history for the conventional-commit changelog
+      # cache: false — see ci.yaml's matching comment (issue #313). The
+      # runner is ephemeral, so the build is cold either way; this keeps the
+      # release build resolving from go.sum against the real proxy.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # Pin the actual cosign release, not just the installer action: the
+      # bundle-based sign/verify flow in .goreleaser.yaml and SECURITY.md
+      # was verified against this exact version.
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v3.1.1"
+      # No `version:` pin here — the action's own default (~> v2) matches
+      # this repo's `.goreleaser.yaml` `version: 2` config schema; `latest`
+      # would opt the release path into a future goreleaser v3 with
+      # breaking config semantics, floating past the SHA-pinned action.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

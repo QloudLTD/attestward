@@ -1,0 +1,416 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Every job here runs on GitHub-hosted `ubuntu-latest`. The repo went public on
+# 2026-07-29, which made hosted runners free and unmetered and
+# removed the only reason this repo used self-hosted machines: hosted minutes
+# had been exhausted, not any technical requirement. All self-hosted runners
+# were deregistered at the same time.
+#
+# Nothing here needs a specific OS. The binary is `CGO_ENABLED=0` pure Go, so
+# one Linux runner cross-compiles every published target (see `build`'s own
+# comment below). The one deliberate exception is `test-macos`, which exists to
+# keep real darwin test coverage for the darwin binaries this project ships —
+# see that job's own comment.
+#
+# This also retires a standing supply-chain risk rather than merely relocating
+# it: `docs/threat-model.md` recorded that CI shared a persistent machine, user
+# account and login keychain with runners for seven unrelated repositories, and
+# that `pull_request` jobs from forks would execute there once the repo was
+# public. Hosted runners are ephemeral and per-job, so that entire class of
+# residual risk is gone by construction.
+#
+# Issue #313 — every `actions/setup-go` step below still sets `cache: false`,
+# but the reasoning inverted with the migration and is worth restating, because
+# the old rationale is now false. On the self-hosted runners GOMODCACHE/GOCACHE
+# persisted in $HOME across jobs, so the action's default (`cache: true`)
+# uploaded a redundant ~2GB copy of what was already on local disk; those
+# caches had grown to 8.65GB against the 10GB per-repo ceiling and were
+# evicting each other. A hosted runner has no persistent local cache at all —
+# every job starts genuinely cold — so `cache: false` no longer avoids
+# redundancy. It is kept because it still buys the property #313 actually
+# wanted: `go build`/`go test` prove the module graph resolves from `go.sum`
+# against the real proxy rather than from a warm cache. What used to require a
+# weekly `clean` job to be even approximately true is now guaranteed by the
+# runner being thrown away after every job.
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Deliberately NOT go-version-file: golangci-lint v2.12.2 requires Go
+      # >=1.25, independent of go.mod's `go 1.22` minimum-compatibility
+      # floor (the module itself doesn't need a newer language version —
+      # only the linter tool being installed does).
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25"
+          cache: false
+      - name: Install golangci-lint (pinned to the version required locally)
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+      - run: golangci-lint run
+
+  # The required check. Runs on ubuntu-latest; `test-macos` below covers the
+  # other shipped OS and is deliberately non-required.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go test ./... -race -coverprofile=coverage.out
+      # Issue #211: self-scan.yaml's drift-baseline logic lives in
+      # hack/fetch-drift-baseline.sh specifically so it's testable outside
+      # `go test` — pure bash against a mocked `gh`, no live network calls,
+      # same rule the Go collector tests follow.
+      - run: hack/fetch-drift-baseline_test.sh
+      # Issue #228: proves hack/check-examples-drift.sh (the examples-drift
+      # job below) actually catches drift and actually passes on a
+      # genuinely up-to-date pack, not just that it runs without erroring.
+      - run: hack/check-examples-drift_test.sh
+      # Issue #282: proves hack/check-third-party-notices-drift.sh (the
+      # third-party-notices-drift job below) actually catches a
+      # hand-edited THIRD-PARTY-NOTICES.md, not just that it runs.
+      - run: hack/check-third-party-notices-drift_test.sh
+
+  # Issue #83 originally added this as `test-linux`, to restore Linux-specific
+  # coverage that `test` above couldn't provide while `test` ran on a
+  # self-hosted macOS machine. The runner migration inverted that: `test` now
+  # runs on `ubuntu-latest`, so a second Linux job would be an exact duplicate.
+  #
+  # The coverage worth keeping is the *other* OS, not the other machine. This
+  # tool ships darwin/amd64 and darwin/arm64 binaries, so it renames to
+  # `test-macos` and runs the same suite on hosted macOS — case-insensitive
+  # filesystem, different path/rename semantics, a different race-detector
+  # runtime. Dropping the job outright would have silently ended all macOS test
+  # coverage at the same moment the last macOS runner was deregistered.
+  #
+  # Kept deliberately OUT of the required-checks list, exactly as `test-linux`
+  # was: hosted macOS minutes are slower and scarcer than Linux, and a queue
+  # there must never block a merge. `test` on ubuntu-latest remains the
+  # required check, and its name is unchanged — a matrix would have renamed it
+  # to `test (ubuntu-latest)` and silently broken the ruleset.
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go test ./... -race -coverprofile=coverage.out
+
+  # Issue #30's drift guard: docs/checks-reference.md is generated from
+  # mappings/*.yaml + the collector registry (never hand-edited — see the
+  # file's own header). A PR that changes either without regenerating fails
+  # here rather than letting the reference silently go stale.
+  checks-docs-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: make checks-docs-check
+
+  # Issue #249's drift guard: go.mod/go.sum are the input to every build,
+  # including goreleaser's release build, not a generated artifact — but
+  # the same "nothing checks it" gap #30/#228 both existed for applies to
+  # them too. Before this, `go mod tidy` ran unchecked as a goreleaser
+  # `before:` hook on every release, so the go.mod that produced published
+  # binaries was never provably the one at the tagged commit — sharper than
+  # ordinary untidiness for a tool whose whole premise is that "check out
+  # the tag and rebuild" reproduces what shipped. `make tidy-check` runs
+  # `go mod tidy` then diffs go.mod/go.sum against the working tree; a
+  # clean diff here is what lets the goreleaser hook be removed entirely
+  # rather than papering over drift at release time.
+  #
+  # Not fully hermetic: `go mod tidy` computes the full module graph, not
+  # just this build's own dependency closure, so it can need a network
+  # fetch for a transitive test-only module a plain `go build`/`go test`
+  # run never touches — confirmed directly, not assumed: an isolated
+  # GOMODCACHE fully populated by `go build ./...` still needed four more
+  # modules under `GOPROXY=off` (google/go-cmp, inconshreveable/mousetrap,
+  # golang.org/x/oauth2, gopkg.in/check.v1 — test-deps-of-deps this repo's
+  # own build/test never reaches). `GOFLAGS=-mod=mod` doesn't change this
+  # (it only affects whether OTHER commands may rewrite go.mod; `go mod
+  # tidy` itself always can). This runner's module cache persists across
+  # runs, so this is a one-time cost per module-graph change, not per run
+  # — but it DOES recur on every dependency bump, unlike `lint`'s own
+  # `go install golangci-lint@v2.12.2` above: that install is pinned, so
+  # it's one-time until the pin itself is bumped, while tidy's own closure
+  # moves with every `go.mod` require-block change, and is a strict
+  # superset of whatever the build/test jobs above it already fetched. A
+  # transient proxy.golang.org failure on exactly one of those four
+  # modules would redden this job alone, the same "red tick that doesn't
+  # mean the code is wrong" pattern the coverage-upload step above already
+  # documents.
+  gomod-tidy-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: make tidy-check
+
+  # Issue #228's drift guard, same shape as checks-docs-drift above:
+  # examples/demo-org-pack/{report.md,report.html,poam.md} are rendered
+  # from the pack's own evidence.json, not hand-edited — went two releases
+  # (#200, #212) drifting from what the renderers actually produce before
+  # anyone noticed, because nothing checked them. README.md points cold
+  # visitors at this pack, so it's the one rendered artifact a reader
+  # compares against the real binary's output.
+  examples-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: make examples-check
+
+  # Issue #282's drift guard, same shape as checks-docs-drift/examples-drift
+  # above: THIRD-PARTY-NOTICES.md is generated from the resolved module
+  # graph plus each dependency's own LICENSE file in the module cache,
+  # never hand-edited — see hack/gen-third-party-notices.sh's own header
+  # comment, including why it's not enough to run this on one platform.
+  third-party-notices-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: make notices-check
+
+  # Issue #209: checks-docs-drift above only compares the generated doc
+  # against the rubric *source* (mappings/*.yaml + the collector
+  # registry) — it has no opinion on whether a collector's checkRubrics
+  # entries still match what the collector's own status-assignment code
+  # does. #202's review round 1 found exactly that gap by chance: a
+  # status-capping change landed across three collectors with
+  # checkRubrics byte-identical to main, and nothing in CI could tell
+  # #202 (initially silent on it) apart from #203 (updated its rubric in
+  # the same commit) beforehand. tools/rubricguard flags a package whose
+  # non-test .go files gained a changed `model.Status*` value reference
+  # while its own checkRubrics went untouched in the same diff — see that
+  # package's own doc comments for the precision/false-positive
+  # reasoning (issue #209 explicitly accepts a coarse heuristic; a
+  # reviewer waving off an occasional false positive is fine, silence is
+  # not). fetch-depth: 0 — the tool needs full history to compute a real
+  # merge-base, the same reason goreleaser-dry-run below needs it.
+  #
+  # A green run here means "no function's multiset of referenced status
+  # constants changed outside checkRubrics" (issue #262 — occurrence-count-
+  # sensitive but position-insensitive per function, tools/rubricguard's
+  # own doc comment has the full reasoning) — it does NOT mean "status
+  # behavior is unchanged". Known, permanent false-negative classes (round
+  # 2 review and issue #262's own re-review, not bugs): exchanging which
+  # status a check produces between two branches, whether spelled as a
+  # condition flip (`if enabled` -> `if !enabled`, constants untouched) or
+  # as swapping which constant sits in which branch (condition untouched)
+  # — both leave a function's multiset of status names identical — and a
+  # package-wide OR on whether checkRubrics was touched at all (a real
+  # fix to one check's rubric can mask a missing fix to another check's,
+  # in the same package's shared checkRubrics map) — see
+  # tools/rubricguard/main.go's own doc comment for both in detail. This
+  # job existing at all narrows the gap #202 hit by chance; it doesn't
+  # close it.
+  rubric-drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # Determines what to diff for this event, entirely in `if:`/`env:`
+      # — pull_request's base/head SHAs and push's before/after are all
+      # commit SHAs GitHub itself sets (not attacker-influenceable free
+      # text), but they still go through env: rather than direct `${{ }}`
+      # interpolation into the run: block below, matching this repo's
+      # own rule regardless.
+      - name: Determine the diff range for this event
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+          pull_request)
+            echo "base=$PR_BASE_SHA" >>"$GITHUB_OUTPUT"
+            echo "head=$PR_HEAD_SHA" >>"$GITHUB_OUTPUT"
+            ;;
+          push)
+            # The all-zero SHA is git's/GitHub's own sentinel for "no
+            # previous commit" — a brand-new branch or a force-push
+            # that discarded history. Nothing to diff against; skip
+            # rather than erroring on an unresolvable range.
+            if [ -z "$PUSH_BEFORE_SHA" ] || [ "$PUSH_BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              echo "no previous commit on this push (new branch or force-push) — nothing to diff"
+              echo "skip=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "base=$PUSH_BEFORE_SHA" >>"$GITHUB_OUTPUT"
+              echo "head=$PUSH_HEAD_SHA" >>"$GITHUB_OUTPUT"
+            fi
+            ;;
+          *)
+            echo "not a pull_request or push event — nothing to diff"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            ;;
+          esac
+      # continue-on-error only on push: this step re-runs on push to main
+      # over before..after, which for a squash merge is the identical
+      # diff the PR itself was already flagged (or correctly waived) on —
+      # a reviewer who waived a false positive on the PR would otherwise
+      # get an unexplained red run on main afterwards, with no PR context
+      # left to waive it in again. On pull_request it stays a hard
+      # check — that's the one place a reviewer can actually act on a
+      # finding, matching the enforcement issue #209 asks for.
+      - name: Check for rubric drift
+        id: rubric-check
+        if: steps.range.outputs.skip != 'true'
+        continue-on-error: ${{ github.event_name == 'push' }}
+        env:
+          BASE: ${{ steps.range.outputs.base }}
+          HEAD: ${{ steps.range.outputs.head }}
+        run: go run ./tools/rubricguard "$BASE" "$HEAD"
+      # Same outcome-vs-conclusion mechanism #219 established in this
+      # same file: outcome reflects the step's real result before
+      # continue-on-error masks it into "success" for the job's own
+      # conclusion, so a push-triggered finding is still visible — just
+      # not fatal to an already-merged main's badge.
+      - name: Warn if rubric drift was found on a push to main
+        if: github.event_name == 'push' && steps.rubric-check.outcome == 'failure'
+        run: |
+          echo "::warning::possible rubric drift found on this push to main (issue #209) — see the 'Check for rubric drift' step's own output above; this doesn't fail the build here since there's no PR context left to review or waive it in, but it's worth a look"
+
+  # Issue #260: keeps docs/threat-model.md's ADO-collector enumeration
+  # current — see tools/threatmodelguard/scan.go's own doc comment. Its
+  # former self-hosted-runner check was retired with the runner migration:
+  # with no self-hosted job left to enumerate, the check had
+  # nothing to compare and its expected list was pure drift. Not diff-based
+  # like rubric-drift-check above, so no merge-base/range step is needed.
+  threat-model-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go run ./tools/threatmodelguard
+
+  # Cross-compiles every target platform in one job on one Linux runner,
+  # instead of round-tripping through four separate machines the way this
+  # repo once did (a Linux VM for linux/amd64, a second for linux/arm64, a
+  # Mac mini for both darwin arches, plus a wake/sleep cycle on a physical
+  # Windows box for windows/amd64 — several minutes of pure machine
+  # management on top of the actual build, every single run). Go's own
+  # GOOS/GOARCH
+  # cross-compilation makes native per-arch runners unnecessary for a
+  # CGO_ENABLED=0 pure-Go binary — this is exactly what goreleaser-dry-run
+  # below already does, and a local `goreleaser release --snapshot`
+  # cross-compiled all 5 targets from one machine in 12 seconds during
+  # PR #128's own verification. Only the output matching this runner's own
+  # OS/arch (darwin/arm64) gets an execution check; the other 4 are
+  # compile-checked, not run — cross-compiling doesn't buy execution
+  # verification on the target OS, only compilation.
+  #
+  # This is now the required build path. The previous 4-runner, per-arch
+  # native-build pattern (including the AORUS wake/sleep dance) is kept as a
+  # reference in multi-arch-build-sample.yaml — non-required,
+  # workflow_dispatch-only, for anyone who genuinely needs execution-verified
+  # native builds again (e.g. a future CGO dependency that can't
+  # cross-compile).
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Cross-compile every target platform
+        env:
+          CGO_ENABLED: 0
+        run: |
+          set -euo pipefail
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            ext=""
+            if [ "$goos" = "windows" ]; then ext=".exe"; fi
+            out="attestward-${goos}-${goarch}${ext}"
+            echo "building $out"
+            # Issue #232: $GITHUB_SHA is one of GitHub's own default
+            # environment variables, ambiently exported into every step —
+            # no env: plumbing needed, and unlike the github.sha context
+            # expression it replaced, it's a genuine runtime env var the
+            # shell reads, never textually substituted into this script
+            # before it runs. (Named rather than written: GitHub substitutes
+            # a context expression inside a run: block even within a #
+            # comment, so writing one here would silently interpolate.) Not a live risk either way (github.sha is a GitHub-
+            # generated hex SHA, not attacker-influenceable) but the
+            # rule's whole value is not needing that judgement call per
+            # site.
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+              -ldflags "-X main.version=$GITHUB_SHA -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              -o "$out" ./cmd/attestward
+          done
+      # Smoke-test whichever cross-compiled binary matches THIS runner's own
+      # architecture — the only one it can actually execute. That used to be
+      # darwin/arm64 (the self-hosted Apple Silicon machine); on ubuntu-latest
+      # it is linux/amd64, and running the darwin binary here fails with
+      # "cannot execute binary file: Exec format error". The step proves the
+      # cross-compile produced a *runnable* binary rather than merely an
+      # artifact that links; `multi-arch-build-sample.yaml` is the workflow
+      # that verifies all five targets natively.
+      - name: Verify the linux/amd64 build runs (matches this runner's own arch)
+        run: ./attestward-linux-amd64 version
+
+  # Catches .goreleaser.yaml drift/breakage on every PR without needing a tag
+  # push or cosign's OIDC signing context. Informational only (not a required
+  # check) since it duplicates build's compile coverage.
+  goreleaser-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # No `version:` pin — see the matching comment in release.yaml.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          args: release --snapshot --clean --skip=sign

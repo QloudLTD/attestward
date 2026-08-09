@@ -1,0 +1,38 @@
+name: New check proposal
+description: Propose a new verification check (a control the tool should verify via API)
+labels: ["type:feature", "area:collectors"]
+body:
+  - type: input
+    id: control
+    attributes:
+      label: Control to verify
+      description: One sentence — what real-world security control does this check prove?
+      placeholder: e.g. "Deploy workflows use OIDC federation instead of long-lived cloud keys"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: API evidence
+      description: Which API endpoint(s)/fields prove or disprove it? Link API docs. Read-only endpoints only.
+    validations:
+      required: true
+  - type: textarea
+    id: mapping
+    attributes:
+      label: SSDF mapping
+      description: Which NIST SP 800-218 task ID(s) does this provide evidence for? Cite the exact IDs from the publication — do not invent IDs.
+    validations:
+      required: true
+  - type: textarea
+    id: semantics
+    attributes:
+      label: Pass/fail semantics
+      description: "What is verified-pass? verified-fail? partial? When is it not-checkable (e.g. plan-gated features)?"
+    validations:
+      required: true
+  - type: textarea
+    id: token
+    attributes:
+      label: Token permissions required
+      description: Minimum fine-grained PAT permission(s) this check needs.

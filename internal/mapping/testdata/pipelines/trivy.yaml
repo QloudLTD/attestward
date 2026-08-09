@@ -1,0 +1,11 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - script: |
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+      trivy image --exit-code 1 --severity HIGH,CRITICAL myregistry.azurecr.io/myapp:$(Build.BuildId)
+    displayName: 'Run Trivy image scan'

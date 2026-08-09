@@ -1,0 +1,37 @@
+# Binaries / build
+/attestward
+/rubricguard
+/threatmodelguard
+/dist/
+*.exe
+
+# Test/coverage output
+*.test
+coverage.out
+coverage.html
+
+# Local evidence output (never commit real scans)
+/evidence/
+evidence.json
+report.html
+report.md.local
+
+# ...except the intentionally-committed sample pack (issue #29) — a real
+# scan of the public Qloud-LTD/demo-good demo repo, not a local/private one.
+!/examples/demo-org-pack/evidence.json
+!/examples/demo-org-pack/report.html
+
+# Local config with org-specific scope (anchored to repo root so this
+# doesn't also catch examples/attestward.yaml, which is intentionally
+# committed)
+/attestward.yaml
+/attestward.local.yaml
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Personal/local-only Claude Code context — never committed
+CLAUDE.local.md

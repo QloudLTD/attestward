@@ -1,0 +1,16 @@
+name: Attest build provenance
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"

@@ -1,0 +1,72 @@
+# Plan of Action & Milestones (Draft)
+
+> **Note:** this pack's mapping versions do not match the mapping data used to render this document — the following mapping files no longer match: `mappings/ssdf-800-218.yaml`, `mappings/cisa-ssda-form.yaml`. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.
+
+This is a **draft** POA&M generated from `evidence.json`. Owner, target date, and
+resources-required fields are placeholders for a human to fill in — this tool has
+no authority to assign ownership, timelines, or budget. Every finding here traces
+to a specific `verified-fail` or `partial` check result; see report.md for full
+narrative context.
+
+## Summary
+
+- **Org:** attestward-demo
+- **Scan window:** 2026-07-13 12:00:00 UTC – 2026-07-13 12:00:05 UTC
+- **Total findings:** 2 (1 fail, 1 partial)
+
+| Cluster | Fail | Partial | Total |
+|---|---|---|---|
+| 1. Secure development and build environments | 0 | 0 | 0 |
+| 2. Trusted source code supply chain (good-faith effort) | 1 | 1 | 2 |
+| 3. Provenance for internal and third-party code | 0 | 0 | 0 |
+| 4. Automated vulnerability checking, pre-release, and disclosure program | 0 | 0 | 0 |
+
+---
+
+## Findings
+
+### Cluster 2: Trusted source code supply chain (good-faith effort)
+
+> The software producer makes a good-faith effort to maintain trusted source code supply chains by employing automated tools or comparable processes to address the security of internal code and third-party components and manage related vulnerabilities.
+
+#### POAM-001: Branch protection exists (C02.branch.protection-exists) — [FAIL] Verified Fail
+
+- **Scope:** bad-repo
+- **Affected SSDF task(s):** PS.1.1
+- **CISA form cluster(s):** 2, 4
+- **Description:** no branch protection configured on main
+- **Evidence:** GET /repos/attestward-demo/bad-repo/branches/main/protection (digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+- **Suggested remediation:** Repo Settings -> Rules -> Rulesets -> add a rule targeting the default branch.
+- **Owner:** ____
+- **Target date:** ____
+- **Resources required:** ____
+- **Milestones:** ____
+- **Status:** Open
+
+#### POAM-002: Third-party actions and reusable workflows are pinned to a full commit SHA (C08.actions.pinned) — [PARTIAL] Partial
+
+- **Scope:** good-repo
+- **Affected SSDF task(s):** PW.4.1
+- **CISA form cluster(s):** 2, 3
+- **Description:** every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
+- **Evidence:** GET /repos/attestward-demo/good-repo/contents/.github/workflows/release.yaml (digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+- **Suggested remediation:** Pin every third-party action reference to a full 40-char commit SHA.
+- **Owner:** ____
+- **Target date:** ____
+- **Resources required:** ____
+- **Milestones:** ____
+- **Status:** Open
+
+---
+
+## Requires Attention Outside This Tool
+
+Self-attested and not-checkable items are **not** POA&M findings — a self-attested
+answer is the producer's own claim, not independently verified, and a not-checkable
+result means this tool structurally could not determine an answer (plan-gated,
+insufficient token permission, or an unanswered self-attestation question). Neither
+is a confirmed gap, but both may need a human's attention outside this document.
+
+- C09.audit.org-log-available (Not Checkable): GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include the Enterprise Cloud audit-log API, or the token lacks the read:audit\_log scope
+- SA.audit-log-export-fallback (Self-Attested): self-attested (not independently verified): yes
+

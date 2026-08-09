@@ -1,0 +1,389 @@
+# fixtures-ado.yaml — expected check results for the Azure DevOps demo
+# project integration test (issue #155, epic #34's v0.2 ADO parity work).
+# Twin of fixtures.yaml (issue #15) for the azuredevops platform — same
+# discipline, kept in a separate file rather than a `platform:` root key in
+# fixtures.yaml so the GitHub file (and its own passing integration test)
+# stay completely untouched by this work.
+#
+# Every value below was captured from a REAL scan of the actual demo
+# project (`attestward scan --platform azuredevops --org seciq --project
+# attestward-demo --repo demo-good --repo demo-bad`, exit 2, 81 results),
+# not hand-derived — the same rule fixtures.yaml's own header states. This
+# was the DEFINITIVE capture, taken after #189 (an audit-streams envelope
+# fix) merged to main.
+#
+# Several entries below are environment-sensitive: they depend on the live
+# state of the seciq org/attestward-demo project itself, not just on this
+# repo's collector code, and will change if that state changes. Each such
+# entry's own `note:` says so explicitly. Notably: the org is NOT licensed
+# for GHAzDO (GitHub Advanced Security for Azure DevOps) — its advsec
+# enablement endpoints read back all-false rather than gating with a
+# 403/404, which is why the advsec-backed C04 checks below read
+# verified-fail rather than not-checkable (see epic #34's own open
+# decision 2). Licensing GHAzDO on this org would change every one of them.
+
+platform: azuredevops
+org: seciq
+project: attestward-demo
+repos: [demo-good, demo-bad]
+
+# Checks whose Scope.Repo is empty land here — this covers both true
+# org-scoped checks (e.g. C01 org-security, C09 audit-logging) and
+# project-scoped-but-not-repo-scoped checks (e.g. C03 env-separation, C08
+# pipeline-security's C08.pipelines.fork-protection — see each package's
+# own doc comment in internal/collect/azuredevops/ for which scope level it
+# uses), the same way TestIntegration_ADODemoOrgMatchesFixtures' assertion
+# helper groups them: one call filtered on Scope.Repo=="", independent of
+# whether the underlying control is really "org" or "project" in Azure
+# DevOps terms.
+org_checks:
+  - check_id: C01.org.2fa-required
+    status: partial
+    note: >-
+      Environment-sensitive: partial because all 5 human members returned
+      by the Graph Users list have origin=="aad" — zero msa (personal
+      Microsoft account) and zero unrecognized-origin (e.g. ghb) members.
+      Every human identity is Entra-backed, but full MFA enforcement lives
+      in Microsoft Entra Conditional Access, a surface no vso.* PAT scope
+      reaches, so this can never exceed partial regardless (epic #34 open
+      decision 3). Adding a non-aad member to the org would change this to
+      verified-fail (msa) or not-checkable (an unrecognized origin).
+  - check_id: C01.org.default-repo-permission
+    status: not-checkable
+    note: >-
+      Always not-checkable — Azure DevOps has no single org-level
+      default-repository-permission field at all; access is governed per
+      security-group/ACL (_apis/accesscontrollists), out of scope for v0.2
+      (issue #34's non-goals).
+  - check_id: C01.org.members-can-create-public
+    status: not-checkable
+    note: >-
+      Environment-sensitive: not-checkable because zero projects in this
+      org are currently public — a policy that disallows public projects
+      and a policy that allows it but is simply unused look identical from
+      the Projects - List endpoint alone (the org-level "Allow public
+      projects" policy setting itself lives behind an API this tool
+      doesn't call). Making any project in the org public would flip this
+      to verified-fail.
+  - check_id: C01.org.members-without-2fa
+    status: not-checkable
+    note: >-
+      Always not-checkable — per-user MFA registration state lives in
+      Microsoft Entra ID / Microsoft Graph, a different service than
+      anything a vso.* PAT scope reaches; no Azure DevOps endpoint exposes
+      it.
+  - check_id: C03.env.branch-policy
+    status: verified-fail
+    note: >-
+      The production environment's only check configuration is the
+      Approval check hack/demo-ado-setup.sh adds — no Task Check (branch
+      control) exists, so no branch restriction is configured at all.
+  - check_id: C03.env.exists
+    status: verified-pass
+  - check_id: C03.env.protection-rules
+    status: verified-pass
+  - check_id: C03.env.required-reviewers
+    status: verified-pass
+  - check_id: C04.org.security-defaults
+    status: verified-fail
+    note: >-
+      Environment-sensitive: attestward-demo's org is not licensed for
+      GHAzDO — GET advsec.dev.azure.com/{org}/_apis/management/enablement
+      responds HTTP 200 with every enablementOnCreateSettings field
+      reading false, rather than gating with a 403/404, so this reads as a
+      real, verifiable fail rather than not-checkable. Licensing GHAzDO on
+      this org would change this result (and every other advsec-backed
+      entry in this file).
+  - check_id: C04.vars.secret-hygiene
+    status: verified-fail
+    note: >-
+      This check evaluates every variable group in the project together,
+      not per-repo — demo-bad-vars' plaintext API_KEY variable alone fails
+      it project-wide; demo-good-vars' properly-secret DB_PASSWORD
+      variable doesn't offset it.
+  - check_id: C08.actions.oidc-vs-secrets
+    status: not-checkable
+    note: "Zero azurerm service connections exist in attestward-demo — nothing for this check to evaluate."
+  - check_id: C08.actions.pinned
+    status: not-checkable
+    note: >-
+      Always not-checkable — Azure Pipelines resolves tasks as
+      Task@MajorVersion against org-installed task versions; there is no
+      commit-SHA-pinning mechanism this tool could ever check for.
+  - check_id: C08.actions.pull-request-target
+    status: not-checkable
+    note: >-
+      Always not-checkable — Azure Pipelines has no trigger equivalent to
+      GitHub's pull_request_target; see C08.pipelines.fork-protection for
+      the real, adjacent ADO control.
+  - check_id: C08.actions.self-hosted
+    status: verified-pass
+    note: >-
+      Environment-sensitive: passes because attestward-demo is a PRIVATE
+      project — the public-fork attack vector this check flags doesn't
+      apply regardless of any pipeline's own agent pool. Making the
+      project public would re-evaluate this against each build
+      definition's pool.
+  - check_id: C08.actions.token-permissions
+    status: verified-pass
+    note: "Environment-sensitive: enforceJobAuthScope, enforceJobAuthScopeForReleases, and enforceReferencedRepoScopedToken all read true — attestward-demo's default state; nothing in hack/demo-ado-setup.sh configures this explicitly."
+  - check_id: C08.pipelines.fork-protection
+    status: verified-pass
+    note: "Environment-sensitive: passes because fork builds are disabled entirely (buildsEnabledForForks defaults false on a new project) — not because both fork-protection settings are individually on."
+  - check_id: C09.audit.log-streaming
+    status: verified-fail
+    note: >-
+      Environment-sensitive: GET .../_apis/audit/streams returned zero
+      configured streams — a real, live gap on this org (not a
+      licensing/scope block; contrast with C09.audit.org-log-available,
+      which succeeds on this same org). Configuring any stream would flip
+      this to verified-pass.
+  - check_id: C09.audit.org-log-available
+    status: verified-pass
+    note: "Environment-sensitive: the seciq org is Azure AD (Entra ID)-backed with auditing reachable — GET .../_apis/audit/auditlog?batchSize=1 succeeds."
+  - check_id: C09.audit.retention-awareness
+    status: not-checkable
+    note: >-
+      Always not-checkable — purely informational; documents Azure
+      DevOps's 90-day audit-log retention window as a fact, never a fail.
+  - check_id: C09.repo.webhooks
+    status: verified-fail
+    note: >-
+      Environment-sensitive: no service hook subscription (org-level or
+      scoped to attestward-demo) exists with eventType git.push or
+      build.complete — a real, live gap. Configuring one would flip this
+      to verified-pass.
+  - check_id: C10.vdp.security-policy-org
+    status: not-checkable
+    note: >-
+      Always not-checkable — Azure DevOps has no ".github"-repo-style
+      org-wide-default mechanism this tool could check as a fallback.
+  - check_id: SA.agency-notification-process
+    status: not-checkable
+    note: "No --self-attestation-file supplied to the integration scan."
+  - check_id: SA.audit-log-export-fallback
+    status: not-checkable
+    note: "No --self-attestation-file supplied to the integration scan."
+  - check_id: SA.dev-security-training
+    status: not-checkable
+    note: "No --self-attestation-file supplied to the integration scan."
+  - check_id: SA.threat-modeling
+    status: not-checkable
+    note: "No --self-attestation-file supplied to the integration scan."
+  - check_id: SA.vuln-remediation-sla
+    status: not-checkable
+    note: "No --self-attestation-file supplied to the integration scan."
+  - check_id: SA.vuln-triage-sla
+    status: not-checkable
+    note: "No --self-attestation-file supplied to the integration scan."
+
+repo_checks:
+  demo-good:
+    - check_id: C02.branch.admin-enforced
+      status: not-checkable
+      note: "Always not-checkable — an ACL (Git repository security permission), out of scope for v0.2 (issue #34's non-goals)."
+    - check_id: C02.branch.deletion-blocked
+      status: not-checkable
+      note: "Always not-checkable — same ACL permission as C02.branch.force-push-blocked governs this; out of scope for v0.2."
+    - check_id: C02.branch.force-push-blocked
+      status: not-checkable
+      note: "Always not-checkable — an ACL (Git repository security permission), out of scope for v0.2 (issue #34's non-goals)."
+    - check_id: C02.branch.protection-exists
+      status: verified-pass
+      note: "The minimum-reviewers and build-validation policies hack/demo-ado-setup.sh scopes to demo-good's refs/heads/main."
+    - check_id: C02.branch.required-reviews
+      status: verified-pass
+      note: "The minimum-reviewers policy is blocking, requires 1 approver, and has creatorVoteCounts=false."
+    - check_id: C02.branch.required-status-checks
+      status: verified-pass
+      note: "The build-validation policy (pointing at the demo-good-ci pipeline) is blocking."
+    - check_id: C04.deps.dependabot-alerts
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): codeSecurityFeatures.codeSecurityEnabled reads false."
+    - check_id: C04.secrets.advanced-security
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): codeSecurityEnabled/secretProtectionEnabled are not both true."
+    - check_id: C04.secrets.push-protection
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): secretProtectionFeatures.blockPushes reads false."
+    - check_id: C04.secrets.scanning-enabled
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): secretProtectionFeatures.secretProtectionEnabled reads false."
+    - check_id: C05.sast.cadence
+      status: not-checkable
+      note: "No SAST tool is configured at all (see C05.sast.tool-configured) — nothing to compute cadence for."
+    - check_id: C05.sast.default-setup
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed): codeSecurityFeatures.codeQLEnabled reads false in the same all-false enablement body as C04.org.security-defaults."
+    - check_id: C05.sast.ran-per-release
+      status: verified-fail
+      note: >-
+        demo-good's v1.0.0 tag IS within the lookback window and resolves
+        cleanly, but zero SAST builds were ever observed against it — an
+        evidence-backed fail (hack/demo-ado-setup.sh creates the pipeline
+        definition but never triggers a run), not an absence of releases
+        the way demo-bad's not-checkable is.
+    - check_id: C05.sast.tool-configured
+      status: verified-fail
+      note: >-
+        Deliberate C05-vs-C06 asymmetry: demo-good's azure-pipelines.yml
+        trivy script step matches mappings/scanner-signatures.yaml's
+        `trivy` signature, but that signature is categorized `sca`, not
+        `sast` — it makes C06.sca.tool-configured verified-pass (below)
+        without ever counting as a SAST tool here. No SAST-category
+        signature is configured anywhere in this pipeline.
+    - check_id: C06.sca.alerts-triaged
+      status: verified-fail
+      note: "Environment-sensitive: the Alerts - List call fails with HTTP 400, typeKey AdvSecNotEnabledException (the org is GHAzDO-unlicensed) — issue #190 made this check match that typed error directly, graduating it from a generic not-checkable to a confirmed verified-fail (mirroring the GitHub twin's identical treatment of its own confirmed-disabled signal)."
+    - check_id: C06.sca.dependabot-config
+      status: not-checkable
+      note: >-
+        Always not-checkable — Azure DevOps has no per-repo
+        Dependabot-config-file convention; GHAzDO dependency scanning is
+        enablement-driven, not configured via a checked-in file.
+    - check_id: C06.sca.dependency-review
+      status: not-checkable
+      note: >-
+        Always not-checkable — Azure DevOps has no pull-request
+        dependency-review gate equivalent to GitHub's
+        dependency-review-action.
+    - check_id: C06.sca.ran-per-release
+      status: verified-fail
+      note: >-
+        demo-good's v1.0.0 tag IS within the lookback window and resolves
+        cleanly, but zero SCA builds were ever observed against it — an
+        evidence-backed fail (the trivy pipeline definition exists but was
+        never actually run), not an absence of releases the way demo-bad's
+        not-checkable is.
+    - check_id: C06.sca.tool-configured
+      status: verified-pass
+      note: "demo-good's azure-pipelines.yml trivy script step (\"trivy image ...\") matches mappings/scanner-signatures.yaml's trivy run_pattern at medium-or-high confidence — see C05.sast.tool-configured's note for the deliberate C05-vs-C06 asymmetry this produces."
+    - check_id: C07.provenance.commit-linkage
+      status: verified-fail
+      note: >-
+        demo-good's v1.0.0 tag resolves to a commit within the bounded
+        build-search window, but zero builds exist on that commit at
+        all — an evidence-backed fail (no pipeline was ever run), not
+        demo-bad's "nothing to evaluate" not-checkable.
+    - check_id: C07.provenance.workflow
+      status: verified-fail
+      note: "No provenance-generating tool (Sigstore/cosign, a SLSA generator) is configured in demo-good's pipeline at any confidence."
+    - check_id: C07.release.checksums
+      status: not-checkable
+      note: "Always not-checkable — Azure DevOps has no release-asset concept the way GitHub Releases does (issue #153's own C07 spec)."
+    - check_id: C07.release.signatures
+      status: not-checkable
+      note: "Always not-checkable — same platform gap as C07.release.checksums."
+    - check_id: C07.release.tags-signed
+      status: not-checkable
+      note: "Always not-checkable — Azure DevOps's GitAnnotatedTag exposes no signature/verification field of any kind, and Azure DevOps doesn't verify tag signatures the way GitHub does."
+    - check_id: C10.vdp.intake-channel
+      status: verified-pass
+      note: "demo-good's SECURITY.md content matches both accepted signals (an email address and an https:// URL)."
+    - check_id: C10.vdp.private-reporting
+      status: not-checkable
+      note: "Always not-checkable — Azure DevOps has no private-vulnerability-reporting feature or API surface at all."
+    - check_id: C10.vdp.security-md
+      status: verified-pass
+      note: "demo-good's SECURITY.md resolves at the repo root."
+
+  demo-bad:
+    - check_id: C02.branch.admin-enforced
+      status: not-checkable
+      note: "Always not-checkable — an ACL (Git repository security permission), out of scope for v0.2 (issue #34's non-goals)."
+    - check_id: C02.branch.deletion-blocked
+      status: not-checkable
+      note: "Always not-checkable — same ACL permission as C02.branch.force-push-blocked governs this; out of scope for v0.2."
+    - check_id: C02.branch.force-push-blocked
+      status: not-checkable
+      note: "Always not-checkable — an ACL (Git repository security permission), out of scope for v0.2 (issue #34's non-goals)."
+    - check_id: C02.branch.protection-exists
+      status: verified-fail
+      note: "demo-bad has no branch policy of any tracked type — hack/demo-ado-setup.sh deliberately configures none."
+    - check_id: C02.branch.required-reviews
+      status: verified-fail
+      note: "No Minimum approval count policy exists on demo-bad's default branch."
+    - check_id: C02.branch.required-status-checks
+      status: verified-fail
+      note: "No Build policy exists on demo-bad's default branch."
+    - check_id: C04.deps.dependabot-alerts
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): codeSecurityFeatures.codeSecurityEnabled reads false."
+    - check_id: C04.secrets.advanced-security
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): codeSecurityEnabled/secretProtectionEnabled are not both true."
+    - check_id: C04.secrets.push-protection
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): secretProtectionFeatures.blockPushes reads false."
+    - check_id: C04.secrets.scanning-enabled
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed — see org_checks' C04.org.security-defaults note): secretProtectionFeatures.secretProtectionEnabled reads false."
+    - check_id: C05.sast.cadence
+      status: not-checkable
+      note: "No SAST tool is configured at all — demo-bad has no pipeline — nothing to compute cadence for."
+    - check_id: C05.sast.default-setup
+      status: verified-fail
+      note: "Environment-sensitive (org is GHAzDO-unlicensed): codeSecurityFeatures.codeQLEnabled reads false in the same all-false enablement body as C04.org.security-defaults."
+    - check_id: C05.sast.ran-per-release
+      status: not-checkable
+      note: >-
+        demo-bad has no tags at all, so no release tag matches the
+        configured pattern within the lookback window — genuinely nothing
+        to evaluate, unlike demo-good's evidence-backed fail (see that
+        entry's note).
+    - check_id: C05.sast.tool-configured
+      status: verified-fail
+      note: "demo-bad has no pipeline at all — a real, deliberate absence, not an evidence gap."
+    - check_id: C06.sca.alerts-triaged
+      status: verified-fail
+      note: "Environment-sensitive: the Alerts - List call fails with HTTP 400, typeKey AdvSecNotEnabledException (the org is GHAzDO-unlicensed) — issue #190 made this check match that typed error directly, graduating it from a generic not-checkable to a confirmed verified-fail (mirroring the GitHub twin's identical treatment of its own confirmed-disabled signal)."
+    - check_id: C06.sca.dependabot-config
+      status: not-checkable
+      note: >-
+        Always not-checkable — Azure DevOps has no per-repo
+        Dependabot-config-file convention; GHAzDO dependency scanning is
+        enablement-driven, not configured via a checked-in file.
+    - check_id: C06.sca.dependency-review
+      status: not-checkable
+      note: >-
+        Always not-checkable — Azure DevOps has no pull-request
+        dependency-review gate equivalent to GitHub's
+        dependency-review-action.
+    - check_id: C06.sca.ran-per-release
+      status: not-checkable
+      note: >-
+        demo-bad has no tags at all, so no release tag matches the
+        configured pattern within the lookback window — genuinely nothing
+        to evaluate, unlike demo-good's evidence-backed fail (see that
+        entry's note).
+    - check_id: C06.sca.tool-configured
+      status: verified-fail
+      note: "demo-bad has no pipeline at all — a real, deliberate absence, not an evidence gap."
+    - check_id: C07.provenance.commit-linkage
+      status: not-checkable
+      note: >-
+        demo-bad has no tags at all, so nothing matches the configured
+        release-tag pattern within the lookback window — genuinely
+        nothing to evaluate, unlike demo-good's evidence-backed fail (see
+        that entry's note).
+    - check_id: C07.provenance.workflow
+      status: verified-fail
+      note: "demo-bad has no pipeline at all, so no provenance-generating tool of any confidence exists."
+    - check_id: C07.release.checksums
+      status: not-checkable
+      note: "Always not-checkable — Azure DevOps has no release-asset concept the way GitHub Releases does (issue #153's own C07 spec)."
+    - check_id: C07.release.signatures
+      status: not-checkable
+      note: "Always not-checkable — same platform gap as C07.release.checksums."
+    - check_id: C07.release.tags-signed
+      status: not-checkable
+      note: "Always not-checkable — Azure DevOps's GitAnnotatedTag exposes no signature/verification field of any kind, and Azure DevOps doesn't verify tag signatures the way GitHub does."
+    - check_id: C10.vdp.intake-channel
+      status: verified-fail
+      note: "No SECURITY.md exists on demo-bad to advertise an intake channel — hack/demo-ado-setup.sh deliberately omits it."
+    - check_id: C10.vdp.private-reporting
+      status: not-checkable
+      note: "Always not-checkable — Azure DevOps has no private-vulnerability-reporting feature or API surface at all."
+    - check_id: C10.vdp.security-md
+      status: verified-fail
+      note: "demo-bad has no SECURITY.md at either candidate location — hack/demo-ado-setup.sh deliberately omits it."

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gitlab.com/sioakeim/attestward/blob/main/docs/schema/mapping-ssdf-800-218.schema.json",
+  "title": "attestward mappings/ssdf-800-218.yaml",
+  "description": "Structure of the NIST SP 800-218 (SSDF) task slice attestward reasons over. Enforced by internal/mapping's strict loader (unknown fields and duplicate task ids are errors) in addition to this schema.",
+  "type": "object",
+  "required": ["version", "source", "retrieved", "practices", "tasks"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "source": {
+      "type": "object",
+      "required": ["title", "publisher", "identifier", "url", "published"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "publisher": { "type": "string" },
+        "identifier": { "type": "string" },
+        "doi": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "published": { "type": "string" }
+      }
+    },
+    "retrieved": { "type": "string", "format": "date" },
+    "practices": {
+      "type": "object",
+      "propertyNames": { "pattern": "^(PO|PS|PW|RV)\\.[0-9]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["title", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/task" }
+    }
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": ["id", "family", "practice", "text", "checks"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^(PO|PS|PW|RV)\\.[0-9]+\\.[0-9]+$" },
+        "family": { "type": "string", "enum": ["PO", "PS", "PW", "RV"] },
+        "practice": { "type": "string", "pattern": "^(PO|PS|PW|RV)\\.[0-9]+$" },
+        "text": { "type": "string" },
+        "summary": { "type": "string" },
+        "notes": { "type": "string" },
+        "checks": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

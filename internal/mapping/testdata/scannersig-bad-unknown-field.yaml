@@ -1,0 +1,10 @@
+version: "1.0.0"
+signatures:
+  - id: codeql
+    name: "GitHub CodeQL"
+    category: sast
+    made_up_field: "should be rejected"
+    detect:
+      actions: []
+      run_patterns: []
+      workflow_name_patterns: []

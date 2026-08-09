@@ -1,0 +1,303 @@
+name: Integration scan (demo org)
+
+# The API-drift tripwire (issue #15): runs `attestward scan` against the real
+# public demo org and asserts every result against fixtures.yaml. Catches
+# GitHub API changes that would silently invalidate a collector's
+# assumptions before a user hits them.
+#
+# A second job, sign-verify, tests issue #27's cosign integration
+# end-to-end against a real evidence pack using GitHub Actions' ambient
+# OIDC identity for keyless signing — the same mechanism release.yaml
+# already uses for release-checksum signing (see ADR-0006). It shares this
+# workflow's DEMO_ORG_PAT/schedule rather than living in ci.yaml: signing a
+# real pack needs a real org to scan, and testing it on every PR would add
+# real latency/cost to a leaf feature, not core check logic.
+#
+# A third job, integration-scan-ado (issue #155, epic #34's v0.2 Azure
+# DevOps parity work), is that same API-drift tripwire's Azure DevOps twin:
+# scans the ADO demo project and asserts against fixtures-ado.yaml. It has
+# no `needs:` on integration-scan — GitHub and Azure DevOps drift are
+# independent failure modes, so one platform's outage/token expiry must
+# never block the other platform's job from running or reporting.
+#
+# Issue #278 added the `push` trigger below: the weekly schedule alone only
+# catches drift in GitHub's/Azure DevOps's own API surface, which doesn't
+# track this repo's merge rate — a regression in this repo's own collector
+# code lands the moment a PR merges, not up to a week later. The path
+# filter is narrowed to what can actually move a fixtures.yaml/
+# fixtures-ado.yaml entry, or change how that comparison itself runs:
+#   - internal/collect/**, internal/mapping/**, mappings/** — the actual
+#     status-assignment/mapping logic every collector reads.
+#   - cmd/attestward/scan.go, scanrepos.go, scanconfig.go — runScan's own
+#     orchestration. scanrepos.go's resolveRepos runs unconditionally on
+#     both platforms' live path (scan.go's preflight step), not just
+#     GitHub's; scanconfig.go's defaultLookbackReleases/defaultLookbackMonths/
+#     defaultReleaseTagPattern feed collect.Scope and, through
+#     FilterReleasesInLookback, six collectors' verified-pass/fail logic on
+#     both platforms, and its platformAzureDevOps constant is hard-asserted
+#     by the ADO test.
+#   - cmd/attestward/integration_test.go, integration_ado_test.go — these
+#     define the assertion itself (assertFixtureChecks and friends), and the
+#     GitHub test also reads its scan's org/repos from fixtures.yaml, not
+#     just the expected statuses.
+#   - fixtures.yaml, fixtures-ado.yaml — not only the expected side of the
+#     comparison: fixtures.yaml also supplies the GitHub test's org/repos,
+#     and fixtures-ado.yaml's platform: is hard-asserted. The most likely
+#     way this filter would otherwise go dark is exactly the routine case
+#     of closing a drift issue by editing one of these files to match live
+#     reality.
+#   - this workflow file itself — so a bug in the go test invocation or the
+#     failure-reporting script below is caught by the very next push rather
+#     than waiting for next week's schedule.
+# internal/report (ADR-0005's producer/consumer seam), every renderer/docs/
+# CI/tools path, and internal/model/internal/integrity are deliberately
+# excluded: neither test's call graph reaches internal/report or
+# internal/integrity, and internal/model is pure types (a renamed Status
+# constant would be caught by the unit suite, which does run on every PR,
+# long before this workflow). cmd/attestward/root.go IS reached — scan.go
+# reads its `version` var into pack.ToolVersion — but stays excluded on a
+# different, more fragile basis than "not reached": neither test asserts
+# ToolVersion (assertFixtureChecks only reads Status/CheckID/Scope.Repo),
+# not that the reference doesn't exist. go.mod/go.sum are excluded too, but
+# for a narrower reason than the above: every collector's unit suite
+# already decodes recorded API JSON through the real transport chain, so a
+# decode-breaking dependency bump reddens `test` on its own PR first — a
+# safety net scanconfig.go's constants and the fixtures files don't have.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC — off-the-hour to avoid GitHub Actions' documented cron pile-up
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'internal/collect/**'
+      - 'internal/mapping/**'
+      - 'mappings/**'
+      - 'cmd/attestward/scan.go'
+      - 'cmd/attestward/scanrepos.go'
+      - 'cmd/attestward/scanconfig.go'
+      - 'cmd/attestward/integration_test.go'
+      - 'cmd/attestward/integration_ado_test.go'
+      - 'fixtures.yaml'
+      - 'fixtures-ado.yaml'
+      - '.github/workflows/integration-scan.yaml'
+
+permissions:
+  contents: read
+
+# All three jobs run on GitHub-hosted `ubuntu-latest` — plain Go tooling
+# plus cosign, no OS-specific execution requirement (see ci.yaml's matching
+# comment for the migration). `id-token: write` below is unaffected either
+# way: GitHub's Actions service mints the OIDC token, not the runner.
+#
+# Every `actions/setup-go` step below sets `cache: false` — see ci.yaml's
+# matching comment (issue #313). On an ephemeral runner the build is cold
+# regardless; the flag keeps the dependency graph resolving from go.sum
+# against the real proxy rather than a restored cache.
+jobs:
+  integration-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write # only for the on-failure pinned-issue step below; never writes to the scanned demo org itself (ADR-0004: attestward never mutates a scanned target)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Run integration test against the demo org
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEMO_ORG_PAT }}
+        run: |
+          # A missing secret must fail this job loudly, not let the test's
+          # own "skip cleanly without a token" behavior (correct for local
+          # runs, where no token just means "don't run this test") make the
+          # drift tripwire go green while never actually checking anything —
+          # exactly the silently-invalidated-assumption failure mode this
+          # workflow exists to catch, applied to itself.
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "::error::DEMO_ORG_PAT secret is not set — see CONTRIBUTING.md's PAT provisioning section" >&2
+            exit 1
+          fi
+          go test -tags integration ./cmd/attestward/... -run TestIntegration_DemoOrgMatchesFixtures -v
+
+      - name: Open or update the drift-tripwire issue on failure
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = "Integration scan drift: demo org no longer matches fixtures.yaml";
+            const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            // eventName-aware closing clause: since issue #278 added a
+            // push-to-main trigger alongside the weekly schedule, a merged
+            // PR can open this issue against itself — the wording must read
+            // sensibly either way, not assume the schedule fired it. On a
+            // push, name the merge commit too: it's the first thing a
+            // triager needs, and the run URL only gets there indirectly.
+            const triggerNote = context.eventName === "push"
+              ? ` (triggered by a push to main, commit ${context.sha})`
+              : context.eventName === "schedule"
+                ? " (this week's scheduled run)"
+                : ` (triggered by ${context.eventName})`;
+            const body = `The integration scan against the demo org (issue #15) failed${triggerNote}.\n\nThis usually means one of three things: a real regression in a collector, GitHub's API behavior drifting out from under an assumption a collector makes, or a deliberate change to what this tool detects (e.g. a new or changed scanner signature) that legitimately moves a fixtures.yaml entry and just needs that file updated to match.\n\nFailed run: ${runURL}\n\nClose this issue once the drift is understood and either the collector or \`fixtures.yaml\` is fixed to match.`;
+            const label = "integration-drift";
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+            });
+
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body: `Still failing as of ${runURL}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }
+
+  sign-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # ambient OIDC token for cosign keyless signing (issue #27)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # Same pin as release.yaml — the --bundle sign/verify flow was
+      # verified against this exact version (see that workflow's comment).
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v3.1.1"
+      - name: Scan, sign (keyless), and verify a real evidence pack
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEMO_ORG_PAT }}
+        run: |
+          # Same missing-secret tripwire as the integration-scan job above
+          # — a skipped scan must fail loudly, not report false success.
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "::error::DEMO_ORG_PAT secret is not set — see CONTRIBUTING.md's PAT provisioning section" >&2
+            exit 1
+          fi
+
+          # Build a real binary rather than `go run`: `go run` collapses
+          # any non-zero program exit code into its own exit 1 (confirmed
+          # empirically), which would make exit 2 ("gaps found", expected
+          # and fine here — Qloud-LTD deterministically has some per
+          # fixtures.yaml) indistinguishable from exit 1 (a real failure,
+          # e.g. signing broke). This job cares about "did scan+sign+verify
+          # actually work", not "is Qloud-LTD clean", so exit 2 from scan
+          # must not fail the step the way exit 1 should.
+          go build -o ./attestward ./cmd/attestward
+
+          set +e
+          ./attestward scan --org Qloud-LTD --repo demo-good --sign --out ./evidence
+          scan_rc=$?
+          set -e
+          if [ "$scan_rc" -ne 0 ] && [ "$scan_rc" -ne 2 ]; then
+            echo "::error::attestward scan exited $scan_rc (expected 0 or 2 — gaps found is fine, anything else is a real failure)" >&2
+            exit "$scan_rc"
+          fi
+
+          ./attestward verify ./evidence \
+            --verify-args="--certificate-identity-regexp=^https://gitlab.com/sioakeim/attestward/\.github/workflows/integration-scan\.yaml@refs/heads/main$" \
+            --verify-args="--certificate-oidc-issuer=https://token.actions.githubusercontent.com"
+
+  # Azure DevOps twin of integration-scan above (issue #155). Deliberately
+  # has no `needs:` on integration-scan: GitHub and Azure DevOps drift are
+  # independent failure modes, so this job runs regardless of whether the
+  # GitHub job passed, failed, or is still running.
+  integration-scan-ado:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write # only for the on-failure pinned-issue step below; never writes to the scanned ADO project itself (ADR-0004: attestward never mutates a scanned target)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Run integration test against the ADO demo project
+        env:
+          AZURE_DEVOPS_EXT_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
+        run: |
+          # Same missing-secret tripwire as the integration-scan job above
+          # — TestIntegration_ADODemoOrgMatchesFixtures' own "skip cleanly
+          # without a token" behavior is correct for local runs, but must
+          # not let a missing CI secret make this drift tripwire go green
+          # while never actually checking anything.
+          if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
+            echo "::error::AZURE_DEVOPS_EXT_PAT secret is not set — see CONTRIBUTING.md's PAT provisioning section" >&2
+            exit 1
+          fi
+          go test -tags integration ./cmd/attestward/... -run TestIntegration_ADODemoOrgMatchesFixtures -v
+
+      - name: Open or update the ADO drift-tripwire issue on failure
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = "Integration scan drift: ADO demo project no longer matches fixtures-ado.yaml";
+            const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            // eventName-aware closing clause: same reasoning as the GitHub
+            // job's identical comment above — issue #278's push-to-main
+            // trigger means a merged PR can open this issue against itself,
+            // and naming the merge commit is the first thing a triager needs.
+            const triggerNote = context.eventName === "push"
+              ? ` (triggered by a push to main, commit ${context.sha})`
+              : context.eventName === "schedule"
+                ? " (this week's scheduled run)"
+                : ` (triggered by ${context.eventName})`;
+            const body = `The integration scan against the Azure DevOps demo project (issue #155) failed${triggerNote}.\n\nThis usually means one of three things: a real regression in an azuredevops collector, Azure DevOps's API behavior drifting out from under an assumption a collector makes, or a deliberate change to what this tool detects (e.g. a new or changed scanner signature) that legitimately moves a fixtures-ado.yaml entry and just needs that file updated to match.\n\nFailed run: ${runURL}\n\nClose this issue once the drift is understood and either the collector or \`fixtures-ado.yaml\` is fixed to match.`;
+            // A DISTINCT label from the GitHub job's "integration-drift":
+            // both jobs' failure-tracking steps only look at the FIRST open
+            // issue carrying their label, with no other disambiguation — if
+            // this job reused "integration-drift", an ADO-only failure
+            // could land as a comment on an unrelated, already-open GitHub
+            // drift issue (or vice versa) instead of getting its own thread.
+            const label = "integration-drift-ado";
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+            });
+
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body: `Still failing as of ${runURL}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }

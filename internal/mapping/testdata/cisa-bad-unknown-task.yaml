@@ -1,0 +1,14 @@
+version: "1.0.0"
+source:
+  title: "test fixture"
+  publisher: "test"
+  identifier: "TEST"
+  url: "https://example.invalid"
+  file_dated: "2026-01-01"
+  legal_authority: "test"
+retrieved: "2026-01-01"
+clusters:
+  - id: "1"
+    title: "test cluster"
+    form_text: "test"
+    ssdf_tasks: [PO.999.999]

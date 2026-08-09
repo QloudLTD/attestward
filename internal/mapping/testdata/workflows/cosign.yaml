@@ -1,0 +1,13 @@
+name: Sign release artifacts
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: sigstore/cosign-installer@v3
+      - run: cosign sign-blob --bundle=checksums.txt.bundle --yes checksums.txt

@@ -1,0 +1,15 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: SnykSecurityScan@1
+    inputs:
+      serviceConnectionEndpoint: 'mySnykToken'
+      testType: 'code'
+      codeSeverityThreshold: 'medium'
+      failOnThreshold: 'high'
+      failOnIssues: true
+    displayName: 'Run Snyk Security Scan'

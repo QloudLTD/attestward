@@ -1,0 +1,11 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - script: |
+      curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/scripts/install.sh | sh
+      osv-scanner scan --lockfile=package-lock.json
+    displayName: 'Run OSV-Scanner dependency scan'

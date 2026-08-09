@@ -1,0 +1,24 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: SonarQubePrepare@7
+    inputs:
+      SonarQube: 'MySonarQubeServiceConnection'
+      scannerMode: 'cli'
+      configMode: 'manual'
+      cliProjectKey: 'my-project-key'
+      cliProjectName: 'My Project'
+      cliSources: '.'
+    displayName: 'Prepare SonarQube analysis configuration'
+
+  - script: dotnet build --configuration Release
+    displayName: 'Build'
+
+  - task: SonarQubeAnalyze@7
+    inputs:
+      jdkversion: 'JAVA_HOME_17_X64'
+    displayName: 'Run SonarQube analysis'

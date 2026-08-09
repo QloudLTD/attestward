@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.0.0-dev",
+  "mapping_versions": {
+    "ssdf": "1.0.0",
+    "cisa_form": "1.0.0"
+  },
+  "scope": {
+    "org": "attestward-demo",
+    "repos": ["good-repo"],
+    "release_tag_pattern": "v*",
+    "lookback_releases": 5,
+    "platform": "github"
+  },
+  "scan_started_at": "2026-07-13T12:00:00Z",
+  "scan_ended_at": "2026-07-13T12:00:05Z",
+  "results": [
+    {
+      "check_id": "C02.repo-protection.required-reviews",
+      "title": "Branch protection requires reviews",
+      "status": "verified-pass",
+      "reason": "main requires 1 approving review and passing status checks",
+      "scope": { "org": "attestward-demo", "repo": "good-repo", "platform": "github" },
+      "provenance": [
+        {
+          "endpoint": "/repos/attestward-demo/good-repo/rulesets",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:01Z",
+          "http_status": 200,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": {
+        "required_approving_review_count": 1
+      }
+    },
+    {
+      "check_id": "C09.audit.org-log-available",
+      "title": "Org audit-log API availability",
+      "status": "not-checkable",
+      "reason": "org is on the Team plan; the audit-log API requires Enterprise",
+      "scope": { "org": "attestward-demo" },
+      "provenance": [
+        {
+          "endpoint": "/orgs/attestward-demo/audit-log",
+          "method": "GET",
+          "timestamp": "2026-07-13T12:00:02Z",
+          "http_status": 403,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": {
+        "plan": "team"
+      }
+    }
+  ]
+}

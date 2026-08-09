@@ -1,0 +1,9 @@
+version: "1.0.0"
+signatures:
+  - id: mystery-tool
+    name: "Mystery Tool"
+    category: not-a-real-category
+    detect:
+      actions: []
+      run_patterns: []
+      workflow_name_patterns: []

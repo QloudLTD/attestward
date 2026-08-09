@@ -1,0 +1,451 @@
+# Threat Model
+
+**Status: finalized (issue #31).** Every normative claim below carries a code and/or test
+reference, re-verified against the actual v0.1 codebase rather than the pre-implementation
+draft this document started as. A threat model that doesn't match the implementation is
+worse than none, because security teams use this document to clear the tool for org-wide
+token access.
+
+## What the tool is
+
+A local, read-only CLI that queries source-control APIs with a user-supplied token and
+writes evidence files to a user-chosen local directory. No server component, no database,
+no telemetry, no network destinations other than the platform API in scope for a given
+scan — `api.github.com` for `--platform github` (the default), or, per the v0.2 Azure
+DevOps epic (issue #34, shipped in v0.3.0), exactly four first-party
+Azure DevOps hosts for `--platform azuredevops`: `dev.azure.com`, `vssps.dev.azure.com`
+(Graph), `advsec.dev.azure.com` (GHAzDO), and `auditservice.dev.azure.com` (Audit Log) —
+see `docs/architecture.md`'s "Azure DevOps" section for what each one serves. One scan
+targets exactly one platform, never both — `cmd/attestward/scan.go`'s own comment on
+this ("pack is one scan of one platform (no mixed-platform packs)") and
+`cmd/attestward/report.go`'s ("A pack covers exactly one platform (no mixed-platform
+packs)", guarding against silently overwriting one platform's remediation text with
+another's when rendering). The only other network egress at all, on either platform, is
+— only when `--sign`/`attestward verify` invoke it — the separately-trusted `cosign`
+subprocess (see "Signing egress is a distinct, opt-in exception" below).
+
+## Assets
+
+| Asset | Sensitivity | Handling |
+|---|---|---|
+| GitHub token (`GITHUB_TOKEN`) | High — grants org read access | Read from env var only; never persisted, never logged, never included in evidence output |
+| Azure DevOps PAT (`AZURE_DEVOPS_EXT_PAT`) | High — grants org/project read access | Read from env var only; never persisted, never logged, never included in evidence output; injected as an HTTP Basic `Authorization` header by `internal/collect/azuredevops/transport.go`'s `provenanceTransport`, the same single choke point as the GitHub client's own token handling |
+| Raw API responses | Medium — may contain member lists, security-alert details | Only SHA-256 digests + minimal extracted facts are persisted |
+| Evidence pack | Medium — reveals security posture and gaps | Written locally only; user decides distribution; pack hash enables tamper-evidence |
+| Self-attestation answers | Medium | Treated as user-authored input, echoed into evidence clearly labeled `self-attested` |
+
+## Trust boundaries
+
+1. **User ↔ tool**: the user supplies the token and config; the tool must honor
+   least-privilege guidance (fine-grained PAT, read-only scopes, documented precisely).
+2. **Tool ↔ platform API**: TLS only; responses are untrusted input — parsed defensively,
+   size-limited, never executed or templated into shell commands. Identical posture for
+   both platforms this tool talks to: `api.github.com` for `--platform github`, or
+   Azure DevOps's four hosts (`dev.azure.com`, `vssps.dev.azure.com`,
+   `advsec.dev.azure.com`, `auditservice.dev.azure.com`) for `--platform azuredevops`.
+3. **Tool ↔ filesystem**: writes only under the user-specified `--out` directory.
+4. **Tool ↔ `cosign` subprocess** (opt-in, `--sign`/pack verification only): a separate
+   trusted binary the user must install themselves; attestward shells out to it and never
+   parses or trusts its stdout beyond an exit code (see "Signing egress" below).
+
+## What the tool never does — and how that's enforced
+
+Every claim here previously rested on code review alone (ADR-0004). As of this
+finalization, the read-only claim also has a structural, tested enforcement point; the
+others are traced to the specific code and tests that make them true today, not just
+asserted.
+
+### No write operations
+
+**Enforcement:** `provenanceTransport.RoundTrip`
+(`internal/collect/github/transport.go`) rejects any HTTP request whose method isn't
+`GET` or `HEAD` — before auth injection, before the network call — for every request
+issued through `Client` (both the REST and GraphQL clients share this one transport; see
+`NewClient`'s doc comment in `internal/collect/github/client.go`). Regression tests:
+`TestProvenanceTransportRejectsWriteMethods` (POST/PUT/PATCH/DELETE all rejected,
+confirmed the base transport is never reached) and `TestProvenanceTransportAllowsHead`
+(HEAD, a legitimate read method, still passes) in `internal/collect/github/transport_test.go`.
+
+This closes a real gap: before this finalization, "read-only" was enforced only by
+review discipline, with no runtime guard at all. The guard was mutation-tested during
+this issue's own work (temporarily removed, confirmed the new tests catch it, restored)
+before landing.
+
+GraphQL note: `Client.GraphQL` is wired up (`internal/collect/github/client.go`) but no
+collector calls it as of this writing (`git grep -n '\.GraphQL\.' internal/collect/github`
+returns nothing at all). Since GraphQL "query" and "mutation" operations both
+travel as an HTTP `POST`, the transport-level guard can't currently distinguish a
+read-only GraphQL query from a mutation — it rejects both, which is the correct, honest
+behavior for a code path nothing uses today. The first real GraphQL query added to this
+codebase will need to deliberately extend this guard (e.g. inspecting the request body
+for a leading `query` keyword) rather than have it silently pass; building that
+allow-list now, before anything needs it, would be speculative engineering.
+
+**Azure DevOps (the v0.2 epic, issue #34):** the identical structural guard, ported rather than
+shared (ADR-0005's sibling-implementations framing) — `provenanceTransport.RoundTrip`
+(`internal/collect/azuredevops/transport.go`) rejects any request whose method isn't
+`GET`/`HEAD`, before auth injection or the network call, for every request issued
+through `azuredevops.Client` across all four hosts. Regression tests:
+`TestProvenanceTransportRejectsWriteMethods` and `TestProvenanceTransportAllowsHead`
+in `internal/collect/azuredevops/transport_test.go` — the same two-test shape as the
+GitHub twin's own tests above. Every ADO REST call any collector makes is a `GET`; none
+of the ADO collector packages (`internal/collect/azuredevops/{orgsecurity,
+repoprotection, envseparation, secretshygiene, sasthistory, scahistory, provenance,
+pipelinesecurity, auditlogging, vdp}/`) is exhaustively enumerated here the way
+GitHub's table below is — `docs/checks-reference.md`'s `azuredevops` subsections are
+the generated, per-check equivalent (every check there lists its own backing
+endpoint(s)), kept current by the same drift guard (`make checks-docs-check`) as the
+GitHub side.
+
+**Enumerated call sites** (every REST method any collector calls, `git grep`'d and each
+individually confirmed against go-github v75's own source to issue exactly the HTTP verb
+named — not inferred from the method name):
+
+| go-github call | Endpoint (verb confirmed against source) |
+|---|---|
+| `Actions.ListRepositoryWorkflowRuns` | `GET /repos/{owner}/{repo}/actions/runs` |
+| `Actions.ListWorkflowRunsByID` | `GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs` |
+| `Actions.ListWorkflows` | `GET /repos/{owner}/{repo}/actions/workflows` |
+| `CodeScanning.GetDefaultSetupConfiguration` | `GET /repos/{owner}/{repo}/code-scanning/default-setup` |
+| `Dependabot.ListRepoAlerts` | `GET /repos/{owner}/{repo}/dependabot/alerts` |
+| `Git.GetRef` | `GET /repos/{owner}/{repo}/git/ref/{ref}` |
+| `Git.GetTag` | `GET /repos/{owner}/{repo}/git/tags/{tag_sha}` |
+| `Organizations.Get` | `GET /orgs/{org}` |
+| `Organizations.GetAuditLog` | `GET /orgs/{org}/audit-log` |
+| `Organizations.ListMembers` | `GET /orgs/{org}/members` |
+| `Repositories.Get` | `GET /repos/{owner}/{repo}` |
+| `Repositories.GetBranchProtection` | `GET /repos/{owner}/{repo}/branches/{branch}/protection` |
+| `Repositories.GetContents` | `GET /repos/{owner}/{repo}/contents/{path}` |
+| `Repositories.GetDefaultWorkflowPermissions` | `GET /repos/{owner}/{repo}/actions/permissions/workflow` |
+| `Repositories.GetRuleset` | `GET /repos/{owner}/{repo}/rulesets/{ruleset_id}` |
+| `Repositories.GetRulesForBranch` | `GET /repos/{owner}/{repo}/rules/branches/{branch}` |
+| `Repositories.GetVulnerabilityAlerts` | `GET /repos/{owner}/{repo}/vulnerability-alerts` |
+| `Repositories.IsPrivateReportingEnabled` | `GET /repos/{owner}/{repo}/private-vulnerability-reporting` |
+| `Repositories.ListAttestations` | `GET /repos/{owner}/{repo}/attestations/{subject_digest}` |
+| `Repositories.ListEnvironments` | `GET /repos/{owner}/{repo}/environments` |
+| `Repositories.ListHooks` | `GET /repos/{owner}/{repo}/hooks` |
+| `Repositories.ListReleases` | `GET /repos/{owner}/{repo}/releases` |
+
+Three more calls happen outside any collector, in the scan orchestrator itself
+(`cmd/attestward/scanrepos.go`, using the bare `*github.Client` that `runScan` gets from
+`NewClient(...).REST` in `cmd/attestward/scan.go`) — a `.REST.`-style `git grep` scoped to
+`internal/collect/github` misses them entirely, so they're listed separately.
+`Users.Get` runs on every scan (the unconditional account-type preflight); the two
+repo-listing calls run only when no explicit repo list is configured (`resolveRepos`
+makes zero API calls otherwise):
+
+| go-github call | Endpoint (verb confirmed against source) |
+|---|---|
+| `Users.Get` | `GET /users/{account}` |
+| `Repositories.ListByOrg` | `GET /orgs/{org}/repos` |
+| `Repositories.ListByUser` | `GET /users/{user}/repos` |
+
+All three route through the same `client.REST` / `provenanceTransport` as every
+collector call above, so the read-only guard covers them identically — this was a gap in
+this table's derivation method (grep scope), not in the enforcement itself.
+
+This table is a point-in-time enumeration, and a GitHub-only one — see the Azure
+DevOps paragraph above for that platform's equivalent, deliberately not enumerated to
+the same per-endpoint depth here (re-derive this one with the `git grep` above for
+collectors, plus a manual check for bare-`*github.Client` call sites like the
+orchestrator's — a grep scoped to `internal/collect/github` won't catch those); the
+transport guard above is what actually holds the invariant going forward, not this table
+by itself. `docs/checks-reference.md` (generated, `attestward checks docs`) is the live,
+per-check breakdown of which endpoint backs which check, for both platforms — this
+table is the flip side for GitHub specifically: every endpoint the code calls, grouped
+by API surface instead of by check.
+
+### No network egress besides the platform API
+
+**Enforcement:** `internal/collect/github/client.go`'s `NewClient` never calls
+`WithEnterpriseURLs` or otherwise overrides `BaseURL`, so go-github's own default
+(`https://api.github.com/`, `github.go`'s `defaultBaseURL`) is the only host the REST
+client ever targets; the GraphQL client shares the same underlying `http.Client`.
+`internal/collect/azuredevops/client.go`'s `NewClient` builds its own `http.Client`
+too, but only ever targets its four hardcoded `HostXxx` constants (`dev.azure.com`,
+`vssps.dev.azure.com`, `advsec.dev.azure.com`, `auditservice.dev.azure.com`) — nothing
+in that package accepts a caller-supplied host or reads one from the environment.
+`git grep -rln 'http.Client\|net/http"' --include=*.go | grep -v _test | grep -v
+internal/collect/github/ | grep -v internal/collect/azuredevops/` returns nothing — no
+package in this codebase other than these two platform clients constructs an HTTP
+client or makes a direct HTTP call.
+
+**Signing egress is a distinct, opt-in exception, not a violation of this claim:**
+`attestward scan --sign` and `attestward verify` (when a `.bundle` is present) shell out to
+the `cosign` binary (`internal/integrity/sign.go`, `exec.CommandContext` — ADR-0006
+records why cosign is invoked as a subprocess rather than vendored as a Go dependency).
+Keyless cosign signing/verification itself talks to Sigstore's Fulcio (certificate
+issuance) and Rekor (transparency log) over the network — real egress, but it is
+`cosign`'s own, separately-trusted process making it, not attestward's Go code, and it
+only happens when the user explicitly opts in via `--sign` or hands attestward a pack that
+already carries a `.bundle` to verify. No scan without `--sign` ever triggers it.
+
+### Tokens never persisted, logged, or included in evidence output
+
+**Enforcement:**
+- `internal/collect/github/transport.go`'s own doc comment on `provenanceTransport`:
+  "the token lives only in this struct's field and the Authorization header of outgoing
+  requests; it is never written to Provenance, never logged." `model.Provenance`
+  (`internal/model/check_result.go`) has no field capable of holding a token — only
+  `Endpoint`, `Method`, `Timestamp`, `HTTPStatus`, `ResponseSHA256`.
+- `Endpoint` deliberately records the request path only (`req.URL.Path`, not the full
+  URL) — a token or other secret accidentally placed in a query parameter can never
+  reach an evidence pack through this field, by construction, not by later scrubbing.
+- `cmd/attestward/scan.go` reads `GITHUB_TOKEN` from the environment only (never a CLI
+  flag, which would appear in shell history/process listings) and never writes it
+  anywhere.
+- Defense in depth beyond the above: `internal/model/scrub.go`'s `secretPatterns`
+  (GitHub token prefixes `ghp_`/`gho_`/`ghs_`/`ghr_`/`ghu_`/`github_pat_`, AWS access
+  keys, PEM private-key blocks) redact any secret-shaped string found anywhere in a
+  `Facts`/`Reason` value before the pack is serialized — `pack.Scrub()` in
+  `runScan` and `model.ScrubBytes` again in `writeEvidencePack` (both in
+  `cmd/attestward/scan.go`) as a last line of defense. Tested in
+  `internal/model/scrub_test.go`.
+
+**Azure DevOps (the v0.2 epic, issue #34):**
+- `internal/collect/azuredevops/transport.go`'s `provenanceTransport` carries the
+  identical guarantee, in its own doc comment: "the PAT lives only in this struct's
+  field and the Authorization header of outgoing requests; it is never written to
+  Provenance, never logged." Same `model.Provenance` type as the GitHub side, same
+  field set — no field capable of holding a PAT here either. Authentication is HTTP
+  Basic (`Authorization: Basic base64(":"+pat)`), not GitHub's Bearer token, but the
+  handling is otherwise identical: injected at this one choke point, never elsewhere.
+- `Endpoint` here records **host + path**, deliberately no query string or fragment —
+  a real, deliberate divergence from the GitHub client's path-only `Endpoint`, needed
+  because one ADO scan spreads across four hosts and a bare path (e.g.
+  `/{org}/_apis/projects`) would be ambiguous about which one it went to. The same
+  "a token can never reach evidence through this field" guarantee holds regardless,
+  since neither the GitHub nor the Azure DevOps `Endpoint` ever carries a query string.
+- `cmd/attestward/scan.go`'s `resolveScanToken` reads `AZURE_DEVOPS_EXT_PAT` from the
+  environment only for `--platform azuredevops` — never a CLI flag, and `GITHUB_TOKEN`
+  is deliberately never consulted on this path (nor is `AZURE_DEVOPS_EXT_PAT` consulted
+  for a GitHub scan) — and never writes it anywhere.
+- **Improved, not fully closed (issue #192):** `internal/model/scrub.go`'s
+  `secretPatterns` now includes a pattern for the Azure DevOps PAT shape — the same
+  distinctive, detectable shape a GitHub `ghp_`/`github_pat_` prefix has. Microsoft's own
+  [PAT format
+  reference](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate#pat-format)
+  states "84 characters long" with a fixed `AZDO` signature "at positions 76-80" — five
+  positions named for a four-character literal, so the source is self-inconsistent about
+  the exact offset; the pattern matches both readings that reconcile to 84 total (76
+  leading + `AZDO` + 4 trailing, or 75 + `AZDO` + 5), each anchored with a token boundary
+  (`\b`) so it can't consume part of an unrelated, longer alphanumeric run. What remains
+  unverified without a real token sample: the alphabet of the 80 non-signature
+  characters, documented only as "randomized data" — the pattern assumes
+  alphanumeric-only, which under-matches if the real alphabet includes other characters
+  (e.g. `-`, `_`). `internal/model/scrub_test.go` covers both offset readings, the
+  length/position near-misses the pattern must reject, and the token-boundary guard. As
+  before, the primary enforcement above (PAT confined to the auth header, `Endpoint`
+  never carrying one) is what actually prevents a PAT from reaching evidence in the
+  normal path; this pattern is the second, defense-in-depth line for the case a future
+  ADO collector bug ever put a raw PAT into a `Facts`/`Reason` value some other way, and
+  it is meaningfully stronger than before #192 — but not a guaranteed catch for every
+  real PAT given the unconfirmed alphabet.
+
+### Digests, not payloads
+
+**Enforcement:** `model.Provenance` (`internal/model/check_result.go`) has no field for
+a raw response body — only `ResponseSHA256 string`, populated by
+`provenanceTransport.RoundTrip` via `sha256.Sum256(body)` over the actual response bytes
+before they're discarded. This is a compiler-enforced invariant (the struct has nowhere
+to put a payload), not a runtime check that could be bypassed. Facts values extracted
+from a response are separately size-capped: `internal/model/validate.go`'s
+`MaxFactValueBytes = 65536` and `OversizedFacts`/`ValidateFactsSizes`, which
+`writeEvidencePack` runs (as a warning, not a hard failure — see that function's own
+doc comment for why an oversized-but-genuine finding shouldn't destroy a scan's
+evidence) before every write.
+
+## Mitigations table
+
+| Risk | Mitigation | Where |
+|---|---|---|
+| Tool performs a write against the scanned platform | Transport-level GET/HEAD-only guard | `internal/collect/github/transport.go` + `internal/collect/azuredevops/transport.go`, both with their own `transport_test.go` |
+| Token leaks into logs, evidence, or a URL fragment | Token confined to auth header; `Endpoint` records path only (GitHub) or host+path (Azure DevOps, no query string either way); no CLI-flag token intake | `internal/collect/github/transport.go`, `internal/collect/azuredevops/transport.go`, `cmd/attestward/scan.go` |
+| A secret-shaped string reaches evidence some other way | Regex-based scrubber over every `Facts`/`Reason` value, applied twice (build time + write time) — GitHub token/AWS-key/Azure DevOps PAT (issue #192)/PEM shapes | `internal/model/scrub.go`, `scrub_test.go` |
+| Evidence pack tampered after generation | SHA-256 pack hash always computed + `.sha256` sidecar; optional cosign signature | `internal/integrity/`, `cmd/attestward/scan.go` |
+| A raw API response (possibly containing sensitive detail) ends up in evidence | `Provenance` structurally has no payload field, digest only | `internal/model/check_result.go` |
+| An oversized Fact silently bloats/leaks via evidence | Size cap + validation warning | `internal/model/validate.go` |
+| Injection via API-derived content into rendered reports | `html/template` auto-escaping, structural (report.html — every interpolated value, not opt-in per field); hand-written escaping (`mdescape.Escape`) neutralizing markdown/link-injection syntax before interpolation into report.md/poam.md — issue #222's review found two report.md.tmpl call sites (the Cluster Detail block's inline Repo mention and its Evidence line) that had been missed, since text/template has no auto-escaping and this project's own hostile-string fixture didn't reach them; fixed, and `internal/mdescape` gained its own test file so a regression there can't hide behind report.md's coverage again. Issue #231 found and fixed the same class one level up, in the pack-level header/Summary block neither #222's review nor its fixture (which only ever varied *per-result* content) reached: `Pack.Scope.Org` (report.md.tmpl and poam.md.tmpl), `Pack.ToolVersion`/`Pack.MappingVersions.*` (report.md.tmpl's Summary line), and the release-tag-pattern line — the last one a code-span variant of #222's exact lesson (CommonMark doesn't process backslash escapes inside a code span, so the fix drops the span rather than escaping inside it, matching poam.md.tmpl's already-correct digest-line shape); hostile-pack.json now plants a marker on every one of these. Issue #239 closed a third gap found during #231's own sweep and deliberately not folded into that fix (it reshaped rendering/formatting rather than adding an `esc` call, so it needed its own scoped change): a `check_id` string reaching an unescaped code span for a result that cites no real SSDF task — report.md.tmpl's Gaps/Self-Attested/Not-Checkable blocks and poam.md.tmpl's Findings/Requires-Attention-Outside-This-Tool block all rendered one this way; a check_id that *does* match a real task was already safe wherever it renders, because matching means the string is byte-identical to a trusted mapping-file ID and therefore carries no attacker-chosen characters at all — which is why the two blocks that render only matched IDs (Cluster Detail, and the Paired list, whose IDs come from the self-attestation mapping's own pairing field) were never touched by this fix, confirmed unaffected rather than merely unexercised. Issue #240 closed the sibling gap found in the same #231 sweep: an out-of-enum `status` value reaching `statusBadge`/`statusLabel`'s unescaped fallback branch, reachable via a `rollup` entry naming a real cluster/task ID or a result whose check_id matches a real check but whose status doesn't match any of the five defined values — `attestward report` used to render third-party packs without ever calling `EvidencePack.ValidateAgainstSchema` or `Status.Valid`, so neither was actually enum-constrained against a hostile pack despite the schema declaring one. Fixed by rejection, not escaping: `cmd/attestward/report.go`'s `runReport` now calls `pack.ValidateAgainstSchema()` before ever rendering, the same hard-refusal treatment (no `--force` bypass) as an unrecognized `schema_version` | `internal/mdescape/mdescape.go`, `internal/report/templates/*.tmpl`, `cmd/attestward/report.go` |
+| Supply-chain attack on the tool's own release artifacts | Pinned GitHub Actions (full SHA), minimal dependency tree, keyless cosign-signed releases | `.github/workflows/release.yaml`, `.goreleaser.yaml`, [ADR-0006](adr/0006-exec-cosign-not-sigstore-go.md) |
+| Dependency confusion / typosquatting on install | Official release artifacts with checksums; documented install paths only | [SECURITY.md](../SECURITY.md), [README](../README.md) |
+| Over-privileged tokens | README documents minimum permissions/scopes per collector, per platform; GitHub scans additionally warn on write scopes (best-effort, `HasWriteScope`) — no scope-introspection endpoint exists on Azure DevOps for the same warning there | `internal/collect/github/scopes.go`, README's token tables |
+
+## Data flow
+
+```
+ ┌──────────────┐  GITHUB_TOKEN   ┌───────────────────────────────┐
+ │ user/CI env  │ ───(env var)──▶ │ cmd/attestward (scan)         │
+ └──────────────┘                 │  reads token; never persists  │
+                                   └───────────────┬───────────────┘
+                                                    │ Bearer auth header
+                                                    │ (GET/HEAD only —
+                                                    │  transport.go guard)
+                                                    ▼
+                                   ┌───────────────────────────────┐
+                                   │ https://api.github.com        │
+                                   │ (the only host attestward's   │
+                                   │  Go code ever talks to)       │
+                                   └───────────────┬───────────────┘
+                                                    │ JSON response body
+                                                    ▼
+                                   ┌───────────────────────────────┐
+                                   │ provenanceTransport            │
+                                   │  sha256(body) → ResponseSHA256 │
+                                   │  body itself discarded         │
+                                   └───────────────┬───────────────┘
+                                                    │ CheckResult{Facts, Reason, Provenance}
+                                                    ▼
+                                   ┌───────────────────────────────┐
+                                   │ model.Scrub / ScrubBytes       │
+                                   │  redact secret-shaped strings  │
+                                   └───────────────┬───────────────┘
+                                                    ▼
+                          ┌─────────────────────────────────────────────┐
+                          │ --out/ (user-chosen local directory)         │
+                          │  evidence.json (+ .sha256 sidecar)           │
+                          │  report.md / report.html / poam.md           │
+                          │  evidence.json.bundle  (only if --sign)      │
+                          └───────────────────┬───────────────────────┬─┘
+                                               │                       │
+                                (--sign only)  ▼                       │
+                                   ┌───────────────────────┐           │
+                                   │ cosign subprocess       │          │
+                                   │  (separate trust        │          │
+                                   │   boundary — ADR-0006)  │          │
+                                   │  talks to Sigstore's    │          │
+                                   │  Fulcio/Rekor over the  │          │
+                                   │  network                │          │
+                                   └─────────────────────────┘          │
+                                                                        ▼
+                                                          user decides distribution
+                                                          (never sent anywhere by
+                                                           attestward itself)
+```
+
+An `--platform azuredevops` scan follows the identical shape, substituting
+`AZURE_DEVOPS_EXT_PAT` for `GITHUB_TOKEN`, HTTP Basic auth for a Bearer header, and
+Azure DevOps's four hosts (`dev.azure.com`/`vssps.dev.azure.com`/
+`advsec.dev.azure.com`/`auditservice.dev.azure.com`) for `api.github.com` — see
+`docs/architecture.md`'s "Azure DevOps" section for the client-level detail this
+diagram doesn't redraw per platform.
+
+## Residual risks (documented, not hidden)
+
+- **`not-checkable` can hide a real gap, not just an inconclusive one.** A plan-gated
+  API, a token missing one scope, or a genuine platform limitation all surface as
+  `not-checkable` identically — the tool is deliberately conservative (never asserts
+  `verified-fail` from an ambiguous signal), but a reader must not treat a
+  `not-checkable`-heavy report as equivalent to a clean scan. `report.md`'s own
+  Methodology section (`internal/report/templates/report.md.tmpl`) states this; repeated
+  here because it's a genuine limitation, not just a rendering note.
+- **The tool cannot verify controls GitHub does not expose via API** (e.g., real MFA
+  hardware type). Such checks are marked `partial` or `not-checkable`, never inferred.
+  The same applies on Azure DevOps — e.g. `C01.org.2fa-required` is deliberately capped
+  at `partial` even on a fully Entra-backed org, since MFA enforcement itself lives in
+  Microsoft Entra Conditional Access, a surface no `vso.*` PAT scope reaches (epic #34
+  open decision 3).
+- **`internal/model/scrub.go`'s Azure DevOps PAT pattern doesn't verifiably cover every
+  real PAT.** Issue #192 added a pattern for the documented 84-character/`AZDO`-signature
+  shape (both offset readings the source's own inconsistent wording admits — see "Tokens
+  never persisted..." above), but the alphabet of the other 80 characters is documented
+  only as "randomized data," and the pattern assumes alphanumeric-only. If the real
+  alphabet includes non-alphanumeric characters, a real PAT containing one would not
+  match. As with the offset itself, this is unconfirmed without a real token sample —
+  the primary enforcement (PAT confined to the Basic-auth header) is what actually keeps
+  a PAT out of evidence in the normal path, so this residual gap is in the *second* line
+  of defense only.
+- **`exec`-ing `cosign` extends trust to that binary and the user's PATH resolution of
+  it.** `cosignPath()` (`internal/integrity/sign.go`) uses `exec.LookPath("cosign")` —
+  standard PATH-based resolution, the same trust model as any other CLI tool a user
+  installs and invokes. A malicious or compromised `cosign` binary earlier on PATH than
+  the legitimate one could substitute its own signing/verification behavior; mitigated
+  only by the user installing cosign from the same trustworthy source they'd trust for
+  any other security tool (see [SECURITY.md](../SECURITY.md)'s verification instructions
+  for attestward's own releases, which face the identical bootstrapping problem — verify
+  the tool that verifies things).
+- **GitHub API truthfulness assumption.** Every `verified-pass`/`verified-fail` is only
+  as honest as GitHub's own API response — attestward has no independent way to confirm
+  GitHub isn't itself compromised, misconfigured, or serving stale/cached data. This is
+  an accepted, unavoidable trust dependency of "verify via the platform API" as a
+  strategy; the alternative (asking the producer, self-attestation) is *less* reliable,
+  not more, which is the tool's whole premise.
+- **A user with a tampered binary defeats pack signing.** Users should verify release
+  signatures/checksums on install (see SECURITY.md) — the same bootstrapping caveat as
+  the cosign-trust risk above.
+- **CI and releases run on GitHub-hosted runners, which is a trust dependency on
+  GitHub — and, as of 2026-07-29, no longer one on a personal machine.** Until the
+  public flip this repo built and released on self-hosted runners, and
+  this section documented the residual risks that created. Every self-hosted runner
+  was deregistered at the flip and all workflows moved to GitHub-hosted runners, so
+  those risks are retired rather than merely relocated. The specifics are recorded
+  here because the change is recent and a reader may arrive with the old shape in mind:
+  - **What was true, and is not any more.** The release job ran on a persistent
+    personal Mac mini. That one machine carried twelve runner registrations serving
+    eight different repositories under a single macOS user account, `$HOME` and login
+    keychain — so a job belonging to an unrelated project could run concurrently with
+    this repo's release job, and Go module/build caches, toolchains and workspace
+    state persisted across every job that landed there. Once the repo went public,
+    `pull_request` jobs from forks would additionally have executed on it. None of
+    that holds now: hosted runners are freshly provisioned per job and destroyed
+    after, so there is no persistent state to poison and no shared tenancy with other
+    projects.
+  - **What is true now.** Release integrity depends on GitHub's own runner images and
+    Actions service. That is a real dependency, not the absence of one — but it is the
+    same dependency essentially every consumer of a GitHub-published artifact already
+    has, it is maintained by a dedicated security team, and the environment is
+    ephemeral and identical per run rather than a machine with years of accumulated
+    local state.
+  - **What did not change.** Keyless signing still attests *which workflow* produced a
+    signature, not that the build environment was clean. `release.yaml`'s `goreleaser`
+    job still holds `contents: write` and `id-token: write`; anyone able to make that
+    workflow run arbitrary code on a `v*` tag can publish artifacts that verify
+    correctly against the workflow identity [SECURITY.md](../SECURITY.md) tells
+    consumers to check. The mitigations for that are branch/tag protection and review
+    discipline, which is where they always were — moving runners does not address it.
+  - **Fork pull requests require maintainer approval** for all external contributors,
+    set at the flip. On a public repo this is what stops an arbitrary contributor's
+    first PR from executing workflow code; GitHub's default (`first_time_contributors`)
+    would exempt anyone with one previously-merged PR.
+  - **Secrets remain scoped to non-fork events.** `DEMO_ORG_PAT` and
+    `AZURE_DEVOPS_EXT_PAT` are used by `integration-scan.yaml`, which runs on a
+    schedule and on pushes to `main` — never on a `pull_request` from a fork, to which
+    GitHub withholds secrets and issues a read-only token regardless.
+
+
+## See also
+
+- [SECURITY.md](../SECURITY.md) — vulnerability reporting, release verification
+- [README.md](../README.md)'s "Safety posture" section — the short, reader-facing summary
+  of this document's claims
+- `report.md`'s own "Methodology" section (`internal/report/templates/report.md.tmpl`,
+  rendered fresh into every evidence pack) — per-scan status definitions and scope,
+  generated alongside the evidence it describes rather than living only here
+- [docs/checks-reference.md](checks-reference.md) — per-check API evidence and rubric,
+  the check-by-check complement to this document's endpoint-by-endpoint enumeration
+- [ADR-0004](adr/0004-read-only-local-first.md) — the read-only/local-first decision this
+  entire document verifies the enforcement of
+- [ADR-0006](adr/0006-exec-cosign-not-sigstore-go.md) — why cosign is shelled out to
+  rather than vendored, and the trust implications that follow
+
+## Self-hosted platforms (Gogs)
+
+Scanning a self-hosted Gogs instance differs from scanning GitHub or Azure DevOps in one
+way that matters to a reader of the resulting pack: **the party operating the platform is
+usually the same party being attested.**
+
+On a hosted platform, the API answers come from a third party with no stake in the
+producer's attestation. On a self-hosted instance, whoever runs the server could in
+principle change what it reports. This does not invalidate a Gogs evidence pack — the
+pack records what the instance actually returned, with a SHA-256 of each response — but
+it does mean the trust chain terminates at the producer rather than at an independent
+operator, and a reader should know that.
+
+Two mitigations are inherent in what this tool already does. Provenance records the
+response digest for every call, so two scans of the same instance are comparable and a
+changed answer is visible. And most Gogs checks are `not-checkable` regardless, so the
+surface an operator could influence is small — the two verifiable checks read repository
+file content, which is also present in any clone.
+
+The transport deliberately does **not** record the instance hostname in provenance (see
+`internal/collect/gogs/doc.go`): a self-hosted instance is commonly on a private address,
+and an evidence pack is an outbound document.

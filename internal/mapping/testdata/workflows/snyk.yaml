@@ -1,0 +1,13 @@
+name: Snyk security scan
+on: [push]
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Snyk
+        run: npm install -g snyk
+      - name: Run Snyk test
+        run: snyk test --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

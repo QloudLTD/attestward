@@ -1,0 +1,706 @@
+# mappings/scanner-signatures.yaml
+#
+# Detection signatures for SAST/SCA/container/secrets/SBOM/provenance
+# scanning and signing tools, as they appear in GitHub Actions workflow
+# files and (since #149) Azure Pipelines YAML — action `uses:` slugs / ADO
+# `task:` references, `run:` / `script:`-`bash:`-`pwsh:`-`powershell:` step
+# CLI invocations, and (last resort) workflow/pipeline `name:` heuristics.
+# Used by C05 (SAST), C06 (SCA), and C07 (provenance) to fingerprint which
+# tools a repo actually runs and how often. Data, not code (ADR-0003):
+# adding a new scanner is a YAML contribution, not a Go change — see
+# CONTRIBUTING.md's "New scanner signature" section.
+#
+# Unlike ssdf-800-218.yaml/cisa-ssda-form.yaml, this file isn't a citable
+# transcription of a regulatory source — CLAUDE.md's "never invent SSDF task
+# IDs, CISA form language, or regulatory citations" rule doesn't apply to it.
+# Action slugs, ADO task names, and CLI patterns below are still meant to be
+# accurate, not invented; each is exercised by a fixture workflow under
+# internal/mapping/testdata/workflows/ (or, for ADO, a fixture pipeline
+# under internal/mapping/testdata/pipelines/) that the loader's tests
+# assert actually matches (and that no other signature in this file also
+# matches).
+#
+# `detect` lists any-of matchers, in confidence order — the matcher
+# (internal/mapping's MatchWorkflow for GitHub Actions, MatchPipeline for
+# Azure Pipelines) tries `actions`/`ado_tasks` first (confidence: high, an
+# action `uses:` slug or an ADO `task:` reference is a strong, hard-to-fake
+# signal), then `run_patterns` (confidence: medium, a regex over CLI
+# invocation text — a real CLI invocation, but could in principle appear in
+# an unrelated comment or string), then `workflow_name_patterns`
+# (confidence: low, a regex over the workflow/pipeline's own `name:` field —
+# a naming convention, not actual tool usage). Confidence is a property of
+# *which* matcher fired, not a static field on the signature itself.
+#
+# `run_patterns` and `workflow_name_patterns` are cross-platform despite
+# their GitHub-flavored names (kept as-is rather than renamed, for backward
+# compatibility): on GitHub Actions they match a step's `run:` text and the
+# workflow's own `name:`; on Azure Pipelines they match a step's
+# `script:`/`bash:`/`pwsh:`/`powershell:` text and the pipeline's own
+# `name:` field, plus each step's own `displayName:`. `ado_tasks` has no
+# GitHub equivalent: an ADO pipeline `task:` reference is written
+# `TaskName@Version` (e.g. `AdvancedSecurity-Codeql-Init@1`, or a full
+# version pin like `GoTool@0.3.1` — a form Microsoft's own docs use);
+# `task` matches the exact, full string before the last `@`,
+# case-insensitively — no dot-segment splitting, so a fully-qualified
+# marketplace reference — four segments,
+# `publisher.extensionId.contributionId.taskName@version` (e.g.
+# `qetza.replacetokens.replacetokens-task.replacetokens@3`), not three —
+# or a bare task GUID does NOT cross-match a matcher written against a
+# short task name (two different publishers can share a bare task name, so
+# collapsing either form down to "the part that looks like the short
+# name" could cross-match the wrong tool — a signature that genuinely
+# needs to recognize the fully-qualified or GUID form lists that exact
+# string as its own `ado_tasks` entry instead); `major` is an optional
+# exact-match pin against only the segment of the post-`@` version before
+# its first `.` (empty matches any version; `major: "1"` matches both
+# `@1` and `@1.2.3`) — this is `actions`' Slug+Version pair, reimplemented
+# for ADO's own task-versioning scheme rather than reused, since an action
+# slug and an ADO task name are different namespaces. #149 added the
+# `ado_tasks` field and the MatchPipeline matcher (schema+matcher PR), then
+# the first per-signature `ado_tasks` entries (registry PR): `codeql`
+# (GitHub Advanced Security for Azure DevOps' AdvancedSecurity-Codeql-Init/
+# AdvancedSecurity-Codeql-Analyze — same CodeQL engine as the GitHub-native
+# entry, hence reusing this signature's id rather than a separate one),
+# `snyk` (SnykSecurityScan), and `sonarqube` (SonarQubePrepare/
+# SonarQubeAnalyze for SonarQube Server), plus a new
+# `ghazdo-dependency-scanning` entry for GHAzDO's Dependency Scanning task
+# (AdvancedSecurity-Dependency-Scanning), which has no existing GitHub-side
+# signature to extend. #167 (a fast-follow, filed from #165's own review)
+# then added `sonarqube`'s SonarCloud counterpart —
+# SonarCloudPrepare/SonarCloudAnalyze, a genuinely different task family
+# from SonarQube Server's, not a version difference of it — closing the
+# zero-detection gap a real ADO pipeline using those tasks hit until then.
+# Every task name above was verified against Microsoft/vendor
+# documentation, not guessed — see each entry's own comment for the source
+# and the major-version-pinning rationale (a bare, current major for
+# Microsoft's own fast-moving GHAzDO tasks and Snyk's long-stable one; left
+# unpinned for both SonarQube Server and SonarQube Cloud, whose ADO
+# extensions have each shipped several concurrently-supported majors).
+#
+# #238 found that trivy — a signature that predates #149's whole ADO
+# dimension — had never been given an `ado_tasks` entry despite Aqua
+# Security publishing an official one (AquaSecurityOfficial.trivy-official,
+# `- task: trivy@2`/legacy `trivy@1`), a real zero-detection gap on Azure
+# Pipelines fixed below. #243's own audit of the registry's other nine
+# non-`ado_tasks` signatures (excluding trivy, #238's own fix) found it
+# wasn't isolated: only 4 of the registry's 14 signatures carried any ADO
+# detection at all at the time. Every signature now carries either an
+# `ado_tasks` block or a `no_ado_task` entry (5 and 9 respectively, none
+# with neither) — a non-empty, dated-where-it's-a-search-result reason
+# recording that the tool genuinely has no Azure Pipelines marketplace
+# task, so a reader (or a future contributor) never has to re-derive that
+# or mistake a still-undetected tool for an oversight.
+# `no_ado_task` covers two distinct cases, each written out in the entry it
+# applies to: a *structural* absence (the tool's own detection mechanism —
+# a GitHub Actions reusable-workflow call, a PR-diff, a config file's
+# presence, a GitHub-hosted API — has no Azure Pipelines equivalent to
+# register a task against at all, so this isn't expected to ever change) and
+# a *checked negative* (the Marketplace was searched and nothing turned up,
+# dated, since a search result unlike a structural fact can go stale the
+# day someone ships a real task). `major` was investigated per-signature the
+# same way as the existing `ado_tasks` entries above — not assumed clean,
+# and not assumed absent either: grype's own investigation started from a
+# real lead (#234's review noted Anchore publishes
+# AnchoreInc.anchore-scan-task, `- task: Anchore@0`) that turned out not to
+# apply — see grype's own `no_ado_task` for why. Every signature having one
+# of the two fields is enforced by
+# TestEveryScannerSignatureHasADOTasksOrAnExplicitAbsenceMarker
+# (internal/mapping/scannersig_test.go) rather than by the loader itself, so
+# a gap here is a CI failure, not a runtime one.
+#
+# `template:` references in an Azure Pipelines file — a step, job, or
+# stage that points at another YAML file instead of containing its
+# content directly, or the pipeline's own root-level `extends:` (the
+# standard mandated-template pattern, e.g. `extends: {template:
+# v1/pipeline.yml@templates}`, where the entire pipeline body lives in
+# another file) — are outside what MatchPipeline can see: it does no I/O
+# and cannot fetch the referenced file, so every one of these is surfaced
+# to callers as unresolved rather than silently treated as "not present".
+# One gap this does NOT yet cover: a deployment job's steps (`-
+# deployment: <name>`, nested under strategy.runOnce/canary/rolling rather
+# than a plain `steps:` list) aren't traversed at all — not even flagged
+# as unresolved, since a deployment job has no `template:` field to detect
+# it by. See MatchPipeline's own doc comment in internal/mapping for the
+# same caveat; traversal support is deferred to a follow-up.
+#
+# The `sbom` category (added by #166, alongside the `syft` signature below)
+# is deliberately narrow. A match under it asserts only that a workflow or
+# pipeline ran a step that GENERATES a software bill of materials — nothing
+# about what happened to it afterward. It does NOT mean the SBOM was
+# scanned for vulnerabilities (that's this file's `sca`/`container`
+# categories — see grype/trivy/osv-scanner above, which scan a component
+# list, not just produce one), does NOT mean it was signed, published as a
+# release asset, retained, or diffed against a prior release, and does NOT
+# mean anything downstream ever read it. `provenance` was considered and
+# rejected as the home for SBOM tools: NIST SP 800-218's PS.3.2 talks about
+# SBOMs as one way to "collect, safeguard, maintain, and share provenance
+# data," but an SBOM itself attests a build's *composition* — what's in
+# it — not its *origin* — how or where it was built, which is what this
+# file's provenance category (cosign, SLSA, attest-build-provenance)
+# actually detects. Filing syft under `provenance` would have been a real,
+# compounding inaccuracy baked into every report that detects it, not a
+# harmless simplification. As of this writing, no collector filters
+# ScannerMatch results down to CategorySBOM the way C05/C06/C07 each filter
+# to CategorySAST/CategorySCA/CategoryProvenance (see internal/mapping's
+# ScannerCategory doc comment and MatchWorkflows/MatchPipelines' callers) —
+# `syft`'s entry below is registry-complete and fixture-proven, held to the
+# same cross-matrix accuracy standard as every other entry, but not yet
+# consumed by any check: a report run today has no SBOM-specific result to
+# show. That's future collector work, not a defect in this entry.
+#
+# dependabot is special-cased: unlike every other entry here, Dependabot
+# isn't invoked from a workflow at all — it's detected by the *presence* of
+# a `.github/dependabot.yml` config file, which this file's workflow-content
+# matcher structurally cannot express (`detect` is deliberately empty).
+# Real detection for it lands with #18 (C06 sca-history), which can check
+# for that file directly via the GitHub API; it's listed here now purely
+# for SCA-category registry completeness.
+
+version: "1.5.0"
+
+signatures:
+  - id: codeql
+    name: "GitHub CodeQL"
+    category: sast
+    detect:
+      actions:
+        - slug: github/codeql-action/analyze
+      # GitHub Advanced Security for Azure DevOps (GHAzDO) runs the same
+      # CodeQL engine via a two-task pipeline sequence rather than a GitHub
+      # Actions step — verified against Microsoft Learn's own task
+      # reference pages (advanced-security-codeql-init-v1,
+      # advanced-security-codeql-analyze-v1): both tasks are currently only
+      # published at major version 1, so that's pinned rather than left
+      # open, unlike sonarqube's ado_tasks below.
+      ado_tasks:
+        - task: AdvancedSecurity-Codeql-Init
+          major: "1"
+        - task: AdvancedSecurity-Codeql-Analyze
+          major: "1"
+      run_patterns: []
+      workflow_name_patterns:
+        - "(?i)\\bcodeql\\b"
+    run_evidence: >-
+      Each CodeQL run is a workflow run of the workflow containing the
+      github/codeql-action/analyze step; the analyze step's own run also
+      appears as a check run (typically named "CodeQL") on the commit/PR it
+      scanned. On Azure Pipelines (GHAzDO), a run is a pipeline run whose
+      steps include AdvancedSecurity-Codeql-Init followed by
+      AdvancedSecurity-Codeql-Analyze; results surface on the repo's
+      Advanced Security tab in Azure DevOps, not as a GitHub check run.
+
+  - id: semgrep
+    name: "Semgrep"
+    category: sast
+    detect:
+      actions:
+        # returntocorp/semgrep-action is the pre-2024 slug (org since
+        # renamed to semgrep/, and the old repo archived as a fork) — both
+        # kept since older workflows may still reference the original.
+        - slug: returntocorp/semgrep-action
+        - slug: semgrep/semgrep-action
+      # Checked negative (issue #243), checked 2026-07-26: Semgrep's own CI
+      # docs (docs.semgrep.dev/deployment/add-semgrep-to-ci) point Azure
+      # Pipelines users at a sample script-based config, not a marketplace
+      # task. A third-party community extension exists on the Marketplace
+      # ("Semgrep Security Scan", published by an unrelated individual
+      # account, not Semgrep Inc.), but every ado_tasks entry in this
+      # registry is a vendor-published task (Aqua Security/trivy,
+      # SonarSource/sonarqube, Snyk/snyk, Microsoft/GHAzDO) — an unofficial
+      # wrapper doesn't meet that bar, so this stays a checked negative
+      # rather than an ado_tasks entry (issue #253's review: grype's own
+      # entry below is the proof case for why — Anchore's task wraps a
+      # deprecated engine and has since been unpublished from the
+      # Marketplace outright, exactly the risk a third-party/unofficial
+      # task carries).
+      #
+      # This gap is PARTIAL, not total like trivy's own gap was (issue
+      # #253's review correction: the wording below used to say the third-
+      # party task path is "already covered by run_patterns", which is
+      # true of the CLI-script path but not the task path at all —
+      # run_patterns matches step script/bash/pwsh/powershell text, and a
+      # marketplace-task step has none). What actually, partially,
+      # mitigates the task path is workflow_name_patterns' displayName:
+      # fallback below: a step invoking the third-party task with a
+      # displayName mentioning "semgrep" still matches at ConfidenceLow.
+      # A generic displayName goes undetected. trivy had no such fallback
+      # at all (its own workflow_name_patterns was empty), which is
+      # exactly what made trivy's gap total and #238 urgent by comparison.
+      no_ado_task: >-
+        No official Semgrep-published Azure Pipelines task exists (checked
+        2026-07-26) — Semgrep's own CI docs recommend a script-based
+        integration instead. This gap is partial, not total: a step
+        invoking the third-party task still matches at low confidence via
+        workflow_name_patterns' displayName fallback below, whenever that
+        displayName mentions "semgrep".
+      run_patterns:
+        - "\\bsemgrep\\b"
+      workflow_name_patterns:
+        - "(?i)\\bsemgrep\\b"
+    run_evidence: >-
+      Workflow run of the job invoking either the semgrep-action or the
+      semgrep CLI directly; Semgrep's own GitHub integration (if configured)
+      additionally posts a check run.
+
+  - id: sonarqube
+    name: "SonarQube / SonarCloud"
+    category: sast
+    detect:
+      actions:
+        - slug: SonarSource/sonarqube-scan-action
+        # Legacy SonarCloud-specific action — archived but still widely
+        # referenced by existing workflows.
+        - slug: SonarSource/sonarcloud-github-action
+      # Both products' Azure Pipelines extensions — verified against
+      # SonarSource's own docs (docs.sonarsource.com):
+      #
+      # SonarQube Server: SonarQubePrepare/SonarQubeAnalyze, cross-checked
+      # against Microsoft Learn's task reference (sonar-qube-prepare-v7,
+      # sonar-qube-analyze-v7, and a v8 has since appeared too). Major
+      # deliberately left unpinned: unlike codeql/snyk above, this
+      # extension has shipped several majors (at least v5-v8) that remain
+      # in concurrent real-world use, so pinning one would make this entry
+      # go stale rather than more accurate.
+      #
+      # SonarQube Cloud (formerly SonarCloud) — a DIFFERENT task family,
+      # not a version difference of the SonarQube Server one, hence its
+      # own ado_tasks entries here rather than folding into the pair
+      # above: SonarCloudPrepare/SonarCloudAnalyze (issue #167, a fast-
+      # follow to #149/#165, which shipped SonarQube Server's ado_tasks
+      # but missed this — a real, common setup that matched nothing).
+      # SonarSource's own docs (sonarqube-cloud/analyzing-source-code/
+      # ci-based-analysis/azure-pipelines/sonarqube-tasks) state "the
+      # current major version is SonarCloudPrepare@4 (and
+      # SonarCloudAnalyze@4); version 3 is deprecated" — despite that
+      # explicit "current version" framing (stronger than SonarQube
+      # Server's docs, which don't deprecate the recent majors v6-v8 —
+      # v5 itself WAS deprecated, per the Server extension's own 6.0.1
+      # release notes, "Deprecate the old SonarQube v5 tasks with proper
+      # warnings"), major is left unpinned here too, for the same
+      # underlying reason: a
+      # "deprecated" task still runs in any pipeline that hasn't been
+      # upgraded, and this family already has at least four historical
+      # majors (1/2 legacy, 3 deprecated, 4 current) — the same
+      # multiple-concurrent-majors situation as SonarQube Server, not a
+      # single-current-version one, so pinning would under-detect
+      # real-world SonarCloud usage on an older major rather than add
+      # accuracy.
+      ado_tasks:
+        - task: SonarQubePrepare
+        - task: SonarQubeAnalyze
+        - task: SonarCloudPrepare
+        - task: SonarCloudAnalyze
+      run_patterns:
+        - "\\bsonar-scanner\\b"
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking the scan action or sonar-scanner
+      CLI; SonarCloud/SonarQube separately posts its own quality-gate
+      status check on the commit. On Azure Pipelines, a run is a pipeline
+      run invoking SonarQubePrepare/SonarCloudPrepare followed by
+      SonarQubeAnalyze/SonarCloudAnalyze; the quality-gate status still
+      posts to the SonarQube/SonarCloud server itself, independent of the
+      pipeline run's own status.
+
+  - id: dependency-review-action
+    name: "GitHub Dependency Review"
+    category: sca
+    detect:
+      actions:
+        - slug: actions/dependency-review-action
+      # Structural absence (issue #243) — GitHub-native by construction:
+      # this diffs a pull request's own dependency changes via GitHub's PR
+      # API, which Azure DevOps has no equivalent surface for. Not a
+      # search-dated claim; there is no marketplace task to eventually find.
+      no_ado_task: >-
+        GitHub-native by construction — diffs a GitHub pull request's own
+        dependency changes; Azure DevOps has no equivalent PR-diffing
+        mechanism to register a task against.
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Runs only on pull requests (it diffs the PR's dependency changes);
+      surfaces as a check run on the PR, not on ordinary pushes.
+
+  - id: ghazdo-dependency-scanning
+    name: "GitHub Advanced Security for Azure DevOps Dependency Scanning"
+    category: sca
+    detect:
+      actions: []
+      # Verified against Microsoft Learn's task reference
+      # (advanced-security-dependency-scanning-v1): currently only
+      # published at major version 1. No GitHub-side signature to extend
+      # here (unlike codeql/snyk/sonarqube below) — this is a
+      # GHAzDO-specific mechanism with no equivalent GitHub Actions tool by
+      # the same name; dependency-review-action and dependabot above are
+      # conceptually related but are different, unrelated tools.
+      ado_tasks:
+        - task: AdvancedSecurity-Dependency-Scanning
+          major: "1"
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Pipeline run whose steps include AdvancedSecurity-Dependency-Scanning;
+      results surface on the repo's Advanced Security tab in Azure DevOps.
+
+  - id: snyk
+    name: "Snyk"
+    category: sca
+    detect:
+      actions:
+        # Snyk ships one action per language/ecosystem rather than one
+        # canonical slug — enumerating the common ones here (ActionMatcher
+        # is exact-slug, no prefix support) rather than relying solely on
+        # the run_patterns fallback below, which misses action-only usage
+        # with no separate CLI invocation.
+        - slug: snyk/actions/node
+        - slug: snyk/actions/python
+        - slug: snyk/actions/golang
+        - slug: snyk/actions/docker
+        - slug: snyk/actions/maven
+        - slug: snyk/actions/gradle
+      # Verified against Snyk's own Azure Pipelines integration docs and
+      # the "Snyk Security Scan" marketplace listing (Snyk.snyk-security-scan):
+      # the task has been SnykSecurityScan@1 since it shipped, with no
+      # newer major found, so major is pinned rather than left open.
+      ado_tasks:
+        - task: SnykSecurityScan
+          major: "1"
+      run_patterns:
+        - "snyk (test|monitor)"
+      workflow_name_patterns:
+        - "(?i)\\bsnyk\\b"
+    run_evidence: >-
+      Workflow run of the job invoking a snyk/actions/* action or the snyk
+      CLI directly. On Azure Pipelines, a run is a pipeline run invoking the
+      SnykSecurityScan task.
+
+  - id: trivy
+    name: "Trivy"
+    category: sca
+    detect:
+      actions:
+        - slug: aquasecurity/trivy-action
+      # Issue #238: Aqua Security publishes an official Azure Pipelines
+      # marketplace task — verified against the extension's own Marketplace
+      # listing and its source repo (aquasecurity/trivy-azure-pipelines-task):
+      # publisher AquaSecurityOfficial, extension trivy-official, task name
+      # `trivy`. Both `trivy@2` (current, recommended for new users) and
+      # `trivy@1` (the original version — superseded, not deprecated) remain
+      # in real-world use, the same multi-concurrent-majors situation as
+      # sonarqube's ado_tasks above, so major is left unpinned here too
+      # rather than pinned to one and under-detecting the other. Unlike
+      # every other ado_tasks entry in this registry — all PascalCase,
+      # matching Microsoft's/each vendor's own task-naming convention —
+      # trivy's task name is all-lowercase, checked directly against
+      # upstream's own docs (aquasecurity/trivy-azure-pipelines-task's
+      # docs/trivyv1.md and docs/trivyv2.md): every `- task:` YAML example
+      # in both, eight occurrences, is lowercase `trivy@1`/`trivy@2` — only
+      # the README's own prose section headers ("Trivy@1 Configuration")
+      # are capitalized, which isn't something anyone would copy into a
+      # pipeline. Task-name matching is case-insensitive regardless
+      # (matchADOTask's own EqualFold, the matcher's existing behavior for
+      # every ado_tasks entry, not something added for trivy specifically),
+      # so this entry doesn't depend on which capitalization a real
+      # pipeline author happens to type.
+      ado_tasks:
+        - task: trivy
+      run_patterns:
+        - "trivy (fs|repo|image)"
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking the trivy-action or trivy CLI. On
+      Azure Pipelines, a run is a pipeline run invoking the trivy task.
+
+  - id: grype
+    name: "Grype"
+    category: sca
+    detect:
+      actions:
+        - slug: anchore/scan-action
+      # Checked negative (issue #243), checked 2026-07-26. #234's own review
+      # left one real lead: Anchore publishes an Azure Pipelines task,
+      # AnchoreInc.anchore-scan-task (`- task: Anchore@0`) — investigated
+      # rather than assumed either way. It doesn't apply: the task's own
+      # Marketplace listing and its source repo (anchore/azure-devops-task)
+      # both confirm it wraps Anchore Engine, not Grype ("Anchore Inline
+      # Scan, which is utilized for this integration, is deprecated" per its
+      # own README, pointing users at Grype instead of fixing the task to
+      # use it), and the listing itself is now unpublished from the
+      # Marketplace entirely ("This extension is now unpublished from
+      # Marketplace") — not grype's task under a different name, and not
+      # installable regardless. No genuine grype-specific Azure Pipelines
+      # task was found.
+      no_ado_task: >-
+        No Grype-specific Azure Pipelines task exists (checked 2026-07-26).
+        Anchore's own AnchoreInc.anchore-scan-task (Anchore@0) was
+        investigated as the one lead from #234's review, but it wraps the
+        deprecated Anchore Engine, not Grype, and has since been
+        unpublished from the Marketplace entirely.
+      run_patterns:
+        - "\\bgrype\\b"
+      workflow_name_patterns: []
+    run_evidence: "Workflow run of the job invoking anchore/scan-action (which wraps Grype) or the grype CLI directly."
+
+  - id: osv-scanner
+    name: "OSV-Scanner"
+    category: sca
+    detect:
+      actions:
+        - slug: google/osv-scanner-action
+        # OSV-Scanner's officially recommended integration is a job-level
+        # *reusable workflow* call (jobs.<id>.uses:), not a step — the
+        # dominant real-world usage, distinct from the plain action slug
+        # above. See WorkflowJob.Uses' doc comment for how the matcher
+        # checks both the same way.
+        - slug: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml
+      # Checked negative (issue #243) — independently searched during
+      # #234's own review round and re-confirmed 2026-07-26: no official
+      # (or any) OSV-Scanner Azure Pipelines marketplace task exists.
+      # Azure Pipelines integration is CLI/script-only, already covered by
+      # run_patterns below.
+      no_ado_task: >-
+        No OSV-Scanner Azure Pipelines task exists (checked 2026-07-26,
+        first noted during #234's review) — integration there is
+        CLI/script-only, already covered by run_patterns below.
+      run_patterns:
+        - "osv-scanner\\b"
+      workflow_name_patterns: []
+    run_evidence: "Workflow run of the job invoking the osv-scanner-action, its reusable workflow, or the osv-scanner CLI."
+
+  - id: dependabot
+    name: "Dependabot"
+    category: sca
+    detect:
+      actions: []
+      # Structural absence (issue #243) — GitHub-native by construction,
+      # same as this entry's own detection mechanism (a config file's
+      # presence, not a workflow step): Azure DevOps has no equivalent
+      # automated dependency-update-PR bot this registry could detect via a
+      # checked-in file the way .github/dependabot.yml works on GitHub.
+      no_ado_task: >-
+        GitHub-native by construction — Azure DevOps has no equivalent
+        automated dependency-update-PR mechanism to register a task
+        against.
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Not workflow-invoked at all — detected by the presence of
+      .github/dependabot.yml, not by anything expressible in this file's
+      detect schema. See this file's header comment. #18 implements real
+      detection; this entry is registry-only for now, deliberately excluded
+      from the cross-matrix "every signature matches its own fixture" test.
+
+  - id: syft
+    name: "Syft (Anchore)"
+    category: sbom
+    detect:
+      actions:
+        - slug: anchore/sbom-action
+      # Checked negative (issue #243) — independently searched during
+      # #234's own review round and re-confirmed 2026-07-26: no Syft Azure
+      # Pipelines marketplace task exists, official or otherwise. Azure
+      # Pipelines integration is CLI-only, already covered by run_patterns
+      # below.
+      no_ado_task: >-
+        No Syft Azure Pipelines task exists (checked 2026-07-26, first
+        noted during #234's review) — integration there is CLI-only,
+        already covered by run_patterns below.
+      run_patterns:
+        # syft has no single fixed subcommand the way trivy/snyk/cosign do —
+        # its own README's "Basic Usage" is the bare form, `syft <target>`
+        # (e.g. `syft alpine:latest`, `syft ./my-project`); `scan` is the
+        # current subcommand name and `packages` a deprecated alias for the
+        # same thing (verified against github.com/anchore/syft's README and
+        # cmd/syft/internal/commands/{root,scan,packages}.go, which alias
+        # the bare form straight to `scan`). A bare \bsyft\b would fire on
+        # prose mentioning the tool by name — including the install
+        # one-liner's own URL (`curl -sSfL https://get.anchore.io/syft |
+        # sudo sh -s -- -b /usr/local/bin`, also verified against the same
+        # README) — without anything actually being generated. syft's own
+        # default output (absent -o/--output) is a human-readable table,
+        # not a machine-readable SBOM at all, so requiring an explicit
+        # -o/--output flag on the same line is both the anti-false-positive
+        # fix and the more accurate signal: a syft invocation with no
+        # output flag isn't producing an SBOM artifact anything downstream
+        # could consume.
+        #
+        # An earlier version of this pattern was `\bsyft\b.*(-o
+        # |--output[= ])` — a review round (issue #166's own PR) ran it
+        # against synthetic cases, not just inspected it, and found it both
+        # under- and over-matched:
+        #   - false negatives: `-o` only accepted a following space, so
+        #     `-ojson` (concatenated) and `-o=json` (equals form) — both
+        #     valid cobra/pflag shorthand syntax — matched nothing.
+        #   - false positives: `.*` is unanchored, so ANY `-o`/`--output`
+        #     appearing anywhere later on the same line satisfied it, even
+        #     belonging to a completely different command: an install
+        #     one-liner's own `-o <output-file>` curl flag, a comment
+        #     mentioning "syft" in prose with an unrelated tool's flag
+        #     later in the same line, or a `command -v syft ||
+        #     other-tool -o x` fallback branch where syft is explicitly
+        #     ABSENT.
+        # Fixed by anchoring "syft" to the start of an actual shell command
+        # (line start, or right after a `;`/`&`/`|` separator — a
+        # multi-line `run: | .../syft.../` step is matched per line, since
+        # `\n` is one of that separator's own accepted delimiters, and Go's
+        # RE2 `.` already never crosses a literal newline on its own) and
+        # scoping how far past "syft" the flag search may range to that
+        # same command (stopping at the next `;`/`&`/`|`/newline) — plus
+        # widening `-o`/`--output`'s own delimiter to accept `=` as well as
+        # a space.
+        #
+        # Deliberately NOT handling the fully-concatenated `-ojson` form
+        # (no space, no `=`) — not because there's no way to, but as a
+        # complexity trade this file's own signatures generally favor:
+        # `-o(syft-json|json|table|text|cyclonedx|spdx|github|template)`
+        # would preserve the "a real format was named" premise exactly
+        # (syft's actual `-o`/`--output` value vocabulary), at the cost of
+        # a format-name enumeration this entry would then need to keep in
+        # sync with syft's own if it ever changes. `-ojson`/`-oyaml` isn't
+        # an exotic shape either — it's the habitual style for anyone used
+        # to kubectl's identical short-flag syntax — so this is a real,
+        # plausible miss being accepted, not a theoretical one. `-ojson`
+        # remains a known, accepted non-match.
+        #
+        # Anchoring "syft" to a command start also introduced new misses
+        # the old, unanchored `\bsyft\b` caught — found the same way as
+        # the false positives above (running cases, not just inspecting):
+        # `docker run --rm anchore/syft:latest alpine:latest -o spdx-json`
+        # (syft as a docker image reference, not the command itself — no
+        # command-start position for this signature to anchor to at all);
+        # `sudo syft dir:. -o json`; `./syft dir:. -o json` and
+        # `/usr/local/bin/syft dir:. -o json` (the shape right after a
+        # tarball/binary install, no scheme/action wrapper); `SYFT_QUIET=1
+        # syft dir:. -o json` (an env-var prefix); `time syft dir:. -o
+        # json`; and a one-line `if command -v syft; then syft dir:. -o
+        # json; fi`. All are real, accepted misses, not covered by this
+        # entry's fixtures/tests. Net trade is still an improvement over
+        # the false positives fixed above, and this category has no
+        # collector consuming it yet (see this file's sbom-category note),
+        # so the practical cost of each is currently zero — revisit if
+        # real-world false negatives turn up once something does. An
+        # optional command prefix — `(^|[;&|\n]\s*)(sudo\s+)?
+        # ([\w./-]*/)?syft\b...` — was evaluated and would close the
+        # sudo/`./syft`/path-prefix cases specifically, but not the
+        # docker-image-reference, env-var-prefix, `time`, or `if`/`then`
+        # cases; given it only closes 3 of 7 and this category's
+        # consumers are still zero, the added regex surface wasn't judged
+        # worth it over documenting the gap plainly. Not a closed
+        # decision — revisit alongside wiring up an actual SBOM collector.
+        #
+        # This fixtures' `syft dir:. -o ...` explicit-scheme form was
+        # double-checked, not assumed still current: verified directly
+        # against cmd/syft/internal/commands/scan.go (the source that
+        # generates `syft scan --help`'s own text), which still documents
+        # `dir:path/to/yourproject` under "You can also explicitly specify
+        # the scheme to use" as of this writing — not removed, not flagged
+        # deprecated in any user-facing help text. The same file's source
+        # does carry one internal comment steering new code toward the
+        # newer `--from` flag instead ("a holdover for compatibility,
+        # using the --from flag is recommended"), but that's a
+        # forward-looking preference for a different, additive flag, not
+        # a claim that the `scheme:` prefix form is legacy or non-current;
+        # `dir:` stays the fixture's choice as the still-documented,
+        # still-functional, and (given how long it predates `--from`)
+        # almost certainly still far more common real-world form.
+        - "(^|[;&|\n]\\s*)syft\\b[^|;&\n]*(-o[ =]|--output[ =])"
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking anchore/sbom-action (which wraps
+      syft) or the syft CLI directly with an explicit -o/--output flag;
+      anchore/sbom-action's action.yml defaults `upload-artifact` and
+      `upload-release-assets` to true, so it also uploads the generated
+      SBOM as a workflow artifact and, during a GitHub release, as a
+      release asset by default — but both are caller-disablable inputs, so
+      a match alone doesn't establish either happened, consistent with
+      this file's own sbom-category note above (a match is evidence an
+      SBOM was generated for that run, nothing about what happened to it
+      afterward).
+
+  - id: cosign
+    name: "Sigstore cosign"
+    category: provenance
+    detect:
+      actions:
+        - slug: sigstore/cosign-installer
+      # Checked negative (issue #243) — independently searched during
+      # #234's own review round and re-confirmed 2026-07-26: no cosign
+      # Azure Pipelines marketplace task exists. Azure Pipelines
+      # integration is CLI/script-only, already covered by run_patterns
+      # below.
+      no_ado_task: >-
+        No cosign Azure Pipelines task exists (checked 2026-07-26, first
+        noted during #234's review) — integration there is CLI/script-only,
+        already covered by run_patterns below.
+      run_patterns:
+        # The installer action only puts the cosign binary on PATH — the
+        # actual signing happens in a separate run: step, e.g. `cosign
+        # sign-blob --bundle=...`. Matched as a fallback for the rarer case
+        # of a preinstalled cosign binary invoked with no installer action
+        # present at all.
+        - "\\bcosign (sign|sign-blob|attest)\\b"
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking sigstore/cosign-installer followed
+      by a cosign sign/sign-blob/attest step; produces a Sigstore bundle
+      (keyless, Fulcio/Rekor-backed) alongside the signed artifact.
+
+  - id: slsa-generator
+    name: "SLSA GitHub Generator"
+    category: provenance
+    detect:
+      actions:
+        # slsa-github-generator is invoked as a job-level *reusable
+        # workflow* call (jobs.<id>.uses:), the same mechanism as
+        # osv-scanner's dominant real-world usage — see WorkflowJob.Uses'
+        # doc comment. Two of the generator's several artifact-type
+        # variants are listed; not exhaustive (ActionMatcher is exact-slug,
+        # no wildcard support), same practical scoping as C06's ecosystem
+        # table.
+        - slug: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml
+        - slug: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml
+      # Structural absence (issue #243) — slsa-github-generator's own
+      # detection mechanism (a GitHub Actions job-level reusable-workflow
+      # call) has no Azure Pipelines equivalent to register a task against.
+      # Checked 2026-07-26 for a production-grade alternative regardless,
+      # not assumed: the SLSA framework's own ADO exploration
+      # (slsa-framework/azure-devops-demo) is explicitly a proof-of-concept
+      # demo, not a task this registry should treat as equivalent; a
+      # separate third-party extension (gattjoe.SLSAProvenanceGenerator)
+      # exists but isn't slsa-github-generator under a different name,
+      # matching the same vendor-published-only bar semgrep's own
+      # no_ado_task above applies.
+      no_ado_task: >-
+        No Azure Pipelines equivalent of slsa-github-generator's own
+        reusable-workflow mechanism exists (checked 2026-07-26); the SLSA
+        framework's own ADO exploration is an explicit proof-of-concept,
+        not a production task.
+      run_patterns: []
+      workflow_name_patterns:
+        - "(?i)\\bslsa\\b"
+    run_evidence: >-
+      Workflow run of the job calling one of slsa-github-generator's
+      reusable workflows; produces a SLSA provenance attestation uploaded
+      as a release/workflow artifact.
+
+  - id: attest-build-provenance
+    name: "GitHub Artifact Attestations (attest-build-provenance)"
+    category: provenance
+    detect:
+      actions:
+        - slug: actions/attest-build-provenance
+      # Structural absence (issue #243) — GitHub-native by construction:
+      # produces a GitHub-hosted attestation retrievable only via GitHub's
+      # own REST API (see run_evidence below); Azure DevOps has no
+      # equivalent hosted-attestation surface to register a task against.
+      no_ado_task: >-
+        GitHub-native by construction — produces a GitHub-hosted
+        attestation via GitHub's own REST API; Azure DevOps has no
+        equivalent surface to register a task against.
+      run_patterns: []
+      workflow_name_patterns: []
+    run_evidence: >-
+      Workflow run of the job invoking actions/attest-build-provenance;
+      produces a GitHub-hosted attestation retrievable via
+      GET /repos/{owner}/{repo}/attestations/{subject_digest}.

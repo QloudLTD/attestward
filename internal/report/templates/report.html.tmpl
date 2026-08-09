@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Software Development Security Report — {{.Pack.Scope.Org}}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+
+    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+      "Liberation Mono", "Courier New", monospace;
+
+    --page: #f5f7f9;
+    --surface: #ffffff;
+    --surface-subtle: #f6f8fa;
+    --surface-emphasis: #eef2f6;
+    --text: #18202a;
+    --text-muted: #596675;
+    --text-faint: #738090;
+    --border: #c9d1da;
+    --border-strong: #8995a3;
+    --accent: #245d8f;
+    --accent-soft: #e8f1f8;
+    --focus: #1478bd;
+    --stripe: rgba(45, 67, 89, 0.035);
+    --shadow: 0 1px 2px rgba(20, 30, 40, 0.06),
+      0 6px 18px rgba(20, 30, 40, 0.035);
+
+    --pass-bg: #e9f5ed;
+    --pass-text: #1d5d35;
+    --pass-border: #4f8a63;
+    --fail-bg: #fbecec;
+    --fail-text: #8b2424;
+    --fail-border: #b44b4b;
+    --partial-bg: #fff4d8;
+    --partial-text: #73510b;
+    --partial-border: #a77a1b;
+    --self-bg: #edf0fa;
+    --self-text: #394c82;
+    --self-border: #6e7faa;
+    --unchecked-bg: #f0f1f3;
+    --unchecked-text: #4f5964;
+    --unchecked-border: #7e8791;
+
+    --radius: 5px;
+    --content-width: 60rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #11161c;
+      --surface: #171d24;
+      --surface-subtle: #1d252e;
+      --surface-emphasis: #242e39;
+      --text: #e7ebef;
+      --text-muted: #b3bdc8;
+      --text-faint: #929eaa;
+      --border: #3b4652;
+      --border-strong: #667381;
+      --accent: #78b6e6;
+      --accent-soft: #1d3446;
+      --focus: #8bc8f4;
+      --stripe: rgba(255, 255, 255, 0.025);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.28),
+        0 8px 22px rgba(0, 0, 0, 0.16);
+
+      --pass-bg: #173326;
+      --pass-text: #a9dfb8;
+      --pass-border: #5a9870;
+      --fail-bg: #3a2022;
+      --fail-text: #f0b1b1;
+      --fail-border: #bd6565;
+      --partial-bg: #382f18;
+      --partial-text: #efd28b;
+      --partial-border: #ac8731;
+      --self-bg: #222c46;
+      --self-text: #bac8f2;
+      --self-border: #7789bf;
+      --unchecked-bg: #282d33;
+      --unchecked-text: #c7cdd4;
+      --unchecked-border: #838c96;
+    }
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    background: var(--page);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.58;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    width: min(calc(100% - 2rem), var(--content-width));
+    margin: 0 auto;
+    padding: 2.5rem 0 4rem;
+    background: transparent;
+  }
+
+  main,
+  .report {
+    display: block;
+  }
+
+  header,
+  .report-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 1rem 1.25rem;
+    margin-bottom: 2.5rem;
+    padding: 1.25rem 0 1.4rem;
+    border-top: 4px solid var(--accent);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .logo,
+  .report-logo {
+    display: grid;
+    place-items: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    color: var(--accent);
+  }
+
+  .logo svg,
+  .report-logo svg {
+    display: block;
+    width: 2.5rem;
+    height: 2.5rem;
+    fill: currentColor;
+  }
+
+  .report-kicker {
+    margin: 0 0 0.15rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
+    color: var(--text);
+    font-weight: 650;
+    letter-spacing: -0.018em;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.55rem, 4vw, 2.15rem);
+    letter-spacing: -0.027em;
+  }
+
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--border-strong);
+    font-size: 1.35rem;
+  }
+
+  h2::before {
+    display: inline-block;
+    width: 0.22rem;
+    height: 0.92em;
+    margin-right: 0.55rem;
+    border-radius: 1px;
+    background: var(--accent);
+    content: "";
+    vertical-align: -0.08em;
+  }
+
+  h3 {
+    margin: 2.1rem 0 0.75rem;
+    font-size: 1.16rem;
+  }
+
+  h4 {
+    margin: 1.6rem 0 0.65rem;
+    font-size: 1.02rem;
+  }
+
+  h5 {
+    margin: 1.25rem 0 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+  }
+
+  p,
+  ul,
+  ol,
+  dl,
+  pre,
+  table {
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+
+  p {
+    max-width: 72ch;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.16em;
+  }
+
+  a:hover {
+    text-decoration-thickness: 0.13em;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .section-intro,
+  .section-note,
+  .muted {
+    color: var(--text-muted);
+  }
+
+  .section-intro {
+    max-width: 72ch;
+    margin: -0.35rem 0 1.15rem;
+  }
+
+  .report-section {
+    scroll-margin-top: 1rem;
+  }
+
+  .table-wrap {
+    max-width: 100%;
+    margin: 0 0 1.25rem;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  table {
+    width: 100%;
+    border-spacing: 0;
+    border-collapse: collapse;
+    background: var(--surface);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.42;
+  }
+
+  .table-wrap > table {
+    margin-bottom: 0;
+  }
+
+  caption {
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 650;
+    letter-spacing: 0.045em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  th,
+  td {
+    padding: 0.62rem 0.72rem;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th:last-child,
+  td:last-child {
+    border-right: 0;
+  }
+
+  tr:last-child > th,
+  tr:last-child > td {
+    border-bottom: 0;
+  }
+
+  thead th {
+    background: var(--surface-emphasis);
+    color: var(--text);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.035em;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+
+  tbody tr:nth-child(even) > td,
+  tbody tr:nth-child(even) > th {
+    background: var(--stripe);
+  }
+
+  tbody tr:hover > td,
+  tbody tr:hover > th {
+    background: var(--accent-soft);
+  }
+
+  tbody th[scope="row"] {
+    color: var(--text);
+    font-weight: 620;
+  }
+
+  td.numeric,
+  th.numeric,
+  .numeric {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  td.status-cell {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .key-value-table th {
+    width: 12rem;
+    background: var(--surface-subtle);
+    color: var(--text-muted);
+    font-size: 0.77rem;
+    font-weight: 700;
+    letter-spacing: 0.035em;
+    text-transform: uppercase;
+  }
+
+  .key-value-table td {
+    overflow-wrap: anywhere;
+  }
+
+  .counts-table td:not(:first-child),
+  .counts-table th:not(:first-child) {
+    text-align: right;
+  }
+
+  .hash,
+  code,
+  samp,
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+  }
+
+  .hash {
+    overflow-wrap: anywhere;
+    word-break: break-all;
+  }
+
+  code,
+  samp {
+    padding: 0.1em 0.3em;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface-subtle);
+  }
+
+  pre {
+    max-width: 100%;
+    padding: 0.8rem;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-subtle);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  pre code {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: inherit;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.55rem;
+    padding: 0.18rem 0.48rem;
+    border: 1px solid var(--unchecked-border);
+    border-radius: 3px;
+    background: var(--unchecked-bg);
+    color: var(--unchecked-text);
+    font-size: 0.7rem;
+    font-weight: 760;
+    letter-spacing: 0.045em;
+    line-height: 1.2;
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .badge::before {
+    margin-right: 0.34rem;
+    font-size: 0.9em;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .badge-verified-pass {
+    border-color: var(--pass-border);
+    border-style: solid;
+    background: var(--pass-bg);
+    color: var(--pass-text);
+  }
+
+  .badge-verified-pass::before {
+    content: "✓";
+  }
+
+  .badge-verified-fail {
+    border-width: 2px;
+    border-color: var(--fail-border);
+    border-style: solid;
+    background: var(--fail-bg);
+    color: var(--fail-text);
+  }
+
+  .badge-verified-fail::before {
+    content: "×";
+    font-size: 1.05em;
+  }
+
+  .badge-partial {
+    border-color: var(--partial-border);
+    border-style: dashed;
+    background: var(--partial-bg);
+    color: var(--partial-text);
+  }
+
+  .badge-partial::before {
+    content: "◐";
+  }
+
+  .badge-self-attested {
+    border-color: var(--self-border);
+    border-style: double;
+    border-width: 3px;
+    background: var(--self-bg);
+    color: var(--self-text);
+  }
+
+  .badge-self-attested::before {
+    content: "✎";
+  }
+
+  .badge-not-checkable {
+    border-color: var(--unchecked-border);
+    border-style: dotted;
+    border-width: 2px;
+    background: var(--unchecked-bg);
+    color: var(--unchecked-text);
+  }
+
+  .badge-not-checkable::before {
+    content: "?";
+  }
+
+  .check-list {
+    display: grid;
+    gap: 0.9rem;
+    margin: 1rem 0 1.5rem;
+  }
+
+  .check-card,
+  .check {
+    position: relative;
+    margin: 0 0 0.9rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .check-card[data-status="verified-pass"],
+  .check-verified-pass {
+    border-left-color: var(--pass-border);
+  }
+
+  .check-card[data-status="verified-fail"],
+  .check-verified-fail {
+    border-left-color: var(--fail-border);
+  }
+
+  .check-card[data-status="partial"],
+  .check-partial {
+    border-left-style: dashed;
+    border-left-color: var(--partial-border);
+  }
+
+  .check-card[data-status="self-attested"],
+  .check-self-attested {
+    border-left-style: double;
+    border-left-width: 6px;
+    border-left-color: var(--self-border);
+  }
+
+  .check-card[data-status="not-checkable"],
+  .check-not-checkable {
+    border-left-style: dotted;
+    border-left-color: var(--unchecked-border);
+  }
+
+  .check-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.65rem 1rem;
+    padding: 0.85rem 0.9rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-subtle);
+  }
+
+  .check-title {
+    min-width: 0;
+  }
+
+  .check-title h4,
+  .check-title h5,
+  .check-header h4,
+  .check-header h5 {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.98rem;
+    letter-spacing: -0.008em;
+    text-transform: none;
+  }
+
+  .check-id {
+    display: block;
+    margin-bottom: 0.16rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.69rem;
+    font-weight: 650;
+    letter-spacing: 0.035em;
+  }
+
+  .check-body {
+    padding: 0.85rem 0.9rem 0.95rem;
+  }
+
+  .check-body > :last-child {
+    margin-bottom: 0;
+  }
+
+  .check-reason {
+    margin: 0 0 0.9rem;
+    padding: 0.65rem 0.75rem;
+    border-left: 2px solid var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .check-reason-label,
+  .evidence-heading,
+  .facts-heading {
+    display: block;
+    margin-bottom: 0.24rem;
+    color: var(--text-muted);
+    font-size: 0.69rem;
+    font-weight: 750;
+    letter-spacing: 0.075em;
+    text-transform: uppercase;
+  }
+
+  .evidence-list {
+    margin: 0.25rem 0 1rem;
+    padding-left: 1.25rem;
+  }
+
+  .evidence-list li {
+    margin: 0.28rem 0;
+    padding-left: 0.12rem;
+    overflow-wrap: anywhere;
+  }
+
+  .evidence-list li::marker {
+    color: var(--accent);
+  }
+
+  .fact-table {
+    margin-bottom: 0.25rem;
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+
+  .fact-table th,
+  .fact-table td {
+    padding: 0.45rem 0.55rem;
+  }
+
+  .fact-table th[scope="row"] {
+    width: 11rem;
+    background: var(--surface-subtle);
+    color: var(--text-muted);
+  }
+
+  .empty-state,
+  .no-evidence {
+    margin: 0.5rem 0 0;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .gaps-table tbody th[scope="row"] {
+    border-left: 3px solid var(--fail-border);
+  }
+
+  .appendix {
+    padding-top: 0.25rem;
+  }
+
+  .appendix .check-card,
+  .appendix .check {
+    box-shadow: none;
+  }
+
+  .status-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.7rem;
+    margin: 1rem 0;
+  }
+
+  .status-definition {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.65rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .status-definition p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.48;
+  }
+
+  footer,
+  .report-footer {
+    margin-top: 3rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border-strong);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  @media (max-width: 42rem) {
+    body {
+      width: min(calc(100% - 1.25rem), var(--content-width));
+      padding-top: 1rem;
+    }
+
+    header,
+    .report-header {
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+    }
+
+    .logo,
+    .report-logo {
+      place-items: start;
+    }
+
+    .check-header {
+      grid-template-columns: 1fr;
+    }
+
+    .check-header .badge {
+      justify-self: start;
+    }
+
+    .key-value-table th,
+    .fact-table th[scope="row"] {
+      width: auto;
+    }
+
+    th,
+    td {
+      padding: 0.52rem 0.58rem;
+    }
+  }
+
+  @media print {
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #ffffff;
+      --surface-subtle: #f4f4f4;
+      --surface-emphasis: #e9e9e9;
+      --text: #000000;
+      --text-muted: #303030;
+      --text-faint: #4d4d4d;
+      --border: #b0b0b0;
+      --border-strong: #5c5c5c;
+      --accent: #1d1d1d;
+      --accent-soft: #f2f2f2;
+      --stripe: #f7f7f7;
+      --shadow: none;
+
+      --pass-bg: #ffffff;
+      --pass-text: #000000;
+      --pass-border: #333333;
+      --fail-bg: #eeeeee;
+      --fail-text: #000000;
+      --fail-border: #000000;
+      --partial-bg: #ffffff;
+      --partial-text: #000000;
+      --partial-border: #333333;
+      --self-bg: #f4f4f4;
+      --self-text: #000000;
+      --self-border: #333333;
+      --unchecked-bg: #ffffff;
+      --unchecked-text: #000000;
+      --unchecked-border: #555555;
+    }
+
+    @page {
+      size: Letter;
+      margin: 15mm 14mm 17mm;
+    }
+
+    html {
+      background: #ffffff;
+      font-size: 10pt;
+    }
+
+    body {
+      width: auto;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    header,
+    .report-header {
+      margin-bottom: 1.5rem;
+      padding-top: 0;
+    }
+
+    h1 {
+      font-size: 20pt;
+    }
+
+    h2 {
+      margin-top: 1.7rem;
+      font-size: 14pt;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    h3,
+    h4,
+    h5,
+    caption,
+    thead {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .table-wrap {
+      overflow: visible;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    table {
+      font-size: 8.2pt;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    tfoot {
+      display: table-footer-group;
+    }
+
+    tr,
+    td,
+    th {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    tbody tr:hover > td,
+    tbody tr:hover > th {
+      background: inherit;
+    }
+
+    .check-card,
+    .check,
+    .status-definition {
+      overflow: visible;
+      border-radius: 0;
+      box-shadow: none;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .check-card,
+    .check {
+      margin-bottom: 0.65rem;
+    }
+
+    .check-header,
+    .check-body {
+      padding: 0.6rem 0.7rem;
+    }
+
+    .badge {
+      color: #000000;
+      box-shadow: none;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .status-legend {
+      grid-template-columns: 1fr;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      overflow: visible;
+    }
+
+    .no-print {
+      display: none !important;
+    }
+  }
+
+  .note {
+    margin: 0 0 1.5rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--partial-border);
+    border-radius: var(--radius);
+    background: var(--partial-bg);
+    color: var(--partial-text);
+  }
+</style>
+</head>
+<body>
+
+{{/* Inline copy of docs/assets/logo.svg, whitespace-collapsed, fill switched
+     to currentColor so it follows the page's light/dark text color (the file
+     ships one fixed fill per variant; this report must stay a single
+     self-contained file — see RenderHTML's doc comment). If the logo asset
+     ever changes, re-derive this from docs/assets/logo.svg. */}}
+<header class="report-header">
+<div class="report-logo">
+<svg viewBox="0 0 633.904569 815.742917" role="img" aria-label="Attestward" xmlns="http://www.w3.org/2000/svg"><g transform="translate(-211.149997,935.911479) scale(0.100000,-0.100000)" fill="currentColor" stroke="none"><path d="M5165 9297 c-55 -33 -166 -97 -247 -142 -81 -45 -145 -84 -142 -87 3 -4 -1 -5 -8 -5 -7 1 -125 -55 -263 -124 -417 -208 -783 -362 -1182 -495 -125 -42 -239 -78 -252 -81 -13 -2 -32 -8 -43 -14 -10 -5 -18 -8 -18 -5 0 2 -21 -3 -47 -11 -27 -8 -55 -16 -63 -18 -8 -1 -35 -9 -60 -16 -64 -18 -65 -18 -130 -34 -8 -2 -62 -15 -120 -30 -58 -15 -114 -29 -125 -31 -11 -3 -27 -7 -35 -9 -8 -2 -26 -7 -40 -10 -14 -3 -33 -8 -42 -10 -17 -5 -45 -12 -78 -20 -115 -27 -144 -44 -155 -88 -8 -29 -1 -2996 7 -3022 3 -11 9 -51 13 -88 3 -37 8 -78 11 -90 2 -12 6 -37 9 -57 7 -46 22 -125 40 -205 2 -11 6 -30 9 -43 3 -13 8 -32 11 -42 3 -10 8 -27 10 -37 18 -85 108 -341 172 -492 86 -201 237 -486 254 -476 5 3 6 0 4 -7 -8 -20 193 -320 208 -312 7 4 9 4 5 -1 -11 -11 11 -47 24 -39 6 4 8 3 5 -3 -8 -12 87 -137 204 -268 20 -22 44 -50 54 -62 10 -12 23 -19 28 -16 6 3 7 2 4 -3 -6 -11 141 -170 154 -166 5 1 8 -4 7 -10 -2 -7 3 -12 10 -10 6 1 11 -4 10 -10 -2 -7 3 -12 10 -10 6 1 11 -4 10 -10 -2 -7 3 -12 10 -10 6 1 11 -2 10 -7 -2 -5 15 -26 37 -46 22 -20 67 -62 100 -93 56 -53 106 -98 184 -165 45 -39 281 -228 315 -252 16 -11 33 -24 40 -30 43 -38 88 -65 98 -59 6 4 8 3 5 -4 -4 -5 15 -26 42 -45 140 -101 182 -127 193 -121 6 4 8 3 5 -4 -9 -14 189 -146 204 -136 7 4 9 3 6 -3 -10 -15 307 -218 324 -207 5 3 8 0 7 -8 -2 -7 5 -12 14 -12 10 1 16 -1 13 -5 -6 -11 53 -43 65 -36 6 4 9 1 8 -7 -2 -7 5 -12 14 -12 10 1 16 -1 15 -5 -1 -3 2 -6 6 -6 4 0 11 -5 15 -11 13 -19 132 -85 142 -79 6 4 9 1 8 -6 -4 -16 22 -19 41 -5 12 9 13 8 7 -4 -6 -11 -4 -11 6 1 7 9 18 18 23 20 6 2 9 8 7 12 -1 5 2 6 8 2 14 -9 151 75 143 88 -3 5 -1 7 5 3 6 -3 32 7 59 22 89 53 168 105 175 116 4 6 8 7 8 2 0 -5 12 1 27 15 14 13 23 17 18 9 -4 -8 1 -6 13 5 28 27 45 40 57 46 6 2 9 7 7 12 -1 4 1 6 5 5 14 -4 53 13 53 23 0 5 5 9 10 9 17 0 145 91 142 101 -1 5 1 8 5 8 18 -3 31 2 51 21 12 12 22 17 22 13 0 -4 4 -3 8 3 4 6 23 22 43 35 149 98 320 229 314 239 -3 5 0 8 7 5 7 -3 24 5 38 17 14 13 43 36 65 53 67 50 85 68 78 78 -3 6 -1 7 4 4 6 -4 20 2 32 12 12 11 41 34 63 53 44 35 127 109 190 169 21 20 38 35 38 33 0 -2 63 60 140 137 77 78 137 145 134 150 -3 5 -2 8 3 7 4 -2 27 16 49 40 23 23 40 42 37 42 -2 0 12 14 32 31 21 19 34 38 31 46 -3 8 -2 12 3 9 12 -8 63 53 55 66 -4 6 -3 8 3 5 10 -6 53 36 53 52 0 5 4 11 8 13 19 8 162 211 155 221 -3 7 -3 9 2 5 11 -11 58 50 49 64 -4 7 -4 10 1 6 11 -11 58 60 49 74 -4 6 -3 8 3 5 13 -8 75 91 67 105 -4 6 -2 8 3 5 9 -6 23 14 25 33 0 3 3 7 7 10 18 13 41 62 35 73 -4 7 -4 9 1 5 9 -9 16 3 92 155 29 59 50 113 47 119 -4 6 -3 8 3 5 6 -4 16 6 22 23 5 17 7 30 3 30 -4 0 -2 4 3 8 17 12 36 63 29 75 -4 7 -3 9 1 4 5 -4 20 21 33 55 29 76 82 241 80 248 -1 3 4 15 10 26 12 23 25 75 26 111 1 11 4 19 7 17 4 -2 12 24 19 59 7 34 14 67 16 72 1 6 4 24 7 40 3 17 8 41 11 55 3 14 9 45 12 70 3 25 8 53 10 64 2 10 6 44 10 75 4 31 9 70 12 86 3 17 7 704 9 1527 l4 1497 -28 30 c-26 27 -98 52 -255 87 -23 5 -52 12 -138 33 -25 7 -56 14 -70 17 -14 2 -32 7 -40 10 -8 3 -26 8 -40 10 -14 3 -43 10 -65 16 -22 6 -44 12 -50 13 -171 36 -841 254 -882 287 -7 6 -13 8 -13 5 0 -7 -239 90 -370 150 -30 14 -100 45 -155 70 -272 123 -729 364 -993 525 -34 21 -68 38 -75 37 -6 0 -57 -28 -112 -62z m247 -856 c32 -18 63 -29 69 -25 7 4 9 3 6 -3 -9 -14 90 -66 105 -57 6 4 8 3 4 -4 -8 -13 52 -44 67 -35 5 3 8 2 4 -3 -7 -12 171 -107 185 -98 6 4 8 3 5 -2 -6 -10 219 -130 240 -128 7 1 11 -1 8 -5 -2 -4 44 -29 103 -56 59 -26 134 -61 167 -76 66 -30 204 -89 220 -94 6 -1 26 -8 45 -16 19 -7 38 -12 43 -11 4 1 7 -3 7 -10 0 -6 3 -9 6 -6 3 4 24 -2 47 -12 23 -10 45 -16 49 -14 4 3 8 1 8 -3 0 -7 57 -29 100 -39 3 0 18 -6 33 -12 16 -7 33 -10 38 -6 5 3 9 0 9 -7 0 -7 8 -9 21 -6 12 3 18 3 15 -1 -9 -8 106 -43 122 -37 7 3 11 1 8 -4 -3 -4 20 -14 52 -21 74 -18 72 -17 75 -20 2 -2 19 -6 57 -13 14 -3 26 -6 28 -6 1 -1 5 -2 10 -2 4 -1 24 -8 45 -15 28 -10 36 -10 30 -1 -5 9 -3 9 8 1 16 -13 123 -39 199 -49 14 -2 25 -4 25 -5 0 -1 11 -4 25 -6 27 -5 39 -20 40 -49 1 -11 2 -508 2 -1105 1 -953 -2 -1212 -17 -1303 -2 -12 -6 -42 -9 -67 -3 -25 -8 -55 -10 -66 -2 -12 -7 -37 -10 -55 -8 -46 -14 -77 -20 -97 -3 -9 -7 -28 -10 -42 -8 -41 -13 -61 -40 -152 -142 -483 -417 -936 -806 -1327 -36 -36 -64 -69 -63 -73 2 -5 -1 -7 -6 -5 -5 1 -33 -21 -62 -49 -238 -225 -722 -560 -1011 -700 -31 -15 -54 -32 -51 -37 3 -6 1 -7 -5 -3 -14 9 -63 -14 -55 -27 3 -6 1 -7 -4 -4 -6 4 -67 -20 -137 -53 -69 -33 -132 -60 -141 -60 -24 0 -308 135 -465 221 -111 61 -314 185 -405 247 -44 31 -85 55 -92 55 -6 0 -11 3 -10 7 1 4 -36 36 -83 70 -79 59 -198 155 -280 225 -52 45 -300 293 -345 346 -76 86 -91 104 -156 189 -130 168 -252 365 -347 559 -31 64 -57 118 -58 121 0 3 -6 19 -13 35 -49 115 -137 394 -156 498 -3 12 -7 33 -10 47 -16 81 -16 82 -29 185 -16 132 -19 346 -20 1322 -1 798 2 1117 10 1128 6 8 26 17 45 19 19 3 35 6 37 7 3 2 6 3 73 17 80 18 112 24 127 25 6 0 12 3 12 7 0 3 8 6 18 6 9 1 31 4 47 8 17 4 37 9 45 10 9 1 20 5 26 8 6 4 21 9 35 12 13 2 36 9 52 15 15 6 27 9 27 6 0 -2 26 5 58 16 31 11 68 23 81 25 13 3 31 9 40 13 9 5 21 10 26 10 29 3 233 76 230 82 -3 3 3 6 13 5 21 -1 192 66 187 74 -2 3 5 7 16 8 43 4 49 6 49 15 0 6 3 8 6 5 3 -4 31 6 62 22 31 15 67 31 80 34 12 4 19 12 16 18 -4 6 -2 8 3 5 14 -9 95 27 85 38 -4 5 -2 5 5 1 7 -4 36 6 65 21 29 15 56 26 61 25 4 -1 7 3 7 8 0 6 6 9 13 7 6 -1 11 4 9 11 -1 8 2 11 8 7 6 -4 18 -1 27 7 14 11 16 11 9 -2 -4 -9 -2 -8 7 2 8 10 17 15 20 11 4 -3 7 -1 7 5 0 7 3 11 8 10 13 -3 161 76 156 84 -3 4 2 5 10 2 9 -3 16 -1 16 6 0 6 5 8 10 5 6 -3 10 -1 10 4 0 6 3 10 8 9 18 -3 82 33 76 44 -4 7 -3 8 4 4 10 -6 124 49 160 77 6 5 12 6 12 3 0 -4 6 -1 14 6 8 7 11 17 8 22 -3 5 0 6 7 2 6 -4 18 -2 26 4 8 7 15 10 15 6 0 -3 9 2 20 12 12 9 24 16 28 16 4 -1 26 12 50 28 23 16 42 26 42 23 0 -4 7 1 16 10 15 14 19 14 58 -8 22 -13 67 -38 98 -56z"/><path d="M6073 6077 c-414 -413 -749 -755 -746 -760 3 -6 2 -7 -4 -4 -13 8 -156 -137 -146 -148 4 -4 3 -5 -3 -2 -14 8 -37 -17 -26 -28 4 -5 2 -5 -4 -2 -14 8 -57 -36 -47 -48 5 -4 3 -5 -3 -2 -14 8 -57 -36 -47 -47 5 -4 1 -6 -7 -4 -8 1 -14 -3 -12 -10 1 -6 -4 -11 -10 -10 -7 2 -12 -3 -10 -10 1 -8 -2 -11 -7 -8 -12 8 -33 -18 -23 -29 4 -5 2 -5 -5 -1 -6 3 -16 -1 -21 -10 -8 -14 -94 68 -480 455 -259 259 -478 472 -487 472 -8 1 -22 2 -30 2 -8 0 -21 -1 -28 -2 -18 -2 -437 -418 -438 -436 -1 -8 -1 -22 -1 -30 0 -8 0 -21 1 -28 2 -20 350 -369 361 -362 6 4 7 -1 3 -11 -5 -13 -3 -16 10 -11 12 4 14 2 10 -10 -5 -13 -2 -15 11 -10 9 4 15 3 11 -2 -7 -12 104 -123 116 -116 5 4 6 -2 2 -11 -5 -13 -3 -16 10 -11 12 4 14 2 10 -10 -5 -12 -2 -15 10 -10 9 3 16 3 16 -1 -4 -23 3 -34 17 -28 8 3 12 2 9 -3 -7 -12 394 -413 406 -405 5 3 6 -3 2 -12 -5 -14 -3 -16 11 -11 10 4 15 3 11 -3 -8 -13 33 -52 47 -44 6 4 8 3 5 -3 -8 -13 70 -96 83 -88 6 4 7 -1 3 -11 -5 -14 -3 -16 11 -11 9 4 15 3 11 -3 -8 -14 185 -202 202 -196 8 3 11 2 8 -4 -3 -5 9 -8 30 -6 36 2 110 60 99 77 -3 5 3 6 12 2 14 -5 16 -3 11 11 -4 10 -3 15 3 11 12 -7 107 93 102 108 -1 5 2 6 7 2 12 -7 227 212 223 227 -1 5 2 7 7 3 14 -8 653 634 645 647 -4 7 -2 8 5 4 14 -9 103 83 94 98 -3 5 -1 6 4 3 13 -8 195 172 187 184 -3 5 3 6 12 2 14 -5 16 -3 11 11 -4 9 -3 15 2 12 10 -7 181 157 181 174 0 7 2 11 5 9 6 -7 355 340 355 353 0 6 2 9 5 6 9 -9 67 51 60 62 -4 6 1 7 11 3 13 -5 16 -3 11 10 -4 12 -2 14 10 10 13 -5 15 -2 10 11 -4 10 -3 15 3 11 13 -8 307 292 312 319 8 44 -11 71 -149 209 -257 258 -248 250 -290 253 l-38 3 -752 -752z"/></g></svg>
+</div>
+<div>
+<p class="report-kicker">Attestward Evidence Pack</p>
+<h1>Software Development Security Report</h1>
+</div>
+</header>
+
+{{if .DriftedMappingFiles}}<div class="note"><strong>Note:</strong> this pack's mapping versions do not match the mapping data used to render this report &mdash; the following mapping files no longer match: {{range $i, $f := .DriftedMappingFiles}}{{if $i}}, {{end}}<code>{{$f}}</code>{{end}}. Some content below may be missing, reflect a different revision, or no longer match what the current mapping data would produce.</div>{{end}}
+
+<section class="report-section" aria-labelledby="executive-summary">
+<h2 id="executive-summary">Executive Summary</h2>
+<div class="table-wrap">
+<table class="key-value-table">
+<tbody>
+<tr><th scope="row">Org</th><td>{{.Pack.Scope.Org}}</td></tr>
+{{if .Pack.Scope.Project}}<tr><th scope="row">Project</th><td>{{.Pack.Scope.Project}}</td></tr>
+{{end}}<tr><th scope="row">Repos in scope</th><td>{{range $i, $r := .Pack.Scope.Repos}}{{if $i}}, {{end}}{{$r}}{{end}}</td></tr>
+<tr><th scope="row">Scan window</th><td>{{fmtTime .Pack.ScanStartedAt}} &ndash; {{fmtTime .Pack.ScanEndedAt}}</td></tr>
+<tr><th scope="row">Tool version</th><td>{{.Pack.ToolVersion}}</td></tr>
+<tr><th scope="row">Mapping versions</th><td>SSDF {{.Pack.MappingVersions.SSDF}} &middot; CISA form {{.Pack.MappingVersions.CISAForm}}{{if .Pack.MappingVersions.ScannerSignatures}} &middot; scanner signatures {{.Pack.MappingVersions.ScannerSignatures}}{{end}}{{if .Pack.MappingVersions.SelfAttestation}} &middot; self-attestation {{.Pack.MappingVersions.SelfAttestation}}{{end}}</td></tr>
+{{if .Pack.Integrity}}<tr><th scope="row">Pack SHA-256</th><td><code class="hash">{{.Pack.Integrity.SHA256}}</code></td></tr>{{end}}
+</tbody>
+</table>
+</div>
+
+<h3>Cluster status</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Cluster</th><th scope="col">Status</th></tr></thead>
+<tbody>
+{{range .Clusters}}<tr><td>{{.ID}}. {{.Title}}</td><td class="status-cell">{{if .HasStatus}}<span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}{{else}}<em>no data</em>{{end}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>
+
+<h3>Result counts</h3>
+<div class="table-wrap">
+<table class="counts-table">
+<thead><tr><th scope="col">Status</th><th scope="col">Count</th></tr></thead>
+<tbody>
+{{range statusCounts .StatusCounts}}<tr><td class="status-cell"><span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}</td><td class="numeric">{{.Count}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="report-section" aria-labelledby="cluster-detail">
+<h2 id="cluster-detail">Cluster Detail</h2>
+{{range .Clusters}}
+<h3>Cluster {{.ID}}: {{.Title}} &mdash; {{if .HasStatus}}<span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}{{else}}<em>no data</em>{{end}}</h3>
+<blockquote>{{.FormText}}</blockquote>
+
+{{range .Tasks}}
+<h4>{{.ID}} &mdash; {{if .HasStatus}}<span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}{{else}}<em>no data</em>{{end}}</h4>
+{{if .Text}}<p>{{.Text}}</p>{{end}}
+
+{{range .Checks}}
+<div class="check-card" data-status="{{.Status}}">
+<div class="check-header">
+<div class="check-title">
+<span class="check-id">{{.CheckID}}</span>
+<h5>{{.Title}}</h5>
+</div>
+<span><span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}}</span>
+</div>
+<div class="check-body">
+<div class="check-reason"><span class="check-reason-label">Reason</span>{{if .Scope.Repo}}Repo: <code>{{.Scope.Repo}}</code>. {{end}}{{.Reason}}</div>
+
+{{if .Provenance}}<p class="evidence-heading">Evidence</p>
+<ul class="evidence-list">{{range .Provenance}}<li><code>{{.Method}} {{.Endpoint}}</code> at {{fmtTime .Timestamp}} (HTTP {{.HTTPStatus}}, digest <code class="hash">{{.ResponseSHA256}}</code>)</li>{{end}}</ul>{{end}}
+
+{{if .Facts}}{{$fv := facts .Facts}}
+{{if $fv.Scalars}}<ul class="evidence-list">{{range $fv.Scalars}}<li>{{.Key}}: {{fmtVal .Value}}</li>{{end}}</ul>{{end}}
+{{if $fv.Lists}}<ul class="evidence-list">{{range $fv.Lists}}<li>{{.Key}}: {{if .Items}}{{range $i, $item := .Items}}{{if $i}}, {{end}}{{fmtVal $item}}{{end}}{{else}}(none){{end}}</li>{{end}}</ul>{{end}}
+{{range $fv.Tables}}<p class="facts-heading">{{.Key}}</p>
+<div class="table-wrap"><table class="fact-table">
+<thead><tr>{{range .Columns}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
+<tbody>{{range .Rows}}<tr>{{range .}}<td>{{fmtVal .}}</td>{{end}}</tr>
+{{end}}</tbody>
+</table></div>
+{{end}}
+{{end}}
+</div>
+</div>
+{{end}}
+{{end}}
+{{end}}
+</section>
+
+<section class="report-section" aria-labelledby="gaps">
+<h2 id="gaps">Gaps</h2>
+{{if .Gaps}}<p>Every <code>verified-fail</code> or <code>partial</code> result, in one place. See poam.md for remediation tracking.</p>
+<div class="table-wrap">
+<table class="gaps-table">
+<thead><tr><th scope="col">POA&amp;M ID</th><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
+<tbody>
+{{range .Gaps}}<tr><th scope="row">{{if .POAMID}}{{.POAMID}}{{else}}&mdash;{{end}}</th><td><code>{{.Result.CheckID}}</code></td><td>{{.ScopeLabel}}</td><td class="status-cell"><span class="badge badge-{{.Result.Status}}">{{statusBadge .Result.Status}}</span> {{statusLabel .Result.Status}}</td><td>{{.Result.Reason}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>{{else}}<p>No gaps found &mdash; every check that could be verified reported <code>verified-pass</code>.</p>{{end}}
+</section>
+
+<section class="report-section appendix" aria-labelledby="self-attested-appendix">
+<h2 id="self-attested-appendix">Self-Attested &amp; Not-Checkable Appendix</h2>
+<p>Controls in this section were <strong>not independently verified</strong> by this tool &mdash; either the
+producer's own claim (self-attested) or a control this tool structurally cannot verify
+via API (not-checkable, e.g. plan-gated or no answer on file). Neither status ever
+upgrades a CISA form cluster to fully verified.</p>
+
+<h3>Self-Attested</h3>
+{{if .SelfAttested}}{{range .SelfAttested}}<div class="check-card" data-status="{{.Result.Status}}">
+<div class="check-header">
+<div class="check-title">
+<span class="check-id">{{.Result.CheckID}}</span>
+<h5>{{.Result.Title}}</h5>
+</div>
+<span><span class="badge badge-{{.Result.Status}}">{{statusBadge .Result.Status}}</span> {{statusLabel .Result.Status}}</span>
+</div>
+<div class="check-body">
+<div class="check-reason"><span class="check-reason-label">Reason</span>{{.Result.Reason}}</div>
+{{if .Paired}}<p class="evidence-heading">Complements these API-verified checks</p>
+<ul class="evidence-list">{{range .Paired}}<li><code>{{.CheckID}}</code>: <span class="badge badge-{{.Status}}">{{statusBadge .Status}}</span> {{statusLabel .Status}} &mdash; {{.Reason}}</li>{{end}}</ul>{{end}}
+</div>
+</div>{{end}}{{else}}<p>None.</p>{{end}}
+
+<h3>Not Checkable</h3>
+{{if .NotCheckable}}<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Check</th><th scope="col">Scope</th><th scope="col">Reason</th></tr></thead>
+<tbody>
+{{range .NotCheckable}}<tr><td><code>{{.Result.CheckID}}</code></td><td>{{.ScopeLabel}}</td><td>{{.Result.Reason}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>{{else}}<p>None.</p>{{end}}
+</section>
+
+<section class="report-section" aria-labelledby="methodology">
+<h2 id="methodology">Methodology</h2>
+<p><strong>Status definitions:</strong></p>
+<div class="status-legend">
+<div class="status-definition"><span class="badge badge-verified-pass">{{statusBadge "verified-pass"}}</span> <p><strong>Verified Pass</strong> &mdash; the tool queried the platform API and the returned state satisfies the check's pass condition. Never inferred, only observed.</p></div>
+<div class="status-definition"><span class="badge badge-verified-fail">{{statusBadge "verified-fail"}}</span> <p><strong>Verified Fail</strong> &mdash; the tool queried the platform API and the returned state does not satisfy the check's pass condition. Just as definitive as verified-pass.</p></div>
+<div class="status-definition"><span class="badge badge-partial">{{statusBadge "partial"}}</span> <p><strong>Partial</strong> &mdash; the tool queried the platform API and got a mixed or incomplete signal: some but not all of a check's sub-conditions hold, or the evidence is suggestive but not conclusive either way.</p></div>
+<div class="status-definition"><span class="badge badge-self-attested">{{statusBadge "self-attested"}}</span> <p><strong>Self-Attested</strong> &mdash; no API call can verify this control; the answer comes from the producer's own self-attestation questionnaire, not platform evidence.</p></div>
+<div class="status-definition"><span class="badge badge-not-checkable">{{statusBadge "not-checkable"}}</span> <p><strong>Not Checkable</strong> &mdash; the tool could not determine an answer at all (plan-gated, insufficient token permission, or an unanswered self-attestation question). An honest &ldquo;unknown&rdquo;, never inferred as a pass or a fail.</p></div>
+</div>
+
+<p><strong>Lookback window:</strong> {{.Pack.Scope.LookbackReleases}} releases / {{.Pack.Scope.LookbackMonths}} months, release tag pattern <code>{{.Pack.Scope.ReleaseTagPattern}}</code>.</p>
+
+<p><strong>What this tool does NOT verify:</strong> developer security training, threat-modeling practice
+in depth, documented triage/remediation SLAs beyond what a self-attestation records,
+agency-notification process, and any control neither an API call nor the self-attestation
+questionnaire can reach. This tool is read-only: it never writes to the scanned platform,
+and every claim above traces to either a specific API response (verified-*, partial,
+not-checkable) or an explicit producer statement (self-attested) &mdash; never to inference,
+and never faked.</p>
+</section>
+
+<footer>Generated by attestward {{.Pack.ToolVersion}}. This report is derived entirely from evidence.json; it makes no claims beyond what that file records.</footer>
+
+</body>
+</html>

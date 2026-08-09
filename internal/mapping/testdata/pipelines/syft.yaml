@@ -1,0 +1,11 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - script: |
+      curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+      syft dir:. -o spdx-json=sbom.spdx.json
+    displayName: 'Generate SBOM with syft'

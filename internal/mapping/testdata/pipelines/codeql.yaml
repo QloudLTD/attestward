@@ -1,0 +1,17 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: AdvancedSecurity-Codeql-Init@1
+    inputs:
+      languages: 'javascript'
+    displayName: 'Advanced Security Initialize CodeQL'
+
+  - script: npm ci && npm run build
+    displayName: 'Build'
+
+  - task: AdvancedSecurity-Codeql-Analyze@1
+    displayName: 'Advanced Security Code Scanning'

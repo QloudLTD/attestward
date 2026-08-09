@@ -1,0 +1,5 @@
+version: "1.0.0"
+questions:
+  - id: not-the-right-format
+    question: "test?"
+    answer_type: yes_no

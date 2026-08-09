@@ -1,0 +1,1902 @@
+{
+  "schema_version": 1,
+  "tool_version": "v0.3.0-1-gc7f9568",
+  "mapping_versions": {
+    "ssdf": "1.13.0",
+    "cisa_form": "1.0.0",
+    "self_attestation": "1.0.0"
+  },
+  "scope": {
+    "org": "Qloud-LTD",
+    "repos": [
+      "demo-good"
+    ],
+    "release_tag_pattern": "v*",
+    "lookback_releases": 5,
+    "lookback_months": 12,
+    "platform": "github"
+  },
+  "scan_started_at": "2026-07-23T10:27:23.377034Z",
+  "scan_ended_at": "2026-07-23T10:27:28.311741Z",
+  "results": [
+    {
+      "check_id": "C01.org.2fa-required",
+      "title": "Org requires two-factor authentication",
+      "status": "verified-fail",
+      "reason": "org does not require two-factor authentication for members",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/orgs/Qloud-LTD",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693557Z",
+          "http_status": 200,
+          "response_sha256": "d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1"
+        }
+      ],
+      "facts": {
+        "two_factor_requirement_enabled": false
+      }
+    },
+    {
+      "check_id": "C01.org.default-repo-permission",
+      "title": "Default repository permission for members",
+      "status": "verified-pass",
+      "reason": "default repository permission is \"read\"",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/orgs/Qloud-LTD",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693557Z",
+          "http_status": 200,
+          "response_sha256": "d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1"
+        }
+      ],
+      "facts": {
+        "default_repository_permission": "read"
+      }
+    },
+    {
+      "check_id": "C01.org.members-can-create-public",
+      "title": "Whether members can create public repositories",
+      "status": "verified-fail",
+      "reason": "members can create public repositories (potential leak vector)",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/orgs/Qloud-LTD",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693557Z",
+          "http_status": 200,
+          "response_sha256": "d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1"
+        }
+      ],
+      "facts": {
+        "members_can_create_public_repositories": true
+      }
+    },
+    {
+      "check_id": "C01.org.members-without-2fa",
+      "title": "Count of members without two-factor authentication",
+      "status": "verified-pass",
+      "reason": "all org members have two-factor authentication enabled",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/orgs/Qloud-LTD/members",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.0172Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "members_without_2fa_count": 0
+      }
+    },
+    {
+      "check_id": "C02.branch.admin-enforced",
+      "title": "Default branch protections apply to admins (no unconditional bypass actor)",
+      "status": "verified-pass",
+      "reason": "default branch protections apply to admins with no bypass actors",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693658Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.086866Z",
+          "http_status": 200,
+          "response_sha256": "c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/rules/branches/main",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.449856Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "bypass_actors": null,
+        "via": [
+          "legacy"
+        ]
+      }
+    },
+    {
+      "check_id": "C02.branch.deletion-blocked",
+      "title": "Default branch blocks branch deletion",
+      "status": "verified-pass",
+      "reason": "default branch blocks deletion",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693658Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.086866Z",
+          "http_status": 200,
+          "response_sha256": "c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/rules/branches/main",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.449856Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "via": [
+          "legacy"
+        ]
+      }
+    },
+    {
+      "check_id": "C02.branch.force-push-blocked",
+      "title": "Default branch blocks force pushes",
+      "status": "verified-pass",
+      "reason": "default branch blocks force pushes",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693658Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.086866Z",
+          "http_status": 200,
+          "response_sha256": "c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/rules/branches/main",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.449856Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "via": [
+          "legacy"
+        ]
+      }
+    },
+    {
+      "check_id": "C02.branch.protection-exists",
+      "title": "Default branch has protection (legacy branch protection or a ruleset)",
+      "status": "verified-pass",
+      "reason": "default branch is protected via: [legacy]",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693658Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.086866Z",
+          "http_status": 200,
+          "response_sha256": "c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/rules/branches/main",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.449856Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "protected_via": [
+          "legacy"
+        ]
+      }
+    },
+    {
+      "check_id": "C02.branch.required-reviews",
+      "title": "Default branch requires at least one approving review before merge",
+      "status": "verified-pass",
+      "reason": "default branch requires 1 approving review(s)",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693658Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.086866Z",
+          "http_status": 200,
+          "response_sha256": "c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/rules/branches/main",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.449856Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "dismiss_stale_reviews": false,
+        "required_approving_review_count": 1,
+        "review_bypass_actors": null,
+        "via": [
+          "legacy"
+        ]
+      }
+    },
+    {
+      "check_id": "C02.branch.required-status-checks",
+      "title": "Default branch requires status checks before merge",
+      "status": "verified-pass",
+      "reason": "default branch requires 1 status check(s)",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693658Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.086866Z",
+          "http_status": 200,
+          "response_sha256": "c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/rules/branches/main",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.449856Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "required_status_check_names": [
+          "build"
+        ],
+        "via": [
+          "legacy"
+        ]
+      }
+    },
+    {
+      "check_id": "C03.env.branch-policy",
+      "title": "Production-like environments restrict which branches/tags can deploy",
+      "status": "verified-pass",
+      "reason": "every production-like environment restricts which branches/tags can deploy",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/environments",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693614Z",
+          "http_status": 200,
+          "response_sha256": "8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80"
+        }
+      ],
+      "facts": {
+        "environments_allowing_any_branch": null,
+        "production_like_environments": [
+          "production"
+        ]
+      }
+    },
+    {
+      "check_id": "C03.env.exists",
+      "title": "A production-like environment exists",
+      "status": "verified-pass",
+      "reason": "1 production-like environment(s) found among 1 total",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/environments",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693614Z",
+          "http_status": 200,
+          "response_sha256": "8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80"
+        }
+      ],
+      "facts": {
+        "all_environment_names": [
+          "production"
+        ],
+        "production_like_environments": [
+          "production"
+        ],
+        "production_like_heuristic": "name matches prod*/production, case-insensitive"
+      }
+    },
+    {
+      "check_id": "C03.env.protection-rules",
+      "title": "Production-like environments have at least one protection rule",
+      "status": "verified-pass",
+      "reason": "every production-like environment has at least one protection rule",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/environments",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693614Z",
+          "http_status": 200,
+          "response_sha256": "8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80"
+        }
+      ],
+      "facts": {
+        "environments_without_protection": null,
+        "production_like_environments": [
+          "production"
+        ]
+      }
+    },
+    {
+      "check_id": "C03.env.required-reviewers",
+      "title": "Production-like environments require reviewer approval before deployment",
+      "status": "verified-pass",
+      "reason": "every production-like environment requires reviewer approval",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/environments",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693614Z",
+          "http_status": 200,
+          "response_sha256": "8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80"
+        }
+      ],
+      "facts": {
+        "environments_without_required_reviewers": null,
+        "production_like_environments": [
+          "production"
+        ]
+      }
+    },
+    {
+      "check_id": "C04.deps.dependabot-alerts",
+      "title": "Dependabot vulnerability alerts are enabled",
+      "status": "verified-pass",
+      "reason": "Dependabot vulnerability alerts are enabled",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/vulnerability-alerts",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.394721Z",
+          "http_status": 204,
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "facts": {
+        "dependabot_alerts_enabled": true
+      }
+    },
+    {
+      "check_id": "C04.org.security-defaults",
+      "title": "Org enables secret/dependency security features by default for new repos",
+      "status": "verified-fail",
+      "reason": "not every security feature is enabled by default for new repositories",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/orgs/Qloud-LTD",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.693386Z",
+          "http_status": 200,
+          "response_sha256": "d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1"
+        }
+      ],
+      "facts": {
+        "advanced_security_enabled_for_new_repositories": false,
+        "dependabot_alerts_enabled_for_new_repositories": true,
+        "secret_scanning_enabled_for_new_repositories": true,
+        "secret_scanning_push_protection_enabled_for_new_repositories": true
+      }
+    },
+    {
+      "check_id": "C04.secrets.advanced-security",
+      "title": "GitHub Advanced Security is enabled where applicable",
+      "status": "not-checkable",
+      "reason": "not applicable to public repositories (GHAS licensing only gates private-repo features)",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.016181Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        }
+      ]
+    },
+    {
+      "check_id": "C04.secrets.push-protection",
+      "title": "Secret scanning push protection is active",
+      "status": "verified-pass",
+      "reason": "secret scanning push protection is enabled",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.016181Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        }
+      ],
+      "facts": {
+        "private": false,
+        "push_protection_status": "enabled"
+      }
+    },
+    {
+      "check_id": "C04.secrets.scanning-enabled",
+      "title": "Secret scanning is active",
+      "status": "verified-pass",
+      "reason": "secret scanning is enabled",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.016181Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        }
+      ],
+      "facts": {
+        "private": false,
+        "secret_scanning_status": "enabled"
+      }
+    },
+    {
+      "check_id": "C05.sast.cadence",
+      "title": "SAST run cadence over the lookback window",
+      "status": "not-checkable",
+      "reason": "no SAST tool is configured; cadence cannot be computed",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.949642Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.286836Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.53804Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.816169Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.09125Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.539284Z",
+          "http_status": 200,
+          "response_sha256": "98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.921746Z",
+          "http_status": 200,
+          "response_sha256": "ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c"
+        }
+      ]
+    },
+    {
+      "check_id": "C05.sast.default-setup",
+      "title": "CodeQL default setup is configured",
+      "status": "verified-fail",
+      "reason": "CodeQL default setup is \"not-configured\"",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/code-scanning/default-setup",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.39914Z",
+          "http_status": 200,
+          "response_sha256": "42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad"
+        }
+      ],
+      "facts": {
+        "languages": [
+          "actions"
+        ],
+        "state": "not-configured"
+      }
+    },
+    {
+      "check_id": "C05.sast.ran-per-release",
+      "title": "A SAST tool ran for each release in the lookback window",
+      "status": "verified-fail",
+      "reason": "at least one release in the lookback window has no matched SAST run at all",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.949642Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.286836Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.53804Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.816169Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.09125Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.539284Z",
+          "http_status": 200,
+          "response_sha256": "98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.921746Z",
+          "http_status": 200,
+          "response_sha256": "ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c"
+        }
+      ],
+      "facts": {
+        "dropped_tags": 0,
+        "per_release": [
+          {
+            "status": "missing",
+            "tag": "v1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "check_id": "C05.sast.tool-configured",
+      "title": "A SAST tool is configured",
+      "status": "verified-fail",
+      "reason": "no SAST tool detected in any workflow, and CodeQL default setup is not configured",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:23.949642Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.286836Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.53804Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.816169Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.09125Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.539284Z",
+          "http_status": 200,
+          "response_sha256": "98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.921746Z",
+          "http_status": 200,
+          "response_sha256": "ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c"
+        }
+      ],
+      "facts": {
+        "codeql_default_setup": false,
+        "low_confidence_match_only": false,
+        "tool_names": []
+      }
+    },
+    {
+      "check_id": "C06.sca.alerts-triaged",
+      "title": "Open Dependabot alerts are triaged within the default window",
+      "status": "verified-pass",
+      "reason": "0 open alert(s), no critical alert open beyond the 30-day triage window",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/dependabot/alerts",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.106059Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "oldest_open_age_days": 0,
+        "open_critical_count": 0,
+        "open_high_count": 0,
+        "open_low_count": 0,
+        "open_medium_count": 0,
+        "open_total_count": 0,
+        "triage_threshold_days": 30
+      }
+    },
+    {
+      "check_id": "C06.sca.dependabot-config",
+      "title": "Dependabot config covers the repo's detected dependency ecosystems",
+      "status": "verified-fail",
+      "reason": "no Dependabot config found; 1 detected ecosystem(s) are uncovered",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.381002Z",
+          "http_status": 200,
+          "response_sha256": "32fbcbbce3cbd4b00f89f56285636192c4eb0cefbd784799cba46415258ac932"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.607517Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.870373Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        }
+      ],
+      "facts": {
+        "detected_ecosystems": [
+          "github-actions"
+        ],
+        "uncovered_ecosystems": [
+          "github-actions"
+        ]
+      }
+    },
+    {
+      "check_id": "C06.sca.dependency-review",
+      "title": "Dependency review is enforced as a required check on pull requests",
+      "status": "verified-fail",
+      "reason": "no dependency-review-action (or equivalent) workflow detected",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.292412Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.617697Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.849001Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.082558Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/branches/main/protection",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.498105Z",
+          "http_status": 200,
+          "response_sha256": "c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/rules/branches/main",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.765854Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ]
+    },
+    {
+      "check_id": "C06.sca.ran-per-release",
+      "title": "An SCA tool ran for each release in the lookback window",
+      "status": "verified-fail",
+      "reason": "at least one release in the lookback window has no matched SCA run at all",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.292412Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.617697Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.849001Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.082558Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.382597Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.805206Z",
+          "http_status": 200,
+          "response_sha256": "98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.101563Z",
+          "http_status": 200,
+          "response_sha256": "ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c"
+        }
+      ],
+      "facts": {
+        "dropped_tags": 0,
+        "per_release": [
+          {
+            "status": "missing",
+            "tag": "v1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "check_id": "C06.sca.tool-configured",
+      "title": "An SCA tool is configured",
+      "status": "verified-fail",
+      "reason": "no SCA tool detected in any workflow, and no Dependabot config found",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.292412Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.617697Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.849001Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.082558Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.607517Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.870373Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        }
+      ],
+      "facts": {
+        "dependabot_configured": false,
+        "low_confidence_match_only": false,
+        "tool_names": []
+      }
+    },
+    {
+      "check_id": "C07.provenance.commit-linkage",
+      "title": "Release artifacts are traceable to a workflow run on the release commit",
+      "status": "verified-pass",
+      "reason": "every release in the lookback window is traceable to a workflow run on its commit",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.989963Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.356282Z",
+          "http_status": 200,
+          "response_sha256": "98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.641461Z",
+          "http_status": 200,
+          "response_sha256": "ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/runs",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.905217Z",
+          "http_status": 200,
+          "response_sha256": "7cbc108ac4d30f563b97ab806a169b2f9352753518ad90b2b1ceeb3a7e3cd840"
+        }
+      ],
+      "facts": {
+        "per_release": [
+          {
+            "passed": true,
+            "reason": "3 workflow run(s) found on this release's commit",
+            "run_count": 3,
+            "tag": "v1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "check_id": "C07.provenance.workflow",
+      "title": "A provenance-generating tool is configured",
+      "status": "verified-pass",
+      "reason": "a provenance-generating tool is configured",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.699483Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.060883Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.504835Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.765967Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        }
+      ],
+      "facts": {
+        "low_confidence_match_only": false,
+        "tool_names": [
+          "Sigstore cosign"
+        ]
+      }
+    },
+    {
+      "check_id": "C07.release.checksums",
+      "title": "Releases ship checksum assets",
+      "status": "verified-pass",
+      "reason": "every release in the lookback window ships a checksum asset",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.989963Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        }
+      ],
+      "facts": {
+        "per_release": [
+          {
+            "matched_assets": [
+              "checksums.txt"
+            ],
+            "passed": true,
+            "reason": "checksum asset(s) found: [checksums.txt]",
+            "tag": "v1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "check_id": "C07.release.signatures",
+      "title": "Releases ship signature or attestation assets",
+      "status": "verified-pass",
+      "reason": "every release in the lookback window ships a signature/attestation asset or has a GitHub Artifact Attestation",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.989963Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        }
+      ],
+      "facts": {
+        "per_release": [
+          {
+            "attestation_lookup_capped": false,
+            "attested_digest": "",
+            "matched_assets": [
+              "checksums.txt.bundle"
+            ],
+            "passed": true,
+            "reason": "signature asset(s) found: [checksums.txt.bundle]",
+            "tag": "v1.0.0"
+          }
+        ]
+      }
+    },
+    {
+      "check_id": "C07.release.tags-signed",
+      "title": "Release tags are signed and GitHub reports the signature verified",
+      "status": "verified-pass",
+      "reason": "every release tag in the lookback window is signed and its signature is verified",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/releases",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.989963Z",
+          "http_status": 200,
+          "response_sha256": "c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.356282Z",
+          "http_status": 200,
+          "response_sha256": "98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.641461Z",
+          "http_status": 200,
+          "response_sha256": "ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c"
+        }
+      ],
+      "facts": {
+        "per_release": [
+          {
+            "annotated": true,
+            "passed": true,
+            "reason": "valid",
+            "signed": true,
+            "tag": "v1.0.0",
+            "verified": true
+          }
+        ]
+      }
+    },
+    {
+      "check_id": "C08.actions.oidc-vs-secrets",
+      "title": "Cloud deployments use OIDC rather than long-lived static credentials",
+      "status": "not-checkable",
+      "reason": "no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.712536Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.05042Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.494435Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.936782Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        }
+      ],
+      "facts": {
+        "skipped_workflows": []
+      }
+    },
+    {
+      "check_id": "C08.actions.pinned",
+      "title": "Third-party actions and reusable workflows are pinned to a full commit SHA",
+      "status": "partial",
+      "reason": "every third-party reference is SHA-pinned, but 1 first-party actions/* reference(s) use a mutable tag instead of a SHA",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.712536Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.05042Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.494435Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.936782Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        }
+      ],
+      "facts": {
+        "first_party_unpinned": [
+          {
+            "class": "first-party",
+            "file": ".github/workflows/release.yaml",
+            "line": 12,
+            "ref": "v5",
+            "slug": "actions/checkout",
+            "uses": "actions/checkout@v5"
+          }
+        ],
+        "skipped_workflows": [],
+        "third_party_unpinned": [],
+        "unresolved_external_workflows": []
+      }
+    },
+    {
+      "check_id": "C08.actions.pull-request-target",
+      "title": "pull_request_target is not combined with checking out the PR head",
+      "status": "verified-pass",
+      "reason": "no workflow triggers on pull_request_target",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.712536Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.05042Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.494435Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.936782Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        }
+      ],
+      "facts": {
+        "bare_usage": null,
+        "dangerous": null,
+        "skipped_workflows": []
+      }
+    },
+    {
+      "check_id": "C08.actions.self-hosted",
+      "title": "Self-hosted runners are not exposed to public-repo pull requests",
+      "status": "verified-pass",
+      "reason": "no self-hosted runner usage detected",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.712536Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.05042Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.494435Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.936782Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        }
+      ],
+      "facts": {
+        "repo_private": false,
+        "self_hosted_jobs": null,
+        "skipped_workflows": []
+      }
+    },
+    {
+      "check_id": "C08.actions.token-permissions",
+      "title": "Workflows declare explicit, least-privilege GITHUB_TOKEN permissions",
+      "status": "partial",
+      "reason": "1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB_TOKEN permissions",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:24.712536Z",
+          "http_status": 200,
+          "response_sha256": "f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/workflows",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.05042Z",
+          "http_status": 200,
+          "response_sha256": "d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.494435Z",
+          "http_status": 200,
+          "response_sha256": "746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:25.936782Z",
+          "http_status": 200,
+          "response_sha256": "a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/actions/permissions/workflow",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.33784Z",
+          "http_status": 200,
+          "response_sha256": "f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924"
+        }
+      ],
+      "facts": {
+        "findings": [
+          {
+            "file": ".github/workflows/ci.yaml",
+            "job": "build",
+            "line": 4,
+            "verdict": "missing"
+          },
+          {
+            "file": ".github/workflows/release.yaml",
+            "job": "release",
+            "line": 9,
+            "verdict": "explicit"
+          }
+        ],
+        "repo_default_workflow_permissions": "read",
+        "skipped_workflows": []
+      }
+    },
+    {
+      "check_id": "C09.audit.log-streaming",
+      "title": "Audit-log export/streaming is configured",
+      "status": "not-checkable",
+      "reason": "audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it's configured",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": []
+    },
+    {
+      "check_id": "C09.audit.org-log-available",
+      "title": "Organization audit log is reachable via the API",
+      "status": "not-checkable",
+      "reason": "GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone)",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/orgs/Qloud-LTD/audit-log",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.576968Z",
+          "http_status": 404,
+          "response_sha256": "875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8"
+        },
+        {
+          "endpoint": "/orgs/Qloud-LTD",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.870213Z",
+          "http_status": 200,
+          "response_sha256": "d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1"
+        }
+      ],
+      "facts": {
+        "org_plan": "free"
+      }
+    },
+    {
+      "check_id": "C09.audit.retention-awareness",
+      "title": "Audit-log retention window (informational)",
+      "status": "not-checkable",
+      "reason": "informational only — GitHub's documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [],
+      "facts": {
+        "documented_retention_days": 180,
+        "note": "GitHub's docs state the audit log lists events from the last 180 days. Exporting/streaming (Enterprise-only, see C09.audit.log-streaming) is GitHub's documented mechanism for retention beyond that window.",
+        "source_url": "https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization"
+      }
+    },
+    {
+      "check_id": "C09.repo.webhooks",
+      "title": "A webhook exports push/release/deployment events",
+      "status": "verified-fail",
+      "reason": "no active webhook subscribes to push, release, or deployment events",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/hooks",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.212973Z",
+          "http_status": 200,
+          "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "facts": {
+        "webhooks": []
+      }
+    },
+    {
+      "check_id": "C10.vdp.intake-channel",
+      "title": "SECURITY.md advertises an actionable intake channel",
+      "status": "verified-fail",
+      "reason": "no SECURITY.md exists to advertise an intake channel",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.910505Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.138796Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.396533Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/.github/contents/.github/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.597581Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/.github/contents/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.746743Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/.github/contents/docs/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.900541Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        }
+      ]
+    },
+    {
+      "check_id": "C10.vdp.private-reporting",
+      "title": "GitHub private vulnerability reporting is enabled",
+      "status": "verified-fail",
+      "reason": "private vulnerability reporting is not enabled",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/private-vulnerability-reporting",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:28.055998Z",
+          "http_status": 200,
+          "response_sha256": "5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146"
+        }
+      ]
+    },
+    {
+      "check_id": "C10.vdp.security-md",
+      "title": "A SECURITY.md resolves for this repo",
+      "status": "verified-fail",
+      "reason": "no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo",
+      "scope": {
+        "org": "Qloud-LTD",
+        "repo": "demo-good",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.910505Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.138796Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.396533Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/.github/contents/.github/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.597581Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/.github/contents/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.746743Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        },
+        {
+          "endpoint": "/repos/Qloud-LTD/.github/contents/docs/SECURITY.md",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:27.900541Z",
+          "http_status": 404,
+          "response_sha256": "e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2"
+        }
+      ]
+    },
+    {
+      "check_id": "C10.vdp.security-policy-org",
+      "title": "The org has an org-wide default security policy",
+      "status": "not-checkable",
+      "reason": "Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": [
+        {
+          "endpoint": "/repos/Qloud-LTD/.github",
+          "method": "GET",
+          "timestamp": "2026-07-23T10:27:26.650563Z",
+          "http_status": 404,
+          "response_sha256": "4f50e254a719a6b1b06b529bdaa08980e4acf0878aad0090cba7771f6ebdf0b9"
+        }
+      ]
+    },
+    {
+      "check_id": "SA.agency-notification-process",
+      "title": "Does the producer have a defined process to notify any agency this form was submitted to if it ceases consistent use of the attested practices? (Paraphrases the CISA form's own closing commitment; see cisa-ssda-form.yaml's notify_on_cessation_clause for the verbatim text this question is asking the producer to substantiate.)",
+      "status": "not-checkable",
+      "reason": "no self-attestation provided for this question",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": []
+    },
+    {
+      "check_id": "SA.audit-log-export-fallback",
+      "title": "If GitHub's own audit-log API or streaming isn't available (e.g. a non-Enterprise plan, or streaming being an Enterprise-account-only feature this tool can't query — see C09.audit.log-streaming), does the producer export or retain audit/access logs through another mechanism, and for how long?",
+      "status": "not-checkable",
+      "reason": "no self-attestation provided for this question",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": []
+    },
+    {
+      "check_id": "SA.dev-security-training",
+      "title": "Do developers with access to the software's source code or build pipeline receive periodic security training?",
+      "status": "not-checkable",
+      "reason": "no self-attestation provided for this question",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": []
+    },
+    {
+      "check_id": "SA.threat-modeling",
+      "title": "Is the software's design reviewed — by a qualified person not involved in that design, and/or an automated process — to confirm it meets security requirements and addresses identified risk before implementation?",
+      "status": "not-checkable",
+      "reason": "no self-attestation provided for this question",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": []
+    },
+    {
+      "check_id": "SA.vuln-remediation-sla",
+      "title": "What is the producer's target time to remediate a confirmed vulnerability, by severity?",
+      "status": "not-checkable",
+      "reason": "no self-attestation provided for this question",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": []
+    },
+    {
+      "check_id": "SA.vuln-triage-sla",
+      "title": "What is the producer's target time to triage (assess the risk of) a newly reported vulnerability?",
+      "status": "not-checkable",
+      "reason": "no self-attestation provided for this question",
+      "scope": {
+        "org": "Qloud-LTD",
+        "platform": "github"
+      },
+      "provenance": []
+    }
+  ],
+  "rollup": {
+    "tasks": [
+      {
+        "task_id": "PO.5.1",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "PS.1.1",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "PS.2.1",
+        "status": "verified-pass"
+      },
+      {
+        "task_id": "PS.3.2",
+        "status": "verified-pass"
+      },
+      {
+        "task_id": "PW.2.1",
+        "status": "not-checkable"
+      },
+      {
+        "task_id": "PW.4.1",
+        "status": "partial"
+      },
+      {
+        "task_id": "PW.4.4",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "PW.6.2",
+        "status": "partial"
+      },
+      {
+        "task_id": "PW.7.1",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "PW.7.2",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "RV.1.1",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "RV.1.2",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "RV.1.3",
+        "status": "verified-fail"
+      },
+      {
+        "task_id": "RV.2.1",
+        "status": "not-checkable"
+      },
+      {
+        "task_id": "RV.2.2",
+        "status": "not-checkable"
+      }
+    ],
+    "clusters": [
+      {
+        "cluster_id": "1",
+        "status": "verified-fail"
+      },
+      {
+        "cluster_id": "2",
+        "status": "verified-fail"
+      },
+      {
+        "cluster_id": "3",
+        "status": "verified-fail"
+      },
+      {
+        "cluster_id": "4",
+        "status": "verified-fail"
+      }
+    ]
+  }
+}

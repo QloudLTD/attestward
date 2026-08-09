@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.0.0-dev",
+  "mapping_versions": {},
+  "scope": {
+    "org": "attestward-demo",
+    "repos": ["good-repo"]
+  },
+  "scan_started_at": "2026-07-13T12:00:00Z",
+  "scan_ended_at": "2026-07-13T12:00:05Z",
+  "results": [
+    {
+      "check_id": "C02.repo-protection.required-reviews",
+      "title": "Branch protection requires reviews",
+      "status": "totally-fine",
+      "reason": "not a real status value — this fixture exists to prove schema_test.go rejects it",
+      "scope": { "org": "attestward-demo", "repo": "good-repo" },
+      "provenance": []
+    }
+  ]
+}

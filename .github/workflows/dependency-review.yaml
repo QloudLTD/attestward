@@ -1,0 +1,54 @@
+name: Dependency Review
+
+# Added at the public flip. `dependency-review-action` calls
+# GitHub's dependency-review API, which requires GitHub Advanced Security on a
+# private repository and is free on a public one — so this could not exist here
+# before 2026-07-29. It is the last piece of the accepted `C06.sca.dependency-review`
+# verified-fail gap on this repo's own self-scan.
+#
+# What it does: on every pull request, diffs the dependency manifest against the
+# base branch and fails if the PR introduces a dependency with a known
+# vulnerability. That is a genuinely different control from Dependabot alerts
+# (which report on what is already merged) — this one blocks at the gate, which
+# is why C06 scores them separately.
+#
+# `pull_request` is the only trigger this action supports: it needs two commits
+# to diff, and the API is scoped to a PR. There is no push/schedule mode.
+#
+# Runs on GitHub-hosted `ubuntu-latest` for the same two reasons codeql.yaml
+# does, documented in full there: fork PRs should not land on the shared
+# self-hosted machine, and hosted minutes are free on a public repo, which was
+# the original reason for preferring self-hosted.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Lets the action post its findings as a PR comment. Withheld by GitHub
+      # on fork-PR tokens, in which case the action still runs and reports in
+      # the job log — the check result is unaffected.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Fail the PR on a newly-introduced moderate-or-worse vulnerability.
+          # Deliberately stricter than the action's `low` default is loose:
+          # this repo has eight direct dependencies and a near-zero rate of
+          # dependency churn, so the noise cost of `moderate` is minimal and
+          # the signal is worth blocking on.
+          fail-on-severity: moderate
+          comment-summary-in-pr: on-failure

@@ -1,0 +1,141 @@
+name: Semgrep SAST
+
+# Issue #157: adopt an OSS SAST now rather than wait for CodeQL at the
+# public flip — C05.sast.ran-per-release has been verified-fail
+# since the first release entered the self-scan's lookback window,
+# because no registry-recognized SAST (mappings/scanner-signatures.yaml's
+# codeql/semgrep/sonarqube set) covered it. `push: branches: [main]`
+# below is what actually closes that gap: a release is a `v*` tag pushed
+# against an existing commit on main (see release.yaml), so every commit
+# this workflow runs against is a commit any future release tag could
+# point to — coverage starts from the next release onward, not
+# retroactively for v0.1.0/v0.2.0 (see self-scan.yaml's exception-list
+# comment for that rolling-window detail).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, catches new/updated Semgrep rules landing between merges —
+    # Tuesday, off-the-hour, a day distinct from every other weekly cron in
+    # this repo (integration-scan: Monday, codeql: Monday 03:19) to
+    # avoid GitHub Actions' documented cron pile-up at shared times. The
+    # Wednesday and Thursday slots freed up when runner-maintenance.yaml and
+    # aorus-keepalive.yaml were deleted with the self-hosted runners.
+    - cron: "42 5 * * 2"
+  workflow_dispatch: {}
+
+concurrency:
+  group: semgrep-${{ github.workflow }}-${{ github.ref }}
+  # false, deliberately, unlike ci.yaml's own group (cancel-in-progress:
+  # true there): a cancelled run's conclusion is "cancelled," not a real
+  # success or failure, and C05.sast.ran-per-release reads exactly that
+  # conclusion field off the matched run covering a release tag's commit.
+  # If a fast-follow push cancelled the run sitting on a future release
+  # commit before it finished, that release would read as unevaluable
+  # evidence instead of an honest pass/fail — worse than letting a
+  # superseded run finish. This job is fast and cheap enough (one repo,
+  # one language ruleset) that queuing behind a still-running previous
+  # instance costs little.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Mechanism: a pinned CLI in a throwaway venv, NOT the "official"
+      # semgrep-action (returntocorp/semgrep-action / semgrep/semgrep-action)
+      # mappings/scanner-signatures.yaml's own semgrep signature also
+      # recognizes. That action is itself marked deprecated upstream
+      # ("This project is deprecated. Use github.com/returntocorp/semgrep
+      # instead" — i.e. the CLI directly), so pinning a dead wrapper
+      # action would be worse practice than installing the CLI, even
+      # though the action would match at higher confidence (its `actions`
+      # matcher is high-confidence; the CLI route below only matches via
+      # `run_patterns: \bsemgrep\b`, medium-confidence). Medium already
+      # clears C05.sast.tool-configured's own bar ("at least...
+      # medium-or-high confidence... not just a suggestive name"), so
+      # there's no coverage reason to prefer a deprecated action just for
+      # the higher confidence tier.
+      #
+      # Interpreter selection used to be the fiddly part of this step and no
+      # longer is. On the old self-hosted macOS runner the default `python3`
+      # was Apple Command Line Tools' 3.9.6, below semgrep's >=3.10 floor, so
+      # pip silently resolved the pin down to the last py39-compatible wheel
+      # and the requested version could never be installed — a real failure,
+      # found live on 2026-07-23. `ubuntu-latest` ships a python3 well above
+      # that floor, so the interpreter-resolution logic that guarded against it
+      # is deleted rather than carried forward as cargo. The version check
+      # below keeps the guarantee without the machine-specific search.
+      #
+      # The venv is kept: `ubuntu-latest`'s system python is PEP 668
+      # externally-managed and would refuse a bare `pip install` without
+      # `--break-system-packages`. It lives under $RUNNER_TEMP rather than the
+      # workspace so it can't be picked up as repo content by the scan itself.
+      #
+      # Version pinned to a release verified against PyPI's own API when this
+      # workflow was written (1.171.0) — bump deliberately, not left floating.
+      - name: Install semgrep (pinned)
+        run: |
+          set -euo pipefail
+
+          python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' || {
+            echo "::error::python3 is $(python3 --version), but semgrep 1.171.0 requires >=3.10"
+            exit 1
+          }
+          echo "interpreter: $(python3 --version)"
+
+          python3 -m venv "$RUNNER_TEMP/semgrep-venv"
+          "$RUNNER_TEMP/semgrep-venv/bin/pip" install --quiet "semgrep==1.171.0"
+
+      # Config choice — a NAMED registry ruleset (p/golang, matching this
+      # repo's language) plus --metrics=off, not --config auto — both
+      # deliberate for this repo's own threat model (docs/threat-model.md),
+      # which already accounts for what every other collector call sends
+      # off this machine. Quotes below are Semgrep's own CLI reference
+      # (`semgrep scan --help`, docs.semgrep.dev/cli-reference), not a
+      # third party's paraphrase (found in review — an earlier version of
+      # this comment quoted text that was actually from Trail of Bits'
+      # Testing Handbook, misattributed here as Semgrep's own docs; the
+      # substance held up, the citation didn't):
+      #   - "--config=VAL ... Use --config auto to automatically obtain
+      #     rules tailored to this project; your project URL will be used
+      #     to log in to the Semgrep registry." A named ruleset is a
+      #     static, versioned rule-pack fetch instead — it never triggers
+      #     that per-repo login/tailoring handshake at all.
+      #   - "--metrics=ENUM ... If 'auto', metrics are sent whenever the
+      #     --config value pulls from the Semgrep server or if the user is
+      #     logged in. If 'on', metrics are always sent. If 'off', metrics
+      #     are disabled altogether and not sent." A named p/ ruleset
+      #     still pulls from the Semgrep server, so it still enables
+      #     metrics under the default 'auto' setting — --metrics=off is
+      #     what actually disables that reporting, not the --config choice
+      #     alone.
+      #   - This isn't a code-egress concern specifically (Semgrep's own
+      #     metrics docs list "source code" under "Data NOT collected
+      #     ever," regardless of these settings) — the --config auto
+      #     concern here is the extra login/tailoring round-trip and the
+      #     metadata it sends, which this project would rather not opt
+      #     into without a reason to.
+      #
+      # --error: nonzero exit on any finding, so this step's own pass/fail
+      # is meaningful for C05.sast.ran-per-release's "result==success"
+      # per-release read, not just "the scan process didn't crash." No
+      # continue-on-error: blocking from day one — the two real findings
+      # the local scan originally turned up (both
+      # go.lang.security.audit.crypto.math_random.math-random-used, in
+      # internal/collect/{azuredevops,github}/ratelimit.go's retry-jitter
+      # calculation) are now suppressed at both sites with an inline
+      # `nosemgrep` comment carrying the same justification as the
+      # existing `//nolint:gosec` beside it, rather than left open with
+      # this step non-blocking.
+      - name: Run semgrep
+        run: |
+          "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan --config p/golang --metrics=off --error

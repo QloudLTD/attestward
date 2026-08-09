@@ -1,0 +1,10 @@
+name: Semgrep Scan
+on: [push, pull_request]
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/ci

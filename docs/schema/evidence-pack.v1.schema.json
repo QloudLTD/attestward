@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gitlab.com/sioakeim/attestward/blob/main/docs/schema/evidence-pack.v1.schema.json",
+  "title": "attestward evidence pack (schema version 1)",
+  "description": "evidence.json output shape. Bump policy: docs/architecture.md#versioning. Kept in lockstep with internal/model by internal/model's schema_test.go.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool_version",
+    "mapping_versions",
+    "scope",
+    "scan_started_at",
+    "scan_ended_at",
+    "results"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "tool_version": { "type": "string" },
+    "mapping_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ssdf": { "type": "string" },
+        "cisa_form": { "type": "string" },
+        "scanner_signatures": { "type": "string" },
+        "self_attestation": { "type": "string" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["org", "repos"],
+      "additionalProperties": false,
+      "properties": {
+        "org": { "type": "string" },
+        "repos": { "type": "array", "items": { "type": "string" } },
+        "release_tag_pattern": { "type": "string" },
+        "lookback_releases": { "type": "integer" },
+        "lookback_months": { "type": "integer" },
+        "platform": { "type": "string" },
+        "project": { "type": "string" }
+      }
+    },
+    "scan_started_at": { "type": "string", "format": "date-time" },
+    "scan_ended_at": { "type": "string", "format": "date-time" },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/check_result" }
+    },
+    "rollup": {
+      "type": "object",
+      "required": ["tasks", "clusters"],
+      "additionalProperties": false,
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["task_id", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "task_id": { "type": "string" },
+              "status": { "$ref": "#/$defs/status" }
+            }
+          }
+        },
+        "clusters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["cluster_id", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "cluster_id": { "type": "string" },
+              "status": { "$ref": "#/$defs/status" }
+            }
+          }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sha256": { "type": "string" },
+        "signature": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "status": {
+      "type": "string",
+      "enum": ["verified-pass", "verified-fail", "partial", "self-attested", "not-checkable"]
+    },
+    "check_result": {
+      "type": "object",
+      "required": ["check_id", "title", "status", "reason", "scope", "provenance"],
+      "additionalProperties": false,
+      "properties": {
+        "check_id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "$ref": "#/$defs/status" },
+        "reason": { "type": "string" },
+        "scope": {
+          "type": "object",
+          "required": ["org"],
+          "additionalProperties": false,
+          "properties": {
+            "org": { "type": "string" },
+            "repo": { "type": "string" },
+            "platform": { "type": "string" },
+            "project": { "type": "string" }
+          }
+        },
+        "provenance": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/provenance" }
+        },
+        "facts": { "type": "object" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["endpoint", "method", "timestamp", "http_status", "response_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": { "type": "string" },
+        "method": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "http_status": { "type": "integer" },
+        "response_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

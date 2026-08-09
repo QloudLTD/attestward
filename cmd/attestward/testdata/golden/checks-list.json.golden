@@ -1,0 +1,39 @@
+[
+  {
+    "check_id": "C01.org.mfa",
+    "platform": "github",
+    "title": "Org MFA enforced",
+    "collector": "org-security",
+    "ssdf_tasks": [
+      "PO.5.1"
+    ],
+    "clusters": [
+      "1"
+    ],
+    "token_scope": "read:org",
+    "status": "ok"
+  },
+  {
+    "check_id": "C05.sast.tool-detected",
+    "title": "",
+    "collector": "",
+    "ssdf_tasks": [
+      "PW.7.1"
+    ],
+    "clusters": [
+      "4"
+    ],
+    "token_scope": "",
+    "status": "unimplemented"
+  },
+  {
+    "check_id": "C99.example.unmapped",
+    "platform": "github",
+    "title": "Unmapped example",
+    "collector": "example",
+    "ssdf_tasks": [],
+    "clusters": [],
+    "token_scope": "n/a",
+    "status": "unmapped"
+  }
+]

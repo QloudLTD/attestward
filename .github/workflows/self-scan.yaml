@@ -1,0 +1,359 @@
+name: Self-scan
+
+# Issue #32: the repo is the first case study. Runs attestward against
+# sioakim/attestward itself and publishes the evidence pack as an artifact.
+# Since issue #36 this workflow is also the first consumer (and the live
+# end-to-end test) of this repo's own composite action (action.yml): the
+# scan runs the pinned, signature-verified *release* binary rather than a
+# HEAD build (HEAD correctness is ci.yaml's job; this workflow validates
+# the artifact users actually run), and every run diffs against the pack
+# attached to the latest release — posture drift fails the run (ADR-0007).
+#
+# Token strategy: the ambient GITHUB_TOKEN, scoped read-only by the
+# `permissions:` block below — not a fine-grained PAT. This is one of the
+# two options issue #32's own text anticipates ("org-level checks scoped
+# to what a repo-level GITHUB_TOKEN/fine-grained PAT can see"). The
+# tradeoff: GITHUB_TOKEN has no "Administration" permission category at
+# all (not grantable via `permissions:`, unlike a fine-grained PAT), so
+# checks needing admin-level repo reads (parts of C02/C04/C08) will likely
+# show not-checkable here even where they'd resolve with a broader token —
+# an honest degradation, not a bug (not-checkable never fails the exit
+# code below). Upgrading to a dedicated fine-grained PAT for deeper
+# coverage is a deliberate future enhancement, not done here: creating and
+# storing a new credential is a more consequential step than this
+# workflow's own read-only scope, left for the repo owner's own call.
+# Issue #211: `on: release: types: [published]` never actually fires here.
+# release.yaml's goreleaser job creates every release using the ambient
+# `secrets.GITHUB_TOKEN` (not a PAT or a human's own session) — and GitHub
+# deliberately does not cascade events triggered by GITHUB_TOKEN into new
+# workflow runs, to prevent recursive workflow chains (documented
+# exceptions: workflow_dispatch, repository_dispatch, and pull_request
+# opened/synchronize/reopened — release is not among them). Confirmed
+# against this repo's own history, not assumed: `gh run list
+# --workflow=self-scan.yaml` shows zero runs with event "release" ever,
+# across all three real releases (v0.1.0, v0.2.0, v0.3.0) — every
+# release-adjacent run visible there was a manual workflow_dispatch.
+#
+# `workflow_run` sidesteps the restriction: it fires on a workflow run's
+# *completion*, regardless of what token authenticated the run underneath
+# it — a documented, standard way to react to a GITHUB_TOKEN-authenticated
+# workflow's results. release.yaml only ever runs on a `v*` tag push, so
+# its completion is an unambiguous release signal; on success, its
+# `head_branch` is the tag itself (verified against this repo's own past
+# "Release" runs via `gh run list --workflow=release.yaml`, e.g. head
+# branch "v0.3.0" for the run that published that tag) — see
+# attach-to-release's TAG below.
+#
+# One tradeoff worth naming: unlike `on: release`, a `workflow_run`-
+# triggered checkout resolves main's current HEAD, not the tagged commit
+# (GITHUB_SHA here is the default branch, not the tag) — so
+# self-attestation.yaml and anything else this scan reads comes from
+# main, not from the exact commit the release was cut at. Anything merged
+# between the tag push and the Release workflow's completion (usually
+# seconds to minutes) lands in that release's pack. Mostly benign for
+# this repo's cadence, but a real difference from what `on: release`
+# would have given.
+# Triggers deliberately: RELEASES ONLY, plus manual dispatch. A weekly
+# `schedule:` ran here until 2026-07-29 and was removed — this workflow's
+# output is a release artifact (the evidence pack attached to a release, and
+# the drift baseline the next release diffs against), so a run between
+# releases produced a pack nothing consumed and diffed against a baseline
+# that hadn't moved. `workflow_dispatch` stays because it fires only when
+# somebody asks: it's the escape hatch for re-cutting a baseline or scanning
+# ad hoc, not a recurring job.
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch: {}
+
+concurrency:
+  group: self-scan
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  security-events: read
+
+jobs:
+  # A workflow_run event fires on every "Release" completion, including a
+  # failed or cancelled one (e.g. the goreleaser job errors before
+  # publishing) — there's no fresh release to scan against in that case, so
+  # this run is a no-op rather than a scan of a release that never shipped.
+  # workflow_dispatch is unaffected (short-circuits on the event_name check).
+  self-scan:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      # Default clean:true used to be load-bearing here: on the old
+      # self-hosted runner the workspace persisted, so a failed scan step
+      # could leave an evidence/ directory for the evaluate step below to
+      # read stale evidence.json from and pass against. A hosted runner is
+      # ephemeral, so that hazard is gone by construction — the default is
+      # left explicit-by-omission rather than relied on.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Drift baseline: the evidence.json attached to the latest release
+      # (durable, unlike expiring workflow artifacts — see the
+      # attach-to-release job below, which maintains it). Logic lives in
+      # hack/fetch-drift-baseline.sh, not inline here, specifically so it's
+      # testable against a mocked `gh` without a real release — see
+      # fetch-drift-baseline_test.sh (issue #211) — and because that
+      # script's own header documents the cases (no release yet / latest
+      # has it / latest is missing it — expected on the release currently
+      # being processed, or a genuinely broken chain otherwise) this
+      # comment used to have to.
+      #
+      # TRIGGER_TAG is set only on a workflow_run event, to the release
+      # that triggered this run — this job always runs BEFORE
+      # attach-to-release attaches that same release's own pack below, so
+      # on every successful release run this script would otherwise see
+      # the just-published release missing evidence.json and (correctly,
+      # by every other signal) read that as a broken chain. TRIGGER_TAG
+      # lets it recognize this one expected case instead.
+      - name: Fetch drift baseline from the latest release
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRIGGER_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
+        run: hack/fetch-drift-baseline.sh
+
+      # The action now lives in this repo (action.yml at the root), so this is
+      # a local path rather than a cross-repo pin. That change was forced: a
+      # PUBLIC repo cannot resolve an action from a PRIVATE one, so the moment
+      # attestward went public this step failed at "Set up job" — before any
+      # step ran — and self-scan was broken until the action moved here.
+      #
+      # `./` still means "the action as checked out at this commit", so this
+      # workflow remains the action's first consumer and live end-to-end test.
+      # The pinned RELEASE BINARY the action downloads is a separate thing,
+      # controlled by the `version:` input below and deliberately not floating.
+      - uses: ./
+        id: attestward
+        with:
+          # Tracks the current release. This read 0.2.0 until v1.0.0 was cut,
+          # so the self-scan was running a scanner three releases behind the
+          # code it was scanning - and the pack it produced claimed to describe
+          # a repo it could not fully evaluate. Bump this with each release.
+          version: "1.0.0"
+          org: sioakim
+          repos: attestward
+          self-attestation-file: self-attestation.yaml
+          out: evidence
+          baseline: ${{ steps.baseline.outputs.path }}
+          # Posture drift against the last release's pack fails the run —
+          # that's the alarm this workflow exists to ring (#36). Gaps
+          # per se don't (fail-on-gaps default false): the evaluate step
+          # below holds the sharper line, a documented exception list.
+          fail-on-drift: "true"
+
+      # The exception list below is the "deliberate, documented exception
+      # list" issue #32 asks for, rather than letting exit 2 fail every
+      # run indefinitely for known, currently-unfixable gaps. It's
+      # deliberately narrow (individual check IDs, not whole collectors)
+      # since attestward scan's own --check flag only scopes at collector
+      # granularity and several of these collectors have other checks that
+      # DO pass — excluding a whole collector would hide real, currently
+      # -passing coverage, not just the known gap.
+      #
+      # Every entry here must cite why it's here and where the real fix
+      # (not the exception) is tracked:
+      #   - C06.sca.dependency-review: the control IS in place — the first
+      #     live run after dependency-review.yaml landed reports "dependency
+      #     review runs on pull requests". It reads `partial` only because
+      #     this workflow's GITHUB_TOKEN gets 403 on
+      #     /branches/main/protection, so the required-status-check half
+      #     can't be confirmed. That's a token-reach limit, not a missing
+      #     control. (It was briefly removed from this list on 2026-07-29 on
+      #     the assumption that going public would make it pass outright;
+      #     the first real run disproved that. Restored with the accurate
+      #     reason.) Resolves if this workflow ever gets a fine-grained PAT
+      #     with Administration: read.
+      #   - C06.sca.ran-per-release: the exact twin of C05's entry below —
+      #     Dependabot/SCA coverage starts from the releases that postdate
+      #     it, and v0.1.0/v0.2.0 are still inside the 5-release/12-month
+      #     window. Rolls off on the same schedule, for the same reason.
+      #   - C07.provenance.commit-linkage: self-inflicted and permanent for
+      #     the releases already cut. All 866 workflow runs were deleted on
+      #     2026-07-28 before the public flip, which destroyed the run
+      #     history this check traces a release back through — see issue
+      #     #319 for the full accounting. v0.1.0/v0.2.0/v0.3.0 can never
+      #     resolve again; releases cut from now on will, since CI history
+      #     is accumulating normally. Comes off this list once the lookback
+      #     window contains only post-purge releases.
+      #   - C02.branch.admin-enforced: real, accepted gap — an Admin-role
+      #     "always" bypass actor is deliberately kept on the main ruleset
+      #     so this solo-maintainer repo can still merge without a second
+      #     reviewer who doesn't exist; C02.branch.required-reviews itself
+      #     was fixed (required_approving_review_count raised to 1) and no
+      #     longer needs this exception. See issue #105.
+      #   - C09.repo.webhooks: needs a real receiving endpoint that
+      #     doesn't exist yet — accepted and documented via a self-attested
+      #     "no" for SA.audit-log-export-fallback instead (see
+      #     self-attestation.yaml, issue #106).
+      #   - C05.sast.ran-per-release: semgrep landed (#157); the exception
+      #     remains only until every release in the lookback window
+      #     postdates it — same rolling-window logic as the tags-signed
+      #     entry below.
+      #   - C07.release.tags-signed: v0.1.0/v0.2.0 tags are annotated but
+      #     unsigned; the key-identity decision is RESOLVED (issue #158)
+      #     and tags are signed from v0.3.0 onward — this
+      #     entry outlives the fix until every tag in the 5-release/
+      #     12-month window is signed, then it comes off the list.
+      - name: Evaluate gaps against the documented exception list
+        if: always()
+        run: |
+          set -euo pipefail
+          test -f evidence/evidence.json || { echo "::error::no evidence.json was written — the scan itself failed; see the action step above"; exit 1; }
+          allowed='["C02.branch.admin-enforced","C09.repo.webhooks","C05.sast.ran-per-release","C06.sca.dependency-review","C06.sca.ran-per-release","C07.provenance.commit-linkage","C07.release.tags-signed"]'
+          unexpected=$(jq --argjson allowed "$allowed" '
+            [.results[] | select(.status == "verified-fail" or .status == "partial") | select(.check_id as $id | $allowed | index($id) | not)]
+          ' evidence/evidence.json)
+          count=$(jq 'length' <<<"$unexpected")
+          if [ "$count" -gt 0 ]; then
+            echo "::error::$count check(s) failed outside the documented exception list:"
+            jq -r '.[] | "  - \(.check_id): \(.status) — \(.reason)"' <<<"$unexpected"
+            exit 1
+          fi
+
+          # A green run with zero verified-fail/partial results is NOT the
+          # same claim as "every check actually ran and passed" — every
+          # collector error degrades to not-checkable (never a false
+          # verified-fail), so a broken token, an API outage, or a runner
+          # misconfiguration could silently turn every single check
+          # not-checkable and still reach this line with nothing to
+          # complain about. For an unattended release-triggered run, that's a
+          # green badge that verified nothing — worse than a red one, since
+          # nobody's watching to notice (found in code review of PR #108).
+          # The floor matters more now that runs are release-only: they are
+          # rarer, so a silently-empty one goes unnoticed for longer.
+          # This floor doesn't assert a specific expected count (this
+          # workflow's own GITHUB_TOKEN has narrower reach than the
+          # broader token this workflow was developed against, so the
+          # real pass count isn't pinned down yet) — it only catches the
+          # total-collapse case.
+          pass_count=$(jq '[.results[] | select(.status == "verified-pass")] | length' evidence/evidence.json)
+          if [ "$pass_count" -eq 0 ]; then
+            echo "::error::zero verified-pass results in this scan — every check is either not-checkable, self-attested, or on the exception list. That's not the same as 'no gaps' and likely means something (token, API access, a broken build) failed silently rather than a genuinely clean posture."
+            exit 1
+          fi
+
+          echo "no undocumented gaps — every verified-fail/partial result (if any) is on the documented exception list, and $pass_count check(s) genuinely verified-pass"
+
+      # THIS ARTIFACT IS THE DRIFT BASELINE'S SOLE SOURCE. Do not delete this
+      # step or shorten its retention without reading the chain: attach-to-release
+      # (below) downloads it on release events and attaches evidence.json to the
+      # release, and the drift check at the top of this job fetches the baseline
+      # from exactly that release asset (via hack/fetch-drift-baseline.sh, #211).
+      #
+      # #211 shipped making a missing baseline distinguishable from a genuine
+      # first run rather than failing open unconditionally — but breaking THIS
+      # upload can still produce a silent, green skip in one specific case: if
+      # no release has ever carried evidence.json (this step is what would
+      # have seeded the very first one), the read side correctly reads that as
+      # a genuine first run and stays green, since there is nothing yet to
+      # compare against — unavoidable, not a bug. If an OLDER release still
+      # carries a pack from before this step broke, the read side catches the
+      # gap instead — loudly (a `::error::` broken-chain annotation), not
+      # silently, and falls back to that older pack. Drift itself is enforced
+      # by the action's fail-on-drift above, not by the gap-check step — but a
+      # lost baseline is the same class of failure the pass_count floor below
+      # exists to catch: a green run that verified less than it appears to.
+      #
+      # continue-on-error is still right, with an honest scope. On
+      # workflow_dispatch runs attach-to-release is skipped by its own `if:`,
+      # nothing consumes the artifact, and this stops an upload failure from
+      # reddening a badge-visible run whose scan actually succeeded. On RELEASE
+      # runs it does not save the badge: the
+      # download in attach-to-release fails instead and the run still goes red.
+      # It fails loudly in the one case where the artifact genuinely matters,
+      # which is the correct trade, not an oversight.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-evidence
+        if: always()
+        continue-on-error: true
+        with:
+          name: self-scan-evidence
+          path: evidence/
+          # 7 days, down from 90. Originally set to match ci.yaml's own
+          # attestward-builds retention-days for consistency — that upload,
+          # and the retention-days setting on it, no longer exist at all
+          # (issue #313/#314 removed it outright: nothing had ever
+          # downloaded it), so there's no sibling value left to match.
+          # Kept at 7 days on its own merits: this is a JSON pack plus one
+          # HTML file, zipped, so 90->7 frees on the order of ~5 MB of
+          # standing storage — a small win on its own, but the honest one
+          # available now that the real pressure (ci.yaml's
+          # attestward-builds, an order of magnitude larger) is gone
+          # rather than just scoped down.
+          #
+          # #217: the quota exhausted outright — 10.82 GB across 1362
+          # artifacts, 5.69 GB of it pre-rename `attestor-*` debris no
+          # workflow references any more (deleted), the rest almost
+          # entirely ci.yaml's attestward-builds — see #313/#314 for why
+          # that upload is gone rather than merely scoped down further.
+          retention-days: 7
+      # #217: continue-on-error above is right (see this step's own
+      # comment) but made the quota exhausting outright completely
+      # invisible until a live dry run for #211 tripped over it by
+      # accident — this is the second, independent layer that broke
+      # (self-scan succeeds, upload fails, attach-to-release below has
+      # nothing to download), the same silent-fail-open shape #211's own
+      # fix exists to catch, arrived at from a different direction.
+      # outcome reflects the step's real result before continue-on-error
+      # masks it for the job's own conclusion — this only fires on a
+      # genuine failure, and a `::warning::` never reddens the job.
+      - name: Warn if the evidence-pack upload failed
+        if: always() && steps.upload-evidence.outcome == 'failure'
+        run: |
+          echo "::warning::upload of self-scan-evidence failed — likely the artifact storage quota (issue #217); the scan itself succeeded, but attach-to-release below will have nothing to attach"
+
+  # The one write in this workflow, isolated in its own job so the scan
+  # job's permissions stay read-only (ADR-0007): when this run was fired by
+  # a successful "Release" completion, the fresh pack becomes the new
+  # drift baseline by being attached to the release that run just
+  # published. TAG comes from the completed run's head_branch — for a
+  # tag-triggered workflow that's the tag itself (see the workflow_run
+  # trigger's own comment above for how that was verified against this
+  # repo's real run history, not assumed).
+  attach-to-release:
+    # `always()` is load-bearing, not defensive. Without it this job inherits
+    # `needs: self-scan`'s implicit success requirement, and that created a
+    # wedge the v1.0.0 release walked straight into:
+    #
+    #   1. posture regresses against the baseline pack
+    #   2. `fail-on-drift` fails the scan job, correctly - that is the alarm
+    #   3. attach-to-release is skipped, so the baseline is NEVER refreshed
+    #   4. the next release diffs against the same stale pack, and fails
+    #      identically, forever
+    #
+    # One regression permanently froze the baseline. The drift alarm's job is
+    # to *tell* you the posture moved, not to prevent the new posture from
+    # being recorded - so the pack is attached either way and the failed run
+    # remains the alarm. A genuinely broken scan writes no pack at all, and
+    # the download step below fails loudly rather than attaching nothing.
+    if: >-
+      always()
+      && github.event_name == 'workflow_run'
+      && github.event.workflow_run.conclusion == 'success'
+      && needs.self-scan.result != 'skipped'
+      && needs.self-scan.result != 'cancelled'
+    needs: self-scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: self-scan-evidence
+          path: evidence
+      - name: Attach pack to the release the triggering run just published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" \
+            --repo "$GITHUB_REPOSITORY" --clobber \
+            evidence/evidence.json evidence/report.html

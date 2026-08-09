@@ -1,0 +1,453 @@
+# mappings/ssdf-800-218.yaml
+#
+# Canonical machine-readable slice of NIST SP 800-218 (SSDF v1.1) that attestward
+# reasons over. Every task below is one that CISA's own SSDA form Appendix
+# ("Minimum Attestation References" table) cites as substantiating one of the
+# form's four attestation clusters — see mappings/cisa-ssda-form.yaml, which
+# references these IDs. This is a deliberate scoping choice: it is NOT the
+# full SSDF task list (SP 800-218 v1.1 Table 1 defines 42 active tasks across
+# PO/PS/PW/RV — PO 13, PS 4, PW 16, RV 9 — plus several renumbered/retired
+# IDs; this file carries the 31 CISA's form actually cites), because the
+# product only needs to reason about what the form asks for.
+#
+# `text` is quoted VERBATIM from the source below — do not edit for style.
+# Anything not verbatim goes in a separate `summary` field explicitly marked
+# as paraphrase (none needed yet; nothing here has been shortened).
+#
+# Accuracy discipline: every id/text pair here was transcribed directly from
+# the official NIST PDF (Table 1, pp. 5-19) during authoring of this file —
+# see CONTRIBUTING.md and CLAUDE.md's "never invent SSDF task IDs" rule.
+
+version: "1.13.0"
+
+source:
+  title: "Secure Software Development Framework (SSDF) Version 1.1: Recommendations for Mitigating the Risk of Software Vulnerabilities"
+  publisher: "National Institute of Standards and Technology (NIST)"
+  identifier: "NIST SP 800-218"
+  doi: "https://doi.org/10.6028/NIST.SP.800-218"
+  url: "https://csrc.nist.gov/pubs/sp/800/218/final"
+  published: "2022-02"
+
+retrieved: "2026-07-13"
+
+# Practice-level context (title + description, verbatim) for every practice
+# that has at least one task referenced below. Rendered by `attestward checks
+# list` (#8) alongside its tasks so a reader never needs the source PDF open.
+practices:
+  PO.1:
+    title: "Define Security Requirements for Software Development"
+    text: >-
+      Ensure that security requirements for software development are known at
+      all times so that they can be taken into account throughout the SDLC and
+      duplication of effort can be minimized because the requirements
+      information can be collected once and shared. This includes
+      requirements from internal sources (e.g., the organization's policies,
+      business objectives, and risk management strategy) and external sources
+      (e.g., applicable laws and regulations).
+  PO.3:
+    title: "Implement Supporting Toolchains"
+    text: >-
+      Use automation to reduce human effort and improve the accuracy,
+      reproducibility, usability, and comprehensiveness of security practices
+      throughout the SDLC, as well as provide a way to document and
+      demonstrate the use of these practices. Toolchains and tools may be used
+      at different levels of the organization, such as organization-wide or
+      project-specific, and may address a particular part of the SDLC, like a
+      build pipeline.
+  PO.4:
+    title: "Define and Use Criteria for Software Security Checks"
+    text: >-
+      Help ensure that the software resulting from the SDLC meets the
+      organization's expectations by defining and using criteria for checking
+      the software's security during development.
+  PO.5:
+    title: "Implement and Maintain Secure Environments for Software Development"
+    text: >-
+      Ensure that all components of the environments for software development
+      are strongly protected from internal and external threats to prevent
+      compromises of the environments or the software being developed or
+      maintained within them. Examples of environments for software
+      development include development, build, test, and distribution
+      environments.
+  PS.1:
+    title: "Protect All Forms of Code from Unauthorized Access and Tampering"
+    text: >-
+      Help prevent unauthorized changes to code, both inadvertent and
+      intentional, which could circumvent or negate the intended security
+      characteristics of the software. For code that is not intended to be
+      publicly accessible, this helps prevent theft of the software and may
+      make it more difficult or time-consuming for attackers to find
+      vulnerabilities in the software.
+  PS.2:
+    title: "Provide a Mechanism for Verifying Software Release Integrity"
+    text: >-
+      Help software acquirers ensure that the software they acquire is
+      legitimate and has not been tampered with.
+  PS.3:
+    title: "Archive and Protect Each Software Release"
+    text: >-
+      Preserve software releases in order to help identify, analyze, and
+      eliminate vulnerabilities discovered in the software after release.
+  PW.2:
+    title: "Review the Software Design to Verify Compliance with Security Requirements and Risk Information"
+    text: >-
+      Help ensure that the software will meet the security requirements and
+      satisfactorily address the identified risk information.
+  PW.4:
+    title: "Reuse Existing, Well-Secured Software When Feasible Instead of Duplicating Functionality"
+    text: >-
+      Lower the costs of software development, expedite software development,
+      and decrease the likelihood of introducing additional security
+      vulnerabilities into the software by reusing software modules and
+      services that have already had their security posture checked. This is
+      particularly important for software that implements security
+      functionality, such as cryptographic modules and protocols.
+  PW.5:
+    title: "Create Source Code by Adhering to Secure Coding Practices"
+    text: >-
+      Decrease the number of security vulnerabilities in the software, and
+      reduce costs by minimizing vulnerabilities introduced during source code
+      creation that meet or exceed organization-defined vulnerability severity
+      criteria.
+  PW.6:
+    title: "Configure the Compilation, Interpreter, and Build Processes to Improve Executable Security"
+    text: >-
+      Decrease the number of security vulnerabilities in the software and
+      reduce costs by eliminating vulnerabilities before testing occurs.
+  PW.7:
+    title: "Review and/or Analyze Human-Readable Code to Identify Vulnerabilities and Verify Compliance with Security Requirements"
+    text: >-
+      Help identify vulnerabilities so that they can be corrected before the
+      software is released to prevent exploitation. Using automated methods
+      lowers the effort and resources needed to detect vulnerabilities.
+      Human-readable code includes source code, scripts, and any other form of
+      code that an organization deems human-readable.
+  PW.8:
+    title: "Test Executable Code to Identify Vulnerabilities and Verify Compliance with Security Requirements"
+    text: >-
+      Help identify vulnerabilities so that they can be corrected before the
+      software is released in order to prevent exploitation. Using automated
+      methods lowers the effort and resources needed to detect vulnerabilities
+      and improves traceability and repeatability. Executable code includes
+      binaries, directly executed bytecode and source code, and any other form
+      of code that an organization deems executable.
+  PW.9:
+    title: "Configure Software to Have Secure Settings by Default"
+    text: >-
+      Help improve the security of the software at the time of installation to
+      reduce the likelihood of the software being deployed with weak security
+      settings, putting it at greater risk of compromise.
+  RV.1:
+    title: "Identify and Confirm Vulnerabilities on an Ongoing Basis"
+    text: >-
+      Help ensure that vulnerabilities are identified more quickly so that
+      they can be remediated more quickly in accordance with risk, reducing
+      the window of opportunity for attackers.
+  RV.2:
+    title: "Assess, Prioritize, and Remediate Vulnerabilities"
+    text: >-
+      Help ensure that vulnerabilities are remediated in accordance with risk
+      to reduce the window of opportunity for attackers.
+  RV.3:
+    title: "Analyze Vulnerabilities to Identify Their Root Causes"
+    text: >-
+      Help reduce the frequency of vulnerabilities in the future.
+
+tasks:
+  - id: PO.1.1
+    family: PO
+    practice: PO.1
+    text: >-
+      Identify and document all security requirements for the organization's
+      software development infrastructures and processes, and maintain the
+      requirements over time.
+    checks: []
+
+  - id: PO.1.3
+    family: PO
+    practice: PO.1
+    text: >-
+      Communicate requirements to all third parties who will provide
+      commercial software components to the organization for reuse by the
+      organization's own software.
+    notes: "Formerly PW.3.1 in SSDF v1.0; renumbered in v1.1."
+    checks: []
+
+  - id: PO.3.1
+    family: PO
+    practice: PO.3
+    text: >-
+      Specify which tools or tool types must or should be included in each
+      toolchain to mitigate identified risks, as well as how the toolchain
+      components are to be integrated with each other.
+    checks: []
+
+  - id: PO.3.2
+    family: PO
+    practice: PO.3
+    text: "Follow recommended security practices to deploy, operate, and maintain tools and toolchains."
+    checks: []
+
+  - id: PO.3.3
+    family: PO
+    practice: PO.3
+    text: >-
+      Configure tools to generate artifacts of their support of secure
+      software development practices as defined by the organization.
+    checks: []
+
+  - id: PO.4.1
+    family: PO
+    practice: PO.4
+    text: "Define criteria for software security checks and track throughout the SDLC."
+    checks: []
+
+  - id: PO.4.2
+    family: PO
+    practice: PO.4
+    text: >-
+      Implement processes, mechanisms, etc. to gather and safeguard the
+      necessary information in support of the criteria.
+    checks: []
+
+  - id: PO.5.1
+    family: PO
+    practice: PO.5
+    text: "Separate and protect each environment involved in software development."
+    checks:
+      [
+        C01.org.2fa-required,
+        C01.org.members-without-2fa,
+        C03.env.exists,
+        C03.env.protection-rules,
+        C03.env.required-reviewers,
+        C03.env.branch-policy,
+        C04.secrets.scanning-enabled,
+        C04.secrets.push-protection,
+        C04.secrets.advanced-security,
+        C04.org.security-defaults,
+        C04.vars.secret-hygiene,
+        C08.actions.token-permissions,
+        C08.actions.pull-request-target,
+        C08.pipelines.fork-protection,
+        C08.actions.oidc-vs-secrets,
+        C08.actions.self-hosted,
+        C09.audit.org-log-available,
+        C09.audit.log-streaming,
+        C09.audit.retention-awareness,
+        C09.repo.webhooks,
+        SA.audit-log-export-fallback,
+      ]
+
+  - id: PO.5.2
+    family: PO
+    practice: PO.5
+    text: >-
+      Secure and harden development endpoints (i.e., endpoints for software
+      designers, developers, testers, builders, etc.) to perform
+      development-related tasks using a risk-based approach.
+    checks: []
+
+  - id: PS.1.1
+    family: PS
+    practice: PS.1
+    text: >-
+      Store all forms of code – including source code, executable code, and
+      configuration-as-code – based on the principle of least privilege so
+      that only authorized personnel, tools, services, etc. have access.
+    checks:
+      [
+        C01.org.default-repo-permission,
+        C01.org.members-can-create-public,
+        C02.branch.protection-exists,
+        C02.branch.required-reviews,
+        C02.branch.required-status-checks,
+        C02.branch.force-push-blocked,
+        C02.branch.deletion-blocked,
+        C02.branch.admin-enforced,
+      ]
+
+  - id: PS.2.1
+    family: PS
+    practice: PS.2
+    text: "Make software integrity verification information available to software acquirers."
+    checks: [C07.release.tags-signed, C07.release.checksums, C07.release.signatures]
+
+  - id: PS.3.1
+    family: PS
+    practice: PS.3
+    text: >-
+      Securely archive the necessary files and supporting data (e.g.,
+      integrity verification information, provenance data) to be retained for
+      each software release.
+    checks: []
+
+  - id: PS.3.2
+    family: PS
+    practice: PS.3
+    text: >-
+      Collect, safeguard, maintain, and share provenance data for all
+      components of each software release (e.g., in a software bill of
+      materials [SBOM]).
+    checks: [C07.release.signatures, C07.provenance.workflow, C07.provenance.commit-linkage]
+
+  - id: PW.2.1
+    family: PW
+    practice: PW.2
+    text: >-
+      Have 1) a qualified person (or people) who were not involved with the
+      design and/or 2) automated processes instantiated in the toolchain
+      review the software design to confirm and enforce that it meets all of
+      the security requirements and satisfactorily addresses the identified
+      risk information.
+    checks: [SA.threat-modeling]
+
+  - id: PW.4.1
+    family: PW
+    practice: PW.4
+    text: >-
+      Acquire and maintain well-secured software components (e.g., software
+      libraries, modules, middleware, frameworks) from commercial,
+      open-source, and other third-party developers for use by the
+      organization's software.
+    checks: [C08.actions.pinned]
+
+  - id: PW.4.4
+    family: PW
+    practice: PW.4
+    text: >-
+      Verify that acquired commercial, open-source, and all other third-party
+      software components comply with the requirements, as defined by the
+      organization, throughout their life cycles.
+    checks: [C04.deps.dependabot-alerts, C06.sca.tool-configured, C06.sca.ran-per-release, C06.sca.dependabot-config, C06.sca.dependency-review, C06.sca.alerts-triaged]
+
+  - id: PW.5.1
+    family: PW
+    practice: PW.5
+    text: >-
+      Follow all secure coding practices that are appropriate to the
+      development languages and environment to meet the organization's
+      requirements.
+    checks: []
+
+  - id: PW.6.1
+    family: PW
+    practice: PW.6
+    text: "Use compiler, interpreter, and build tools that offer features to improve executable security."
+    checks: []
+
+  - id: PW.6.2
+    family: PW
+    practice: PW.6
+    text: >-
+      Determine which compiler, interpreter, and build tool features should be
+      used and how each should be configured, then implement and use the
+      approved configurations.
+    checks: [C08.actions.token-permissions]
+
+  - id: PW.7.1
+    family: PW
+    practice: PW.7
+    text: >-
+      Determine whether code review (a person looks directly at the code to
+      find issues) and/or code analysis (tools are used to find issues in
+      code, either in a fully automated way or in conjunction with a person)
+      should be used, as defined by the organization.
+    checks: [C05.sast.tool-configured, C05.sast.default-setup]
+
+  - id: PW.7.2
+    family: PW
+    practice: PW.7
+    text: >-
+      Perform the code review and/or code analysis based on the
+      organization's secure coding standards, and record and triage all
+      discovered issues and recommended remediations in the development
+      team's workflow or issue tracking system.
+    checks: [C05.sast.ran-per-release, C05.sast.cadence]
+
+  - id: PW.8.1
+    family: PW
+    practice: PW.8
+    text: >-
+      Determine whether executable code testing should be performed to find
+      vulnerabilities not identified by previous reviews, analysis, or
+      testing and, if so, which types of testing should be used.
+    checks: []
+
+  - id: PW.8.2
+    family: PW
+    practice: PW.8
+    text: >-
+      Scope the testing, design the tests, perform the testing, and document
+      the results, including recording and triaging all discovered issues
+      and recommended remediations in the development team's workflow or
+      issue tracking system.
+    checks: []
+
+  - id: PW.9.1
+    family: PW
+    practice: PW.9
+    text: >-
+      Define a secure baseline by determining how to configure each setting
+      that has an effect on security or a security-related setting so that
+      the default settings are secure and do not weaken the security
+      functions provided by the platform, network infrastructure, or
+      services.
+    checks: []
+
+  - id: PW.9.2
+    family: PW
+    practice: PW.9
+    text: >-
+      Implement the default settings (or groups of default settings, if
+      applicable), and document each setting for software administrators.
+    checks: []
+
+  - id: RV.1.1
+    family: RV
+    practice: RV.1
+    text: >-
+      Gather information from software acquirers, users, and public sources
+      on potential vulnerabilities in the software and third-party components
+      that the software uses, and investigate all credible reports.
+    checks: [C10.vdp.intake-channel, C10.vdp.private-reporting]
+
+  - id: RV.1.2
+    family: RV
+    practice: RV.1
+    text: >-
+      Review, analyze, and/or test the software's code to identify or
+      confirm the presence of previously undetected vulnerabilities.
+    checks: [C05.sast.tool-configured, C05.sast.ran-per-release, C05.sast.cadence, C05.sast.default-setup, C06.sca.tool-configured, C06.sca.ran-per-release]
+
+  - id: RV.1.3
+    family: RV
+    practice: RV.1
+    text: >-
+      Have a policy that addresses vulnerability disclosure and remediation,
+      and implement the roles, responsibilities, and processes needed to
+      support that policy.
+    checks: [C10.vdp.security-md, C10.vdp.intake-channel, C10.vdp.security-policy-org]
+
+  - id: RV.2.1
+    family: RV
+    practice: RV.2
+    text: >-
+      Analyze each vulnerability to gather sufficient information about risk
+      to plan its remediation or other risk response.
+    checks: [C06.sca.alerts-triaged, SA.vuln-triage-sla]
+
+  - id: RV.2.2
+    family: RV
+    practice: RV.2
+    text: "Plan and implement risk responses for vulnerabilities."
+    checks: [SA.vuln-remediation-sla]
+
+  - id: RV.3.3
+    family: RV
+    practice: RV.3
+    text: >-
+      Review the software for similar vulnerabilities to eradicate a class of
+      vulnerabilities, and proactively fix them rather than waiting for
+      external reports.
+    checks: []

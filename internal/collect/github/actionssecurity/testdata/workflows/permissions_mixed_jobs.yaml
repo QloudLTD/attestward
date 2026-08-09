@@ -1,0 +1,13 @@
+name: build
+on: [push]
+jobs:
+  build:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

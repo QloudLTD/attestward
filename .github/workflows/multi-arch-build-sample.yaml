@@ -1,0 +1,152 @@
+# SAMPLE — not part of required CI, not triggered on pull_request/push.
+#
+# This is a reference pipeline, not a maintained one: it demonstrates the
+# "one native runner per target platform/arch" pattern, which ci.yaml's own
+# `build` job deliberately does NOT use — it cross-compiles all five targets
+# in a single job instead (see that job's own comment for why: Go's
+# GOOS/GOARCH cross-compilation makes native per-arch runners unnecessary for
+# a CGO_ENABLED=0 pure-Go binary like this one).
+#
+# Kept here, `workflow_dispatch`-only, for anyone who genuinely needs
+# execution-verified native builds on every real target OS/arch — for
+# example if this project ever adds a CGO dependency that can't
+# cross-compile cleanly, or a platform-specific syscall path a
+# cross-compiled binary can't actually exercise even under emulation. Run it
+# manually (`gh workflow run multi-arch-build-sample.yaml` or the Actions UI)
+# to confirm the pattern still works before reaching for it in anger; it is
+# not run on a schedule and nothing alerts if it silently bit-rots.
+#
+# Every runner here is GitHub-hosted, so this sample is directly reusable by
+# anyone reading it — which it was not while it depended on this project's
+# own self-hosted machines. It used to need three extra sequenced jobs to
+# wake a physical Windows box over the network, build on it, and power it
+# back down; windows/amd64 is now just another matrix entry.
+#
+# `actions/setup-go` below sets `cache: false` — see ci.yaml's matching
+# comment (issue #313).
+name: Multi-arch build (sample — native runners, manual only)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  # One matrix entry per published platform/arch, each on a runner that can
+  # execute the binary natively (no cross-arch execution gaps) — this job
+  # proves `attestward version` actually runs on each target, not merely
+  # that it compiles for it. All five legs now fit in one matrix: windows
+  # used to need three sequenced jobs to wake, use and power down a physical
+  # self-hosted machine, and is just another hosted runner.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            os: ubuntu-latest
+          - goos: linux
+            goarch: arm64
+            os: ubuntu-24.04-arm
+          # macos-15-intel is a current Intel image (macos-13 was retired);
+          # macos-latest is Apple Silicon.
+          - goos: darwin
+            goarch: amd64
+            os: macos-15-intel
+          - goos: darwin
+            goarch: arm64
+            os: macos-latest
+          - goos: windows
+            goarch: amd64
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          # set -u specifically: everything below now depends on ambient
+          # env vars rather than context-expression substitution, and
+          # GitHub's `shell: bash` runs -eo pipefail WITHOUT -u. An
+          # unset GITHUB_SHA doesn't fail — it stamps an empty version
+          # into the binary, which for a provenance tool is worse than a
+          # build error. ci.yaml's own build step already sets this; this
+          # file was the inconsistent one.
+          set -euo pipefail
+          # $GOOS/$GOARCH come from this step's own env: block above,
+          # for the same reason as $GITHUB_SHA below — no context
+          # expressions inside a run: block.
+          out="attestward-${GOOS}-${GOARCH}"
+          # windows binaries need the suffix to be executable at all — the
+          # "Verify it runs" step below invokes this path directly. Written as
+          # an if rather than `[ ... ] && out=...`: under `set -e` that idiom
+          # only survives because a non-final command in a && list is exempt,
+          # which stops being true the moment it becomes the last line of a
+          # block. Not worth leaving a trap that springs on an edit.
+          if [ "$GOOS" = "windows" ]; then
+            out="${out}.exe"
+          fi
+          # Issue #232: $GITHUB_SHA is one of GitHub's own default
+          # environment variables, ambiently exported into every step —
+          # no env: plumbing needed, and unlike the github.sha context
+          # expression it replaced, it's a genuine runtime env var the
+          # shell reads — never text substituted into this script before
+          # it runs. Not a live risk either way (github.sha is a
+          # GitHub-generated hex SHA, not attacker-influenceable), but the
+          # rule's whole value is not needing that judgement call per site.
+          #
+          # Note these comments name the expression syntax rather than
+          # writing it: GitHub substitutes context expressions inside a
+          # run: block before the shell sees them, INCLUDING inside a
+          # `#` comment. So a literal one here would silently interpolate,
+          # and an empty one is a hard syntax error — actionlint catches
+          # the latter, nothing catches the former.
+          go build -trimpath -ldflags "-X main.version=$GITHUB_SHA -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "$out" ./cmd/attestward
+          echo "BIN=$out" >> "$GITHUB_ENV"
+      - name: Verify it runs
+        shell: bash
+        run: ./"$BIN" version
+      # Archival only: "Verify it runs" above has already proven this binary
+      # compiles and executes on its target. A storage-quota failure on the
+      # upload must not retract that proof by reddening the job.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload-native
+        continue-on-error: true
+        with:
+          name: attestward-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: attestward-${{ matrix.goos }}-${{ matrix.goarch }}*
+          # Issue #242: no retention-days at all here used to mean the repo
+          # default (90 days) — for a workflow_dispatch-only reference
+          # pipeline nothing consumes, that's close to the worst shape
+          # under GB-hours-across-the-month billing (issue #217): small
+          # enough not to look alarming in a size listing, long-lived
+          # enough to dominate the accrual. 1 day, matching what #241 did
+          # for attestward-builds — this workflow's own binaries are a
+          # demonstration that the pattern still builds, not an input
+          # anything downstream reads, so there's no case for holding them
+          # longer in case someone wants to fetch a sample after the fact.
+          retention-days: 1
+      # Issue #217: continue-on-error above is right (see this step's own
+      # comment) but made the quota exhausting outright completely
+      # invisible. outcome reflects the real result before
+      # continue-on-error masks it — this only fires on a genuine
+      # failure, and a `::warning::` never reddens the job. This
+      # workflow's own uploads weren't the volume driver (workflow_dispatch
+      # -only, run once ever — see this file's header), but the same
+      # visibility gap applied here too.
+      - name: Warn if the build-artifact upload failed
+        if: steps.upload-native.outcome == 'failure'
+        env:
+          ARTIFACT_NAME: attestward-${{ matrix.goos }}-${{ matrix.goarch }}
+        run: |
+          echo "::warning::upload of $ARTIFACT_NAME failed — likely the artifact storage quota (issue #217); the build itself succeeded, only the archival upload was lost"
