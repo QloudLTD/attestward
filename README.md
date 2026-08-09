@@ -175,7 +175,7 @@ mean and what API evidence backs them.
 
 ### 1. Install
 
-**Download a release** (see the [releases page](../../releases) for the current version):
+**Download a release** (see the [releases page](https://gitlab.com/sioakeim/attestward/-/releases) for the current version):
 
 ```bash
 # Substitute the real version/os/arch from the releases page.
@@ -436,10 +436,11 @@ Full detail, trust boundaries, and residual risks: [docs/threat-model.md](docs/t
 ## Self-scan
 
 The repo is its own first case study: [`self-scan.yaml`](.github/workflows/self-scan.yaml)
-runs `attestward scan` against `sioakim/attestward` on every release (plus manual dispatch),
-then publishes the evidence pack and rendered `report.html` as a downloadable
-workflow artifact — see the [latest self-scan runs](../../actions/workflows/self-scan.yaml)
-for a real (not demo-org) sample pack. The workflow fails the build on any gap outside a
+runs `attestward scan` against the project's own repository on every release (plus
+manual dispatch), then publishes the evidence pack and rendered `report.html` as a
+downloadable workflow artifact. ⚠ That workflow targets GitHub Actions and does not
+run on this host, so there are no self-scan runs to link to here yet; the file is
+kept as the definition of what the self-scan does. The workflow fails the build on any gap outside a
 small, deliberately documented exception list — each entry on it cites why it is there and
 where the real fix is tracked (see the workflow file's own comments) — rather than
 silently ignoring failures. The list is deliberately short and shrinking: dependency
@@ -459,9 +460,9 @@ review came off it once the repo went public and the check could actually run.
 
 ## Contributing
 
-Work is tracked entirely in [GitHub Issues](../../issues). Read
+Work is tracked entirely in [GitLab Issues](https://gitlab.com/sioakeim/attestward/-/issues). Read
 [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. New verification checks and scanner signatures have dedicated
-[issue templates](../../issues/new/choose).
+[issue templates](https://gitlab.com/sioakeim/attestward/-/issues/new).
 
 ## Security
 

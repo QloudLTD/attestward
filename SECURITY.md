@@ -4,12 +4,18 @@ This tool is built for security-sensitive environments, and this repo intends to
 what the tool preaches: branch protection, pinned actions, signed releases — and the repo
 publicly scans itself with its own tool.
 
+> ⚠ The self-scan and release pipelines described below were written for GitHub
+> Actions and do not currently run on this host. The workflow definitions are kept
+> in `.github/workflows/` as a record of intent; treat any claim below that depends
+> on a pipeline having run as unverified until an equivalent exists here.
+
 ## Reporting a vulnerability
 
 **Please do not open a public issue for security vulnerabilities.**
 
-- Preferred: [GitHub private vulnerability reporting](../../security/advisories/new)
-  ("Report a vulnerability" on the Security tab).
+- Preferred: [open a **confidential** issue](https://gitlab.com/sioakeim/attestward/-/issues/new) — tick
+  **"This issue is confidential"** before submitting, so the report is visible only to
+  project members. Do not submit without that box ticked; an untick is a public disclosure.
 - You will receive an acknowledgment within **3 business days** and a triage decision
   within **10 business days**.
 
