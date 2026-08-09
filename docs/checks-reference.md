@@ -75,6 +75,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Org Settings -> Authentication security -> check "Require two-factor authentication for everyone in the [org] organization". Any member without 2FA enabled will be removed from the org when this is turned on, so resolve C01.org.members-without-2fa first.
 
+#### gitlab — Org requires two-factor authentication
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Org requires two-factor authentication
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -125,6 +137,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** the org's `default_repository_permission` field is "read" or "none"
 
 **Remediation:** Org Settings -> Member privileges -> Base permissions -> set to "Read" or "No permission" so members don't get write access to every repo by default.
+
+#### gitlab — Default repository permission for members
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Org default repository permission is not overly broad
 
@@ -178,6 +202,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Org Settings -> Member privileges -> Repository creation -> uncheck "Public" so members can't create public repositories without an explicit visibility change reviewed separately.
 
+#### gitlab — Whether members can create public repositories
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Members cannot create public repositories unchecked
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -228,6 +264,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** GET /orgs/{org}/members?filter=2fa_disabled returned zero members
 
 **Remediation:** Org People page -> filter by "Two-factor authentication: Disabled" -> have each flagged member enable 2FA under their own Settings -> Password and authentication, or remove/suspend members who won't comply. Then enable C01.org.2fa-required so new members can't rejoin without it.
+
+#### gitlab — Count of members without two-factor authentication
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — No members are without two-factor authentication
 
@@ -283,6 +331,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** For a ruleset, set Enforcement status to "Active" (not "Evaluate") and remove every bypass actor entirely — even one scoped to "Pull request only" caps this check at partial, not a full pass. For legacy branch protection, check "Do not allow bypassing the above settings" (Include administrators). Where both legacy protection and a ruleset apply to the same branch, both must independently bind admins for this check to pass.
 
+#### gitlab — Default branch protections apply to admins (no unconditional bypass actor)
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Default branch protections apply to admins (no unconditional bypass actor)
 
 - **Token permission:** any Gogs personal access token that can read the repo. Gogs tokens are not scopable — every token carries the full permissions of the account that issued it — so least privilege here means using an account with read-only access to the repos in scope, not narrowing the token itself
@@ -334,6 +394,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** In a ruleset, enable "Restrict deletions"; in legacy branch protection, leave "Allow deletions" unchecked.
 
+#### gitlab — Default branch blocks branch deletion
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Default branch blocks branch deletion
 
 - **Token permission:** any Gogs personal access token that can read the repo. Gogs tokens are not scopable — every token carries the full permissions of the account that issued it — so least privilege here means using an account with read-only access to the repos in scope, not narrowing the token itself
@@ -384,6 +456,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** legacy protection disables `allow_force_pushes` (or leaves the field unset, which GitHub defaults to disabled), or a ruleset has an active non-fast-forward rule
 
 **Remediation:** In a ruleset, enable "Block force pushes"; in legacy branch protection, leave "Allow force pushes" unchecked.
+
+#### gitlab — Default branch blocks force pushes
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Default branch blocks force pushes
 
@@ -437,6 +521,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** legacy branch protection is configured on the default branch, or at least one ruleset rule applies to it (`effectiveProtection.exists`, via GetBranchProtection succeeding or GetRulesForBranch returning at least one active rule this collector tracks)
 
 **Remediation:** Repo Settings -> Rules -> Rulesets (or the legacy Settings -> Branches -> Branch protection rules) -> add a rule targeting the default branch.
+
+#### gitlab — Default branch has protection (legacy branch protection or a ruleset)
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Default branch has protection configured
 
@@ -493,6 +589,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** In that ruleset/protection rule, enable "Require a pull request before merging" with at least 1 required approving review, and leave legacy branch protection's "Allow specified actors to bypass required pull requests" empty — or remove any users/teams/apps already listed there.
 
+#### gitlab — Default branch requires at least one approving review before merge
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Default branch requires at least one approving review before merge
 
 - **Token permission:** any Gogs personal access token that can read the repo. Gogs tokens are not scopable — every token carries the full permissions of the account that issued it — so least privilege here means using an account with read-only access to the repos in scope, not narrowing the token itself
@@ -546,6 +654,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** legacy protection or a ruleset names at least one required status check
 
 **Remediation:** In that ruleset/protection rule, enable "Require status checks to pass before merging" and select the CI checks that must pass.
+
+#### gitlab — Default branch requires status checks before merge
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Default branch requires status checks before merge
 
@@ -604,6 +724,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Open the production-like environment -> Settings -> Deployment branches and tags -> change from "No restriction" to "Protected branches only" or a "Selected branches and tags" allowlist.
 
+#### gitlab — Production-like environments restrict which branches/tags can deploy
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Environments restrict which branches may deploy
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -656,6 +788,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** at least one environment's name matches the production-like heuristic (`prod`* prefix, case-insensitive)
 
 **Remediation:** Repo Settings -> Environments -> New environment -> name it "production" (or any prod*/production variant — this check's name heuristic is case-insensitive) so deployments can be routed through it.
+
+#### gitlab — A production-like environment exists
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Deployment environments are defined
 
@@ -712,6 +856,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Open the production-like environment -> Settings -> Deployment protection rules -> add at least one rule (required reviewers or a wait timer).
 
+#### gitlab — Production-like environments have at least one protection rule
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Environments have protection rules
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -766,6 +922,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** every production-like environment has a `required_reviewers`-type protection rule with at least one reviewer configured
 
 **Remediation:** Open the production-like environment -> Settings -> Deployment protection rules -> add "Required reviewers" and select who must approve a deployment.
+
+#### gitlab — Production-like environments require reviewer approval before deployment
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Production environments require reviewers
 
@@ -822,6 +990,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Repo Settings -> Code security -> enable "Dependabot alerts".
 
+#### gitlab — Dependabot vulnerability alerts are enabled
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes CI/CD variables and their masked/protected flags. Secret Detection, which would evidence historical leakage, is a paid-tier feature and returns nothing on a free project — an empty result there means 'not entitled', never 'clean'. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Dependency vulnerability alerts are enabled
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -874,6 +1054,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** all four of secret_scanning_enabled_for_new_repositories, secret_scanning_push_protection_enabled_for_new_repositories, dependabot_alerts_enabled_for_new_repositories, and advanced_security_enabled_for_new_repositories are true
 
 **Remediation:** Org Settings -> Code security -> enable secret scanning, push protection, Dependabot alerts, AND Advanced Security "for new repositories" — all four must be on for this check to pass — so every repo created going forward starts with them on, instead of relying on each repo owner to enable them individually.
+
+#### gitlab — Org enables secret/dependency security features by default for new repos
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes CI/CD variables and their masked/protected flags. Secret Detection, which would evidence historical leakage, is a paid-tier feature and returns nothing on a free project — an empty result there means 'not entitled', never 'clean'. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Org-level security defaults are enabled for new repos
 
@@ -928,6 +1120,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Repo Settings -> Code security -> enable "GitHub Advanced Security" (requires a GHAS license on private repos; public repos get the equivalent features free without it). Since GitHub's 2025 GHAS unbundling, secret scanning and push protection can also be licensed and enabled independently via standalone Secret Protection, without this flag.
 
+#### gitlab — GitHub Advanced Security is enabled where applicable
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes CI/CD variables and their masked/protected flags. Secret Detection, which would evidence historical leakage, is a paid-tier feature and returns nothing on a free project — an empty result there means 'not entitled', never 'clean'. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Advanced security features are enabled
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -981,6 +1185,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Repo Settings -> Code security -> under Secret scanning, enable "Push protection" so commits containing a detected secret are blocked before they land.
 
+#### gitlab — Secret scanning push protection is active
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes CI/CD variables and their masked/protected flags. Secret Detection, which would evidence historical leakage, is a paid-tier feature and returns nothing on a free project — an empty result there means 'not entitled', never 'clean'. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Push protection blocks committed secrets
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1033,6 +1249,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** the repo's security_and_analysis.secret_scanning.status is "enabled" (checked first, unconditionally — a direct positive observation always wins over any licensing inference)
 
 **Remediation:** Repo Settings -> Code security -> enable "Secret scanning". Free for public repos; on a private repo it needs a GitHub Advanced Security license, or (since GitHub's 2025 GHAS unbundling) a standalone GitHub Secret Protection license.
+
+#### gitlab — Secret scanning is active
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes CI/CD variables and their masked/protected flags. Secret Detection, which would evidence historical leakage, is a paid-tier feature and returns nothing on a free project — an empty result there means 'not entitled', never 'clean'. This build reads neither yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Secret scanning is enabled
 
@@ -1113,6 +1341,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** If zero SAST runs were observed in the lookback window, same fix as C05.sast.ran-per-release: confirm the workflow runs on a schedule or on every push/PR to the default branch, not only on rare manual dispatch. If runs WERE observed but this still reads partial, the match itself is low-confidence (workflow-name-only) — same fix as C05.sast.tool-configured: use a recognized action/CLI, not just a workflow name that sounds like SAST.
 
+#### gitlab — SAST run cadence over the lookback window
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — SAST runs on a regular cadence
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1166,6 +1406,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** CodeQL default setup's state reads "configured"
 
 **Remediation:** Repo Settings -> Security -> Advanced Security -> under Code Security, "CodeQL analysis" -> Set up -> Default (choose "Default", not "Advanced", unless a custom workflow is specifically needed).
+
+#### gitlab — CodeQL default setup is configured
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Platform-managed SAST is enabled
 
@@ -1223,6 +1475,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Make sure the SAST workflow's trigger actually fires on (or before) the commit each release is cut from — e.g. trigger on push to the release branch, or on the release event itself — and that any run that did fire completed successfully rather than erroring out.
 
+#### gitlab — A SAST tool ran for each release in the lookback window
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — SAST ran for each release in the lookback window
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1278,6 +1542,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** at least one matched workflow reaches medium-or-high confidence (an action slug or CLI pattern, not just a suggestive workflow name), or CodeQL default setup's state reads "configured"
 
 **Remediation:** Enable CodeQL default setup (repo Settings -> Security -> Advanced Security -> under Code Security, "CodeQL analysis" -> Set up -> Default), or add a workflow using a recognized SAST action/CLI (see mappings/scanner-signatures.yaml for what this tool recognizes) — a workflow whose name merely suggests SAST isn't enough on its own; it needs a matched action/CLI invocation to count as more than a low-confidence signal.
+
+#### gitlab — A SAST tool is configured
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — A SAST tool is configured
 
@@ -1337,6 +1613,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** If Dependabot alerts are disabled entirely, enable them first: repo Settings -> Code security -> enable "Dependabot alerts" (see C04.deps.dependabot-alerts). Once enabled, triage: Security -> Dependabot alerts -> filter by Critical severity -> fix or dismiss (with a documented reason) any critical alert open longer than 30 days.
 
+#### gitlab — Open Dependabot alerts are triaged within the default window
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Dependency alerts are triaged
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1390,6 +1678,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Extend `.github/dependabot.yml` with an `updates:` entry for each detected-but-uncovered ecosystem (see this finding's `uncovered_ecosystems` fact for exactly which ones).
 
+#### gitlab — Dependabot config covers the repo's detected dependency ecosystems
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Automated dependency updates are configured
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1441,6 +1741,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** a matched dependency-review-action (or equivalent SCA-category) workflow triggers on `pull_request`/`pull_request_target`, and its workflow name exactly (case-insensitively) matches one of the branch's required status check names
 
 **Remediation:** Add a workflow using `actions/dependency-review-action` (or equivalent), make sure it triggers on `pull_request` (not just push), and add it as a required status check: repo Settings -> Rules -> Rulesets -> the branch's rule -> Require status checks to pass -> select the dependency-review workflow's check.
+
+#### gitlab — Dependency review is enforced as a required check on pull requests
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Dependency review runs on pull requests
 
@@ -1497,6 +1809,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Applies to a workflow-based SCA tool specifically (Dependabot has no per-release run history to check). Make sure the SCA workflow's trigger fires on the commit each release is cut from, and that any run that fired completed successfully.
 
+#### gitlab — An SCA tool ran for each release in the lookback window
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — SCA ran for each release in the lookback window
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1552,6 +1876,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** at least one matched workflow reaches medium-or-high confidence (an action slug or CLI pattern, not just a suggestive workflow name), or a Dependabot config exists with at least one `updates:` entry that sets a non-empty `package-ecosystem`
 
 **Remediation:** Add a `.github/dependabot.yml` with at least one `updates:` entry, or add a workflow using a recognized SCA action/CLI (see mappings/scanner-signatures.yaml) — a workflow whose name merely suggests SCA isn't enough on its own; it needs a matched action/CLI invocation.
+
+#### gitlab — An SCA tool is configured
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — An SCA tool is configured
 
@@ -1611,6 +1947,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Make sure the workflow that produces release assets is triggered by the same commit being tagged/released — e.g. `on: release: types: [published]` or a tag-push trigger — rather than run manually (workflow_dispatch) against an unrelated commit.
 
+#### gitlab — Release artifacts are traceable to a workflow run on the release commit
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Releases link to the commits they were built from
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1666,6 +2014,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Add a provenance-generating step to the release workflow: Sigstore/cosign, a SLSA provenance generator (slsa-framework/slsa-github-generator), or GitHub's native `actions/attest-build-provenance` action.
 
+#### gitlab — A provenance-generating tool is configured
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — A build provenance workflow exists
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1716,6 +2076,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** every release in the lookback window ships at least one asset matching a known checksum-file naming convention (checksums.txt, SHA256SUMS, or a per-file `.sha256`/`.sha256sum` sidecar)
 
 **Remediation:** Publish a checksum file (e.g. `checksums.txt`/`SHA256SUMS`) as a release asset — most release-automation tools (e.g. goreleaser) generate this automatically as part of the release job.
+
+#### gitlab — Releases ship checksum assets
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Release artifacts publish checksums
 
@@ -1769,6 +2141,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Attach a signature/attestation asset to each release (e.g. a cosign `.sig`/`.pem` bundle), or generate a GitHub Artifact Attestation for the release assets during the build workflow via `actions/attest-build-provenance`.
 
+#### gitlab — Releases ship signature or attestation assets
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Releases are signed
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1821,6 +2205,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** every release tag in the lookback window is annotated, signed, and GitHub reports its signature verified
 
 **Remediation:** Sign release tags with a GPG or SSH key (`git tag -s` or `git tag -u <key> vX.Y.Z`), and register the matching public key under the tagging user's own account Settings -> SSH and GPG keys — add it specifically as a "Signing Key" (a key added only for authentication won't verify signatures). Signature verification is always tied to the individual tagger's personal account; there is no equivalent org-level key registration.
+
+#### gitlab — Release tags are signed and GitHub reports the signature verified
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Release tags are signed
 
@@ -1879,6 +2275,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Configure the login action's OIDC parameters — for aws-actions/configure-aws-credentials use `role-to-assume` (with `permissions: id-token: write` on the job); for azure/login use `client-id`+`tenant-id`+`subscription-id` (also needs `permissions: id-token: write`); for google-github-actions/auth use `workload_identity_provider` (also needs `permissions: id-token: write`). If this replaces an existing long-lived static credential (verified-fail), delete it afterward from repo/org Settings -> Secrets and variables; if instead neither an OIDC nor a static-credential parameter was recognized at all (the "ambiguous" partial case), there's no existing secret to remove — just add the OIDC parameters above.
 
+#### gitlab — Cloud deployments use OIDC rather than long-lived static credentials
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Pipelines prefer OIDC over long-lived secrets
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -1930,6 +2338,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** no external action or reusable-workflow reference exists at all, or every third-party reference (and every first-party `actions/*` reference) is pinned to a full 40-character commit SHA — and every listed or referenced workflow was successfully fetched and parsed (no skipped_workflows entries)
 
 **Remediation:** Pin every third-party action/reusable-workflow `uses:` reference to a full 40-char commit SHA, not a tag or branch (e.g. `uses: actions/checkout@<full-sha> # v5.0.0` — keep the version as a comment for readability). A tool like `pin-github-action`/`pinact`, or Renovate's digest-pinning preset, can do this initial tag-to-SHA conversion (Dependabot cannot — it only keeps an already-pinned reference's version comment up to date going forward, via that same trailing comment). First-party `actions/*` references on a mutable tag are tolerated (capped at partial) but should be pinned too for a full pass.
+
+#### gitlab — Third-party actions and reusable workflows are pinned to a full commit SHA
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Pipeline steps are pinned to immutable versions
 
@@ -1983,6 +2403,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Switch the trigger to `pull_request` if privileged (secrets/write token) access to the base repo isn't actually needed. If it genuinely is needed against fork code, use the two-workflow pattern instead: an untrusted `pull_request`-triggered workflow that uploads an artifact, and a separate, minimally-privileged `workflow_run`-triggered workflow that consumes it — either fully eliminates the pull_request_target trigger and reaches a pass. Just removing the `actions/checkout` step's PR-head ref (`github.event.pull_request.head.*` or `github.head_ref`) while keeping the pull_request_target trigger only demotes this from a fail to partial — pull_request_target itself is still flagged as risky by design.
 
+#### gitlab — pull_request_target is not combined with checking out the PR head
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — No dangerous pull-request triggers are used
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -2035,6 +2467,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** no job uses `runs-on: self-hosted` at all, and every listed or referenced workflow was successfully fetched and parsed; or one or more self-hosted usages ARE found but the repository is private (the public-fork attack vector this check flags doesn't apply) — that specific pass sub-case is unaffected by any skipped workflow, since a confirmed finding on a private repo can't be weakened by what else might be unread
 
 **Remediation:** Only moving the job to a GitHub-hosted runner actually clears this check (it looks solely at whether `runs-on: self-hosted` appears, not at trigger/approval settings). Real-world exposure can also be reduced without changing this check's result: require approval for first-time/outside contributors (Settings -> Actions -> General -> "Approval for running fork pull request workflows from contributors"), or don't trigger the job on pull_request/pull_request_target from forks at all.
+
+#### gitlab — Self-hosted runners are not exposed to public-repo pull requests
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Self-hosted runner usage is understood
 
@@ -2090,6 +2534,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** every job (or its workflow, inherited when the job declares none of its own) declares an explicit `permissions:` block that isn't `write-all` — and every listed or referenced workflow was successfully fetched and parsed
 
 **Remediation:** Add an explicit `permissions:` block — at workflow level, or per job for finer scoping — set to the minimum needed (e.g. `contents: read`), not the ambient default. Replace any `permissions: write-all` with a specific, scoped list of only the permissions that job actually needs.
+
+#### gitlab — Workflows declare explicit, least-privilege GITHUB_TOKEN permissions
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Pipeline tokens are least-privilege
 
@@ -2168,6 +2624,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Not remediable via this tool's own checks: audit-log streaming/export only exists at the GitHub Enterprise account level (Enterprise Settings -> Audit log -> Log streaming), not the organization level, so this check can never verify it directly. If streaming is configured, document it in the self-attestation questionnaire (SA.audit-log-export-fallback) instead.
 
+#### gitlab — Audit-log export/streaming is configured
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Audit events stream to external storage
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -2219,6 +2687,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** This check can only ever report verified-pass or not-checkable, never a fail — if it's not-checkable, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token isn't an org owner with the read:audit_log scope. Upgrading the plan or granting that scope is what would make this check verifiable.
 
+#### gitlab — Organization audit log is reachable via the API
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — An organization audit log is available
 
 - **Token permission:** none — no API call backs this check. A Gogs token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
@@ -2267,6 +2747,18 @@ This check is registered under more than one platform — details for each below
 - **not-checkable:** always — this check is purely informational; no GitHub API reports an org's actually-applied audit-log retention, so there is nothing to verify. Facts carry GitHub's documented 180-day retention window as context only
 
 **Remediation:** No remediation applicable — this check is purely informational (documents GitHub's 180-day audit-log retention window) and never reports a fail. If longer retention is required, configure audit-log export/streaming (see C09.audit.log-streaming) and document the destination and retention period in the self-attestation questionnaire.
+
+#### gitlab — Audit-log retention window (informational)
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Audit log retention is understood
 
@@ -2320,6 +2812,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** at least one active webhook on this repo subscribes to `push`, `release`, `deployment`, or the `*` wildcard event
 
 **Remediation:** Repo Settings -> Webhooks -> Add webhook -> subscribe to at least Push, Release, and Deployment events (or the wildcard "Send me everything") pointing at your log/SIEM ingestion endpoint.
+
+#### gitlab — A webhook exports push/release/deployment events
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — Repository webhooks are securely configured
 
@@ -2378,6 +2882,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** If no SECURITY.md exists at all, add one first (see C10.vdp.security-md). If it exists but this still fails, make the intake channel concrete and actionable: an email address, a URL (e.g. a reporting form or bug-bounty page), or an explicit mention that reporters should use GitHub's private vulnerability reporting feature — not just general prose like "we take security seriously."
 
+#### gitlab — SECURITY.md advertises an actionable intake channel
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — SECURITY.md advertises an actionable intake channel
 
 - **Token permission:** any Gogs personal access token that can read the repo. Gogs tokens are not scopable — every token carries the full permissions of the account that issued it — so least privilege here means using an account with read-only access to the repos in scope, not narrowing the token itself
@@ -2433,6 +2949,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Repo Settings -> Security -> Advanced Security -> enable "Private vulnerability reporting."
 
+#### gitlab — GitHub private vulnerability reporting is enabled
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — Private vulnerability reporting is enabled
 
 - **Token permission:** any Gogs personal access token that can read the repo. Gogs tokens are not scopable — every token carries the full permissions of the account that issued it — so least privilege here means using an account with read-only access to the repos in scope, not narrowing the token itself
@@ -2486,6 +3014,18 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Add a SECURITY.md at .github/SECURITY.md (or the repo root, or docs/) describing how to report a vulnerability. If most repos in the org should share one policy, add it to the org's own `.github` repo instead (see C10.vdp.security-policy-org) so it applies as the org-wide default for repos without their own.
 
+#### gitlab — A SECURITY.md resolves for this repo
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+
 #### gogs — A SECURITY.md resolves for this repo
 
 - **Token permission:** any Gogs personal access token that can read the repo. Gogs tokens are not scopable — every token carries the full permissions of the account that issued it — so least privilege here means using an account with read-only access to the repos in scope, not narrowing the token itself
@@ -2538,6 +3078,18 @@ This check is registered under more than one platform — details for each below
 - **verified-pass:** the org's own `.github` repo exists and a SECURITY.md resolved within it (the same three-path fallback), serving as the org-wide default
 
 **Remediation:** Add a SECURITY.md to the org's own `.github` repo (create the repo first if it doesn't exist) so it serves as the org-wide default security policy for every repo that doesn't have its own.
+
+#### gitlab — The org has an org-wide default security policy
+
+- **Token permission:** read_api
+- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+
+**Status rubric:**
+
+- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
 #### gogs — The org has an org-wide default security policy
 

@@ -38,6 +38,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect/github/scahistory"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/secretshygiene"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/vdp"
+	gitlabunsupported "gitlab.com/sioakeim/attestward/internal/collect/gitlab/unsupported"
 	gogscollect "gitlab.com/sioakeim/attestward/internal/collect/gogs"
 	gogsrepoprotection "gitlab.com/sioakeim/attestward/internal/collect/gogs/repoprotection"
 	gogsunsupported "gitlab.com/sioakeim/attestward/internal/collect/gogs/unsupported"
@@ -97,9 +98,10 @@ func init() {
 	scanCmd.Flags().StringSliceVar(&scanCheckFilter, "check", nil, "comma-separated check-ID prefixes to run (e.g. C01,C05); default runs every registered collector")
 	scanCmd.Flags().BoolVar(&scanFlags.Sign, "sign", false, "sign evidence.json with cosign sign-blob after writing it (issue #27; requires cosign on PATH)")
 	scanCmd.Flags().StringArrayVar(&scanFlags.SignArgs, "sign-args", nil, "extra arg passed through to cosign sign-blob verbatim (repeatable, e.g. --sign-args=--key=cosign.key); omit for keyless signing")
-	scanCmd.Flags().StringVar(&scanFlags.Platform, "platform", "", "platform to scan: github, azuredevops or gogs (default \"github\")")
+	scanCmd.Flags().StringVar(&scanFlags.Platform, "platform", "", "platform to scan: github, azuredevops, gogs or gitlab (default \"github\")")
 	scanCmd.Flags().StringVar(&scanFlags.Project, "project", "", "Azure DevOps project name (required iff --platform azuredevops; rejected otherwise)")
 	scanCmd.Flags().StringVar(&scanFlags.GogsURL, "gogs-url", "", "base URL of the Gogs instance, e.g. https://gogs.example.com (required iff --platform gogs; rejected otherwise)")
+	scanCmd.Flags().StringVar(&scanFlags.GitLabURL, "gitlab-url", "", "base URL of a self-managed GitLab, e.g. https://gitlab.example.com (optional with --platform gitlab, which defaults to gitlab.com; rejected otherwise)")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -206,6 +208,17 @@ func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 // unsupported ones still ran — so the guard in buildScanDeps checks the
 // result set is non-empty, and the collector itself reports its own
 // per-repo client failures as not-checkable rather than vanishing.
+// defaultGitLabCollectors returns the collector set for a GitLab scan.
+//
+// Every check is currently served by the unsupported package, which reports
+// not-checkable with a reason rather than omitting the row — so a GitLab pack
+// has the same shape as a GitHub one and a reader can tell "not evaluated
+// yet" from "clean". As real collectors land (#1) they are appended here and
+// their entries leave that table.
+func defaultGitLabCollectors() []collect.Collector {
+	return append(collect.Collectors(), gitlabunsupported.Collectors()...)
+}
+
 func defaultGogsCollectors(baseURL, token string) []collect.Collector {
 	collectors := append(collect.Collectors(), gogsunsupported.Collectors()...)
 	return append(collectors,
@@ -307,6 +320,17 @@ func resolveScanToken(platform string) (string, error) {
 			return "", fmt.Errorf("GOGS_TOKEN is not set (GITHUB_TOKEN is ignored for --platform gogs)")
 		}
 		return token, nil
+	case platformGitLab:
+		// A GitLab personal, project or group access token, sent as
+		// PRIVATE-TOKEN. read_api is enough for everything this build
+		// reads; a token with write scopes would still be refused every
+		// write by the transport, but asking for one at all is a habit
+		// worth not teaching.
+		token := os.Getenv("GITLAB_TOKEN")
+		if token == "" {
+			return "", fmt.Errorf("GITLAB_TOKEN is not set (GITHUB_TOKEN is ignored for --platform gitlab)")
+		}
+		return token, nil
 	}
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
@@ -352,6 +376,18 @@ func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, er
 		collectors := defaultAzureDevOpsCollectors(cfg.Org, cfg.Project, token)
 		if len(collectors) == 0 {
 			return scanDeps{}, fmt.Errorf("no collectors registered for platform %q yet (see issue #34's epic)", platformAzureDevOps)
+		}
+		return scanDeps{
+			collectors: collectors,
+			stdout:     stdout,
+			signer:     integrity.CosignSigner{},
+		}, nil
+	}
+
+	if effectivePlatform(cfg.Platform) == platformGitLab {
+		collectors := defaultGitLabCollectors()
+		if len(collectors) == 0 {
+			return scanDeps{}, fmt.Errorf("this build has no collectors for platform %q, so a scan would produce a pack with no verified results at all", platformGitLab)
 		}
 		return scanDeps{
 			collectors: collectors,

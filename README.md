@@ -17,7 +17,7 @@ changes to either mean a major version, so a pinned `v1` is safe to build agains
 ## What this is
 
 An open-source CLI tool that connects to a software producer's source-control and CI/CD
-platform (GitHub, Azure DevOps, or a self-hosted Gogs instance) and **verifies** — rather than
+platform (GitHub, Azure DevOps, GitLab, or a self-hosted Gogs instance) and **verifies** — rather than
 asks about — the technical controls
 behind a secure-software-development attestation. It maps findings to NIST SSDF (SP 800-218)
 practices and the CISA Secure Software Development Attestation (SSDA) Common Form's four
@@ -83,6 +83,23 @@ rules those capabilities out of this tool on architectural grounds.
 Apache-2.0 was chosen over MIT/BSD for its explicit patent grant and retaliation clause
 (§3), which matters for a tool enterprises run inside their own CI. §6 withholds
 trademark rights: the code is yours to use and fork, the name is not.
+
+## A note on GitLab
+
+GitLab is accepted as a scan target (`--platform gitlab`, `--gitlab-url` for a
+self-managed instance, `GITLAB_TOKEN` for the credential), and **this build verifies none
+of the checks yet**. A GitLab scan currently reports every check as `not-checkable`, each
+with a reason naming what GitLab exposes and the fact that this build does not read it.
+
+That is stated plainly because the alternative is worse: a platform that emits a short
+pack of six results looks, to anyone skimming, like a clean one. The transport layer —
+pagination, rate limiting, tier detection — is in place; the collectors are being added
+per check family.
+
+⚠ Tier matters here in a way it does not on the other platforms. Dependency Scanning,
+Secret Detection and audit events are paid-tier features, and on a Free project their
+APIs return nothing. An empty result there means *not entitled*, never *clean*, and no
+check will be allowed to report a pass or a fail on that basis.
 
 ## A note on Gogs
 

@@ -37,6 +37,7 @@ const (
 	platformGitHub      = collect.DefaultPlatform
 	platformAzureDevOps = "azuredevops"
 	platformGogs        = "gogs"
+	platformGitLab      = "gitlab"
 )
 
 // effectivePlatform returns platform, defaulting an empty value to
@@ -87,6 +88,12 @@ type scanConfig struct {
 	// data-suburl attribute), so https://example.com/gogs is a real
 	// deployment, not a user mistake.
 	GogsURL string `yaml:"gogs_url"`
+
+	// GitLabURL is the base URL of the GitLab instance to scan. Unlike
+	// GogsURL it is OPTIONAL: GitLab has a canonical hosted instance, so an
+	// empty value means gitlab.com rather than an ambiguous target. It is
+	// only meaningful for a self-managed install.
+	GitLabURL string `yaml:"gitlab_url"`
 }
 
 // loadScanConfigFile strictly parses a config file: unknown keys are
@@ -165,6 +172,9 @@ func mergeScanConfig(file scanConfig, flags scanConfig, flagsSet map[string]bool
 	if flagsSet["gogs-url"] {
 		merged.GogsURL = flags.GogsURL
 	}
+	if flags.GitLabURL != "" {
+		merged.GitLabURL = flags.GitLabURL
+	}
 
 	if merged.ReleaseTagPattern == "" {
 		merged.ReleaseTagPattern = defaultReleaseTagPattern
@@ -203,9 +213,9 @@ func (c scanConfig) validate() error {
 	}
 
 	switch c.Platform {
-	case "", platformGitHub, platformAzureDevOps, platformGogs:
+	case "", platformGitHub, platformAzureDevOps, platformGogs, platformGitLab:
 	default:
-		return fmt.Errorf("platform %q is not recognized (must be %q, %q or %q; --platform or config file's platform:)", c.Platform, platformGitHub, platformAzureDevOps, platformGogs)
+		return fmt.Errorf("platform %q is not recognized (must be %q, %q, %q or %q; --platform or config file's platform:)", c.Platform, platformGitHub, platformAzureDevOps, platformGogs, platformGitLab)
 	}
 
 	isADO := effectivePlatform(c.Platform) == platformAzureDevOps
@@ -226,6 +236,10 @@ func (c scanConfig) validate() error {
 		if err := validateGogsURL(c.GogsURL); err != nil {
 			return err
 		}
+	}
+
+	if effectivePlatform(c.Platform) != platformGitLab && c.GitLabURL != "" {
+		return fmt.Errorf("--gitlab-url (or config file's gitlab_url:) is only valid when platform is %q (got platform %q)", platformGitLab, effectivePlatform(c.Platform))
 	}
 	return nil
 }
