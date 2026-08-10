@@ -2642,13 +2642,13 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Audit-log export/streaming is configured
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — no API call backs this check. A GitLab token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
+- **Fixture:** `internal/collect/gitlab/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read the paid API yet.
 
 **Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
@@ -2705,13 +2705,13 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Organization audit log is reachable via the API
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — no API call backs this check. A GitLab token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
+- **Fixture:** `internal/collect/gitlab/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read the paid API yet.
 
 **Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
@@ -2766,13 +2766,13 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Audit-log retention window (informational)
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — no API call backs this check. A GitLab token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
+- **Fixture:** `internal/collect/gitlab/auditlogging/auditlogging_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read the paid API yet.
 
 **Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
 
@@ -2831,15 +2831,17 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — A webhook exports push/release/deployment events
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/auditlogging/auditlogging_test.go`
+- **API endpoint(s):** `GET /projects/{id}/hooks`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet
+- **verified-fail:** no webhook is both executable and subscribed to one of those event types — includes the case of zero webhooks configured, which is a definitive absence, not a gap.
+- **not-checkable:** the project's webhooks could not be read (403/404/other API error), or a webhook's alert_status held a value this build does not recognise (GitLab documents exactly three: executable, temporarily_disabled, disabled) — guessing whether an unrecognised state means the hook is currently delivering would assert something never observed.
+- **verified-pass:** at least one project webhook has alert_status "executable" (currently delivering, not in backoff or permanently disabled) and subscribes to push, releases, or deployment events.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Settings → Webhooks → add a webhook subscribing to Push events, Releases events, or Deployment events, and confirm its Alert status is not showing a delivery failure — GitLab automatically stops delivering to a webhook after repeated failures.
 
 #### gogs — Repository webhooks are securely configured
 
