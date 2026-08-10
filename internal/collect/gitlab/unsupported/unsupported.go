@@ -209,26 +209,14 @@ var checks = []check{
 	// its four checks stay always-not-checkable there for the same paid-tier
 	// reason, but the fourth (repo.webhooks) is a real, free-tier check that
 	// this package's blanket "paid tier" reason was wrongly applied to.
-	{
-		id: "C10.vdp.intake-channel", title: "SECURITY.md advertises an actionable intake channel",
-		collectorID: "C10.vdp", scope: orgScoped,
-		reason: "GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet",
-	},
-	{
-		id: "C10.vdp.private-reporting", title: "GitHub private vulnerability reporting is enabled",
-		collectorID: "C10.vdp", scope: orgScoped,
-		reason: "GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet",
-	},
-	{
-		id: "C10.vdp.security-md", title: "A SECURITY.md resolves for this repo",
-		collectorID: "C10.vdp", scope: orgScoped,
-		reason: "GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet",
-	},
-	{
-		id: "C10.vdp.security-policy-org", title: "The org has an org-wide default security policy",
-		collectorID: "C10.vdp", scope: orgScoped,
-		reason: "GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet",
-	},
+	// C10 vdp moved to internal/collect/gitlab/vdp: security-md and
+	// intake-channel are now real checks; private-reporting and
+	// security-policy-org stay always-not-checkable there, but now for the
+	// platform fact that neither mechanism exists on GitLab at all, rather
+	// than this table's previous "GitLab serves repository files over the
+	// API... this build does not read it yet" — true of security-md and
+	// intake-channel, but not of the other two, which nothing was ever
+	// going to "start reading."
 }
 
 func init() {

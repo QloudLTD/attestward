@@ -2902,15 +2902,18 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — SECURITY.md advertises an actionable intake channel
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/vdp/vdp_test.go`
+- **API endpoint(s):** `GET /projects/{id}/repository/files/{file_path}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+- **verified-fail:** no SECURITY.md exists to advertise an intake channel at all — shares C10.vdp.security-md's own fail condition, since there's nothing to inspect for a channel
+- **partial:** SECURITY.md resolved, but neither intake-channel signal was found in its content — the file exists but doesn't tell a reporter how to actually reach the producer
+- **not-checkable:** reading the project (for its default branch) or resolving SECURITY.md within it failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate SECURITY.md path is never this cause on its own, since that just means the next path is tried
+- **verified-pass:** SECURITY.md resolved (see C10.vdp.security-md) and its content matches at least one of two signals: an email address or an http(s):// URL — narrower than the GitHub twin's three signals, since GitLab has no private-vulnerability-reporting feature whose mention could count as a third (see C10.vdp.private-reporting)
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** If no SECURITY.md exists at all, add one first (see C10.vdp.security-md). If it exists but this still fails, make the intake channel concrete and actionable: an email address, or a URL (e.g. a reporting form or bug-bounty page) — not just general prose like "we take security seriously."
 
 #### gogs — SECURITY.md advertises an actionable intake channel
 
@@ -2967,17 +2970,17 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Repo Settings -> Security -> Advanced Security -> enable "Private vulnerability reporting."
 
-#### gitlab — GitHub private vulnerability reporting is enabled
+#### gitlab — A private-vulnerability-reporting mechanism is enabled
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — this check makes no API call of its own; GitLab has no private-vulnerability-reporting feature to query (see its own doc comment)
+- **Fixture:** `internal/collect/gitlab/vdp/vdp_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+- **not-checkable:** always — GitLab has no built-in, per-project structured vulnerability-intake feature comparable to GitHub's private vulnerability reporting; there is nothing this tool could ever call to verify it
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** No remediation applicable via this tool: GitLab has no built-in, per-project structured vulnerability-intake feature comparable to GitHub's private vulnerability reporting — there is nothing to enable. If the producer has an out-of-band private reporting channel (e.g. a security@ mailbox), advertise it in SECURITY.md (see C10.vdp.intake-channel) and/or document it in the self-attestation questionnaire.
 
 #### gogs — Private vulnerability reporting is enabled
 
@@ -3034,15 +3037,17 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — A SECURITY.md resolves for this repo
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/vdp/vdp_test.go`
+- **API endpoint(s):** `GET /projects/{id}/repository/files/{file_path}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+- **verified-fail:** the project itself was readable, but no SECURITY.md resolved at either candidate path within it
+- **not-checkable:** reading the project (for its default branch) or resolving SECURITY.md within it failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate SECURITY.md path is never this cause on its own, since that just means the next path is tried. This also covers a missing or invisible project: unlike the Azure DevOps twin, which addresses the repo directly and so folds that case into verified-fail, this collector reads the project first to find its default branch, so a 404 there is a read failure, not a confirmed absence of the file
+- **verified-pass:** SECURITY.md resolved at one of two candidate paths — SECURITY.md (repo root) or docs/SECURITY.md, tried in that order — a repo-content convention this collector checks for, not a platform-enforced one: GitLab documents no community-health-file search order the way GitHub does, and has no org-wide-default mechanism to fall back to (see C10.vdp.security-policy-org)
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Add a SECURITY.md at the project root or under docs/ describing how to report a vulnerability. GitLab has no org-wide-default mechanism to add it to instead (see C10.vdp.security-policy-org) — it must live in this project.
 
 #### gogs — A SECURITY.md resolves for this repo
 
@@ -3099,15 +3104,15 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — The org has an org-wide default security policy
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — this check makes no API call of its own; GitLab has no ".github"-repo-style org-default mechanism to query (see its own doc comment)
+- **Fixture:** `internal/collect/gitlab/vdp/vdp_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab serves repository files over the API, so a SECURITY.md-based disclosure policy is discoverable the same way it is on the other platforms. This build does not read it yet
+- **not-checkable:** always — GitLab has no ".github"-repo-style org-wide-default convention or mechanism; there is no project this tool could check as a fallback the way GitHub's own ".github" special repo works
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** No remediation applicable via this tool: GitLab has no ".github"-repo-style org-wide-default mechanism — there is no project this tool could check as a fallback. Add a SECURITY.md to each project individually (see C10.vdp.security-md), or document an org-wide policy elsewhere and reference it in the self-attestation questionnaire.
 
 #### gogs — The org has an org-wide default security policy
 
