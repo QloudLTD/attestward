@@ -174,7 +174,15 @@ func membersCreatePublicResult(org string, g group) model.CheckResult {
 			map[string]any{"visibility": g.Visibility, "project_creation_level": g.ProjectCreationLevel,
 				"public_projects_possible": false})
 	}
-	// Only in a public group does creation level decide this.
+	// Only in a PUBLIC group does creation level decide this. An unrecognised
+	// or empty visibility must not fall through to reasons that assert the
+	// group "is public" — that would state a visibility never observed.
+	if g.Visibility != "public" {
+		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusNotCheckable, org,
+			fmt.Sprintf("group %q reported visibility %q, which this build does not recognise; whether a member could "+
+				"create a public project depends on it, and guessing would assert a visibility never observed",
+				g.Path, g.Visibility), map[string]any{"visibility": g.Visibility})
+	}
 	switch g.ProjectCreationLevel {
 	case "noone", "maintainer":
 		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusVerifiedPass, org,

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -191,5 +193,66 @@ func TestProjectPathIsNotDoubleEncoded(t *testing.T) {
 	want := "https://gitlab.com/api/v4/projects/group%2Fproject/protected_branches"
 	if got != want {
 		t.Errorf("resolve = %q, want %q", got, want)
+	}
+}
+
+// countingTransport records how many round trips actually reached the network.
+type countingTransport struct {
+	n      int
+	status int
+}
+
+func (c *countingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	c.n++
+	code := c.status
+	if c.n > 2 {
+		code = http.StatusOK // succeed on the third attempt
+	}
+	return &http.Response{
+		StatusCode: code,
+		Body:       io.NopCloser(strings.NewReader(`{"id":1}`)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Request:    r,
+	}, nil
+}
+
+// TestProvenanceRecordsRetriedAttempts pins the transport ORDER, which the
+// previous test could not: it passed under either arrangement because it drove
+// the provenance layer directly instead of the assembled chain.
+//
+// Provenance must be innermost so it sees every attempt. Wired outermost it
+// records one entry per logical call, so a pack silently understates what the
+// tool did to the customer's instance while its own comments claim otherwise —
+// and the retried 5xx responses, the ones worth auditing, vanish entirely.
+func TestProvenanceRecordsRetriedAttempts(t *testing.T) {
+	ct := &countingTransport{status: http.StatusInternalServerError}
+	c, err := NewClientForTest("https://gitlab.example", "t", ct)
+	if err != nil {
+		t.Fatalf("NewClientForTest: %v", err)
+	}
+	var out map[string]any
+	if err := GetJSON(context.Background(), c, "/projects/1", nil, &out); err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+	if ct.n < 2 {
+		t.Fatalf("transport saw %d attempts; the retry layer is not in the chain", ct.n)
+	}
+	if got := len(c.Provenance()); got != ct.n {
+		t.Errorf("provenance entries = %d but %d attempts were made — provenance is not innermost, so "+
+			"the pack would omit the retried attempts it claims to record", got, ct.n)
+	}
+}
+
+// TestWriteIsRejectedThroughTheAssembledChain pins ADR-0004 where it matters:
+// through the client production builds, not against one layer in isolation.
+func TestWriteIsRejectedThroughTheAssembledChain(t *testing.T) {
+	ct := &countingTransport{status: http.StatusOK}
+	c, _ := NewClientForTest("https://gitlab.example", "t", ct)
+	req, _ := http.NewRequest(http.MethodPost, "https://gitlab.example/api/v4/projects", nil)
+	if _, err := c.httpClient.Do(req); !errors.Is(err, ErrWriteMethodRejected) {
+		t.Fatalf("POST through the assembled chain was not rejected: %v", err)
+	}
+	if ct.n != 0 {
+		t.Errorf("the write reached the network %d times; it must never leave the process", ct.n)
 	}
 }

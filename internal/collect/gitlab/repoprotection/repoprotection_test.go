@@ -130,11 +130,19 @@ func TestSkippedPipelineDowngradesToPartial(t *testing.T) {
 // TestAuthorSelfApprovalDowngradesToPartial pins the same principle for
 // reviews: one required approval the author can supply themselves is not the
 // control it appears to be.
-func TestAuthorSelfApprovalDowngradesToPartial(t *testing.T) {
+func TestAuthorSelfApprovalIsNamedInTheReason(t *testing.T) {
+	// required-reviews is partial for every readable value now (the field is
+	// deprecated), so self-approval no longer changes the status — but it must
+	// still be surfaced, because it is the difference between a gate and a
+	// formality.
 	r := defaults()
 	r.approvals = fmt.Sprintf(realApprovals, 1, true)
-	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status != model.StatusPartial {
-		t.Errorf("author self-approval = %q, want partial", got.Status)
+	got := find(t, collectWith(t, r), idRequiredReviews)
+	if got.Status != model.StatusPartial {
+		t.Errorf("status = %q, want partial", got.Status)
+	}
+	if !strings.Contains(got.Reason, "author could supply that approval themselves") {
+		t.Errorf("reason must name author self-approval, got: %s", got.Reason)
 	}
 }
 
@@ -231,8 +239,62 @@ func TestDeletionIsPartialNotPass(t *testing.T) {
 func TestDeprecatedApprovalsFieldNeverFails(t *testing.T) {
 	r := defaults()
 	r.approvals = fmt.Sprintf(realApprovals, 0, false)
-	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status == model.StatusVerifiedFail {
-		t.Error("approvals_before_merge=0 produced verified-fail; the field is deprecated and cannot distinguish " +
-			"'no review required' from 'a rule this tier cannot show'")
+	// Assert the exact status, not merely "not a fail": a version that turned 0
+	// into verified-pass would be the worse defect and would have slipped past
+	// the looser assertion.
+	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status != model.StatusNotCheckable {
+		t.Errorf("approvals_before_merge=0 = %q, want not-checkable — the field is deprecated and cannot "+
+			"distinguish 'no review required' from 'a rule this tier cannot show'", got.Status)
+	}
+}
+
+// TestApprovalsAboveZeroIsNotAPass pins the mirror image, which the first fix
+// missed: if the field is untrustworthy at 0 it is untrustworthy at 2. On a
+// Free namespace approvals_before_merge is accepted and ignored, so a pass
+// there would assert an enforced gate that does not exist.
+func TestApprovalsAboveZeroIsNotAPass(t *testing.T) {
+	r := defaults()
+	r.approvals = fmt.Sprintf(realApprovals, 2, false)
+	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status == model.StatusVerifiedPass {
+		t.Error("approvals_before_merge=2 produced verified-pass; the deprecated field does not enforce review, " +
+			"so this asserts a gate that may not exist")
+	}
+}
+
+// TestBranchPatternMatches pins the matcher directly. GitLab's wildcard crosses
+// "/" (its own docs match *gitlab* against master/gitlab/production), so
+// path.Match would be wrong here — which is why this is hand-rolled and why it
+// needs its own table.
+func TestBranchPatternMatches(t *testing.T) {
+	cases := []struct {
+		pattern, branch string
+		want            bool
+	}{
+		{"main", "main", true}, {"main", "maint", false},
+		{"*", "main", true}, {"ma*", "main", true}, {"*ain", "main", true},
+		{"m*n", "main", true}, {"m*n", "mn", true}, {"m*n", "mainn", true},
+		{"ma*x", "main", false}, {"release/*", "main", false},
+		{"release/*", "release/1.0", true},
+		{"*gitlab*", "master/gitlab/production", true}, // wildcard crosses "/"
+		{"a*a", "aa", true}, {"a*a", "ab", false},
+		{"", "main", false},
+	}
+	for _, c := range cases {
+		if got := branchPatternMatches(c.pattern, c.branch); got != c.want {
+			t.Errorf("branchPatternMatches(%q, %q) = %v, want %v", c.pattern, c.branch, got, c.want)
+		}
+	}
+}
+
+// TestCodeOwnerApprovalMergesPermissively pins review finding I1: GitLab
+// requires code-owner approval if ANY matching rule enables it — the opposite
+// of the force-push merge.
+func TestCodeOwnerApprovalMergesPermissively(t *testing.T) {
+	rules := []protectedBranch{
+		{Name: "main", CodeOwnerApprovalRequired: false},
+		{Name: "ma*", CodeOwnerApprovalRequired: true},
+	}
+	if eff := mergeMatchingRules(rules, "main"); eff == nil || !eff.CodeOwnerApprovalRequired {
+		t.Error("code-owner approval must be required when any matching rule enables it")
 	}
 }

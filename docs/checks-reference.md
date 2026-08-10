@@ -408,11 +408,11 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** The default branch is unprotected and can therefore be deleted.
+- **verified-fail:** The default branch is unprotected and can therefore be deleted by anyone who can push to it.
+- **partial:** The default branch is protected, which blocks deletion from Git clients. It is NOT an absolute block: a Maintainer or Owner can still delete a protected branch through the GitLab UI or API, so this never reports a pass.
 - **not-checkable:** Protection state could not be read.
-- **verified-pass:** The default branch is protected, and GitLab does not permit deletion of a protected branch. Derived from protection, not from a dedicated field — GitLab has none.
 
-**Remediation:** Protect the default branch. GitLab blocks deletion of protected branches; there is no separate deletion setting to enable.
+**Remediation:** Protect the default branch, then limit who holds Maintainer and above. Protection blocks deletion from Git clients but not from the UI or API, so the membership list is the remaining control.
 
 #### gogs — Default branch blocks branch deletion
 

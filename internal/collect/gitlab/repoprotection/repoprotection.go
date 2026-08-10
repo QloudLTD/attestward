@@ -13,12 +13,11 @@
 //
 // # Two GitLab behaviours drive most of the mapping
 //
-// **Deletion needs no separate setting.** On GitHub, branch deletion is a
-// protection toggle you can leave off. On GitLab, a protected branch cannot
-// be deleted at all — deletion is governed by the same protection record, so
-// the existence of protection *is* the evidence. This check therefore
-// derives from protection rather than looking for a field, and says so, so
-// nobody reads a pass as evidence of a setting that does not exist.
+// **Deletion is only partly blocked.** On GitHub, allow_deletions=false blocks
+// deletion outright. GitLab has no equivalent toggle: protecting a branch stops
+// deletion from Git clients, but a Maintainer or Owner can still delete it
+// through the UI or API. So this check never reports a pass — partial is the
+// honest ceiling, and the remaining control is who holds Maintainer.
 //
 // **Approval rules are tier-split.** approvals_before_merge is readable on
 // Free. Richer rules — required approvers per path, code-owner enforcement
@@ -255,18 +254,32 @@ func requiredReviews(org, repo string, _ project, a approvals, err error) model.
 				"cannot be distinguished from the readable API surface",
 			map[string]any{"approvals_before_merge": a.ApprovalsBeforeMerge, "field_deprecated_since": "12.3"})
 	}
-	status, note := model.StatusVerifiedPass, ""
-	if a.MergeRequestsAuthorApproval {
-		status = model.StatusPartial
-		note = " — but merge_requests_author_approval is true, so an author can supply that approval themselves"
-	}
-	return res(idRequiredReviews, "Merge requests require review", status, org, repo,
-		fmt.Sprintf("approvals_before_merge is %d%s", a.ApprovalsBeforeMerge, note),
+	// ⚠ A value >= 1 is no more trustworthy than a 0. The same deprecation
+	// applies: on a Free namespace approvals_before_merge is accepted and then
+	// ignored, so a project reading 2 may enforce nothing at all. Reporting
+	// verified-pass from it would be the mirror image of the fail this function
+	// already refuses to emit — and a false pass is the worse of the two.
+	//
+	// Only an approval RULE positively confirms enforcement, and rules are a
+	// paid-tier feature, so the honest answer without one is partial.
+	return res(idRequiredReviews, "Merge requests require review", model.StatusPartial, org, repo,
+		fmt.Sprintf("approvals_before_merge is %d, but that field was deprecated in GitLab 12.3 and is not what "+
+			"enforces review on current versions — approval rules are, and they are a paid-tier feature this scan "+
+			"could not read. The value indicates intent; it is not evidence the gate is enforced%s",
+			a.ApprovalsBeforeMerge, authorNote(a)),
 		map[string]any{
 			"approvals_before_merge":         a.ApprovalsBeforeMerge,
 			"merge_requests_author_approval": a.MergeRequestsAuthorApproval,
 			"reset_approvals_on_push":        a.ResetApprovalsOnPush,
+			"field_deprecated_since":         "12.3",
 		})
+}
+
+func authorNote(a approvals) string {
+	if a.MergeRequestsAuthorApproval {
+		return ". Additionally merge_requests_author_approval is true, so an author could supply that approval themselves"
+	}
+	return ""
 }
 
 func requiredStatusChecks(org, repo string, p project) model.CheckResult {
@@ -408,10 +421,10 @@ func init() {
 		}, branchEndpoints)
 
 	reg(idDeletionBlocked, "Default branch cannot be deleted",
-		"Protect the default branch. GitLab blocks deletion of protected branches; there is no separate deletion setting to enable.",
+		"Protect the default branch, then limit who holds Maintainer and above. Protection blocks deletion from Git clients but not from the UI or API, so the membership list is the remaining control.",
 		map[model.Status]string{
-			model.StatusVerifiedPass: "The default branch is protected, and GitLab does not permit deletion of a protected branch. Derived from protection, not from a dedicated field — GitLab has none.",
-			model.StatusVerifiedFail: "The default branch is unprotected and can therefore be deleted.",
+			model.StatusPartial:      "The default branch is protected, which blocks deletion from Git clients. It is NOT an absolute block: a Maintainer or Owner can still delete a protected branch through the GitLab UI or API, so this never reports a pass.",
+			model.StatusVerifiedFail: "The default branch is unprotected and can therefore be deleted by anyone who can push to it.",
 			model.StatusNotCheckable: "Protection state could not be read.",
 		}, branchEndpoints)
 
@@ -465,8 +478,12 @@ func mergeMatchingRules(rules []protectedBranch, branch string) *protectedBranch
 		if r.AllowForcePush {
 			eff.AllowForcePush = true
 		}
-		if !r.CodeOwnerApprovalRequired {
-			eff.CodeOwnerApprovalRequired = false
+		// GitLab: code-owner approval is required if ANY matching rule enables
+		// it — the opposite of the permissive merge used for force push. An
+		// earlier comment here claimed the reverse, which would have become a
+		// false fail for the first check that reads this field.
+		if r.CodeOwnerApprovalRequired {
+			eff.CodeOwnerApprovalRequired = true
 		}
 		eff.PushAccessLevels = append(eff.PushAccessLevels, r.PushAccessLevels...)
 		eff.MergeAccessLevels = append(eff.MergeAccessLevels, r.MergeAccessLevels...)

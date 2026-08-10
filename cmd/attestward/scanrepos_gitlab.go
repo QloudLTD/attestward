@@ -78,15 +78,26 @@ func (l *gitlabRepoLister) ListRepos(ctx context.Context, account string, _ coll
 		return nil, fmt.Errorf("list projects for group %s: %w", account, err)
 	}
 
-	// The scan scope's Org is the group, so strip that prefix and keep any
-	// subgroup segments: "root/team-a/proj" under org "root" becomes
-	// "team-a/proj", which re-joins to the correct full path downstream.
+	// Strip the group prefix using the CANONICAL full_path from the API, not
+	// the string the user typed. --org is matched case-insensitively by GitLab
+	// and may be a numeric ID, so "MyGroup" or "42" would both fail a literal
+	// prefix test and leave every name as its full path — which then re-joins
+	// downstream to "MyGroup/MyGroup/team-a/proj" and 404s the entire scan.
+	// One extra call buys a scan that cannot silently address the wrong thing.
 	prefix := account + "/"
+	var g struct {
+		FullPath string `json:"full_path"`
+	}
+	if err := gitlabcollect.GetJSON(ctx, l.client, "/groups/"+url.PathEscape(account), nil, &g); err == nil && g.FullPath != "" {
+		prefix = g.FullPath + "/"
+	}
 	out := make([]repoInfo, 0, len(projects))
 	for _, p := range projects {
 		name := p.PathWithNamespace
-		if strings.HasPrefix(name, prefix) {
-			name = strings.TrimPrefix(name, prefix)
+		// Case-insensitive: GitLab paths are lowercased, but a self-managed
+		// instance or an older project can differ in case from the group.
+		if len(name) >= len(prefix) && strings.EqualFold(name[:len(prefix)], prefix) {
+			name = name[len(prefix):]
 		} else if name == "" {
 			name = p.Path
 		}
