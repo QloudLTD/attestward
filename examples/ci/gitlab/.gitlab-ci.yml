@@ -29,10 +29,16 @@ attestward-scan:
       base="https://gitlab.com/sioakeim/attestward/-/releases/${ATTESTWARD_VERSION}/downloads"
       curl -fsSL -o attestward.tar.gz "${base}/attestward_linux_amd64.tar.gz"
       # Verify before trusting the binary. Keyless verification example:
+      # ⚠ Pin BOTH of these to the identity that actually signs your releases.
+      # A wildcard here verifies that the artifact was signed by *someone*,
+      # which is not a security control — it accepts any signer on the public
+      # transparency log. Set them before relying on this job.
+      : "${ATTESTWARD_SIGNER_IDENTITY:?set to the signing workflow identity, e.g. https://gitlab.com/<group>/<project>//.gitlab-ci.yml@refs/tags/v1.0.0}"
+      : "${ATTESTWARD_SIGNER_ISSUER:?set to the OIDC issuer, e.g. https://gitlab.com}"
       cosign verify-blob-attestation attestward.tar.gz \
         --bundle "${base}/attestward_linux_amd64.tar.gz.bundle" \
-        --certificate-identity-regexp '.*' \
-        --certificate-oidc-issuer-regexp '.*' || { echo "signature verification FAILED"; exit 1; }
+        --certificate-identity "${ATTESTWARD_SIGNER_IDENTITY}" \
+        --certificate-oidc-issuer "${ATTESTWARD_SIGNER_ISSUER}" || { echo "signature verification FAILED"; exit 1; }
       tar xzf attestward.tar.gz
     - ./attestward scan --format md --out evidence/
   artifacts:
