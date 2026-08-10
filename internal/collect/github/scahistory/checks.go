@@ -565,6 +565,15 @@ func checkAlertsTriaged(org, repo string, resp *ghgithub.Response, err error, su
 		// wrong, so say that rather than that we could not tell.
 		status = model.StatusPartial
 		reason = fmt.Sprintf("%d critical alert(s) open, oldest %.0f day(s) — beyond the %.0f-day triage window", summary.OpenCriticalCount, summary.OldestCriticalAgeDays, criticalTriageThresholdDays)
+		if summary.OpenUnclassifiedCount > 0 {
+			// Both problems are real, and the definite one leading must not
+			// bury the other. Without this the Reason names only the critical
+			// alert while the incompleteness sits in Facts, so a reader who
+			// remediates the critical and re-scans meets the second finding as
+			// a surprise rather than having been told about it the first time.
+			reason += fmt.Sprintf("; a further %d open alert(s) could not be classified by severity, so there may be more",
+				summary.OpenUnclassifiedCount)
+		}
 	case summary.OpenUnclassifiedCount > 0:
 		// The pass says "no critical alert open beyond the window". That claim
 		// cannot be made over an alert whose severity was never interpreted —

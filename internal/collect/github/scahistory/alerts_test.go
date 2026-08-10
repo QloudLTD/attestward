@@ -193,3 +193,24 @@ func TestFullyClassifiedAlertsStillPass(t *testing.T) {
 			got.Status, got.Reason)
 	}
 }
+
+// TestBothFindingsAreNamedTogether pins that the definite finding leading does
+// not bury the incomplete one. A reader who fixes the critical alert and
+// re-scans should not meet the unclassified finding as a surprise.
+func TestBothFindingsAreNamedTogether(t *testing.T) {
+	now := alertDay(200)
+	summary := summarizeAlerts([]*ghgithub.DependabotAlert{
+		alertAt(severityCritical, alertDay(1)),              // stale critical
+		{CreatedAt: &ghgithub.Timestamp{Time: alertDay(2)}}, // unclassified
+	}, now)
+	got := checkAlertsTriaged("o", "r", nil, nil, summary, nil)
+	if got.Status != model.StatusPartial {
+		t.Fatalf("status = %q, want partial", got.Status)
+	}
+	if !strings.Contains(got.Reason, "critical alert(s) open") {
+		t.Errorf("reason must name the definite finding first, got: %s", got.Reason)
+	}
+	if !strings.Contains(got.Reason, "could not be classified") {
+		t.Errorf("reason must also name the unclassified alerts, got: %s", got.Reason)
+	}
+}
