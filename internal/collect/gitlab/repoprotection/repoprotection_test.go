@@ -42,16 +42,16 @@ func collectWith(t *testing.T, r routes) []model.CheckResult {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/protected_branches"):
-			fmt.Fprint(w, r.branches)
+			_, _ = fmt.Fprint(w, r.branches)
 		case strings.HasSuffix(req.URL.Path, "/approvals"):
 			if r.approvalsStatus != 0 && r.approvalsStatus != 200 {
 				w.WriteHeader(r.approvalsStatus)
-				fmt.Fprint(w, `{"message":"403 Forbidden"}`)
+				_, _ = fmt.Fprint(w, `{"message":"403 Forbidden"}`)
 				return
 			}
-			fmt.Fprint(w, r.approvals)
+			_, _ = fmt.Fprint(w, r.approvals)
 		default:
-			fmt.Fprint(w, r.project)
+			_, _ = fmt.Fprint(w, r.project)
 		}
 	}))
 	t.Cleanup(srv.Close)

@@ -35,14 +35,14 @@ func TestGetJSONPagedFollowsEveryPage(t *testing.T) {
 			w.Header().Set("X-Next-Page", strconv.Itoa(page+1))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, "[")
+		_, _ = fmt.Fprint(w, "[")
 		for i := start; i < end; i++ {
 			if i > start {
-				fmt.Fprint(w, ",")
+				_, _ = fmt.Fprint(w, ",")
 			}
-			fmt.Fprintf(w, `{"id":%d}`, i)
+			_, _ = fmt.Fprintf(w, `{"id":%d}`, i)
 		}
-		fmt.Fprint(w, "]")
+		_, _ = fmt.Fprint(w, "]")
 	}))
 	defer srv.Close()
 
@@ -69,10 +69,10 @@ func TestGetJSONPagedFollowsEveryPage(t *testing.T) {
 // pointing at the same page fails loudly with a partial result, rather than
 // looping until the context dies.
 func TestGetJSONPagedStopsOnNonAdvancingNextPage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Next-Page", "1") // never advances
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `[{"id":1}]`)
+		_, _ = fmt.Fprint(w, `[{"id":1}]`)
 	}))
 	defer srv.Close()
 
@@ -100,9 +100,9 @@ func TestReadOnlyIsEnforcedInTheTransport(t *testing.T) {
 // platform's evidence is trustworthy: 403 means "not entitled", which must
 // never be read as "control absent".
 func TestTierGatedIsNotAFailure(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"message":"403 Forbidden"}`)
+		_, _ = fmt.Fprint(w, `{"message":"403 Forbidden"}`)
 	}))
 	defer srv.Close()
 
@@ -123,9 +123,9 @@ func TestTierGatedIsNotAFailure(t *testing.T) {
 // TestProvenanceRecordsEveryCall pins that the pack can prove which bytes a
 // conclusion came from.
 func TestProvenanceRecordsEveryCall(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"id":1}`)
+		_, _ = fmt.Fprint(w, `{"id":1}`)
 	}))
 	defer srv.Close()
 

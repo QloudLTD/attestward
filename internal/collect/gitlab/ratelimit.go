@@ -50,7 +50,7 @@ func (t *rateLimitTransport) RoundTrip(req *http.Request) (*http.Response, error
 		// is a far more actionable outcome than a scan that appears hung.
 		return resp, nil
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	t.sleep(wait)
 	return t.base.RoundTrip(req)
 }

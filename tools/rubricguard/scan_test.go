@@ -130,10 +130,10 @@ func TestAggregate_FlagsWhenRubricUntouchedAndStatusChanged(t *testing.T) {
 		{Path: "checks.go", RubricTouched: false, StatusLines: []int{42}},
 	}
 	pf := aggregate("internal/collect/github/example", findings, true)
-	if pf == nil {
+	switch {
+	case pf == nil:
 		t.Fatal("expected a finding")
-	}
-	if len(pf.Files) != 1 || pf.Files[0].Path != "checks.go" {
+	case len(pf.Files) != 1 || pf.Files[0].Path != "checks.go":
 		t.Errorf("unexpected finding contents: %+v", pf)
 	}
 }
