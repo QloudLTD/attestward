@@ -79,9 +79,10 @@ var checkRemediations = map[string]string{
 // sharedSecurityMDResolveErrRubric is shared by security-md and
 // intake-channel: both are computed from the SAME resolveSecurityMD call,
 // so a resolution failure reaches both identically.
-const sharedSecurityMDResolveErrRubric = "resolving SECURITY.md failed with a genuine API error — " +
-	"permission denied, a malformed response, or another failure; a plain 404 at one candidate path is " +
-	"never this cause, since that just means the next path is tried"
+const sharedSecurityMDResolveErrRubric = "reading the project (for its default branch) or resolving " +
+	"SECURITY.md within it failed with a genuine API error — permission denied, a malformed response, or " +
+	"another failure; a plain 404 at one candidate SECURITY.md path is never this cause on its own, since " +
+	"that just means the next path is tried"
 
 var checkRubrics = map[string]map[model.Status]string{
 	securityMDID: {
@@ -90,10 +91,12 @@ var checkRubrics = map[string]map[model.Status]string{
 			"checks for, not a platform-enforced one: GitLab documents no community-health-file search " +
 			"order the way GitHub does, and has no org-wide-default mechanism to fall back to (see " +
 			"C10.vdp.security-policy-org)",
-		model.StatusVerifiedFail: "no SECURITY.md resolved at either candidate path — includes the case " +
-			"where the project itself doesn't exist or isn't visible to this token, which a 404 at both " +
-			"paths can't distinguish from a genuinely missing file",
-		model.StatusNotCheckable: sharedSecurityMDResolveErrRubric,
+		model.StatusVerifiedFail: "the project itself was readable, but no SECURITY.md resolved at either " +
+			"candidate path within it",
+		model.StatusNotCheckable: sharedSecurityMDResolveErrRubric + ". This also covers a missing or " +
+			"invisible project: unlike the Azure DevOps twin, which addresses the repo directly and so " +
+			"folds that case into verified-fail, this collector reads the project first to find its default " +
+			"branch, so a 404 there is a read failure, not a confirmed absence of the file",
 	},
 	intakeChannelID: {
 		model.StatusVerifiedPass: "SECURITY.md resolved (see C10.vdp.security-md) and its content matches " +

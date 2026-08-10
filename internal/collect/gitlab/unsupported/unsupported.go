@@ -210,10 +210,13 @@ var checks = []check{
 	// reason, but the fourth (repo.webhooks) is a real, free-tier check that
 	// this package's blanket "paid tier" reason was wrongly applied to.
 	// C10 vdp moved to internal/collect/gitlab/vdp: security-md and
-	// intake-channel are now real, free-tier checks; private-reporting and
-	// security-policy-org stay always-not-checkable there, for platform
-	// facts (no equivalent feature exists), not the wrong "paid tier"
-	// reason this table previously gave all four checks alike.
+	// intake-channel are now real checks; private-reporting and
+	// security-policy-org stay always-not-checkable there, but now for the
+	// platform fact that neither mechanism exists on GitLab at all, rather
+	// than this table's previous "GitLab serves repository files over the
+	// API... this build does not read it yet" — true of security-md and
+	// intake-channel, but not of the other two, which nothing was ever
+	// going to "start reading."
 }
 
 func init() {

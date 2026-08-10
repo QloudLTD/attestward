@@ -154,6 +154,42 @@ func TestProjectFetchFailureIsNotCheckable(t *testing.T) {
 	}
 }
 
+// TestMissingProjectIsNotCheckableNotAFail pins the distinction review found:
+// unlike the Azure DevOps twin, which addresses the repo directly and so
+// folds a missing/invisible repo into verified-fail, this collector reads
+// the project first for its default branch — so a 404 there is a read
+// failure (not-checkable), never a confirmed absence of the file. A reader
+// treating verified-fail as excluding "the token couldn't see the project"
+// would have the two statuses backwards without this.
+func TestMissingProjectIsNotCheckableNotAFail(t *testing.T) {
+	got := byID(collectWith(t, vdpMux(404, nil, nil), "g", "p"))
+	for _, id := range []string{securityMDID, intakeChannelID} {
+		if got[id].Status == model.StatusVerifiedFail {
+			t.Errorf("%s = verified-fail for a 404'd project — that asserts a confirmed absence of "+
+				"SECURITY.md when the file was never actually looked for", id)
+		}
+		if got[id].Status != model.StatusNotCheckable {
+			t.Errorf("%s = %q, want not-checkable", id, got[id].Status)
+		}
+	}
+}
+
+// TestEmptyDecodedContentIsNotCheckableNotAFalseFail pins the one guard in
+// resolve.go that had no test of its own — review's mutation deleting it
+// survived the whole suite. A 2xx response that decodes to zero bytes is
+// indistinguishable from a genuinely empty file from this response alone,
+// so it must not be silently treated as "keep trying, not found": that
+// would either under-report (false verified-fail, if no later path exists)
+// or, worse, quietly skip a real response the caller should have been told
+// it couldn't interpret.
+func TestEmptyDecodedContentIsNotCheckableNotAFalseFail(t *testing.T) {
+	got := byID(collectWith(t, vdpMux(200, map[string]int{"SECURITY.md": 200}, map[string]string{"SECURITY.md": ""}), "g", "p"))
+	if got[securityMDID].Status != model.StatusNotCheckable {
+		t.Errorf("security-md = %q, want not-checkable — a 2xx response that decoded to empty content is "+
+			"not evidence the file is absent", got[securityMDID].Status)
+	}
+}
+
 func TestFileReadFailureIsNotCheckable(t *testing.T) {
 	got := byID(collectWith(t, vdpMux(200, map[string]int{"SECURITY.md": 403, "docs/SECURITY.md": 403}, nil), "g", "p"))
 	for _, id := range []string{securityMDID, intakeChannelID} {
@@ -234,6 +270,7 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 		{"resolved but vague", vdpMux(200, map[string]int{"SECURITY.md": 200}, map[string]string{"SECURITY.md": "we take security seriously"}), withRepoChecks(pass, partial)},
 		{"not found anywhere", vdpMux(200, nil, nil), withRepoChecks(fail, fail)},
 		{"project unreadable", vdpMux(403, nil, nil), withRepoChecks(nc, nc)},
+		{"project missing (404)", vdpMux(404, nil, nil), withRepoChecks(nc, nc)},
 		{"file unreadable", vdpMux(200, map[string]int{"SECURITY.md": 403, "docs/SECURITY.md": 403}, nil), withRepoChecks(nc, nc)},
 	}
 

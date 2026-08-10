@@ -2910,7 +2910,7 @@ This check is registered under more than one platform — details for each below
 
 - **verified-fail:** no SECURITY.md exists to advertise an intake channel at all — shares C10.vdp.security-md's own fail condition, since there's nothing to inspect for a channel
 - **partial:** SECURITY.md resolved, but neither intake-channel signal was found in its content — the file exists but doesn't tell a reporter how to actually reach the producer
-- **not-checkable:** resolving SECURITY.md failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate path is never this cause, since that just means the next path is tried
+- **not-checkable:** reading the project (for its default branch) or resolving SECURITY.md within it failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate SECURITY.md path is never this cause on its own, since that just means the next path is tried
 - **verified-pass:** SECURITY.md resolved (see C10.vdp.security-md) and its content matches at least one of two signals: an email address or an http(s):// URL — narrower than the GitHub twin's three signals, since GitLab has no private-vulnerability-reporting feature whose mention could count as a third (see C10.vdp.private-reporting)
 
 **Remediation:** If no SECURITY.md exists at all, add one first (see C10.vdp.security-md). If it exists but this still fails, make the intake channel concrete and actionable: an email address, or a URL (e.g. a reporting form or bug-bounty page) — not just general prose like "we take security seriously."
@@ -3043,8 +3043,8 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** no SECURITY.md resolved at either candidate path — includes the case where the project itself doesn't exist or isn't visible to this token, which a 404 at both paths can't distinguish from a genuinely missing file
-- **not-checkable:** resolving SECURITY.md failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate path is never this cause, since that just means the next path is tried
+- **verified-fail:** the project itself was readable, but no SECURITY.md resolved at either candidate path within it
+- **not-checkable:** reading the project (for its default branch) or resolving SECURITY.md within it failed with a genuine API error — permission denied, a malformed response, or another failure; a plain 404 at one candidate SECURITY.md path is never this cause on its own, since that just means the next path is tried. This also covers a missing or invisible project: unlike the Azure DevOps twin, which addresses the repo directly and so folds that case into verified-fail, this collector reads the project first to find its default branch, so a 404 there is a read failure, not a confirmed absence of the file
 - **verified-pass:** SECURITY.md resolved at one of two candidate paths — SECURITY.md (repo root) or docs/SECURITY.md, tried in that order — a repo-content convention this collector checks for, not a platform-enforced one: GitLab documents no community-health-file search order the way GitHub does, and has no org-wide-default mechanism to fall back to (see C10.vdp.security-policy-org)
 
 **Remediation:** Add a SECURITY.md at the project root or under docs/ describing how to report a vulnerability. GitLab has no org-wide-default mechanism to add it to instead (see C10.vdp.security-policy-org) — it must live in this project.
