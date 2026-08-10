@@ -56,7 +56,6 @@ var rubricGuardUnwired = map[string]bool{
 	"gitlab/C06.sca-history":           true,
 	"gitlab/C07.provenance":            true,
 	"gitlab/C08.actions-security":      true,
-	"gitlab/C09.audit-logging":         true,
 	"gitlab/C10.vdp":                   true,
 }
 
@@ -140,6 +139,7 @@ var rubricGuardWired = map[string]bool{
 	"gogs/C07.provenance":        true,
 	"gogs/C08.actions-security":  true,
 	"gogs/C09.audit-logging":     true,
+	"gitlab/C09.audit-logging":   true,
 	"gogs/C02.repo-protection":   true,
 	"gitlab/C02.repo-protection": true,
 	"github/C01.org-security":    true,

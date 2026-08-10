@@ -205,26 +205,10 @@ var checks = []check{
 		collectorID: "C08.actions-security", scope: orgScoped,
 		reason: "GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet",
 	},
-	{
-		id: "C09.audit.log-streaming", title: "Audit-log export/streaming is configured",
-		collectorID: "C09.audit-logging", scope: orgScoped,
-		reason: "GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet",
-	},
-	{
-		id: "C09.audit.org-log-available", title: "Organization audit log is reachable via the API",
-		collectorID: "C09.audit-logging", scope: orgScoped,
-		reason: "GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet",
-	},
-	{
-		id: "C09.audit.retention-awareness", title: "Audit-log retention window (informational)",
-		collectorID: "C09.audit-logging", scope: orgScoped,
-		reason: "GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet",
-	},
-	{
-		id: "C09.repo.webhooks", title: "A webhook exports push/release/deployment events",
-		collectorID: "C09.audit-logging", scope: repoScoped,
-		reason: "GitLab's audit events API is a paid-tier feature; on a free project there is no audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build does not read it yet",
-	},
+	// C09 audit-logging moved to internal/collect/gitlab/auditlogging: three of
+	// its four checks stay always-not-checkable there for the same paid-tier
+	// reason, but the fourth (repo.webhooks) is a real, free-tier check that
+	// this package's blanket "paid tier" reason was wrongly applied to.
 	{
 		id: "C10.vdp.intake-channel", title: "SECURITY.md advertises an actionable intake channel",
 		collectorID: "C10.vdp", scope: orgScoped,
