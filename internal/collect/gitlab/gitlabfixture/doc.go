@@ -30,9 +30,31 @@
 // 403-not-entitled.json is the other half of the contract: the tier-gated
 // branch is the one that must never turn into a verified-fail.
 //
-// ⚠ Nothing reads these files yet. They were recorded ahead of the C04-C06
-// collectors, while an entitled namespace was available, because the window to
-// capture them was narrower than the window to write the code. Until those
-// collectors land, the 403 path is covered by inline literals in the existing
-// tests, not by 403-not-entitled.json.
+// # What is executed, and what is only staged
+//
+// These were recorded ahead of the C04-C06 collectors, while an entitled
+// namespace was available, because the window to capture them was narrower
+// than the window to write the code. For a while nothing read them at all,
+// which is worse than having no recordings: they cost real effort to capture,
+// they look like coverage in a diff, and they answer no question.
+//
+// Executed today:
+//   - vulnerabilities-all-states.json drives IsOpenVulnerability in the parent
+//     package, which is where the decision that a dismissed or resolved finding
+//     must never count as open is written down and tested.
+//   - every file here is parsed by TestEveryRecordedFixtureIsReadableAndParses,
+//     so a truncated or corrupted capture fails at the commit that made it
+//     rather than months later when its collector is finally written.
+//
+// Staged, not yet executed: dependencies.json, vulnerability_findings.json,
+// and the two audit-event recordings, which wait on their collectors. The
+// tier-gated 403 path is covered by inline literals in the existing client and
+// repoprotection tests, NOT by 403-not-entitled.json — that file is staged too.
+//
+// # Scrubbing
+//
+// The audit-event recordings have had author_name, author_email and ip_address
+// removed and author_id flattened to 1. GitLab does return those fields; their
+// absence here is our hygiene, not the API's shape. A collector author reading
+// these should not conclude the fields are unavailable.
 package gitlabfixture
