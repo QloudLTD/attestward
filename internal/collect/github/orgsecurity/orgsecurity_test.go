@@ -510,9 +510,17 @@ func TestKnownDefaultRepoPermissionsStillDecide(t *testing.T) {
 // first (issue #11).
 //
 // Driving the whole collector over httptest reaches every status of all four
-// checks with NO exemptions, and closes a real gap as a side effect: the
-// members-listing-failure path was previously reached by no test at all, since
-// every other test here either fails at the org fetch or returns members 200.
+// checks with NO exemptions, and closes a real gap: the members-listing-failure
+// path was previously reached by no test at all, since every other test here
+// either fails at the org fetch or returns members 200.
+//
+// ⚠ Reaching a path is not testing it, and the first version of this conversion
+// only reached it. Review showed that mutating that branch to return
+// verified-pass left the entire package green — the guard unions statuses per
+// check, and members-without-2FA reaches not-checkable by another route
+// anyway, so the mutant lost nothing the assertion could see. Every state now
+// pins its expected outcome per check, which is what makes a state
+// load-bearing rather than merely executed.
 func TestRubricsMatchObservedBehaviour(t *testing.T) {
 	orgBody := func(twoFA bool, perm string, canCreatePublic bool) map[string]any {
 		return map[string]any{
@@ -522,29 +530,54 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 		}
 	}
 	// members returns the 2FA-disabled list; a non-empty one is the fail.
+	const (
+		twoFA   = "C01.org.2fa-required"
+		perm    = "C01.org.default-repo-permission"
+		public  = "C01.org.members-can-create-public"
+		without = "C01.org.members-without-2fa"
+	)
+	pass, fail, nc := model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusNotCheckable
+
+	// want pins each state's OUTCOME, not just that it executes. Review found
+	// the first version asserted neither: mutating the members-listing-failure
+	// branch to return verified-pass left the whole package green, because the
+	// guard only unions statuses per check and that check reaches not-checkable
+	// by another route anyway. The branch was executed and its result was
+	// checked by nothing — which is exactly the gap this conversion was
+	// advertised as closing.
 	states := []struct {
 		name          string
 		orgStatus     int
 		org           map[string]any
 		membersStatus int
 		members       []map[string]any
+		want          map[string]model.Status
 	}{
 		{name: "everything passing", orgStatus: 200, org: orgBody(true, "read", false),
-			membersStatus: 200, members: []map[string]any{}},
+			membersStatus: 200, members: []map[string]any{},
+			want: map[string]model.Status{twoFA: pass, perm: pass, public: pass, without: pass}},
 		{name: "everything failing", orgStatus: 200, org: orgBody(false, "admin", true),
-			membersStatus: 200, members: []map[string]any{{"login": "a"}, {"login": "b"}}},
+			membersStatus: 200, members: []map[string]any{{"login": "a"}, {"login": "b"}},
+			want: map[string]model.Status{twoFA: fail, perm: fail, public: fail, without: fail}},
 		// Unrecognised permission enum -> not-checkable for that check alone.
 		{name: "unrecognised permission", orgStatus: 200, org: orgBody(true, "triage", false),
-			membersStatus: 200, members: []map[string]any{}},
+			membersStatus: 200, members: []map[string]any{},
+			want: map[string]model.Status{twoFA: pass, perm: nc, public: pass, without: pass}},
 		// Fields absent -> not-checkable for the three org-derived checks.
 		{name: "fields absent", orgStatus: 200, org: map[string]any{},
-			membersStatus: 200, members: []map[string]any{}},
+			membersStatus: 200, members: []map[string]any{},
+			want: map[string]model.Status{twoFA: nc, perm: nc, public: nc, without: pass}},
 		// The gap this conversion closes: the org reads fine but the members
 		// listing does not, so only members-without-2FA is not-checkable.
+		// The outcome that motivated this conversion: the org reads fine, so the
+		// three org-derived checks still decide, and ONLY members-without-2FA
+		// is not-checkable. Asserting that is what makes the state load-bearing.
 		{name: "members unreadable", orgStatus: 200, org: orgBody(true, "read", false),
-			membersStatus: 403},
+			membersStatus: 403,
+			want:          map[string]model.Status{twoFA: pass, perm: pass, public: pass, without: nc}},
 		// The org itself unreadable -> every check not-checkable.
-		{name: "org unreadable", orgStatus: 404},
+		{name: "org unreadable", orgStatus: 404,
+			want: map[string]model.Status{twoFA: nc, perm: nc, public: nc, without: nc}},
 	}
 
 	var all []model.CheckResult
@@ -568,6 +601,15 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 			res, err := newTestCollector(t, mux).Collect(context.Background(), collect.Scope{Org: "o"})
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
+			}
+			for _, r := range res {
+				if want, ok := st.want[r.CheckID]; ok && r.Status != want {
+					t.Errorf("%s = %q, want %q; reason=%q", r.CheckID, r.Status, want, r.Reason)
+				}
+			}
+			if len(res) != len(st.want) {
+				t.Errorf("got %d results, want %d — every check must have a pinned outcome in this state",
+					len(res), len(st.want))
 			}
 			all = append(all, res...)
 		})
