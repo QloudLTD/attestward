@@ -176,10 +176,14 @@ var checkRubrics = map[string]map[model.Status]string{
 			"does too rather than asserting a confident absence over it",
 	},
 	"C06.sca.alerts-triaged": {
-		model.StatusVerifiedPass: fmt.Sprintf("the open-alerts fetch succeeded, and no critical alert has "+
-			"been open longer than the %.0f-day triage window", criticalTriageThresholdDays),
-		model.StatusPartial: fmt.Sprintf("one or more critical alerts are open, and the oldest has been "+
-			"open longer than the %.0f-day triage window", criticalTriageThresholdDays),
+		model.StatusVerifiedPass: fmt.Sprintf("the open-alerts fetch succeeded, EVERY open alert's severity "+
+			"was interpreted, and no critical alert has been open longer than the %.0f-day triage window",
+			criticalTriageThresholdDays),
+		model.StatusPartial: fmt.Sprintf("either one or more critical alerts are open with the oldest beyond "+
+			"the %.0f-day triage window, or one or more open alerts carried a severity this build could not "+
+			"interpret (a missing security advisory, or a value outside GitHub's enum) so a stale critical "+
+			"alert cannot be ruled out. Facts carry open_unclassified_count for the second case.",
+			criticalTriageThresholdDays),
 		model.StatusVerifiedFail: "Dependabot alerts are not enabled for this repository (the alerts " +
 			"endpoint returned 403 with a message confirming the feature itself is disabled, not a generic " +
 			"permission or not-found error)",

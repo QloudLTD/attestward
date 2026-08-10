@@ -134,8 +134,8 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** the org's `default_repository_permission` field is anything other than "read" or "none" (i.e. "write" or "admin" today, per GitHub's documented enum for this field — the check itself only tests for the two passing values, not an exhaustive fail list)
-- **not-checkable:** the org couldn't be read (403/404/other API error), or its API response omitted `default_repository_permission`
+- **verified-fail:** the org's `default_repository_permission` field is "write" or "admin" — the two permissive values in GitHub's documented enum. A fail names a value actually observed; an unrecognised value is not-checkable, not a fail.
+- **not-checkable:** the org couldn't be read (403/404/other API error), its API response omitted `default_repository_permission`, or that field held a value outside GitHub's documented enum, which cannot be judged restrictive or permissive without guessing
 - **verified-pass:** the org's `default_repository_permission` field is "read" or "none"
 
 **Remediation:** Org Settings -> Member privileges -> Base permissions -> set to "Read" or "No permission" so members don't get write access to every repo by default.
@@ -1623,9 +1623,9 @@ This check is registered under more than one platform — details for each below
 **Status rubric:**
 
 - **verified-fail:** Dependabot alerts are not enabled for this repository (the alerts endpoint returned 403 with a message confirming the feature itself is disabled, not a generic permission or not-found error)
-- **partial:** one or more critical alerts are open, and the oldest has been open longer than the 30-day triage window
+- **partial:** either one or more critical alerts are open with the oldest beyond the 30-day triage window, or one or more open alerts carried a severity this build could not interpret (a missing security advisory, or a value outside GitHub's enum) so a stale critical alert cannot be ruled out. Facts carry open_unclassified_count for the second case.
 - **not-checkable:** the repo fetch or the workflow listing failed (403/plan-gated/other API error) — collectRepo returns not-checkable for every check on either failure, since none of them can be computed without this shared evidence; or the embedded scanner-signature registry itself failed to load (a binary-level failure, independent of the scanned repo — since issue #255, this fallback is no longer reachable via `attestward scan`: the orchestrator's own load of the same embedded file now aborts the whole scan first if it fails; kept as defense in depth for any caller that doesn't go through scan.go's own pre-load); or the open-alerts fetch failed with something other than a confirmed "alerts disabled" 403 (a genuine permission denial, a 404, or another API error) — this collector can't distinguish those causes from GitHub's response alone
-- **verified-pass:** the open-alerts fetch succeeded, and no critical alert has been open longer than the 30-day triage window
+- **verified-pass:** the open-alerts fetch succeeded, EVERY open alert's severity was interpreted, and no critical alert has been open longer than the 30-day triage window
 
 **Remediation:** If Dependabot alerts are disabled entirely, enable them first: repo Settings -> Code security -> enable "Dependabot alerts" (see C04.deps.dependabot-alerts). Once enabled, triage: Security -> Dependabot alerts -> filter by Critical severity -> fix or dismiss (with a documented reason) any critical alert open longer than 30 days.
 

@@ -1,8 +1,11 @@
 package scahistory
 
 import (
+	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/sioakeim/attestward/internal/model"
 
 	ghgithub "github.com/google/go-github/v75/github"
 )
@@ -97,4 +100,96 @@ func TestSummarizeAlerts(t *testing.T) {
 			t.Errorf("severity buckets = %+v, want all zero for an unrecognized severity", got)
 		}
 	})
+}
+
+// TestUninterpretedSeverityIsCountedNotAbsorbed pins the false pass this fix
+// closes. GitHub does return alerts with a nil SecurityAdvisory — the
+// production read nil-guards it, so the shape is observed, not hypothetical —
+// and such an alert used to increment only OpenTotalCount. It vanished from
+// every severity bucket, and the triage check then reported "no critical alert
+// open beyond the window" over an alert it had never classified.
+func TestUninterpretedSeverityIsCountedNotAbsorbed(t *testing.T) {
+	now := alertDay(100)
+	cases := []struct {
+		name  string
+		alert *ghgithub.DependabotAlert
+	}{
+		{"nil advisory", &ghgithub.DependabotAlert{CreatedAt: &ghgithub.Timestamp{Time: alertDay(1)}}},
+		{"empty severity", alertAt("", alertDay(1))},
+		{"unknown severity", alertAt("catastrophic", alertDay(1))},
+		{"wrong case", alertAt("Critical", alertDay(1))},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := summarizeAlerts([]*ghgithub.DependabotAlert{c.alert}, now)
+			if got.OpenUnclassifiedCount != 1 {
+				t.Errorf("OpenUnclassifiedCount = %d, want 1 — an uninterpreted severity must be recorded as such, "+
+					"not absorbed into the total where it looks classified", got.OpenUnclassifiedCount)
+			}
+			if got.OpenCriticalCount+got.OpenHighCount+got.OpenMediumCount+got.OpenLowCount != 0 {
+				t.Errorf("an uninterpreted severity landed in a severity bucket: %+v", got)
+			}
+			if got.OldestUnclassifiedAgeDays != 99 {
+				t.Errorf("OldestUnclassifiedAgeDays = %v, want 99", got.OldestUnclassifiedAgeDays)
+			}
+		})
+	}
+}
+
+// TestSeverityBucketsAlwaysSumToTheTotal is the invariant that makes the
+// evidence self-consistent. If it ever fails, a pack's facts contain a
+// conclusion its own numbers contradict.
+func TestSeverityBucketsAlwaysSumToTheTotal(t *testing.T) {
+	now := alertDay(100)
+	alerts := []*ghgithub.DependabotAlert{
+		alertAt(severityCritical, alertDay(1)),
+		alertAt(severityHigh, alertDay(2)),
+		alertAt(severityMedium, alertDay(3)),
+		alertAt(severityLow, alertDay(4)),
+		alertAt("", alertDay(5)),
+		{CreatedAt: &ghgithub.Timestamp{Time: alertDay(6)}},
+	}
+	got := summarizeAlerts(alerts, now)
+	sum := got.OpenCriticalCount + got.OpenHighCount + got.OpenMediumCount + got.OpenLowCount + got.OpenUnclassifiedCount
+	if sum != got.OpenTotalCount {
+		t.Errorf("buckets sum to %d but total is %d — %d alert(s) are unaccounted for, which is exactly how an "+
+			"unclassified critical alert used to disappear", sum, got.OpenTotalCount, got.OpenTotalCount-sum)
+	}
+}
+
+// TestUnclassifiedAlertBlocksTheTriagePass is the finding itself: a critical,
+// long-open alert whose severity the build could not read used to produce
+// verified-pass — a signed claim that triage was clean, over an alert never
+// classified.
+func TestUnclassifiedAlertBlocksTheTriagePass(t *testing.T) {
+	now := alertDay(100)
+	// One unclassified alert, open far beyond the triage window.
+	summary := summarizeAlerts([]*ghgithub.DependabotAlert{
+		{CreatedAt: &ghgithub.Timestamp{Time: alertDay(1)}},
+	}, now)
+
+	got := checkAlertsTriaged("o", "r", nil, nil, summary, nil)
+	if got.Status == model.StatusVerifiedPass {
+		t.Fatal("verified-pass asserted over an alert whose severity was never interpreted; it may be the critical one")
+	}
+	if got.Status != model.StatusPartial {
+		t.Errorf("status = %q, want partial", got.Status)
+	}
+	if !strings.Contains(got.Reason, "could not be classified") {
+		t.Errorf("reason must say why the claim cannot be made, got: %s", got.Reason)
+	}
+}
+
+// TestFullyClassifiedAlertsStillPass guards the other direction, so the refusal
+// cannot swallow the case the check exists to answer.
+func TestFullyClassifiedAlertsStillPass(t *testing.T) {
+	now := alertDay(100)
+	summary := summarizeAlerts([]*ghgithub.DependabotAlert{
+		alertAt(severityLow, alertDay(1)),
+		alertAt(severityCritical, alertDay(99)), // critical but inside the window
+	}, now)
+	if got := checkAlertsTriaged("o", "r", nil, nil, summary, nil); got.Status != model.StatusVerifiedPass {
+		t.Errorf("status = %q (%s), want verified-pass — every alert was classified and no critical is stale",
+			got.Status, got.Reason)
+	}
 }

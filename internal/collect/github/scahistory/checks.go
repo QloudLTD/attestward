@@ -559,22 +559,40 @@ func checkAlertsTriaged(org, repo string, resp *ghgithub.Response, err error, su
 	}
 
 	status, reason := model.StatusVerifiedPass, fmt.Sprintf("%d open alert(s), no critical alert open beyond the %.0f-day triage window", summary.OpenTotalCount, criticalTriageThresholdDays)
-	if summary.OpenCriticalCount > 0 && summary.OldestCriticalAgeDays > criticalTriageThresholdDays {
+	switch {
+	case summary.OpenCriticalCount > 0 && summary.OldestCriticalAgeDays > criticalTriageThresholdDays:
+		// A definite finding outranks an incomplete one: we know something is
+		// wrong, so say that rather than that we could not tell.
 		status = model.StatusPartial
 		reason = fmt.Sprintf("%d critical alert(s) open, oldest %.0f day(s) — beyond the %.0f-day triage window", summary.OpenCriticalCount, summary.OldestCriticalAgeDays, criticalTriageThresholdDays)
+	case summary.OpenUnclassifiedCount > 0:
+		// The pass says "no critical alert open beyond the window". That claim
+		// cannot be made over an alert whose severity was never interpreted —
+		// it may be the critical one. Passing here would tell a producer their
+		// triage is clean, in a signed attestation, on the strength of a field
+		// the build could not read.
+		status = model.StatusPartial
+		reason = fmt.Sprintf("%d of %d open alert(s) could not be classified by severity (oldest %.0f day(s)), "+
+			"so a critical alert beyond the %.0f-day triage window cannot be ruled out",
+			summary.OpenUnclassifiedCount, summary.OpenTotalCount, summary.OldestUnclassifiedAgeDays, criticalTriageThresholdDays)
 	}
 
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
 		Facts: map[string]any{
-			"open_critical_count":   summary.OpenCriticalCount,
-			"open_high_count":       summary.OpenHighCount,
-			"open_medium_count":     summary.OpenMediumCount,
-			"open_low_count":        summary.OpenLowCount,
-			"open_total_count":      summary.OpenTotalCount,
-			"oldest_open_age_days":  summary.OldestOpenAgeDays,
-			"triage_threshold_days": criticalTriageThresholdDays,
+			"open_critical_count": summary.OpenCriticalCount,
+			"open_high_count":     summary.OpenHighCount,
+			"open_medium_count":   summary.OpenMediumCount,
+			"open_low_count":      summary.OpenLowCount,
+			"open_total_count":    summary.OpenTotalCount,
+			// Surfaced so the evidence and the conclusion agree. Without it the
+			// severity buckets silently fail to sum to the total, and only a
+			// reader who noticed the arithmetic would know why.
+			"open_unclassified_count":      summary.OpenUnclassifiedCount,
+			"oldest_unclassified_age_days": summary.OldestUnclassifiedAgeDays,
+			"oldest_open_age_days":         summary.OldestOpenAgeDays,
+			"triage_threshold_days":        criticalTriageThresholdDays,
 		},
 	}
 }

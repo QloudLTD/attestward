@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	ghgithub "github.com/google/go-github/v75/github"
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
@@ -448,6 +449,40 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 
 		if meta.FixtureRef == "" {
 			t.Errorf("%s: FixtureRef is empty", id)
+		}
+	}
+}
+
+// TestUnknownDefaultRepoPermissionIsNotAFail pins the mirror of the GitLab
+// finding: refusing to guess must hold in both directions, or it is just a
+// preference for one kind of error. An unrecognised value used to produce
+// verified-fail with a reason implying a permissive default never observed.
+func TestUnknownDefaultRepoPermissionIsNotAFail(t *testing.T) {
+	for _, perm := range []string{"", "triage", "maintain", "Read"} {
+		org := &ghgithub.Organization{DefaultRepoPermission: ghgithub.Ptr(perm)}
+		got := checkDefaultRepoPermission(collect.Scope{Org: "o"}, org, nil)
+		if got.Status == model.StatusVerifiedFail {
+			t.Errorf("permission %q produced verified-fail — a finding against a producer from a value the build "+
+				"never interpreted", perm)
+		}
+		if got.Status != model.StatusNotCheckable {
+			t.Errorf("permission %q = %q, want not-checkable", perm, got.Status)
+		}
+	}
+}
+
+// TestKnownDefaultRepoPermissionsStillDecide guards the other direction, so the
+// refusal cannot swallow the cases the check exists to answer.
+func TestKnownDefaultRepoPermissionsStillDecide(t *testing.T) {
+	for perm, want := range map[string]model.Status{
+		"none":  model.StatusVerifiedPass,
+		"read":  model.StatusVerifiedPass,
+		"write": model.StatusVerifiedFail,
+		"admin": model.StatusVerifiedFail,
+	} {
+		org := &ghgithub.Organization{DefaultRepoPermission: ghgithub.Ptr(perm)}
+		if got := checkDefaultRepoPermission(collect.Scope{Org: "o"}, org, nil); got.Status != want {
+			t.Errorf("permission %q = %q, want %q", perm, got.Status, want)
 		}
 	}
 }

@@ -64,11 +64,12 @@ var checkRubrics = map[string]map[model.Status]string{
 	},
 	"C01.org.default-repo-permission": {
 		model.StatusVerifiedPass: "the org's `default_repository_permission` field is \"read\" or \"none\"",
-		model.StatusVerifiedFail: "the org's `default_repository_permission` field is anything other than " +
-			"\"read\" or \"none\" (i.e. \"write\" or \"admin\" today, per GitHub's documented enum for this " +
-			"field — the check itself only tests for the two passing values, not an exhaustive fail list)",
-		model.StatusNotCheckable: "the org couldn't be read (403/404/other API error), or its API response " +
-			"omitted `default_repository_permission`",
+		model.StatusVerifiedFail: "the org's `default_repository_permission` field is \"write\" or \"admin\" — " +
+			"the two permissive values in GitHub's documented enum. A fail names a value actually observed; " +
+			"an unrecognised value is not-checkable, not a fail.",
+		model.StatusNotCheckable: "the org couldn't be read (403/404/other API error), its API response " +
+			"omitted `default_repository_permission`, or that field held a value outside GitHub's documented " +
+			"enum, which cannot be judged restrictive or permissive without guessing",
 	},
 	"C01.org.members-can-create-public": {
 		model.StatusVerifiedPass: "the org's `members_can_create_public_repositories` field is false",
@@ -227,12 +228,30 @@ func checkDefaultRepoPermission(scope collect.Scope, org *ghgithub.Organization,
 		return notCheckableResult(id, scope, "the org API response did not include default_repository_permission", prov)
 	}
 	perm := *org.DefaultRepoPermission
-	pass := perm == "read" || perm == "none"
-	status := model.StatusVerifiedFail
-	reason := fmt.Sprintf("default repository permission is %q, want \"read\" or \"none\"", perm)
-	if pass {
+
+	// GitHub's documented values are "none", "read", "write" and "admin".
+	// Anything else is not-checkable rather than a fail.
+	//
+	// This used to fail on any unrecognised value, so an empty string or a
+	// future GitHub setting produced verified-fail with a reason implying a
+	// permissive default that was never observed. That is conservative for the
+	// reader but still an unsupported claim in a signed attestation, and it
+	// tells a producer to fix something that may not be broken — the same
+	// complaint the tier-gating work exists to avoid. Refusing to guess has to
+	// hold in both directions or it is just a preference for one error.
+	var status model.Status
+	var reason string
+	switch perm {
+	case "none", "read":
 		status = model.StatusVerifiedPass
 		reason = fmt.Sprintf("default repository permission is %q", perm)
+	case "write", "admin":
+		status = model.StatusVerifiedFail
+		reason = fmt.Sprintf("default repository permission is %q, want \"read\" or \"none\"", perm)
+	default:
+		return notCheckableResult(id, scope,
+			fmt.Sprintf("the org reported default_repository_permission %q, which this build does not recognise; "+
+				"whether it is restrictive cannot be determined without guessing", perm), prov)
 	}
 	return model.CheckResult{
 		CheckID:    id,
