@@ -495,42 +495,83 @@ func TestKnownDefaultRepoPermissionsStillDecide(t *testing.T) {
 // otherwise was the first thing review found here. When the default-permission
 // check stopped failing on unrecognised values, its status set was unchanged —
 // pass, fail and not-checkable before and after — and only the fail entry's
-// wording rotted, still reading "anything other than read or none". Restoring
-// that stale wording today leaves this suite green.
+// wording rotted. Restoring that stale wording today leaves this suite green.
 //
 // That is the limit stated on the assertion itself: it compares which statuses
 // are emitted, not whether their descriptions are true. What it does catch is
-// the gitlab tree's instances, where the status set genuinely moved —
-// deletion-blocked losing its pass, required-reviews losing pass and fail.
-// Description rot still needs a person reading the rubric whenever a status's
-// entry conditions change.
+// the gitlab tree's instances, where the status set genuinely moved.
+//
+// # Why this drives the collector rather than the check functions
+//
+// The first version called the four check functions directly and had to exempt
+// members-without-2FA, whose pass and fail need a live client. That exemption
+// was honest but avoidable, and it was the exemption mechanism's only use —
+// a poor norm to set when collecttest's own docs say to extend the matrix
+// first (issue #11).
+//
+// Driving the whole collector over httptest reaches every status of all four
+// checks with NO exemptions, and closes a real gap as a side effect: the
+// members-listing-failure path was previously reached by no test at all, since
+// every other test here either fails at the org fetch or returns members 200.
 func TestRubricsMatchObservedBehaviour(t *testing.T) {
-	org := func(perm string, canCreatePublic, twoFA bool) *ghgithub.Organization {
-		return &ghgithub.Organization{
-			DefaultRepoPermission:       ghgithub.Ptr(perm),
-			MembersCanCreatePublicRepos: ghgithub.Ptr(canCreatePublic),
-			TwoFactorRequirementEnabled: ghgithub.Ptr(twoFA),
+	orgBody := func(twoFA bool, perm string, canCreatePublic bool) map[string]any {
+		return map[string]any{
+			"two_factor_requirement_enabled":         twoFA,
+			"default_repository_permission":          perm,
+			"members_can_create_public_repositories": canCreatePublic,
 		}
 	}
-	scope := collect.Scope{Org: "o"}
+	// members returns the 2FA-disabled list; a non-empty one is the fail.
+	states := []struct {
+		name          string
+		orgStatus     int
+		org           map[string]any
+		membersStatus int
+		members       []map[string]any
+	}{
+		{name: "everything passing", orgStatus: 200, org: orgBody(true, "read", false),
+			membersStatus: 200, members: []map[string]any{}},
+		{name: "everything failing", orgStatus: 200, org: orgBody(false, "admin", true),
+			membersStatus: 200, members: []map[string]any{{"login": "a"}, {"login": "b"}}},
+		// Unrecognised permission enum -> not-checkable for that check alone.
+		{name: "unrecognised permission", orgStatus: 200, org: orgBody(true, "triage", false),
+			membersStatus: 200, members: []map[string]any{}},
+		// Fields absent -> not-checkable for the three org-derived checks.
+		{name: "fields absent", orgStatus: 200, org: map[string]any{},
+			membersStatus: 200, members: []map[string]any{}},
+		// The gap this conversion closes: the org reads fine but the members
+		// listing does not, so only members-without-2FA is not-checkable.
+		{name: "members unreadable", orgStatus: 200, org: orgBody(true, "read", false),
+			membersStatus: 403},
+		// The org itself unreadable -> every check not-checkable.
+		{name: "org unreadable", orgStatus: 404},
+	}
 
 	var all []model.CheckResult
-	for _, o := range []*ghgithub.Organization{
-		org("read", false, true),   // every check passing
-		org("admin", true, false),  // every check failing
-		org("triage", false, true), // unrecognised permission -> not-checkable
-		{},                         // every field absent -> not-checkable
-	} {
-		all = append(all,
-			checkDefaultRepoPermission(scope, o, nil),
-			checkMembersCanCreatePublic(scope, o, nil),
-			check2FARequired(scope, o, nil),
-		)
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc("/orgs/o", func(w http.ResponseWriter, _ *http.Request) {
+				if st.orgStatus != http.StatusOK {
+					writeJSON(t, w, st.orgStatus, map[string]any{"message": "nope"})
+					return
+				}
+				writeJSON(t, w, http.StatusOK, st.org)
+			})
+			mux.HandleFunc("/orgs/o/members", func(w http.ResponseWriter, _ *http.Request) {
+				if st.membersStatus != http.StatusOK {
+					writeJSON(t, w, st.membersStatus, map[string]any{"message": "nope"})
+					return
+				}
+				writeJSON(t, w, http.StatusOK, st.members)
+			})
+			res, err := newTestCollector(t, mux).Collect(context.Background(), collect.Scope{Org: "o"})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+			all = append(all, res...)
+		})
 	}
-	all = append(all, allNotCheckable(scope, "org unreadable", nil)...)
 
-	collecttest.AssertRubricsMatchObservedBehaviourExcept(t, "github", collectorID, all, map[string]string{
-		"C01.org.members-without-2fa": "needs a live client to page the members list, so its pass and fail " +
-			"cannot be produced by a pure state matrix; both are covered by the collector-level tests in this file",
-	})
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }
