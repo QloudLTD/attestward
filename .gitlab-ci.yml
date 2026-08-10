@@ -96,6 +96,12 @@ gomod-tidy-drift:
 
 examples-drift:
   stage: verify
+  # hack/check-examples-drift.sh needs jq, which the GitHub runner image ships
+  # preinstalled and the golang image does not. Installed here rather than in
+  # `default:` so the other jobs stay a pure Go toolchain with nothing fetched
+  # from a distro mirror on every run.
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends jq
   script:
     - make examples-check
 
