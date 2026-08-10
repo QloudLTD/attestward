@@ -144,6 +144,28 @@ func twoFactorResult(org string, g group) model.CheckResult {
 // nearest equivalent to GitHub's org-wide default repository permission: it
 // is the ceiling every project inherits at creation.
 func defaultPermissionResult(org string, g group) model.CheckResult {
+	// Anything outside the known set is not-checkable, never a pass.
+	//
+	// This read every non-"public" value as private-or-internal, so an empty
+	// or unrecognised visibility produced verified-pass with a reason quoting
+	// a value it had not understood. A false pass is the outcome this package
+	// works hardest to avoid: it tells a producer a control holds, inside a
+	// signed attestation, on the strength of something the build could not
+	// interpret.
+	//
+	// The sibling check below already refuses to guess on exactly this field
+	// of exactly this response; the two disagreed only because one of them was
+	// reviewed and the other was not.
+	switch g.Visibility {
+	case "private", "internal", "public":
+	default:
+		return result(idDefaultPermission, "Org default repository permission is restrictive",
+			model.StatusNotCheckable, org,
+			fmt.Sprintf("group %q reported visibility %q, which this build does not recognise; the default project "+
+				"visibility follows from it, and guessing would assert a default never observed", g.Path, g.Visibility),
+			map[string]any{"visibility": g.Visibility})
+	}
+
 	status := model.StatusVerifiedPass
 	reason := fmt.Sprintf("group %q defaults new projects to %q visibility", g.Path, g.Visibility)
 	if g.Visibility == "public" {
@@ -285,7 +307,7 @@ func init() {
 		map[model.Status]string{
 			model.StatusVerifiedPass: "Group visibility is private or internal, so projects created in it are not world-readable by default.",
 			model.StatusVerifiedFail: "Group visibility is public.",
-			model.StatusNotCheckable: "The group object could not be read.",
+			model.StatusNotCheckable: "The group object could not be read, or reported a visibility this build does not recognise — the default project visibility follows from it, so no pass or fail is asserted.",
 		})
 	reg(idMembersCreatePublic, "Members cannot create public repositories",
 		"Either set the group's visibility to Private or Internal — which caps every project inside it and settles this regardless of who may create projects — or, in a public group, set Group → Settings → General → Permissions → \"Roles allowed to create projects\" to Maintainers or No one.",
