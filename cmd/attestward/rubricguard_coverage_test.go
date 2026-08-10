@@ -9,8 +9,9 @@ import (
 )
 
 // rubricGuardUnwired lists the collectors that do NOT yet call
-// collecttest.AssertRubricsMatchObservedBehaviour, tracked in the follow-up
-// issue for wiring them.
+// collecttest.AssertRubricsMatchObservedBehaviour. Tracked in issue #10; the
+// number is here rather than a bare "see the follow-up issue" so the pointer
+// cannot dangle.
 //
 // This exists because a partially-applied guard is only dangerous when its
 // boundary is invisible. Enumerated here, "not yet guarded" is a fact in the
@@ -75,6 +76,10 @@ var rubricGuardUnwired = map[string]bool{
 // need source analysis — so it checks the weaker property that still closes the
 // hole: every registered collector must be accounted for, one way or the other.
 // A new one arriving silently unguarded is the case this makes impossible.
+//
+// ⚠ Stated so nobody assumes more: deleting the assertion from a package listed
+// in rubricGuardWired keeps this green, because this test consults only the two
+// maps below and the registry. It proves accounting, not enforcement.
 func TestRubricGuardCoverageOnlyShrinks(t *testing.T) {
 	registered := map[string]bool{}
 	for _, m := range collect.Registered() {
