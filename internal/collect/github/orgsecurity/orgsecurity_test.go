@@ -12,6 +12,7 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -485,4 +486,51 @@ func TestKnownDefaultRepoPermissionsStillDecide(t *testing.T) {
 			t.Errorf("permission %q = %q, want %q", perm, got.Status, want)
 		}
 	}
+}
+
+// TestRubricsMatchObservedBehaviour guards status-set drift: a rubric entry for
+// a status this collector cannot produce, or a status it produces with no entry.
+//
+// ⚠ It would NOT have caught this package's own rubric defect, and claiming
+// otherwise was the first thing review found here. When the default-permission
+// check stopped failing on unrecognised values, its status set was unchanged —
+// pass, fail and not-checkable before and after — and only the fail entry's
+// wording rotted, still reading "anything other than read or none". Restoring
+// that stale wording today leaves this suite green.
+//
+// That is the limit stated on the assertion itself: it compares which statuses
+// are emitted, not whether their descriptions are true. What it does catch is
+// the gitlab tree's instances, where the status set genuinely moved —
+// deletion-blocked losing its pass, required-reviews losing pass and fail.
+// Description rot still needs a person reading the rubric whenever a status's
+// entry conditions change.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	org := func(perm string, canCreatePublic, twoFA bool) *ghgithub.Organization {
+		return &ghgithub.Organization{
+			DefaultRepoPermission:       ghgithub.Ptr(perm),
+			MembersCanCreatePublicRepos: ghgithub.Ptr(canCreatePublic),
+			TwoFactorRequirementEnabled: ghgithub.Ptr(twoFA),
+		}
+	}
+	scope := collect.Scope{Org: "o"}
+
+	var all []model.CheckResult
+	for _, o := range []*ghgithub.Organization{
+		org("read", false, true),   // every check passing
+		org("admin", true, false),  // every check failing
+		org("triage", false, true), // unrecognised permission -> not-checkable
+		{},                         // every field absent -> not-checkable
+	} {
+		all = append(all,
+			checkDefaultRepoPermission(scope, o, nil),
+			checkMembersCanCreatePublic(scope, o, nil),
+			check2FARequired(scope, o, nil),
+		)
+	}
+	all = append(all, allNotCheckable(scope, "org unreadable", nil)...)
+
+	collecttest.AssertRubricsMatchObservedBehaviourExcept(t, "github", collectorID, all, map[string]string{
+		"C01.org.members-without-2fa": "needs a live client to page the members list, so its pass and fail " +
+			"cannot be produced by a pure state matrix; both are covered by the collector-level tests in this file",
+	})
 }
