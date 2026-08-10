@@ -62,8 +62,8 @@ func AssertRubricsMatchObservedBehaviour(t *testing.T, platform, collectorID str
 // this only when the status genuinely cannot be produced without I/O.
 func AssertRubricsMatchObservedBehaviourExcept(t *testing.T, platform, collectorID string, observed []model.CheckResult, coveredElsewhere map[string]string) {
 	t.Helper()
-	for id, why := range coveredElsewhere {
-		if why == "" {
+	for _, id := range sortedStringKeys(coveredElsewhere) {
+		if coveredElsewhere[id] == "" {
 			t.Errorf("%s is exempted from the rubric check with no reason given; an unexplained exemption is how "+
 				"a check quietly stops being checked", id)
 		}
@@ -94,6 +94,16 @@ func AssertRubricsMatchObservedBehaviourExcept(t *testing.T, platform, collector
 			"assertion is inert; check the platform and collector IDs", platform, collectorID)
 	}
 
+	// An exemption for a check that no longer exists is worse than no exemption:
+	// it reads as a considered decision while protecting nothing, and it
+	// survives every rename and removal silently.
+	for _, id := range sortedStringKeys(coveredElsewhere) {
+		if _, ok := registered[id]; !ok {
+			t.Errorf("%s is exempted but is not registered for %s/%s — the exemption is stale (the check was "+
+				"renamed or removed) and should be deleted", id, platform, collectorID)
+		}
+	}
+
 	for _, id := range sortedKeys(seen) {
 		if _, ok := registered[id]; !ok {
 			t.Errorf("%s is emitted but not registered for %s/%s, so it has no rubric, no remediation, and no "+
@@ -102,21 +112,32 @@ func AssertRubricsMatchObservedBehaviourExcept(t *testing.T, platform, collector
 	}
 
 	for _, id := range sortedMetaKeys(registered) {
-		if _, exempt := coveredElsewhere[id]; exempt {
-			continue
-		}
 		meta := registered[id]
+		_, exempt := coveredElsewhere[id]
 		emitted, ok := seen[id]
 		if !ok {
+			if exempt {
+				// The whole point of the exemption: this check's statuses come
+				// from elsewhere, so not reaching it here is expected.
+				continue
+			}
 			t.Errorf("%s is registered but no state in the matrix emits it — either it is documented and "+
 				"unreachable, or the matrix is missing the case that reaches it", id)
 			continue
 		}
+		// Runs for exempted checks too. An exemption says "the matrix cannot
+		// REACH all of this check's statuses"; it says nothing about the
+		// statuses the matrix does reach, and validating those costs nothing.
+		// Skipping them let an exempted check emit an undocumented status
+		// unnoticed — an exemption quietly disabling more than it justified.
 		for _, status := range sortedStatuses(emitted) {
 			if _, documented := meta.Rubric[status]; !documented {
 				t.Errorf("%s emits %q but its rubric does not document it — a reader gets a result with no "+
 					"stated meaning", id, status)
 			}
+		}
+		if exempt {
+			continue
 		}
 		for _, status := range sortedStatuses(toSet(meta.Rubric)) {
 			if !emitted[status] {
@@ -163,5 +184,14 @@ func sortedStatuses(m map[model.Status]bool) []model.Status {
 		out = append(out, k)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func sortedStringKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
 	return out
 }

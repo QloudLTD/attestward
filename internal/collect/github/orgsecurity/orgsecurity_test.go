@@ -488,13 +488,22 @@ func TestKnownDefaultRepoPermissionsStillDecide(t *testing.T) {
 	}
 }
 
-// TestRubricsMatchObservedBehaviour is the guard that would have caught the
-// stale rubric this package shipped: when the default-permission check stopped
-// failing on unrecognised values, its registered rubric still said a fail meant
-// "anything other than read or none" — which is exactly what it no longer does.
+// TestRubricsMatchObservedBehaviour guards status-set drift: a rubric entry for
+// a status this collector cannot produce, or a status it produces with no entry.
 //
-// The guard existed in the gitlab tree at the time and did not cover this one,
-// which is why it is now shared rather than copied.
+// ⚠ It would NOT have caught this package's own rubric defect, and claiming
+// otherwise was the first thing review found here. When the default-permission
+// check stopped failing on unrecognised values, its status set was unchanged —
+// pass, fail and not-checkable before and after — and only the fail entry's
+// wording rotted, still reading "anything other than read or none". Restoring
+// that stale wording today leaves this suite green.
+//
+// That is the limit stated on the assertion itself: it compares which statuses
+// are emitted, not whether their descriptions are true. What it does catch is
+// the gitlab tree's instances, where the status set genuinely moved —
+// deletion-blocked losing its pass, required-reviews losing pass and fail.
+// Description rot still needs a person reading the rubric whenever a status's
+// entry conditions change.
 func TestRubricsMatchObservedBehaviour(t *testing.T) {
 	org := func(perm string, canCreatePublic, twoFA bool) *ghgithub.Organization {
 		return &ghgithub.Organization{
