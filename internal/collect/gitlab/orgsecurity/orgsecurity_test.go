@@ -155,3 +155,22 @@ func TestPublicGroupStillHonoursCreationLevel(t *testing.T) {
 		t.Errorf("public group + developer creation = %q, want verified-fail", got.Status)
 	}
 }
+
+// TestUnknownVisibilityIsNotCheckable pins the I2 regression case directly.
+// Every named visibility was covered; the fall-through was not, which is
+// exactly where the defect lived — an unrecognised value reached reasons that
+// asserted the group "is public", stating a visibility never observed and
+// turning a parsing gap into a finding against the producer.
+func TestUnknownVisibilityIsNotCheckable(t *testing.T) {
+	for _, vis := range []string{"", "martian", "Public"} {
+		body := fmt.Sprintf(realGroupBody, true, "developer")
+		body = strings.Replace(body, `"visibility": "private"`, fmt.Sprintf(`"visibility": %q`, vis), 1)
+		got := find(t, collectAgainst(t, 200, body), idMembersCreatePublic)
+		if got.Status != model.StatusNotCheckable {
+			t.Errorf("visibility %q = %q, want not-checkable", vis, got.Status)
+		}
+		if strings.Contains(got.Reason, "is public") {
+			t.Errorf("visibility %q produced a reason asserting the group is public: %s", vis, got.Reason)
+		}
+	}
+}

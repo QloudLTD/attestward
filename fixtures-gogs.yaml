@@ -1,7 +1,7 @@
 # Expected check status per check, per repo, for the live Gogs integration
 # test (Gogs issue #9) — the Gogs twin of fixtures.yaml and fixtures-ado.yaml.
 #
-# Captured from a real scan of gogs.ioakeim.com on 2026-08-03 against
+# Captured from a real scan of a self-hosted Gogs instance on 2026-08-03 against
 # sioakim/attestward, the repo this project's own source lives in. Unlike the
 # GitHub and Azure DevOps fixtures, this table is NOT backed by a purpose-built
 # demo org with deliberately good and deliberately bad repos: no such Gogs demo

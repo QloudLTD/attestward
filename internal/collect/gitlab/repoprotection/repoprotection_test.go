@@ -33,7 +33,19 @@ const (
 
 type routes struct {
 	project, branches, approvals string
-	approvalsStatus              int
+	// Per-endpoint status overrides, so a state matrix can reach the
+	// not-checkable paths each check has for an unreadable dependency.
+	approvalsStatus, projectStatus, branchesStatus int
+}
+
+// fail writes an error status for one endpoint if the state asks for it.
+func fail(w http.ResponseWriter, code int) bool {
+	if code != 0 && code != http.StatusOK {
+		w.WriteHeader(code)
+		_, _ = fmt.Fprint(w, `{"message":"error"}`)
+		return true
+	}
+	return false
 }
 
 func collectWith(t *testing.T, r routes) []model.CheckResult {
@@ -42,6 +54,9 @@ func collectWith(t *testing.T, r routes) []model.CheckResult {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/protected_branches"):
+			if fail(w, r.branchesStatus) {
+				return
+			}
 			_, _ = fmt.Fprint(w, r.branches)
 		case strings.HasSuffix(req.URL.Path, "/approvals"):
 			if r.approvalsStatus != 0 && r.approvalsStatus != 200 {
@@ -51,6 +66,9 @@ func collectWith(t *testing.T, r routes) []model.CheckResult {
 			}
 			_, _ = fmt.Fprint(w, r.approvals)
 		default:
+			if fail(w, r.projectStatus) {
+				return
+			}
 			_, _ = fmt.Fprint(w, r.project)
 		}
 	}))
@@ -255,9 +273,9 @@ func TestDeprecatedApprovalsFieldNeverFails(t *testing.T) {
 func TestApprovalsAboveZeroIsNotAPass(t *testing.T) {
 	r := defaults()
 	r.approvals = fmt.Sprintf(realApprovals, 2, false)
-	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status == model.StatusVerifiedPass {
-		t.Error("approvals_before_merge=2 produced verified-pass; the deprecated field does not enforce review, " +
-			"so this asserts a gate that may not exist")
+	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status != model.StatusPartial {
+		t.Errorf("approvals_before_merge=2 = %q, want partial. A pass asserts a gate that may not exist; a fail "+
+			"asserts its absence. The deprecated field supports neither claim.", got.Status)
 	}
 }
 
@@ -296,5 +314,72 @@ func TestCodeOwnerApprovalMergesPermissively(t *testing.T) {
 	}
 	if eff := mergeMatchingRules(rules, "main"); eff == nil || !eff.CodeOwnerApprovalRequired {
 		t.Error("code-owner approval must be required when any matching rule enables it")
+	}
+}
+
+// TestRubricsMatchWhatTheCollectorCanActuallyEmit is the guard that would have
+// caught this package's two documentation defects, and it caught a third.
+//
+// A rubric is what `attestward checks docs` publishes as the meaning of each
+// result. Nothing previously tied it to the code, so when a check's behaviour
+// was corrected the rubric kept confidently describing the OLD behaviour —
+// twice in this file. deletion-blocked stopped emitting a pass but its rubric
+// still explained one and asserted deletion was impossible; required-reviews
+// stopped emitting pass and fail but its rubric still said it failed at zero
+// approvals, which is the exact claim the code had just been fixed to stop
+// making. Both were invisible because the code was right; only the published
+// documentation lied.
+//
+// So this drives the collector across every fixture state the package models
+// and compares the statuses actually observed against the statuses documented.
+// A rubric entry for a status the collector cannot produce is a false promise
+// to a reader; a status with no entry ships a conclusion with no stated basis.
+func TestRubricsMatchWhatTheCollectorCanActuallyEmit(t *testing.T) {
+	states := []routes{
+		defaults(),
+		{project: fmt.Sprintf(realProject, true, "false"), branches: `[]`, approvals: fmt.Sprintf(realApprovals, 0, false)},
+		{project: fmt.Sprintf(realProject, false, "true"), branches: fmt.Sprintf(realProtectedBranch, true), approvals: fmt.Sprintf(realApprovals, 3, true)},
+		{project: fmt.Sprintf(realProject, true, "false"), branches: fmt.Sprintf(realProtectedBranch, false), approvalsStatus: http.StatusForbidden},
+		// Pipeline required but a SKIPPED pipeline satisfies it — the partial
+		// state for required-status-checks. Its absence was found by this test
+		// rather than by inspection, which is the point of comparing the rubric
+		// against observed behaviour instead of against a reviewer's memory.
+		{project: fmt.Sprintf(realProject, true, "true"), branches: fmt.Sprintf(realProtectedBranch, false), approvals: fmt.Sprintf(realApprovals, 1, false)},
+		{projectStatus: http.StatusNotFound},
+		{project: fmt.Sprintf(realProject, true, "false"), branchesStatus: http.StatusForbidden, approvals: fmt.Sprintf(realApprovals, 1, false)},
+	}
+
+	observed := map[string]map[model.Status]bool{}
+	for _, st := range states {
+		for _, r := range collectWith(t, st) {
+			if observed[r.CheckID] == nil {
+				observed[r.CheckID] = map[model.Status]bool{}
+			}
+			observed[r.CheckID][r.Status] = true
+		}
+	}
+	if len(observed) == 0 {
+		t.Fatal("no results collected; this test would prove nothing")
+	}
+
+	for id, seen := range observed {
+		meta, ok := collect.LookupPlatform(platform, id)
+		if !ok {
+			t.Errorf("%s: emitted but not registered", id)
+			continue
+		}
+		for status := range seen {
+			if _, documented := meta.Rubric[status]; !documented {
+				t.Errorf("%s emits %q but its rubric does not document it — a reader gets a result with no stated meaning",
+					id, status)
+			}
+		}
+		for status := range meta.Rubric {
+			if !seen[status] {
+				t.Errorf("%s documents %q in its rubric, but no fixture state produces it. Either the rubric describes "+
+					"behaviour the code no longer has (which is what `checks docs` would then publish), or this test's "+
+					"state matrix is missing a case worth covering.", id, status)
+			}
+		}
 	}
 }

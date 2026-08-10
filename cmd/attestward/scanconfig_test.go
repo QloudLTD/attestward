@@ -251,7 +251,7 @@ func TestValidateGogsURL(t *testing.T) {
 	}{
 		{"https://gogs.example.com", false},
 		{"https://gogs.example.com/", false},
-		{"http://10.0.0.200:10880", false},
+		{"http://198.51.100.10:10880", false}, // TEST-NET-2: a LAN-style host:port, no real address
 		{"https://example.com/gogs", false},
 		{"gogs.example.com", true},
 		{"ftp://gogs.example.com", true},

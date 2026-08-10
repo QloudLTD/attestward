@@ -12,24 +12,20 @@ import (
 // Registered() is empty and the test would pass vacuously while checking
 // nothing at all.
 
-// TestEveryRubricCoversTheStatusesItsCheckCanEmit is a structural guard, not a
-// style check. A rubric is what `attestward checks docs` publishes as the
-// meaning of a result, so a status with no entry ships a conclusion with no
-// stated basis — and worse, a rubric left behind after a check's behaviour
-// changes publishes the OLD meaning, confidently.
+// TestEveryCheckDocumentsItsResults is a cross-platform floor, not a proof.
 //
-// That is exactly what happened: repoprotection's deletion check was corrected
-// to emit partial (GitLab lets a Maintainer delete a protected branch through
-// the UI or API, so a pass was never justified), but the rubric still described
-// a verified-pass and still asserted deletion was impossible. The code was
-// right and the published documentation was wrong, which is the harder failure
-// to notice.
+// A rubric is what `attestward checks docs` publishes as the meaning of each
+// result, so a check with none ships conclusions with no stated basis. This
+// covers every registered check on every platform, but only weakly: it cannot
+// know which statuses a check emits without running it, so it asserts presence
+// and enum-validity, not agreement with behaviour.
 //
-// This cannot know which statuses a check emits without running it, so it pins
-// the weaker property that still catches that class: no rubric may document a
-// status the check is documented as unable to produce, and every rubric must
-// at least cover not-checkable, which any collector can emit on a read failure.
-func TestEveryRubricCoversTheStatusesItsCheckCanEmit(t *testing.T) {
+// The strong version of this — rubric keys must equal the statuses the
+// collector actually produces — needs the package's own fixtures, so it lives
+// per-package. See TestRubricsMatchWhatTheCollectorCanActuallyEmit in
+// internal/collect/gitlab/repoprotection, which is what caught the stale
+// rubrics this floor passes straight over.
+func TestEveryCheckDocumentsItsResults(t *testing.T) {
 	metas := collect.Registered()
 	// Without this the whole test passes vacuously if registration ever moves
 	// or an import is dropped — the exact failure mode that made putting it in

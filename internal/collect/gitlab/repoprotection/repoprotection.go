@@ -429,12 +429,10 @@ func init() {
 		}, branchEndpoints)
 
 	reg(idRequiredReviews, "Merge requests require review",
-		"Project → Settings → Merge requests → set \"Approvals required\" to at least 1, and disable \"Prevent approval by author\"'s inverse so authors cannot self-approve.",
+		"Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable \"Prevent approvals by author\". Note that approval RULES are a paid-tier feature; on Free the \"Approvals required\" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone.",
 		map[model.Status]string{
-			model.StatusVerifiedPass: "approvals_before_merge is 1 or more and authors cannot approve their own merge requests.",
-			model.StatusPartial:      "Approvals are required, but merge_requests_author_approval is true so the author can supply the approval themselves.",
-			model.StatusVerifiedFail: "approvals_before_merge is 0.",
-			model.StatusNotCheckable: "The approvals endpoint was not readable — on GitLab the richer approval-rule surface is a paid-tier feature, and an unreadable rule set is not evidence that no review is required.",
+			model.StatusPartial:      "approvals_before_merge is 1 or more, which shows intent — but that field was deprecated in GitLab 12.3 and does not enforce review on current versions. Approval rules do, and they are a paid-tier feature this scan cannot read, so enforcement is not confirmed. The reason names author self-approval when it is enabled.",
+			model.StatusNotCheckable: "approvals_before_merge is 0, or the approvals endpoint was unreadable. Neither distinguishes \"no review required\" from \"a rule this tier cannot expose\", so no pass or fail is asserted.",
 		}, []string{"GET /projects/{id}/approvals"})
 
 	reg(idRequiredStatusChecks, "Merges require passing checks",

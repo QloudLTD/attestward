@@ -609,12 +609,10 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** approvals_before_merge is 0.
-- **partial:** Approvals are required, but merge_requests_author_approval is true so the author can supply the approval themselves.
-- **not-checkable:** The approvals endpoint was not readable — on GitLab the richer approval-rule surface is a paid-tier feature, and an unreadable rule set is not evidence that no review is required.
-- **verified-pass:** approvals_before_merge is 1 or more and authors cannot approve their own merge requests.
+- **partial:** approvals_before_merge is 1 or more, which shows intent — but that field was deprecated in GitLab 12.3 and does not enforce review on current versions. Approval rules do, and they are a paid-tier feature this scan cannot read, so enforcement is not confirmed. The reason names author self-approval when it is enabled.
+- **not-checkable:** approvals_before_merge is 0, or the approvals endpoint was unreadable. Neither distinguishes "no review required" from "a rule this tier cannot expose", so no pass or fail is asserted.
 
-**Remediation:** Project → Settings → Merge requests → set "Approvals required" to at least 1, and disable "Prevent approval by author"'s inverse so authors cannot self-approve.
+**Remediation:** Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable "Prevent approvals by author". Note that approval RULES are a paid-tier feature; on Free the "Approvals required" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone.
 
 #### gogs — Default branch requires at least one approving review before merge
 
