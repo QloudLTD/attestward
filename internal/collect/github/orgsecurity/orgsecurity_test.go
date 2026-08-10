@@ -3,6 +3,7 @@ package orgsecurity
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -567,8 +568,6 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 		{name: "fields absent", orgStatus: 200, org: map[string]any{},
 			membersStatus: 200, members: []map[string]any{},
 			want: map[string]model.Status{twoFA: nc, perm: nc, public: nc, without: pass}},
-		// The gap this conversion closes: the org reads fine but the members
-		// listing does not, so only members-without-2FA is not-checkable.
 		// The outcome that motivated this conversion: the org reads fine, so the
 		// three org-derived checks still decide, and ONLY members-without-2FA
 		// is not-checkable. Asserting that is what makes the state load-bearing.
@@ -602,14 +601,17 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
 			}
+			// Compare the whole map, not per-result with a count check. The
+			// count version was satisfiable with a bogus key: a result whose
+			// ID was absent from want was silently skipped, and cardinality
+			// still matched, so a stale key surviving a check rename would
+			// leave that result unasserted while the test stayed green.
+			got := map[string]model.Status{}
 			for _, r := range res {
-				if want, ok := st.want[r.CheckID]; ok && r.Status != want {
-					t.Errorf("%s = %q, want %q; reason=%q", r.CheckID, r.Status, want, r.Reason)
-				}
+				got[r.CheckID] = r.Status
 			}
-			if len(res) != len(st.want) {
-				t.Errorf("got %d results, want %d — every check must have a pinned outcome in this state",
-					len(res), len(st.want))
+			if !maps.Equal(got, st.want) {
+				t.Errorf("statuses = %v, want %v", got, st.want)
 			}
 			all = append(all, res...)
 		})
