@@ -11,9 +11,11 @@ import (
 const webhooksTitle = "A webhook exports push/release/deployment events"
 
 // GitLab's three documented alert_status values (app/models/concerns/
-// web_hooks/auto_disabling.rb): a hook backs off after 3 consecutive
-// delivery failures and is permanently disabled after 39. There is no
-// wildcard "all events" subscription on GitLab the way GitHub has one —
+// web_hooks/auto_disabling.rb): a hook backs off on its 4th consecutive
+// delivery failure and is permanently disabled on its 40th (GitLab's own
+// source compares with recent_failures > 3 and > 39, and its own comment
+// there says "on its 40th failure"). There is no wildcard "all events"
+// subscription on GitLab the way GitHub has one —
 // every event type is its own boolean, so this checks the three GitLab
 // carries that this control cares about directly.
 const (
