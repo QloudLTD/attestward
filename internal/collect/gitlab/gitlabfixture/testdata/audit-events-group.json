@@ -1,0 +1,37 @@
+[
+ {
+  "id": 5458182930,
+  "author_id": 1,
+  "entity_id": 139323237,
+  "entity_type": "Group",
+  "event_name": "group_require_two_factor_authentication_updated",
+  "details": {
+   "change": "require_two_factor_authentication",
+   "from": "false",
+   "to": "true",
+   "event_name": "group_require_two_factor_authentication_updated",
+   "author_class": "User",
+   "target_id": 139323237,
+   "target_type": "Group",
+   "target_details": "Qloud LTD-group",
+   "entity_path": "qloud-ltd-group"
+  },
+  "created_at": "2026-08-10T02:11:21.814Z"
+ },
+ {
+  "id": 5456359757,
+  "author_id": 1,
+  "entity_id": 139323237,
+  "entity_type": "Group",
+  "event_name": "group_created",
+  "details": {
+   "event_name": "group_created",
+   "author_class": "User",
+   "target_id": 139323237,
+   "target_type": "Group",
+   "target_details": "qloud-ltd-group",
+   "entity_path": "qloud-ltd-group"
+  },
+  "created_at": "2026-08-09T15:53:28.994Z"
+ }
+]
