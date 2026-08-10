@@ -1,0 +1,80 @@
+[
+ {
+  "name": "lodash",
+  "version": "4.17.15",
+  "package_manager": "npm",
+  "dependency_file_path": "package-lock.json",
+  "vulnerabilities": [
+   {
+    "severity": "medium",
+    "id": 351139183,
+    "name": "Regular Expression Denial of Service (ReDoS) in lodash",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139183"
+   },
+   {
+    "severity": "high",
+    "id": 351139184,
+    "name": "Command Injection in lodash",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139184"
+   },
+   {
+    "severity": "medium",
+    "id": 351139185,
+    "name": "lodash vulnerable to Prototype Pollution via array path bypass in `_.unset` and `_.omit`",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139185"
+   },
+   {
+    "severity": "medium",
+    "id": 351139187,
+    "name": "Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139187"
+   },
+   {
+    "severity": "high",
+    "id": 351139189,
+    "name": "Prototype Pollution in lodash",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139189"
+   },
+   {
+    "severity": "high",
+    "id": 351139190,
+    "name": "lodash vulnerable to Code Injection via `_.template` imports key names",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139190"
+   }
+  ],
+  "licenses": [
+   {
+    "spdx_identifier": "MIT",
+    "name": "MIT License",
+    "url": "https://spdx.org/licenses/MIT.html"
+   }
+  ]
+ },
+ {
+  "name": "minimist",
+  "version": "1.2.0",
+  "package_manager": "npm",
+  "dependency_file_path": "package-lock.json",
+  "vulnerabilities": [
+   {
+    "severity": "critical",
+    "id": 351139186,
+    "name": "Prototype Pollution in minimist",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139186"
+   },
+   {
+    "severity": "medium",
+    "id": 351139188,
+    "name": "Improper Input Validation",
+    "url": "https://gitlab.com/qloud-ltd-group/attestward-fixtures/-/security/vulnerabilities/351139188"
+   }
+  ],
+  "licenses": [
+   {
+    "spdx_identifier": "MIT",
+    "name": "MIT License",
+    "url": "https://spdx.org/licenses/MIT.html"
+   }
+  ]
+ }
+]
