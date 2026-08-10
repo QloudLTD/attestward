@@ -99,15 +99,18 @@ func newClient(baseURL, token string, base http.RoundTripper) (*Client, error) {
 		return nil, fmt.Errorf("collect/gitlab: base URL %q needs a scheme and host", baseURL)
 	}
 
-	// Order matters. Provenance is outermost so it records every attempt the
-	// retry and rate-limit layers make; each is a real call that really
-	// happened, and a pack that showed only the last one would understate
-	// what the tool did to the instance.
-	prov := newProvenanceTransport(token, newRateLimitTransport(newRetryTransport(base)))
+	// Order matters, and it was wrong. Provenance must be INNERMOST so it
+	// records every attempt the retry and rate-limit layers make. Wired
+	// outermost — as this was — it sees one round trip per logical call and
+	// silently omits the retries, so a pack understated what the tool actually
+	// did to the instance while its own comments claimed the opposite.
+	// GitHub, Azure DevOps and Gogs all wire it innermost; this now matches.
+	prov := newProvenanceTransport(token, base)
+	chain := newRateLimitTransport(newRetryTransport(prov))
 	return &Client{
 		baseURL:    u,
 		prov:       prov,
-		httpClient: &http.Client{Transport: prov},
+		httpClient: &http.Client{Transport: chain},
 	}, nil
 }
 

@@ -214,11 +214,11 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** project_creation_level is "developer", so ordinary members can create projects.
-- **not-checkable:** The group object could not be read, or reported a value this build does not recognise.
-- **verified-pass:** project_creation_level is "maintainer" or "noone".
+- **verified-fail:** The group is public AND project_creation_level is "developer", so an ordinary member can create a world-readable project. Both conditions are required — a permissive creation level inside a private or internal group is not a finding.
+- **not-checkable:** The group object could not be read, or reported a visibility or creation level this build does not recognise.
+- **verified-pass:** Either the group is private or internal, in which case its visibility is a ceiling on every project inside it and no member can create a public one whatever their role, or the group is public and project_creation_level is "maintainer" or "noone". Note the first case passes even when project_creation_level is "developer": that setting governs who may create projects, not how public they may be.
 
-**Remediation:** Group → Settings → General → Permissions → set "Roles allowed to create projects" to Maintainers or No one.
+**Remediation:** Either set the group's visibility to Private or Internal — which caps every project inside it and settles this regardless of who may create projects — or, in a public group, set Group → Settings → General → Permissions → "Roles allowed to create projects" to Maintainers or No one.
 
 #### gogs — Members cannot create public repositories unchecked
 
@@ -408,11 +408,11 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** The default branch is unprotected and can therefore be deleted.
+- **verified-fail:** The default branch is unprotected and can therefore be deleted by anyone who can push to it.
+- **partial:** The default branch is protected, which blocks deletion from Git clients. It is NOT an absolute block: a Maintainer or Owner can still delete a protected branch through the GitLab UI or API, so this never reports a pass.
 - **not-checkable:** Protection state could not be read.
-- **verified-pass:** The default branch is protected, and GitLab does not permit deletion of a protected branch. Derived from protection, not from a dedicated field — GitLab has none.
 
-**Remediation:** Protect the default branch. GitLab blocks deletion of protected branches; there is no separate deletion setting to enable.
+**Remediation:** Protect the default branch, then limit who holds Maintainer and above. Protection blocks deletion from Git clients but not from the UI or API, so the membership list is the remaining control.
 
 #### gogs — Default branch blocks branch deletion
 
@@ -609,12 +609,10 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** approvals_before_merge is 0.
-- **partial:** Approvals are required, but merge_requests_author_approval is true so the author can supply the approval themselves.
-- **not-checkable:** The approvals endpoint was not readable — on GitLab the richer approval-rule surface is a paid-tier feature, and an unreadable rule set is not evidence that no review is required.
-- **verified-pass:** approvals_before_merge is 1 or more and authors cannot approve their own merge requests.
+- **partial:** approvals_before_merge is 1 or more, which shows intent — but that field was deprecated in GitLab 12.3 and does not enforce review on current versions. Approval rules do, and they are a paid-tier feature this scan cannot read, so enforcement is not confirmed. The reason names author self-approval when it is enabled.
+- **not-checkable:** approvals_before_merge is 0, or the approvals endpoint was unreadable. Neither distinguishes "no review required" from "a rule this tier cannot expose", so no pass or fail is asserted.
 
-**Remediation:** Project → Settings → Merge requests → set "Approvals required" to at least 1, and disable "Prevent approval by author"'s inverse so authors cannot self-approve.
+**Remediation:** Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable "Prevent approvals by author". Note that approval RULES are a paid-tier feature; on Free the "Approvals required" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone.
 
 #### gogs — Default branch requires at least one approving review before merge
 

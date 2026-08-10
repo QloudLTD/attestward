@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"context"
+	"errors"
 	"math"
 	"net/http"
 	"time"
@@ -49,6 +50,12 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 		}
 		resp, err = t.base.RoundTrip(req)
+		// A rejected write is a programming error, not a transient fault: no
+		// number of retries turns a POST into a legal call. Retrying only
+		// delays the signal by seconds of backoff and buries the cause.
+		if errors.Is(err, ErrWriteMethodRejected) {
+			return nil, err
+		}
 		if err != nil {
 			continue
 		}

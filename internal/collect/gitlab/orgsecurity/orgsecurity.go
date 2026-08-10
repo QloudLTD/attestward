@@ -158,22 +158,46 @@ func defaultPermissionResult(org string, g group) model.CheckResult {
 // may create projects at all. GitLab's values are "noone", "maintainer" and
 // "developer"; "developer" is the permissive end.
 func membersCreatePublicResult(org string, g group) model.CheckResult {
+	// A private or internal group cannot contain a public project at all —
+	// GitLab enforces the group's visibility as a ceiling on every project
+	// inside it. So project_creation_level is irrelevant here: no member can
+	// create a public project regardless of who may create projects.
+	//
+	// Reading creation level alone produced a fabricated verified-fail for
+	// every private group using the default "developer" setting, which is an
+	// ordinary and safe configuration.
+	if g.Visibility == "private" || g.Visibility == "internal" {
+		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusVerifiedPass, org,
+			fmt.Sprintf("group %q is %s, and GitLab applies group visibility as a ceiling on the projects inside it, "+
+				"so no member can create a public project there whatever project_creation_level says (it is %q)",
+				g.Path, g.Visibility, g.ProjectCreationLevel),
+			map[string]any{"visibility": g.Visibility, "project_creation_level": g.ProjectCreationLevel,
+				"public_projects_possible": false})
+	}
+	// Only in a PUBLIC group does creation level decide this. An unrecognised
+	// or empty visibility must not fall through to reasons that assert the
+	// group "is public" — that would state a visibility never observed.
+	if g.Visibility != "public" {
+		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusNotCheckable, org,
+			fmt.Sprintf("group %q reported visibility %q, which this build does not recognise; whether a member could "+
+				"create a public project depends on it, and guessing would assert a visibility never observed",
+				g.Path, g.Visibility), map[string]any{"visibility": g.Visibility})
+	}
 	switch g.ProjectCreationLevel {
 	case "noone", "maintainer":
 		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusVerifiedPass, org,
-			fmt.Sprintf("group %q sets project_creation_level=%q, so ordinary members cannot create projects",
+			fmt.Sprintf("group %q is public, but project_creation_level=%q so ordinary members cannot create projects in it",
 				g.Path, g.ProjectCreationLevel),
-			map[string]any{"project_creation_level": g.ProjectCreationLevel})
+			map[string]any{"visibility": g.Visibility, "project_creation_level": g.ProjectCreationLevel})
 	case "developer":
 		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusVerifiedFail, org,
-			fmt.Sprintf("group %q sets project_creation_level=\"developer\", so any member at Developer or above "+
-				"can create projects in it", g.Path),
-			map[string]any{"project_creation_level": g.ProjectCreationLevel})
+			fmt.Sprintf("group %q is public and project_creation_level=\"developer\", so any member at Developer or "+
+				"above can create a project in it that is visible to anyone", g.Path),
+			map[string]any{"visibility": g.Visibility, "project_creation_level": g.ProjectCreationLevel})
 	default:
 		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusNotCheckable, org,
-			fmt.Sprintf("group %q reported project_creation_level=%q, which this build does not recognise; "+
-				"refusing to guess whether it is permissive", g.Path, g.ProjectCreationLevel),
-			map[string]any{"project_creation_level": g.ProjectCreationLevel})
+			fmt.Sprintf("group %q is public and reported project_creation_level=%q, which this build does not "+
+				"recognise; refusing to guess whether it is permissive", g.Path, g.ProjectCreationLevel), nil)
 	}
 }
 
@@ -197,6 +221,10 @@ func result(id, title string, status model.Status, org, reason string, facts map
 		Reason:  reason,
 		Scope:   model.ScopeRef{Org: org, Platform: platform},
 		Facts:   facts,
+		// Empty, never nil: nil marshals to JSON null and the pack schema
+		// requires an array, so a bad --gitlab-url used to make the whole
+		// scan fail validation instead of degrading to not-checkable.
+		Provenance: []model.Provenance{},
 	}
 }
 
@@ -260,11 +288,11 @@ func init() {
 			model.StatusNotCheckable: "The group object could not be read.",
 		})
 	reg(idMembersCreatePublic, "Members cannot create public repositories",
-		"Group → Settings → General → Permissions → set \"Roles allowed to create projects\" to Maintainers or No one.",
+		"Either set the group's visibility to Private or Internal — which caps every project inside it and settles this regardless of who may create projects — or, in a public group, set Group → Settings → General → Permissions → \"Roles allowed to create projects\" to Maintainers or No one.",
 		map[model.Status]string{
-			model.StatusVerifiedPass: "project_creation_level is \"maintainer\" or \"noone\".",
-			model.StatusVerifiedFail: "project_creation_level is \"developer\", so ordinary members can create projects.",
-			model.StatusNotCheckable: "The group object could not be read, or reported a value this build does not recognise.",
+			model.StatusVerifiedPass: "Either the group is private or internal, in which case its visibility is a ceiling on every project inside it and no member can create a public one whatever their role, or the group is public and project_creation_level is \"maintainer\" or \"noone\". Note the first case passes even when project_creation_level is \"developer\": that setting governs who may create projects, not how public they may be.",
+			model.StatusVerifiedFail: "The group is public AND project_creation_level is \"developer\", so an ordinary member can create a world-readable project. Both conditions are required — a permissive creation level inside a private or internal group is not a finding.",
+			model.StatusNotCheckable: "The group object could not be read, or reported a visibility or creation level this build does not recognise.",
 		})
 	reg(idMembersWithout2FA, "No members without two-factor authentication",
 		"Not evidenceable on GitLab: the members API exposes no per-user two-factor state. Enforce 2FA at the group level and confirm enrolment through your identity provider or GitLab admin area instead.",

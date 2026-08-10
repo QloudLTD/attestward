@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
@@ -70,15 +71,20 @@ func TestTwoFactorEnforcementIsReadFromTheGroup(t *testing.T) {
 }
 
 func TestProjectCreationLevelMapsToMemberCreationCheck(t *testing.T) {
+	// Creation level only decides this in a PUBLIC group. In a private or
+	// internal one the visibility ceiling makes public projects impossible, so
+	// asserting creation-level mapping there was testing the conflation this
+	// check used to contain rather than the control it claims to measure.
 	for level, want := range map[string]model.Status{
 		"developer":  model.StatusVerifiedFail,
 		"maintainer": model.StatusVerifiedPass,
 		"noone":      model.StatusVerifiedPass,
 		"martian":    model.StatusNotCheckable, // unknown value: refuse to guess
 	} {
-		res := collectAgainst(t, 200, fmt.Sprintf(realGroupBody, true, level))
-		if got := find(t, res, idMembersCreatePublic); got.Status != want {
-			t.Errorf("project_creation_level=%q: status = %q, want %q", level, got.Status, want)
+		body := strings.Replace(fmt.Sprintf(realGroupBody, true, level),
+			`"visibility": "private"`, `"visibility": "public"`, 1)
+		if got := find(t, collectAgainst(t, 200, body), idMembersCreatePublic); got.Status != want {
+			t.Errorf("public group, project_creation_level=%q: status = %q, want %q", level, got.Status, want)
 		}
 	}
 }
@@ -119,6 +125,52 @@ func TestEveryResultCarriesProvenance(t *testing.T) {
 	for _, r := range res {
 		if len(r.Provenance) == 0 {
 			t.Errorf("%s carries no provenance", r.CheckID)
+		}
+	}
+}
+
+// TestPrivateGroupCannotHavePublicProjects pins review finding 4: a private or
+// internal group applies visibility as a ceiling, so no member can create a
+// public project whatever project_creation_level says. Reading creation level
+// alone fabricated a verified-fail for every private group on the default
+// setting — an ordinary, safe configuration.
+func TestPrivateGroupCannotHavePublicProjects(t *testing.T) {
+	for _, vis := range []string{"private", "internal"} {
+		body := fmt.Sprintf(realGroupBody, true, "developer")
+		body = strings.Replace(body, `"visibility": "private"`, fmt.Sprintf(`"visibility": %q`, vis), 1)
+		got := find(t, collectAgainst(t, 200, body), idMembersCreatePublic)
+		if got.Status != model.StatusVerifiedPass {
+			t.Errorf("%s group with project_creation_level=developer: got %q, want verified-pass — "+
+				"public projects are impossible inside it", vis, got.Status)
+		}
+	}
+}
+
+// TestPublicGroupStillHonoursCreationLevel guards the other direction: in a
+// public group the creation level genuinely does decide this.
+func TestPublicGroupStillHonoursCreationLevel(t *testing.T) {
+	body := strings.Replace(fmt.Sprintf(realGroupBody, true, "developer"),
+		`"visibility": "private"`, `"visibility": "public"`, 1)
+	if got := find(t, collectAgainst(t, 200, body), idMembersCreatePublic); got.Status != model.StatusVerifiedFail {
+		t.Errorf("public group + developer creation = %q, want verified-fail", got.Status)
+	}
+}
+
+// TestUnknownVisibilityIsNotCheckable pins the I2 regression case directly.
+// Every named visibility was covered; the fall-through was not, which is
+// exactly where the defect lived — an unrecognised value reached reasons that
+// asserted the group "is public", stating a visibility never observed and
+// turning a parsing gap into a finding against the producer.
+func TestUnknownVisibilityIsNotCheckable(t *testing.T) {
+	for _, vis := range []string{"", "martian", "Public"} {
+		body := fmt.Sprintf(realGroupBody, true, "developer")
+		body = strings.Replace(body, `"visibility": "private"`, fmt.Sprintf(`"visibility": %q`, vis), 1)
+		got := find(t, collectAgainst(t, 200, body), idMembersCreatePublic)
+		if got.Status != model.StatusNotCheckable {
+			t.Errorf("visibility %q = %q, want not-checkable", vis, got.Status)
+		}
+		if strings.Contains(got.Reason, "is public") {
+			t.Errorf("visibility %q produced a reason asserting the group is public: %s", vis, got.Reason)
 		}
 	}
 }
