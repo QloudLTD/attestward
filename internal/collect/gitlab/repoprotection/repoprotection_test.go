@@ -87,7 +87,9 @@ func defaults() routes {
 
 func TestProtectedDefaultBranchPasses(t *testing.T) {
 	res := collectWith(t, defaults())
-	for _, id := range []string{idProtectionExists, idForcePushBlocked, idDeletionBlocked, idRequiredStatusChecks} {
+	// deletion-blocked is deliberately NOT here: it is partial by design,
+	// because GitLab lets Maintainers delete protected branches via the UI.
+	for _, id := range []string{idProtectionExists, idForcePushBlocked, idRequiredStatusChecks} {
 		if got := find(t, res, id); got.Status != model.StatusVerifiedPass {
 			t.Errorf("%s = %q, want verified-pass (%s)", id, got.Status, got.Reason)
 		}
@@ -165,5 +167,72 @@ func TestEmptyProjectIsNotAFailure(t *testing.T) {
 		if got.Status == model.StatusVerifiedFail {
 			t.Errorf("%s = verified-fail on an empty project; there is no branch to protect yet", got.CheckID)
 		}
+	}
+}
+
+// --- regression tests for the 2026-08-10 review findings -------------------
+
+// TestWildcardRuleIsFound pins review finding 1a: a branch protected only by a
+// wildcard rule has no exact-name entry, and matching by name fabricated three
+// failures for a correctly protected repository.
+func TestWildcardRuleIsFound(t *testing.T) {
+	for _, pattern := range []string{"*", "ma*", "*ain", "m*n"} {
+		r := defaults()
+		r.branches = fmt.Sprintf(`[{"name":%q,"allow_force_push":false,"code_owner_approval_required":false,
+			"push_access_levels":[{"access_level":40,"access_level_description":"Maintainers"}],
+			"merge_access_levels":[{"access_level":40,"access_level_description":"Maintainers"}]}]`, pattern)
+		if got := find(t, collectWith(t, r), idProtectionExists); got.Status != model.StatusVerifiedPass {
+			t.Errorf("pattern %q: protection-exists = %q, want verified-pass", pattern, got.Status)
+		}
+	}
+}
+
+// TestMostPermissiveWildcardWins pins review finding 1b, the false PASS: GitLab
+// applies the most permissive of several matching rules, so an exact rule
+// forbidding force push alongside a wildcard allowing it means force push is
+// allowed. Reading only the exact rule reported verified-pass.
+func TestMostPermissiveWildcardWins(t *testing.T) {
+	r := defaults()
+	r.branches = `[
+	  {"name":"main","allow_force_push":false,"push_access_levels":[],"merge_access_levels":[]},
+	  {"name":"ma*","allow_force_push":true,"push_access_levels":[],"merge_access_levels":[]}]`
+	if got := find(t, collectWith(t, r), idForcePushBlocked); got.Status != model.StatusVerifiedFail {
+		t.Errorf("force-push = %q, want verified-fail: a wildcard rule permits it, so the branch is not protected "+
+			"against force pushes and a pass would be fabricated evidence", got.Status)
+	}
+}
+
+// TestNonMatchingWildcardIsIgnored guards the other direction — an over-eager
+// matcher would attribute an unrelated rule to the default branch.
+func TestNonMatchingWildcardIsIgnored(t *testing.T) {
+	r := defaults()
+	r.branches = `[{"name":"release/*","allow_force_push":true,"push_access_levels":[],"merge_access_levels":[]}]`
+	if got := find(t, collectWith(t, r), idProtectionExists); got.Status != model.StatusVerifiedFail {
+		t.Errorf("release/* must not match main: got %q, want verified-fail", got.Status)
+	}
+}
+
+// TestDeletionIsPartialNotPass pins review finding 2. Protection blocks Git
+// clients but a Maintainer can still delete via the UI, so verified-pass put a
+// false statement into signed evidence.
+func TestDeletionIsPartialNotPass(t *testing.T) {
+	got := find(t, collectWith(t, defaults()), idDeletionBlocked)
+	if got.Status != model.StatusPartial {
+		t.Errorf("deletion-blocked = %q, want partial — GitLab lets Maintainers delete protected branches via the UI", got.Status)
+	}
+	if !strings.Contains(got.Reason, "web UI") {
+		t.Errorf("reason must name the UI deletion path, got: %s", got.Reason)
+	}
+}
+
+// TestDeprecatedApprovalsFieldNeverFails pins review finding 3.
+// approvals_before_merge was deprecated in 12.3 and does not reflect approval
+// rules, so a 0 is consistent with a rule this tier cannot expose.
+func TestDeprecatedApprovalsFieldNeverFails(t *testing.T) {
+	r := defaults()
+	r.approvals = fmt.Sprintf(realApprovals, 0, false)
+	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status == model.StatusVerifiedFail {
+		t.Error("approvals_before_merge=0 produced verified-fail; the field is deprecated and cannot distinguish " +
+			"'no review required' from 'a rule this tier cannot show'")
 	}
 }

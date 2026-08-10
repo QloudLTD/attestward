@@ -158,22 +158,38 @@ func defaultPermissionResult(org string, g group) model.CheckResult {
 // may create projects at all. GitLab's values are "noone", "maintainer" and
 // "developer"; "developer" is the permissive end.
 func membersCreatePublicResult(org string, g group) model.CheckResult {
+	// A private or internal group cannot contain a public project at all —
+	// GitLab enforces the group's visibility as a ceiling on every project
+	// inside it. So project_creation_level is irrelevant here: no member can
+	// create a public project regardless of who may create projects.
+	//
+	// Reading creation level alone produced a fabricated verified-fail for
+	// every private group using the default "developer" setting, which is an
+	// ordinary and safe configuration.
+	if g.Visibility == "private" || g.Visibility == "internal" {
+		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusVerifiedPass, org,
+			fmt.Sprintf("group %q is %s, and GitLab applies group visibility as a ceiling on the projects inside it, "+
+				"so no member can create a public project there whatever project_creation_level says (it is %q)",
+				g.Path, g.Visibility, g.ProjectCreationLevel),
+			map[string]any{"visibility": g.Visibility, "project_creation_level": g.ProjectCreationLevel,
+				"public_projects_possible": false})
+	}
+	// Only in a public group does creation level decide this.
 	switch g.ProjectCreationLevel {
 	case "noone", "maintainer":
 		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusVerifiedPass, org,
-			fmt.Sprintf("group %q sets project_creation_level=%q, so ordinary members cannot create projects",
+			fmt.Sprintf("group %q is public, but project_creation_level=%q so ordinary members cannot create projects in it",
 				g.Path, g.ProjectCreationLevel),
-			map[string]any{"project_creation_level": g.ProjectCreationLevel})
+			map[string]any{"visibility": g.Visibility, "project_creation_level": g.ProjectCreationLevel})
 	case "developer":
 		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusVerifiedFail, org,
-			fmt.Sprintf("group %q sets project_creation_level=\"developer\", so any member at Developer or above "+
-				"can create projects in it", g.Path),
-			map[string]any{"project_creation_level": g.ProjectCreationLevel})
+			fmt.Sprintf("group %q is public and project_creation_level=\"developer\", so any member at Developer or "+
+				"above can create a project in it that is visible to anyone", g.Path),
+			map[string]any{"visibility": g.Visibility, "project_creation_level": g.ProjectCreationLevel})
 	default:
 		return result(idMembersCreatePublic, "Members cannot create public repositories", model.StatusNotCheckable, org,
-			fmt.Sprintf("group %q reported project_creation_level=%q, which this build does not recognise; "+
-				"refusing to guess whether it is permissive", g.Path, g.ProjectCreationLevel),
-			map[string]any{"project_creation_level": g.ProjectCreationLevel})
+			fmt.Sprintf("group %q is public and reported project_creation_level=%q, which this build does not "+
+				"recognise; refusing to guess whether it is permissive", g.Path, g.ProjectCreationLevel), nil)
 	}
 }
 
@@ -197,6 +213,10 @@ func result(id, title string, status model.Status, org, reason string, facts map
 		Reason:  reason,
 		Scope:   model.ScopeRef{Org: org, Platform: platform},
 		Facts:   facts,
+		// Empty, never nil: nil marshals to JSON null and the pack schema
+		// requires an array, so a bad --gitlab-url used to make the whole
+		// scan fail validation instead of degrading to not-checkable.
+		Provenance: []model.Provenance{},
 	}
 }
 

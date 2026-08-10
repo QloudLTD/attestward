@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
@@ -40,8 +41,15 @@ type gitlabRepoLister struct {
 // the URL segment ("my-project"), and every other endpoint addresses a
 // project by path.
 type gitlabProject struct {
-	Path     string `json:"path"`
-	Archived bool   `json:"archived"`
+	// PathWithNamespace, not Path. Path is the last URL segment only, so a
+	// project at group/team-a/proj comes back as "proj" and is then addressed
+	// as group/proj — a project that usually does not exist, and when it does,
+	// is a DIFFERENT repository. That scanned one project twice under two
+	// identical rows while never reading the subgroup one, which is the same
+	// silent-incompleteness failure include_subgroups exists to prevent.
+	PathWithNamespace string `json:"path_with_namespace"`
+	Path              string `json:"path"`
+	Archived          bool   `json:"archived"`
 	// ForkedFromProject is present only on forks, so its presence is the
 	// fork signal — GitLab has no boolean "fork" field the way Gogs does.
 	ForkedFromProject *struct {
@@ -50,9 +58,12 @@ type gitlabProject struct {
 }
 
 // ListRepos implements repoLister. accountType is accepted to satisfy the
-// interface and ignored: GitLab addresses a user namespace and a group by the
-// same path form, and /groups/{id}/projects is the only endpoint that returns
-// a group's projects.
+// interface and ignored.
+//
+// ⚠ This lists a GROUP. /groups/{id}/projects 404s for a personal user
+// namespace, whose projects come from /users/{id}/projects instead. Scanning a
+// user namespace is not supported yet; --repo must be passed explicitly, and
+// the 404 reason names the group so the cause is visible rather than mysterious.
 func (l *gitlabRepoLister) ListRepos(ctx context.Context, account string, _ collect.AccountType) ([]repoInfo, error) {
 	q := url.Values{}
 	q.Set("include_subgroups", "true")
@@ -67,10 +78,20 @@ func (l *gitlabRepoLister) ListRepos(ctx context.Context, account string, _ coll
 		return nil, fmt.Errorf("list projects for group %s: %w", account, err)
 	}
 
+	// The scan scope's Org is the group, so strip that prefix and keep any
+	// subgroup segments: "root/team-a/proj" under org "root" becomes
+	// "team-a/proj", which re-joins to the correct full path downstream.
+	prefix := account + "/"
 	out := make([]repoInfo, 0, len(projects))
 	for _, p := range projects {
+		name := p.PathWithNamespace
+		if strings.HasPrefix(name, prefix) {
+			name = strings.TrimPrefix(name, prefix)
+		} else if name == "" {
+			name = p.Path
+		}
 		out = append(out, repoInfo{
-			Name:     p.Path,
+			Name:     name,
 			Archived: p.Archived,
 			Fork:     p.ForkedFromProject != nil,
 		})

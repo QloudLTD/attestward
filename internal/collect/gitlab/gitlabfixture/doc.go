@@ -16,10 +16,8 @@
 // findings across all three scanners — 2 critical, 3 high, 5 medium — and two
 // packages with genuine advisories.
 //
-// That capture happened during a trial that expires 2026-09-08. After that,
-// these endpoints return 403 again for this account, so re-recording needs a
-// paid tier. Treat testdata/ as expensive to reproduce and do not casually
-// regenerate it.
+// Re-recording requires an entitled namespace, so treat testdata/ as expensive
+// to reproduce and do not casually regenerate it.
 //
 // # What was trimmed, and why
 //
@@ -29,7 +27,12 @@
 // worse, imply the collectors depend on fields they never read. What remains is
 // the evidence a collector actually reasons about.
 //
-// 403-not-entitled.json is the other half of the contract. The tier-gated
-// branch is the one that must never turn into a verified-fail, so it is tested
-// against a recorded 403 body rather than an assumed one.
+// 403-not-entitled.json is the other half of the contract: the tier-gated
+// branch is the one that must never turn into a verified-fail.
+//
+// ⚠ Nothing reads these files yet. They were recorded ahead of the C04-C06
+// collectors, while an entitled namespace was available, because the window to
+// capture them was narrower than the window to write the code. Until those
+// collectors land, the 403 path is covered by inline literals in the existing
+// tests, not by 403-not-entitled.json.
 package gitlabfixture

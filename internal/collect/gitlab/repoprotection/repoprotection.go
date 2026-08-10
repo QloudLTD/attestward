@@ -38,6 +38,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
@@ -137,13 +138,16 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 		return allNotCheckable(org, repo, describeErr("protected branches", org+"/"+repo, err), client.Provenance())
 	}
 
-	var def *protectedBranch
-	for i := range branches {
-		if branches[i].Name == proj.DefaultBranch {
-			def = &branches[i]
-			break
-		}
-	}
+	// Every rule whose pattern matches the default branch, not just an exact
+	// name match. GitLab protected-branch rules accept wildcards, so a branch
+	// protected only by "*" or "ma*" has no exact entry — matching by name
+	// alone fabricated three failures for a correctly protected repository.
+	//
+	// ⚠ And where several rules match, GitLab applies the MOST PERMISSIVE.
+	// Reading only the exact rule could therefore report allow_force_push=false
+	// while a wildcard rule alongside it actually permits force pushes: a false
+	// pass, which is the worst outcome this tool can produce.
+	def := mergeMatchingRules(branches, proj.DefaultBranch)
 
 	// Approvals is read separately and is allowed to fail without sinking the
 	// rest: on some tiers and token scopes it 403s, and that must not turn
@@ -203,13 +207,23 @@ func forcePush(org, repo string, p project, b *protectedBranch) model.CheckResul
 func deletionBlocked(org, repo string, p project, b *protectedBranch) model.CheckResult {
 	if b == nil {
 		return res(idDeletionBlocked, "Default branch cannot be deleted", model.StatusVerifiedFail, org, repo,
-			fmt.Sprintf("the default branch %q is not protected, and an unprotected branch can be deleted by anyone who can push to it", p.DefaultBranch),
+			fmt.Sprintf("the default branch %q is not protected, so it can be deleted by anyone who can push to it", p.DefaultBranch),
 			map[string]any{"protected": false})
 	}
-	return res(idDeletionBlocked, "Default branch cannot be deleted", model.StatusVerifiedPass, org, repo,
-		fmt.Sprintf("the default branch %q is protected. GitLab has no separate deletion toggle: a protected branch "+
-			"cannot be deleted, so protection is the evidence for this control rather than a field of its own", p.DefaultBranch),
-		map[string]any{"protected": true, "derived_from": "protected_branches"})
+	// ⚠ Protection does NOT make a branch undeletable on GitLab. It blocks
+	// deletion from Git clients, but a user with Maintainer or Owner can still
+	// delete a protected branch through the web UI. An earlier version of this
+	// check claimed otherwise and reported verified-pass, which put a false
+	// statement into signed evidence: a reader would conclude the branch was
+	// deletion-proof when a Maintainer could remove it in two clicks.
+	//
+	// GitHub's allow_deletions=false genuinely does block deletion, so the same
+	// status must not mean both things. Partial is the honest answer here.
+	return res(idDeletionBlocked, "Default branch cannot be deleted", model.StatusPartial, org, repo,
+		fmt.Sprintf("the default branch %q is protected, which blocks deletion from Git clients — but GitLab still "+
+			"permits a Maintainer or Owner to delete a protected branch through the web UI, so this is not the "+
+			"absolute block GitHub's allow_deletions provides. Limit who holds Maintainer and above", p.DefaultBranch),
+		map[string]any{"protected": true, "git_client_deletion_blocked": true, "ui_deletion_allowed_from": "Maintainer"})
 }
 
 func requiredReviews(org, repo string, _ project, a approvals, err error) model.CheckResult {
@@ -224,9 +238,22 @@ func requiredReviews(org, repo string, _ project, a approvals, err error) model.
 			fmt.Sprintf("could not read the project approvals settings: %v", err), nil)
 	}
 	if a.ApprovalsBeforeMerge < 1 {
-		return res(idRequiredReviews, "Merge requests require review", model.StatusVerifiedFail, org, repo,
-			"approvals_before_merge is 0, so a merge request can be merged with no approval from anyone",
-			map[string]any{"approvals_before_merge": a.ApprovalsBeforeMerge})
+		// ⚠ Do NOT fail from this field alone. approvals_before_merge was
+		// deprecated in GitLab 12.3 and does not reflect approval *rules*,
+		// which are how required review is configured on Premium and above. A
+		// project enforcing "2 approvals" through a rule still reports 0 here,
+		// so failing on it asserted "can be merged with no approval from
+		// anyone" about projects where it plainly could not.
+		//
+		// Rules live behind a paid tier, so their absence on Free is a tier
+		// limitation rather than a finding — verified on a Free namespace,
+		// where setting approvals_before_merge is accepted and then ignored.
+		return res(idRequiredReviews, "Merge requests require review", model.StatusNotCheckable, org, repo,
+			"approvals_before_merge is 0, but that field was deprecated in GitLab 12.3 and does not reflect "+
+				"approval rules, which are the modern mechanism and a paid-tier feature. A zero here is therefore "+
+				"consistent both with no review requirement and with a rule this tier cannot expose, and the two "+
+				"cannot be distinguished from the readable API surface",
+			map[string]any{"approvals_before_merge": a.ApprovalsBeforeMerge, "field_deprecated_since": "12.3"})
 	}
 	status, note := model.StatusVerifiedPass, ""
 	if a.MergeRequestsAuthorApproval {
@@ -312,6 +339,9 @@ func allNotCheckable(org, repo, reason string, prov []model.Provenance) []model.
 		{idAdminEnforced, "Branch protection applies to administrators"},
 	}
 	out := make([]model.CheckResult, 0, len(ids))
+	if prov == nil {
+		prov = []model.Provenance{} // nil marshals to null; the schema wants an array
+	}
 	for _, c := range ids {
 		r := res(c.id, c.title, model.StatusNotCheckable, org, repo, reason, nil)
 		r.Provenance = prov
@@ -408,4 +438,70 @@ func init() {
 		map[model.Status]string{
 			model.StatusNotCheckable: "GitLab has no equivalent of GitHub's enforce_admins, so no API field answers this. Reporting pass or fail would assert a control GitLab does not model.",
 		}, nil)
+}
+
+// mergeMatchingRules returns the effective protection for branch, combining
+// every rule whose pattern matches it.
+//
+// GitLab evaluates overlapping protected-branch rules most-permissively, so the
+// effective posture is the union of what each matching rule allows — not the
+// first or most specific match. Returns nil when no rule matches at all.
+func mergeMatchingRules(rules []protectedBranch, branch string) *protectedBranch {
+	var eff *protectedBranch
+	for i := range rules {
+		if !branchPatternMatches(rules[i].Name, branch) {
+			continue
+		}
+		r := rules[i]
+		if eff == nil {
+			cp := r
+			cp.Name = branch
+			eff = &cp
+			continue
+		}
+		// Most permissive wins: any matching rule allowing force push means
+		// force push is allowed, and code-owner approval only holds if every
+		// matching rule requires it.
+		if r.AllowForcePush {
+			eff.AllowForcePush = true
+		}
+		if !r.CodeOwnerApprovalRequired {
+			eff.CodeOwnerApprovalRequired = false
+		}
+		eff.PushAccessLevels = append(eff.PushAccessLevels, r.PushAccessLevels...)
+		eff.MergeAccessLevels = append(eff.MergeAccessLevels, r.MergeAccessLevels...)
+	}
+	return eff
+}
+
+// branchPatternMatches implements GitLab's protected-branch wildcard matching,
+// which is shell-glob style: "*" matches any run of characters. Exact names
+// are the common case and are handled by the same path.
+func branchPatternMatches(pattern, branch string) bool {
+	if pattern == branch {
+		return true
+	}
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+	parts := strings.Split(pattern, "*")
+	pos := 0
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		idx := strings.Index(branch[pos:], part)
+		if idx < 0 {
+			return false
+		}
+		if i == 0 && idx != 0 {
+			return false // a leading literal must anchor at the start
+		}
+		pos += idx + len(part)
+	}
+	// A trailing literal must reach the end of the branch name.
+	if last := parts[len(parts)-1]; last != "" && !strings.HasSuffix(branch, last) {
+		return false
+	}
+	return true
 }

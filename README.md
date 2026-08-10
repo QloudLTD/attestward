@@ -97,10 +97,10 @@ that emits a short pack looks, to anyone skimming, like a clean one.
 
 Two mappings differ from GitHub and are worth knowing before reading a pack:
 
-- **Branch deletion has no setting.** A protected branch on GitLab cannot be deleted, so
-  `C02.branch.deletion-blocked` is derived from protection existing rather than from a
-  field of its own. The reason says so, so a pass is not mistaken for evidence of a
-  toggle GitLab does not have.
+- **Branch deletion is only partly blocked.** Protecting a branch stops deletion from
+  Git clients, but a Maintainer or Owner can still delete it through the web UI. So
+  `C02.branch.deletion-blocked` reports `partial`, never a pass — GitHub's
+  `allow_deletions=false` genuinely blocks deletion and the two must not share a status.
 - **`enforce_admins` has no equivalent.** GitLab expresses protection as access levels
   rather than a rule with an administrator exemption, so `C02.branch.admin-enforced` is
   always `not-checkable`. Reporting a pass or fail would assert a control GitLab does not
