@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -357,64 +358,9 @@ func TestRubricsMatchWhatTheCollectorCanActuallyEmit(t *testing.T) {
 		{project: fmt.Sprintf(realProject, true, "false"), branchesStatus: http.StatusForbidden, approvals: fmt.Sprintf(realApprovals, 1, false)},
 	}
 
-	observed := map[string]map[model.Status]bool{}
+	all := []model.CheckResult{}
 	for _, st := range states {
-		for _, r := range collectWith(t, st) {
-			if observed[r.CheckID] == nil {
-				observed[r.CheckID] = map[model.Status]bool{}
-			}
-			observed[r.CheckID][r.Status] = true
-		}
+		all = append(all, collectWith(t, st)...)
 	}
-	if len(observed) == 0 {
-		t.Fatal("no results collected; this test would prove nothing")
-	}
-
-	// Both directions. Iterating only the observed IDs let a check registered
-	// but never emitted escape entirely — documented and dead at once — while
-	// iterating only the registered ones lets a brand-new emitted ID escape.
-	registered := map[string]bool{}
-	for _, m := range collect.Registered() {
-		if m.Platform == platform && m.Collector == collectorID {
-			registered[m.ID] = true
-		}
-	}
-	// Without this the loop below goes vacuous if collectorID ever drifts:
-	// results would still be collected, they would just stop matching, and the
-	// len(observed) guard above would not notice.
-	if len(registered) == 0 {
-		t.Fatalf("no checks registered for platform %q collector %q; this test would prove nothing", platform, collectorID)
-	}
-	for id := range observed {
-		if !registered[id] {
-			t.Errorf("%s is emitted but not registered, so it has no rubric, no remediation and no entry in "+
-				"`checks docs` at all", id)
-		}
-	}
-
-	for _, meta := range collect.Registered() {
-		if meta.Platform != platform || meta.Collector != collectorID {
-			continue
-		}
-		id := meta.ID
-		seen, emitted := observed[id]
-		if !emitted {
-			t.Errorf("%s is registered for this collector but no fixture state emits it — it is documented and "+
-				"unreachable, or this matrix is missing the case that reaches it", id)
-			continue
-		}
-		for status := range seen {
-			if _, documented := meta.Rubric[status]; !documented {
-				t.Errorf("%s emits %q but its rubric does not document it — a reader gets a result with no stated meaning",
-					id, status)
-			}
-		}
-		for status := range meta.Rubric {
-			if !seen[status] {
-				t.Errorf("%s documents %q in its rubric, but no fixture state produces it. Either the rubric describes "+
-					"behaviour the code no longer has (which is what `checks docs` would then publish), or this test's "+
-					"state matrix is missing a case worth covering.", id, status)
-			}
-		}
-	}
+	collecttest.AssertRubricsMatchObservedBehaviour(t, platform, collectorID, all)
 }
