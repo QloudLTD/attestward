@@ -38,6 +38,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect/github/scahistory"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/secretshygiene"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/vdp"
+	gitlaborgsecurity "gitlab.com/sioakeim/attestward/internal/collect/gitlab/orgsecurity"
 	gitlabunsupported "gitlab.com/sioakeim/attestward/internal/collect/gitlab/unsupported"
 	gogscollect "gitlab.com/sioakeim/attestward/internal/collect/gogs"
 	gogsrepoprotection "gitlab.com/sioakeim/attestward/internal/collect/gogs/repoprotection"
@@ -215,8 +216,9 @@ func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 // has the same shape as a GitHub one and a reader can tell "not evaluated
 // yet" from "clean". As real collectors land (#1) they are appended here and
 // their entries leave that table.
-func defaultGitLabCollectors() []collect.Collector {
-	return append(collect.Collectors(), gitlabunsupported.Collectors()...)
+func defaultGitLabCollectors(baseURL, token string) []collect.Collector {
+	collectors := append(collect.Collectors(), gitlabunsupported.Collectors()...)
+	return append(collectors, gitlaborgsecurity.New(baseURL, token))
 }
 
 func defaultGogsCollectors(baseURL, token string) []collect.Collector {
@@ -385,7 +387,7 @@ func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, er
 	}
 
 	if effectivePlatform(cfg.Platform) == platformGitLab {
-		collectors := defaultGitLabCollectors()
+		collectors := defaultGitLabCollectors(cfg.GitLabURL, token)
 		if len(collectors) == 0 {
 			return scanDeps{}, fmt.Errorf("this build has no collectors for platform %q, so a scan would produce a pack with no verified results at all", platformGitLab)
 		}

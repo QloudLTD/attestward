@@ -66,26 +66,6 @@ const remediation = "Not evaluable by this build on GitLab yet. Until a collecto
 
 var checks = []check{
 	{
-		id: "C01.org.2fa-required", title: "Org requires two-factor authentication",
-		collectorID: "C01.org-security", scope: orgScoped,
-		reason: "GitLab groups expose a security surface \u2014 require_two_factor_authentication, default project-creation and visibility levels \u2014 via GET /groups/{id}. This build does not read it yet",
-	},
-	{
-		id: "C01.org.default-repo-permission", title: "Default repository permission for members",
-		collectorID: "C01.org-security", scope: orgScoped,
-		reason: "GitLab groups expose a security surface \u2014 require_two_factor_authentication, default project-creation and visibility levels \u2014 via GET /groups/{id}. This build does not read it yet",
-	},
-	{
-		id: "C01.org.members-can-create-public", title: "Whether members can create public repositories",
-		collectorID: "C01.org-security", scope: orgScoped,
-		reason: "GitLab groups expose a security surface \u2014 require_two_factor_authentication, default project-creation and visibility levels \u2014 via GET /groups/{id}. This build does not read it yet",
-	},
-	{
-		id: "C01.org.members-without-2fa", title: "Count of members without two-factor authentication",
-		collectorID: "C01.org-security", scope: orgScoped,
-		reason: "GitLab groups expose a security surface \u2014 require_two_factor_authentication, default project-creation and visibility levels \u2014 via GET /groups/{id}. This build does not read it yet",
-	},
-	{
 		id: "C02.branch.admin-enforced", title: "Default branch protections apply to admins (no unconditional bypass actor)",
 		collectorID: "C02.repo-protection", scope: repoScoped,
 		reason: "GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet",
@@ -358,8 +338,14 @@ func (c *collector) Collect(ctx context.Context, sc collect.Scope) ([]model.Chec
 func result(chk check, org, repo string) model.CheckResult {
 	return model.CheckResult{
 		CheckID: chk.id,
+		Title:   chk.title,
 		Status:  model.StatusNotCheckable,
 		Reason:  chk.reason,
 		Scope:   model.ScopeRef{Org: org, Repo: repo, Platform: platform},
+		// An empty slice, not nil: nil marshals to JSON null and the pack
+		// schema requires an array. Semantically the same thing — no API
+		// call backs any of these — but the schema is the contract a
+		// consumer validates against, and it is right to be strict.
+		Provenance: []model.Provenance{},
 	}
 }

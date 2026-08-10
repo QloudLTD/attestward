@@ -77,15 +77,17 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Org requires two-factor authentication
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the group)
+- **Fixture:** `internal/collect/gitlab/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** `GET /groups/{id}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+- **verified-fail:** GET /groups/{id} returned require_two_factor_authentication=false.
+- **not-checkable:** The group object could not be read — the token lacks group access, or the path does not resolve.
+- **verified-pass:** GET /groups/{id} returned require_two_factor_authentication=true.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Group → Settings → General → Permissions and group features → enable "Require all users in this group to set up two-factor authentication". Note the grace period: enforcement starts applying only after it elapses.
 
 #### gogs — Org requires two-factor authentication
 
@@ -138,17 +140,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Org Settings -> Member privileges -> Base permissions -> set to "Read" or "No permission" so members don't get write access to every repo by default.
 
-#### gitlab — Default repository permission for members
+#### gitlab — Org default repository permission is restrictive
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the group)
+- **Fixture:** `internal/collect/gitlab/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** `GET /groups/{id}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+- **verified-fail:** Group visibility is public.
+- **not-checkable:** The group object could not be read.
+- **verified-pass:** Group visibility is private or internal, so projects created in it are not world-readable by default.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Group → Settings → General → set the group's visibility to Private or Internal so new projects do not default to public.
 
 #### gogs — Org default repository permission is not overly broad
 
@@ -202,17 +206,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Org Settings -> Member privileges -> Repository creation -> uncheck "Public" so members can't create public repositories without an explicit visibility change reviewed separately.
 
-#### gitlab — Whether members can create public repositories
+#### gitlab — Members cannot create public repositories
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the group)
+- **Fixture:** `internal/collect/gitlab/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** `GET /groups/{id}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+- **verified-fail:** project_creation_level is "developer", so ordinary members can create projects.
+- **not-checkable:** The group object could not be read, or reported a value this build does not recognise.
+- **verified-pass:** project_creation_level is "maintainer" or "noone".
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Group → Settings → General → Permissions → set "Roles allowed to create projects" to Maintainers or No one.
 
 #### gogs — Members cannot create public repositories unchecked
 
@@ -265,17 +271,17 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Org People page -> filter by "Two-factor authentication: Disabled" -> have each flagged member enable 2FA under their own Settings -> Password and authentication, or remove/suspend members who won't comply. Then enable C01.org.2fa-required so new members can't rejoin without it.
 
-#### gitlab — Count of members without two-factor authentication
+#### gitlab — No members without two-factor authentication
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the group)
+- **Fixture:** `internal/collect/gitlab/orgsecurity/orgsecurity_test.go`
+- **API endpoint(s):** `GET /groups/{id}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab groups expose a security surface — require_two_factor_authentication, default project-creation and visibility levels — via GET /groups/{id}. This build does not read it yet
+- **not-checkable:** GitLab's group members API carries no per-user two-factor field, so the question cannot be answered from the API at all.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Not evidenceable on GitLab: the members API exposes no per-user two-factor state. Enforce 2FA at the group level and confirm enrolment through your identity provider or GitLab admin area instead.
 
 #### gogs — No members are without two-factor authentication
 
