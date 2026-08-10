@@ -149,7 +149,7 @@ This check is registered under more than one platform — details for each below
 **Status rubric:**
 
 - **verified-fail:** Group visibility is public.
-- **not-checkable:** The group object could not be read.
+- **not-checkable:** The group object could not be read, or reported a visibility this build does not recognise — the default project visibility follows from it, so no pass or fail is asserted.
 - **verified-pass:** Group visibility is private or internal, so projects created in it are not world-readable by default.
 
 **Remediation:** Group → Settings → General → set the group's visibility to Private or Internal so new projects do not default to public.

@@ -174,3 +174,41 @@ func TestUnknownVisibilityIsNotCheckable(t *testing.T) {
 		}
 	}
 }
+
+// TestUnknownVisibilityIsNotADefaultPermissionPass pins issue #5. The sibling
+// check already refused to guess on this field; this one read every non-public
+// value as private-or-internal, so an unrecognised visibility became a pass
+// whose reason quoted a value it had not understood.
+//
+// A false pass is the worst outcome available to this tool: it tells a producer
+// a control holds, inside a signed attestation, on the strength of something
+// the build could not interpret.
+func TestUnknownVisibilityIsNotADefaultPermissionPass(t *testing.T) {
+	for _, vis := range []string{"", "martian", "Private"} {
+		body := fmt.Sprintf(realGroupBody, true, "developer")
+		body = strings.Replace(body, `"visibility": "private"`, fmt.Sprintf(`"visibility": %q`, vis), 1)
+		got := find(t, collectAgainst(t, 200, body), idDefaultPermission)
+		if got.Status != model.StatusNotCheckable {
+			t.Errorf("visibility %q = %q, want not-checkable", vis, got.Status)
+		}
+		if got.Status == model.StatusVerifiedPass {
+			t.Errorf("visibility %q produced a PASS — a control asserted as holding from an uninterpreted value", vis)
+		}
+	}
+}
+
+// TestKnownVisibilitiesStillDecide guards the other direction: the refusal must
+// not swallow the cases the check exists to answer.
+func TestKnownVisibilitiesStillDecide(t *testing.T) {
+	for vis, want := range map[string]model.Status{
+		"private":  model.StatusVerifiedPass,
+		"internal": model.StatusVerifiedPass,
+		"public":   model.StatusVerifiedFail,
+	} {
+		body := fmt.Sprintf(realGroupBody, true, "developer")
+		body = strings.Replace(body, `"visibility": "private"`, fmt.Sprintf(`"visibility": %q`, vis), 1)
+		if got := find(t, collectAgainst(t, 200, body), idDefaultPermission); got.Status != want {
+			t.Errorf("visibility %q = %q, want %q", vis, got.Status, want)
+		}
+	}
+}

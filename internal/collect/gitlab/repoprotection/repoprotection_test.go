@@ -370,10 +370,28 @@ func TestRubricsMatchWhatTheCollectorCanActuallyEmit(t *testing.T) {
 		t.Fatal("no results collected; this test would prove nothing")
 	}
 
-	// Iterate the REGISTERED checks, not just the observed ones: a check
-	// registered for this platform that the collector never emits would
-	// otherwise escape both directions of this test entirely, which is the
-	// quietest way for a check to be documented and dead at the same time.
+	// Both directions. Iterating only the observed IDs let a check registered
+	// but never emitted escape entirely — documented and dead at once — while
+	// iterating only the registered ones lets a brand-new emitted ID escape.
+	registered := map[string]bool{}
+	for _, m := range collect.Registered() {
+		if m.Platform == platform && m.Collector == collectorID {
+			registered[m.ID] = true
+		}
+	}
+	// Without this the loop below goes vacuous if collectorID ever drifts:
+	// results would still be collected, they would just stop matching, and the
+	// len(observed) guard above would not notice.
+	if len(registered) == 0 {
+		t.Fatalf("no checks registered for platform %q collector %q; this test would prove nothing", platform, collectorID)
+	}
+	for id := range observed {
+		if !registered[id] {
+			t.Errorf("%s is emitted but not registered, so it has no rubric, no remediation and no entry in "+
+				"`checks docs` at all", id)
+		}
+	}
+
 	for _, meta := range collect.Registered() {
 		if meta.Platform != platform || meta.Collector != collectorID {
 			continue
