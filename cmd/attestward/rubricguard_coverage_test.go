@@ -101,6 +101,23 @@ func TestRubricGuardCoverageOnlyShrinks(t *testing.T) {
 			"baseline deliberately — a collector must not arrive unguarded by omission.", key)
 	}
 
+	// A key in BOTH maps passed silently, which matters because moving entries
+	// between them is the unit of progress on #10 and will happen ~37 more
+	// times. A copy-without-delete would leave a collector listed as wired and
+	// as outstanding at once — reading as done on one line and as to-do on
+	// another, with the test endorsing both.
+	var doubled []string
+	for key := range rubricGuardWired {
+		if rubricGuardUnwired[key] {
+			doubled = append(doubled, key)
+		}
+	}
+	sort.Strings(doubled)
+	for _, key := range doubled {
+		t.Errorf("%s is in BOTH rubricGuardWired and rubricGuardUnwired; when wiring a collector, move the entry "+
+			"rather than copying it", key)
+	}
+
 	// A stale baseline is its own failure: an entry for a collector that no
 	// longer registers reads as tracked work that does not exist.
 	var stale []string
