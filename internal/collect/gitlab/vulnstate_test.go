@@ -98,13 +98,19 @@ func TestFixtureCoversTheDisagreementCase(t *testing.T) {
 	if err := json.Unmarshal(gitlabfixture.MustLoad(t, "vulnerabilities-all-states.json"), &vulns); err != nil {
 		t.Fatalf("decode fixture: %v", err)
 	}
+	// Scoped to OPEN findings deliberately. A dismissed vulnerability can also
+	// stop being detected on the default branch, which is a perfectly valid
+	// capture — asserting on every flagged finding would fail a future
+	// re-recording that happened to contain one, turning a correct fixture into
+	// a broken test. What must exist is the case a collector can get wrong:
+	// still open by the record, already gone from the shipping code.
 	found := false
 	for _, v := range vulns {
-		if ResolvedOnDefaultBranch(v.State, v.ResolvedOnDefaultBranch) {
+		if !StateDisagreesWithDefaultBranch(v.State, v.ResolvedOnDefaultBranch) {
+			continue
+		}
+		if open, err := IsOpenVulnerability(v.State); err == nil && open {
 			found = true
-			if open, _ := IsOpenVulnerability(v.State); !open {
-				t.Errorf("finding %d: the disagreement case should be one the record still calls open", v.ID)
-			}
 		}
 	}
 	if !found {

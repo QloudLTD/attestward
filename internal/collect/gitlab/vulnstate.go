@@ -41,7 +41,7 @@ func IsOpenVulnerability(state string) (bool, error) {
 	}
 }
 
-// ResolvedOnDefaultBranch is the one case where the two obvious signals
+// StateDisagreesWithDefaultBranch reports the one case where the two obvious signals
 // disagree, and it is worth naming rather than leaving as a surprise.
 //
 // A finding can be state "detected" while resolved_on_default_branch is true:
@@ -55,6 +55,6 @@ func IsOpenVulnerability(state string) (bool, error) {
 // The recorded fixture deliberately contains such a finding so that whichever
 // collector is written next has to confront the case rather than discover it
 // in production.
-func ResolvedOnDefaultBranch(state string, resolvedOnDefault bool) bool {
+func StateDisagreesWithDefaultBranch(state string, resolvedOnDefault bool) bool {
 	return resolvedOnDefault && state != StateResolved
 }
