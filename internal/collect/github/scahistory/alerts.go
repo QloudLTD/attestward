@@ -54,20 +54,34 @@ func fetchOpenAlerts(ctx context.Context, client *ghcollect.Client, org, repo st
 // issue #18: "no CVE details in the pack unless --include-findings
 // later").
 type alertSummary struct {
-	OpenCriticalCount     int
-	OpenHighCount         int
-	OpenMediumCount       int
-	OpenLowCount          int
-	OpenTotalCount        int
+	OpenCriticalCount int
+	OpenHighCount     int
+	OpenMediumCount   int
+	OpenLowCount      int
+	OpenTotalCount    int
+	// OpenUnclassifiedCount is alerts whose severity this build could not
+	// interpret — a nil SecurityAdvisory (a shape GitHub does return, which is
+	// why the read below nil-guards it) or a value not in the known set.
+	//
+	// Before this existed such an alert incremented only OpenTotalCount, so it
+	// vanished from every severity bucket and the triage check reported "no
+	// critical alert open" over alerts it had never classified. Counting them
+	// explicitly is what lets that check refuse to make the claim.
+	OpenUnclassifiedCount int
 	OldestOpenAgeDays     float64
 	OldestCriticalAgeDays float64
+	// OldestUnclassifiedAgeDays lets the triage check say how long an alert it
+	// could not classify has been sitting there, which is the difference
+	// between "we cannot classify one new alert" and "we cannot classify one
+	// that has been open for a year".
+	OldestUnclassifiedAgeDays float64
 }
 
 // summarizeAlerts is a pure function: no I/O, so its severity/age math is
 // independently table-driven-testable without a fake API server.
 func summarizeAlerts(alerts []*ghgithub.DependabotAlert, now time.Time) alertSummary {
 	var s alertSummary
-	var oldestOpen, oldestCritical time.Time
+	var oldestOpen, oldestCritical, oldestUnclassified time.Time
 
 	for _, a := range alerts {
 		s.OpenTotalCount++
@@ -92,6 +106,15 @@ func summarizeAlerts(alerts []*ghgithub.DependabotAlert, now time.Time) alertSum
 			s.OpenMediumCount++
 		case severityLow:
 			s.OpenLowCount++
+		default:
+			// No silent bucket. An uninterpreted severity is recorded as such
+			// rather than being absorbed into the total, because the total is
+			// the one number that cannot distinguish "classified as harmless"
+			// from "never classified at all".
+			s.OpenUnclassifiedCount++
+			if oldestUnclassified.IsZero() || createdAt.Before(oldestUnclassified) {
+				oldestUnclassified = createdAt
+			}
 		}
 	}
 
@@ -100,6 +123,9 @@ func summarizeAlerts(alerts []*ghgithub.DependabotAlert, now time.Time) alertSum
 	}
 	if s.OpenCriticalCount > 0 {
 		s.OldestCriticalAgeDays = now.Sub(oldestCritical).Hours() / 24
+	}
+	if s.OpenUnclassifiedCount > 0 {
+		s.OldestUnclassifiedAgeDays = now.Sub(oldestUnclassified).Hours() / 24
 	}
 	return s
 }
