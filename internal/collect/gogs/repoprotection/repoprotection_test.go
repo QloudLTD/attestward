@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	gogscollect "gitlab.com/sioakeim/attestward/internal/collect/gogs"
 	"gitlab.com/sioakeim/attestward/internal/collect/gogs/gogsfixture"
 	"gitlab.com/sioakeim/attestward/internal/model"
@@ -369,4 +370,30 @@ func TestCollect_MultipleRepos(t *testing.T) {
 			t.Fatalf("unexpected scope repo %q", r.Scope.Repo)
 		}
 	}
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// This collector is the simplest case in the tree and the guard is still worth
+// having. Gogs exposes no branch-protection API at all, so every check here is
+// always not-checkable and every rubric documents only that. The guard's value
+// is therefore forward-looking: the day someone adds a real status — because
+// Gogs gained an endpoint, or because a check started inferring something — it
+// fails unless the rubric gains an entry to match. That is exactly the drift
+// that shipped undetected three times in the gitlab and github trees.
+//
+// Two states, since a repo that reads and one that does not are the only
+// distinguishable inputs when the answer is always the same.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	var all []model.CheckResult
+
+	readable := gogsfixture.New()
+	normalRepo(readable, "org", "repo", nil)
+	all = append(all, collectWith(t, readable, "org", "repo")...)
+
+	unreadable := gogsfixture.New()
+	unreadable.Set("GET", repoPath("org", "repo"), gogsfixture.Response{Status: 404, Body: map[string]any{}})
+	all = append(all, collectWith(t, unreadable, "org", "repo")...)
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, platform, collectorID, all)
 }
