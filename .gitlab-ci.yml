@@ -1,0 +1,115 @@
+# CI for GitLab, ported from .github/workflows/ci.yaml (issue #4).
+#
+# This exists because the project's "pipelines must succeed" merge gate was
+# enabled before any pipeline definition was ported, which blocked every merge
+# request behind a condition nothing could satisfy. A gate with no pipeline is
+# not a strict repository — it is a stuck one.
+#
+# # Scope: standard Linux x64 only
+#
+# Every job runs on GitLab's shared `saas-linux-small-amd64` runners via the
+# official `golang` image. No custom images, no self-hosted runners, no
+# multi-arch matrix. The binary is pure Go with CGO disabled, so one Linux
+# runner cross-compiles every published target.
+#
+# ⚠ The GitHub workflow has a `test-macos` job that this deliberately does NOT
+# reproduce. It exists there to keep real darwin coverage for the darwin
+# binaries the project ships, and GitLab's macOS runners are a separate paid
+# tier. So darwin test coverage currently comes from GitHub only — that is a
+# real gap in this pipeline, not an oversight, and it is recorded here rather
+# than left for someone to discover from a darwin-only bug.
+
+default:
+  image: golang:1.25
+  tags:
+    - saas-linux-small-amd64
+  # Infrastructure faults only. A failed runner acquisition should not read as
+  # a failing merge request — that is how a team learns to ignore a red
+  # pipeline. Job timeouts are deliberately NOT retried: a test that hangs is a
+  # real defect, and retrying it converts a reproducible hang into a flake.
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - scheduler_failure
+      - stale_schedule
+
+variables:
+  # Keeps `go build`/`go test` proving the module graph resolves from go.sum
+  # rather than from whatever a warm cache happened to hold.
+  GOFLAGS: -mod=readonly
+  CGO_ENABLED: "0"
+  GIT_DEPTH: "0" # the Makefile derives VERSION from `git describe --tags`
+
+stages:
+  - verify
+  - build
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+lint:
+  stage: verify
+  # Pinned to the version the repo uses locally. An unpinned linter turns an
+  # upstream release into a surprise red pipeline on an unrelated change.
+  script:
+    - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+    - golangci-lint run
+
+test:
+  stage: verify
+  # -race is why CGO_ENABLED is overridden here: the race detector needs cgo,
+  # unlike every other job and unlike the shipped binary.
+  variables:
+    CGO_ENABLED: "1"
+  script:
+    - go vet ./...
+    - go test ./... -race -coverprofile=coverage.out
+    - go tool cover -func=coverage.out | tail -1
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    when: always
+    expire_in: 1 week
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  after_script:
+    - go run github.com/boumenot/gocover-cobertura@latest < coverage.out > coverage.xml || true
+
+# The four drift jobs below each regenerate a committed artefact and fail if
+# the result differs from what is in git. They are separate jobs rather than
+# one, so a red pipeline names which artefact went stale instead of making a
+# contributor read a log to find out.
+checks-docs-drift:
+  stage: verify
+  script:
+    - make checks-docs-check
+
+gomod-tidy-drift:
+  stage: verify
+  script:
+    - make tidy-check
+
+examples-drift:
+  stage: verify
+  script:
+    - make examples-check
+
+third-party-notices-drift:
+  stage: verify
+  script:
+    - make notices-check
+
+build:
+  stage: build
+  script:
+    - make build
+    - ./attestward version
+  artifacts:
+    paths:
+      - attestward
+    expire_in: 1 week
