@@ -38,7 +38,9 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect/github/scahistory"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/secretshygiene"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/vdp"
+	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
 	gitlaborgsecurity "gitlab.com/sioakeim/attestward/internal/collect/gitlab/orgsecurity"
+	gitlabrepoprotection "gitlab.com/sioakeim/attestward/internal/collect/gitlab/repoprotection"
 	gitlabunsupported "gitlab.com/sioakeim/attestward/internal/collect/gitlab/unsupported"
 	gogscollect "gitlab.com/sioakeim/attestward/internal/collect/gogs"
 	gogsrepoprotection "gitlab.com/sioakeim/attestward/internal/collect/gogs/repoprotection"
@@ -218,7 +220,10 @@ func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 // their entries leave that table.
 func defaultGitLabCollectors(baseURL, token string) []collect.Collector {
 	collectors := append(collect.Collectors(), gitlabunsupported.Collectors()...)
-	return append(collectors, gitlaborgsecurity.New(baseURL, token))
+	return append(collectors,
+		gitlaborgsecurity.New(baseURL, token),
+		gitlabrepoprotection.New(baseURL, token),
+	)
 }
 
 func defaultGogsCollectors(baseURL, token string) []collect.Collector {
@@ -391,11 +396,19 @@ func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, er
 		if len(collectors) == 0 {
 			return scanDeps{}, fmt.Errorf("this build has no collectors for platform %q, so a scan would produce a pack with no verified results at all", platformGitLab)
 		}
-		return scanDeps{
+		deps := scanDeps{
 			collectors: collectors,
 			stdout:     stdout,
 			signer:     integrity.CosignSigner{},
-		}, nil
+		}
+		// A repo lister, so --repo narrows a scan rather than being required
+		// for it. Without one, a producer had to name every project by hand,
+		// and naming four of nine yields a pack that attests to four while
+		// looking complete.
+		if client, cerr := gitlabcollect.NewClient(cfg.GitLabURL, token); cerr == nil {
+			deps.repoLister = &gitlabRepoLister{client: client}
+		}
+		return deps, nil
 	}
 
 	if effectivePlatform(cfg.Platform) == platformGogs {

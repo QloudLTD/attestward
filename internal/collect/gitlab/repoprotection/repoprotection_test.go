@@ -1,0 +1,169 @@
+package repoprotection
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"gitlab.com/sioakeim/attestward/internal/collect"
+	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
+	"gitlab.com/sioakeim/attestward/internal/model"
+)
+
+// Bodies below are the shapes GitLab really returns, captured from a live
+// project on 2026-08-10. Recorded rather than invented so the parsing is
+// exercised against the real field names — including access_level_description,
+// which is what makes a reason readable.
+const (
+	realProject = `{"path":"attestward","default_branch":"main",
+		"only_allow_merge_if_pipeline_succeeds":%t,"allow_merge_on_skipped_pipeline":%s,
+		"merge_method":"merge","merge_requests_enabled":true}`
+
+	realProtectedBranch = `[{"id":1,"name":"main","allow_force_push":%t,"code_owner_approval_required":false,
+		"push_access_levels":[{"access_level":40,"access_level_description":"Maintainers"}],
+		"merge_access_levels":[{"access_level":40,"access_level_description":"Maintainers"}],
+		"unprotect_access_levels":[]}]`
+
+	realApprovals = `{"approvals_before_merge":%d,"merge_requests_author_approval":%t,
+		"reset_approvals_on_push":true,"disable_overriding_approvers_per_merge_request":false}`
+)
+
+type routes struct {
+	project, branches, approvals string
+	approvalsStatus              int
+}
+
+func collectWith(t *testing.T, r routes) []model.CheckResult {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/protected_branches"):
+			fmt.Fprint(w, r.branches)
+		case strings.HasSuffix(req.URL.Path, "/approvals"):
+			if r.approvalsStatus != 0 && r.approvalsStatus != 200 {
+				w.WriteHeader(r.approvalsStatus)
+				fmt.Fprint(w, `{"message":"403 Forbidden"}`)
+				return
+			}
+			fmt.Fprint(w, r.approvals)
+		default:
+			fmt.Fprint(w, r.project)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	c := NewForTest(srv.URL, "tok", func() (*gitlabcollect.Client, error) {
+		return gitlabcollect.NewClient(srv.URL, "tok")
+	})
+	res, err := c.Collect(context.Background(), collect.Scope{Org: "grp", Repos: []string{"proj"}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	return res
+}
+
+func find(t *testing.T, res []model.CheckResult, id string) model.CheckResult {
+	t.Helper()
+	for _, r := range res {
+		if r.CheckID == id {
+			return r
+		}
+	}
+	t.Fatalf("no result for %s", id)
+	return model.CheckResult{}
+}
+
+func defaults() routes {
+	return routes{
+		project:   fmt.Sprintf(realProject, true, "false"),
+		branches:  fmt.Sprintf(realProtectedBranch, false),
+		approvals: fmt.Sprintf(realApprovals, 1, false),
+	}
+}
+
+func TestProtectedDefaultBranchPasses(t *testing.T) {
+	res := collectWith(t, defaults())
+	for _, id := range []string{idProtectionExists, idForcePushBlocked, idDeletionBlocked, idRequiredStatusChecks} {
+		if got := find(t, res, id); got.Status != model.StatusVerifiedPass {
+			t.Errorf("%s = %q, want verified-pass (%s)", id, got.Status, got.Reason)
+		}
+	}
+}
+
+func TestUnprotectedDefaultBranchFailsEveryDerivedCheck(t *testing.T) {
+	r := defaults()
+	r.branches = `[]`
+	res := collectWith(t, r)
+	for _, id := range []string{idProtectionExists, idForcePushBlocked, idDeletionBlocked} {
+		if got := find(t, res, id); got.Status != model.StatusVerifiedFail {
+			t.Errorf("%s = %q, want verified-fail when the branch is unprotected", id, got.Status)
+		}
+	}
+}
+
+func TestForcePushAllowedFails(t *testing.T) {
+	r := defaults()
+	r.branches = fmt.Sprintf(realProtectedBranch, true)
+	if got := find(t, collectWith(t, r), idForcePushBlocked); got.Status != model.StatusVerifiedFail {
+		t.Errorf("allow_force_push=true = %q, want verified-fail", got.Status)
+	}
+}
+
+// TestSkippedPipelineDowngradesToPartial pins a gap that is easy to miss: a
+// project can require pipelines to succeed AND accept a skipped pipeline as
+// success, so a change that runs no jobs merges unchecked. Reporting that as
+// a clean pass would overstate the control.
+func TestSkippedPipelineDowngradesToPartial(t *testing.T) {
+	r := defaults()
+	r.project = fmt.Sprintf(realProject, true, "true")
+	if got := find(t, collectWith(t, r), idRequiredStatusChecks); got.Status != model.StatusPartial {
+		t.Errorf("allow_merge_on_skipped_pipeline=true = %q, want partial", got.Status)
+	}
+}
+
+// TestAuthorSelfApprovalDowngradesToPartial pins the same principle for
+// reviews: one required approval the author can supply themselves is not the
+// control it appears to be.
+func TestAuthorSelfApprovalDowngradesToPartial(t *testing.T) {
+	r := defaults()
+	r.approvals = fmt.Sprintf(realApprovals, 1, true)
+	if got := find(t, collectWith(t, r), idRequiredReviews); got.Status != model.StatusPartial {
+		t.Errorf("author self-approval = %q, want partial", got.Status)
+	}
+}
+
+// TestTierGatedApprovalsIsNotAFailure is the rule the whole platform rests on:
+// a 403 means not entitled, and must never be read as "no review required".
+func TestTierGatedApprovalsIsNotAFailure(t *testing.T) {
+	r := defaults()
+	r.approvalsStatus = http.StatusForbidden
+	got := find(t, collectWith(t, r), idRequiredReviews)
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("403 on approvals = %q, want not-checkable — a paywalled endpoint is not evidence of an absent control", got.Status)
+	}
+	// The rest of the checks must survive: one gated endpoint should not sink
+	// the branch evidence that was read successfully.
+	if p := find(t, collectWith(t, r), idProtectionExists); p.Status != model.StatusVerifiedPass {
+		t.Errorf("protection-exists = %q; a gated approvals read should not affect it", p.Status)
+	}
+}
+
+func TestAdminEnforcedIsAlwaysNotCheckable(t *testing.T) {
+	if got := find(t, collectWith(t, defaults()), idAdminEnforced); got.Status != model.StatusNotCheckable {
+		t.Errorf("admin-enforced = %q, want not-checkable — GitLab does not model it", got.Status)
+	}
+}
+
+func TestEmptyProjectIsNotAFailure(t *testing.T) {
+	r := defaults()
+	r.project = `{"path":"p","default_branch":null}`
+	for _, got := range collectWith(t, r) {
+		if got.Status == model.StatusVerifiedFail {
+			t.Errorf("%s = verified-fail on an empty project; there is no branch to protect yet", got.CheckID)
+		}
+	}
+}

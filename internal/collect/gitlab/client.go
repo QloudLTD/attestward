@@ -155,13 +155,24 @@ func IsTierGated(err error) bool {
 
 // resolve joins path onto the instance base URL, preserving any path prefix a
 // self-managed instance is served under.
+// ⚠ The URL is assembled as a string rather than through url.URL.Path.
+//
+// GitLab addresses a project by its URL-encoded full path — "group/project"
+// becomes "group%2Fproject" — and that %2F must survive to the wire. Setting
+// url.URL.Path and calling String() re-encodes the percent sign, turning
+// %2F into %252F, and GitLab answers 404. A live scan hit exactly that: every
+// C02 result came back "project not found" for a project that plainly exists.
+//
+// Building the string directly keeps the caller's encoding intact. The base
+// URL is already validated in newClient, so there is nothing url.URL would
+// normalise here that matters.
 func (c *Client) resolve(path string, query url.Values) string {
-	u := *c.baseURL
-	u.Path = strings.TrimRight(u.Path, "/") + apiPrefix + "/" + strings.TrimLeft(path, "/")
-	if query != nil {
-		u.RawQuery = query.Encode()
+	base := strings.TrimRight(c.baseURL.String(), "/")
+	out := base + apiPrefix + "/" + strings.TrimLeft(path, "/")
+	if query != nil && len(query) > 0 {
+		out += "?" + query.Encode()
 	}
-	return u.String()
+	return out
 }
 
 // get performs one request and returns the body plus the response, leaving

@@ -337,17 +337,17 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** For a ruleset, set Enforcement status to "Active" (not "Evaluate") and remove every bypass actor entirely — even one scoped to "Pull request only" caps this check at partial, not a full pass. For legacy branch protection, check "Do not allow bypassing the above settings" (Include administrators). Where both legacy protection and a ruleset apply to the same branch, both must independently bind admins for this check to pass.
 
-#### gitlab — Default branch protections apply to admins (no unconditional bypass actor)
+#### gitlab — Branch protection applies to administrators
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+- **not-checkable:** GitLab has no equivalent of GitHub's enforce_admins, so no API field answers this. Reporting pass or fail would assert a control GitLab does not model.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Not applicable on GitLab: protection is expressed as access levels rather than a rule with an administrator exemption. Restrict push and merge to Maintainers and limit who holds Owner.
 
 #### gogs — Default branch protections apply to admins (no unconditional bypass actor)
 
@@ -400,17 +400,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** In a ruleset, enable "Restrict deletions"; in legacy branch protection, leave "Allow deletions" unchecked.
 
-#### gitlab — Default branch blocks branch deletion
+#### gitlab — Default branch cannot be deleted
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET /projects/{id}`, `GET /projects/{id}/protected_branches`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+- **verified-fail:** The default branch is unprotected and can therefore be deleted.
+- **not-checkable:** Protection state could not be read.
+- **verified-pass:** The default branch is protected, and GitLab does not permit deletion of a protected branch. Derived from protection, not from a dedicated field — GitLab has none.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Protect the default branch. GitLab blocks deletion of protected branches; there is no separate deletion setting to enable.
 
 #### gogs — Default branch blocks branch deletion
 
@@ -463,17 +465,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** In a ruleset, enable "Block force pushes"; in legacy branch protection, leave "Allow force pushes" unchecked.
 
-#### gitlab — Default branch blocks force pushes
+#### gitlab — Force pushes are blocked on the default branch
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET /projects/{id}`, `GET /projects/{id}/protected_branches`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+- **verified-fail:** allow_force_push is true, or the branch is unprotected so force pushes are unrestricted.
+- **not-checkable:** Protection state could not be read.
+- **verified-pass:** The default branch's protection sets allow_force_push=false.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Settings → Repository → Protected branches → set "Allowed to force push" to off for the default branch.
 
 #### gogs — Default branch blocks force pushes
 
@@ -528,17 +532,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Repo Settings -> Rules -> Rulesets (or the legacy Settings -> Branches -> Branch protection rules) -> add a rule targeting the default branch.
 
-#### gitlab — Default branch has protection (legacy branch protection or a ruleset)
+#### gitlab — Default branch is protected
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET /projects/{id}`, `GET /projects/{id}/protected_branches`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+- **verified-fail:** No protected-branch rule matches the default branch.
+- **not-checkable:** The project or its protected branches could not be read, or the project is empty and has no default branch.
+- **verified-pass:** A protected-branch rule exists whose name matches the project's default_branch.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Settings → Repository → Protected branches → protect the default branch, allowing push and merge only to Maintainers.
 
 #### gogs — Default branch has protection configured
 
@@ -595,17 +601,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** In that ruleset/protection rule, enable "Require a pull request before merging" with at least 1 required approving review, and leave legacy branch protection's "Allow specified actors to bypass required pull requests" empty — or remove any users/teams/apps already listed there.
 
-#### gitlab — Default branch requires at least one approving review before merge
+#### gitlab — Merge requests require review
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET /projects/{id}/approvals`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+- **verified-fail:** approvals_before_merge is 0.
+- **partial:** Approvals are required, but merge_requests_author_approval is true so the author can supply the approval themselves.
+- **not-checkable:** The approvals endpoint was not readable — on GitLab the richer approval-rule surface is a paid-tier feature, and an unreadable rule set is not evidence that no review is required.
+- **verified-pass:** approvals_before_merge is 1 or more and authors cannot approve their own merge requests.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Settings → Merge requests → set "Approvals required" to at least 1, and disable "Prevent approval by author"'s inverse so authors cannot self-approve.
 
 #### gogs — Default branch requires at least one approving review before merge
 
@@ -661,17 +670,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** In that ruleset/protection rule, enable "Require status checks to pass before merging" and select the CI checks that must pass.
 
-#### gitlab — Default branch requires status checks before merge
+#### gitlab — Merges require passing checks
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
+- **API endpoint(s):** `GET /projects/{id}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet
+- **verified-fail:** only_allow_merge_if_pipeline_succeeds is false.
+- **partial:** Pipelines must succeed, but allow_merge_on_skipped_pipeline is true, so a change that runs no jobs merges unchecked.
+- **not-checkable:** The project object could not be read.
+- **verified-pass:** only_allow_merge_if_pipeline_succeeds is true and a skipped pipeline does not satisfy it.
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Settings → Merge requests → enable "Pipelines must succeed", and leave "Skipped pipelines are considered successful" off.
 
 #### gogs — Default branch requires status checks before merge
 

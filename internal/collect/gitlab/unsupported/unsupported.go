@@ -66,36 +66,6 @@ const remediation = "Not evaluable by this build on GitLab yet. Until a collecto
 
 var checks = []check{
 	{
-		id: "C02.branch.admin-enforced", title: "Default branch protections apply to admins (no unconditional bypass actor)",
-		collectorID: "C02.repo-protection", scope: repoScoped,
-		reason: "GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet",
-	},
-	{
-		id: "C02.branch.deletion-blocked", title: "Default branch blocks branch deletion",
-		collectorID: "C02.repo-protection", scope: repoScoped,
-		reason: "GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet",
-	},
-	{
-		id: "C02.branch.force-push-blocked", title: "Default branch blocks force pushes",
-		collectorID: "C02.repo-protection", scope: repoScoped,
-		reason: "GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet",
-	},
-	{
-		id: "C02.branch.protection-exists", title: "Default branch has protection (legacy branch protection or a ruleset)",
-		collectorID: "C02.repo-protection", scope: repoScoped,
-		reason: "GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet",
-	},
-	{
-		id: "C02.branch.required-reviews", title: "Default branch requires at least one approving review before merge",
-		collectorID: "C02.repo-protection", scope: repoScoped,
-		reason: "GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet",
-	},
-	{
-		id: "C02.branch.required-status-checks", title: "Default branch requires status checks before merge",
-		collectorID: "C02.repo-protection", scope: repoScoped,
-		reason: "GitLab exposes protected branches (GET /projects/{id}/protected_branches) and merge-request approval settings. This build does not read them yet",
-	},
-	{
 		id: "C03.env.branch-policy", title: "Production-like environments restrict which branches/tags can deploy",
 		collectorID: "C03.env-separation", scope: orgScoped,
 		reason: "GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet",

@@ -176,3 +176,20 @@ func TestSelfManagedPathPrefixIsPreserved(t *testing.T) {
 		t.Errorf("resolve = %q, want %q", got, want)
 	}
 }
+
+// TestProjectPathIsNotDoubleEncoded pins a bug a live scan found: GitLab
+// addresses a project as "group%2Fproject", and round-tripping that through
+// url.URL.Path re-encodes the percent sign to %252F, so every request 404s on
+// a project that exists. Every C02 result came back "project not found"
+// before this was fixed.
+func TestProjectPathIsNotDoubleEncoded(t *testing.T) {
+	c, err := NewClient("https://gitlab.com", "t")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	got := c.resolve("/projects/group%2Fproject/protected_branches", nil)
+	want := "https://gitlab.com/api/v4/projects/group%2Fproject/protected_branches"
+	if got != want {
+		t.Errorf("resolve = %q, want %q", got, want)
+	}
+}

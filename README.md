@@ -86,15 +86,25 @@ trademark rights: the code is yours to use and fork, the name is not.
 
 ## A note on GitLab
 
-GitLab is accepted as a scan target (`--platform gitlab`, `--gitlab-url` for a
-self-managed instance, `GITLAB_TOKEN` for the credential), and **this build verifies none
-of the checks yet**. A GitLab scan currently reports every check as `not-checkable`, each
-with a reason naming what GitLab exposes and the fact that this build does not read it.
+GitLab is a scan target (`--platform gitlab`, `--gitlab-url` for a self-managed
+instance, `GITLAB_TOKEN` for the credential). Projects are discovered from the group,
+including subgroups, so `--repo` narrows a scan rather than being required for one.
 
-That is stated plainly because the alternative is worse: a platform that emits a short
-pack of six results looks, to anyone skimming, like a clean one. The transport layer —
-pagination, rate limiting, tier detection — is in place; the collectors are being added
-per check family.
+**Verified today: C01 org-security and C02 repo-protection.** Everything else reports
+`not-checkable` with a reason naming what GitLab exposes and the fact that this build
+does not read it yet. That is stated plainly because the alternative is worse: a platform
+that emits a short pack looks, to anyone skimming, like a clean one.
+
+Two mappings differ from GitHub and are worth knowing before reading a pack:
+
+- **Branch deletion has no setting.** A protected branch on GitLab cannot be deleted, so
+  `C02.branch.deletion-blocked` is derived from protection existing rather than from a
+  field of its own. The reason says so, so a pass is not mistaken for evidence of a
+  toggle GitLab does not have.
+- **`enforce_admins` has no equivalent.** GitLab expresses protection as access levels
+  rather than a rule with an administrator exemption, so `C02.branch.admin-enforced` is
+  always `not-checkable`. Reporting a pass or fail would assert a control GitLab does not
+  model.
 
 ⚠ Tier matters here in a way it does not on the other platforms. Dependency Scanning,
 Secret Detection and audit events are paid-tier features, and on a Free project their
