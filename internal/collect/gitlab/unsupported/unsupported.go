@@ -288,7 +288,7 @@ type collector struct{ id string }
 
 func (c *collector) ID() string { return c.id }
 
-func (c *collector) Collect(ctx context.Context, sc collect.Scope) ([]model.CheckResult, error) {
+func (c *collector) Collect(_ context.Context, sc collect.Scope) ([]model.CheckResult, error) {
 	var out []model.CheckResult
 	for _, chk := range checks {
 		if chk.collectorID != c.id {

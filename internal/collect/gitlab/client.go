@@ -169,7 +169,7 @@ func IsTierGated(err error) bool {
 func (c *Client) resolve(path string, query url.Values) string {
 	base := strings.TrimRight(c.baseURL.String(), "/")
 	out := base + apiPrefix + "/" + strings.TrimLeft(path, "/")
-	if query != nil && len(query) > 0 {
+	if len(query) > 0 {
 		out += "?" + query.Encode()
 	}
 	return out
@@ -186,7 +186,7 @@ func (c *Client) get(ctx context.Context, rawURL string) ([]byte, *http.Response
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

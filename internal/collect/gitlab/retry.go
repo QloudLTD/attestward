@@ -58,7 +58,7 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		// Drain and close so the connection can be reused rather than leaked
 		// across every retry of a failing endpoint.
 		if attempt < maxRetries {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	}
 	return resp, err

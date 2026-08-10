@@ -89,7 +89,7 @@ func (t *provenanceTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	// then put it back for the caller. Reading it here is the only way to
 	// hash it, so the body must be replaced rather than consumed.
 	body, readErr := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if readErr != nil {
 		return nil, readErr
 	}

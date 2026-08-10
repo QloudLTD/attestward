@@ -83,8 +83,11 @@ func NewForTest(baseURL, token string, newClient func() (*gitlabcollect.Client, 
 	return &Collector{baseURL: baseURL, token: token, newClient: newClient}
 }
 
+// ID returns the collector identifier recorded on every result it emits.
 func (c *Collector) ID() string { return collectorID }
 
+// Collect reads the group and returns one result per registered check.
+// Permission and tier failures become not-checkable, never findings.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	client, err := c.newClient()
 	if err != nil {

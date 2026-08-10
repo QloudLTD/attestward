@@ -88,18 +88,25 @@ type Collector struct {
 	newClient      func() (*gitlabcollect.Client, error)
 }
 
+// New builds the collector against a live GitLab instance.
 func New(baseURL, token string) *Collector {
 	c := &Collector{baseURL: baseURL, token: token}
 	c.newClient = func() (*gitlabcollect.Client, error) { return gitlabcollect.NewClient(baseURL, token) }
 	return c
 }
 
+// NewForTest builds the collector against an arbitrary base URL and
+// round-tripper, so tests exercise the same client production assembles.
 func NewForTest(baseURL, token string, newClient func() (*gitlabcollect.Client, error)) *Collector {
 	return &Collector{baseURL: baseURL, token: token, newClient: newClient}
 }
 
+// ID returns the collector identifier recorded on every result it emits.
 func (c *Collector) ID() string { return collectorID }
 
+// Collect reads the project and its protected branches and returns one
+// result per registered check. A read failure yields not-checkable results
+// rather than an error, so one unreadable project cannot fail a whole scan.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	var out []model.CheckResult
 	for _, repo := range scope.Repos {
@@ -205,7 +212,7 @@ func deletionBlocked(org, repo string, p project, b *protectedBranch) model.Chec
 		map[string]any{"protected": true, "derived_from": "protected_branches"})
 }
 
-func requiredReviews(org, repo string, p project, a approvals, err error) model.CheckResult {
+func requiredReviews(org, repo string, _ project, a approvals, err error) model.CheckResult {
 	if err != nil {
 		if gitlabcollect.IsTierGated(err) {
 			return res(idRequiredReviews, "Merge requests require review", model.StatusNotCheckable, org, repo,
@@ -256,7 +263,7 @@ func requiredStatusChecks(org, repo string, p project) model.CheckResult {
 // access levels, where a rule permitting only Maintainers already binds
 // everyone below Owner, and an Owner can always edit the rule. Reporting a
 // pass or fail would be mapping a control that does not exist.
-func adminEnforced(org, repo string, p project, b *protectedBranch) model.CheckResult {
+func adminEnforced(org, repo string, _ project, _ *protectedBranch) model.CheckResult {
 	return res(idAdminEnforced, "Branch protection applies to administrators", model.StatusNotCheckable, org, repo,
 		"GitLab has no equivalent of GitHub's enforce_admins. Protection is expressed as access levels rather than a "+
 			"rule with an admin exemption, so there is no setting that says whether administrators are bound. An "+
