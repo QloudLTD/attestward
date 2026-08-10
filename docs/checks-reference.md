@@ -214,11 +214,11 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** project_creation_level is "developer", so ordinary members can create projects.
-- **not-checkable:** The group object could not be read, or reported a value this build does not recognise.
-- **verified-pass:** project_creation_level is "maintainer" or "noone".
+- **verified-fail:** The group is public AND project_creation_level is "developer", so an ordinary member can create a world-readable project. Both conditions are required — a permissive creation level inside a private or internal group is not a finding.
+- **not-checkable:** The group object could not be read, or reported a visibility or creation level this build does not recognise.
+- **verified-pass:** Either the group is private or internal, in which case its visibility is a ceiling on every project inside it and no member can create a public one whatever their role, or the group is public and project_creation_level is "maintainer" or "noone". Note the first case passes even when project_creation_level is "developer": that setting governs who may create projects, not how public they may be.
 
-**Remediation:** Group → Settings → General → Permissions → set "Roles allowed to create projects" to Maintainers or No one.
+**Remediation:** Either set the group's visibility to Private or Internal — which caps every project inside it and settles this regardless of who may create projects — or, in a public group, set Group → Settings → General → Permissions → "Roles allowed to create projects" to Maintainers or No one.
 
 #### gogs — Members cannot create public repositories unchecked
 

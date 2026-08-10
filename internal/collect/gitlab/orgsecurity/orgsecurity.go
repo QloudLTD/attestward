@@ -288,11 +288,11 @@ func init() {
 			model.StatusNotCheckable: "The group object could not be read.",
 		})
 	reg(idMembersCreatePublic, "Members cannot create public repositories",
-		"Group → Settings → General → Permissions → set \"Roles allowed to create projects\" to Maintainers or No one.",
+		"Either set the group's visibility to Private or Internal — which caps every project inside it and settles this regardless of who may create projects — or, in a public group, set Group → Settings → General → Permissions → \"Roles allowed to create projects\" to Maintainers or No one.",
 		map[model.Status]string{
-			model.StatusVerifiedPass: "project_creation_level is \"maintainer\" or \"noone\".",
-			model.StatusVerifiedFail: "project_creation_level is \"developer\", so ordinary members can create projects.",
-			model.StatusNotCheckable: "The group object could not be read, or reported a value this build does not recognise.",
+			model.StatusVerifiedPass: "Either the group is private or internal, in which case its visibility is a ceiling on every project inside it and no member can create a public one whatever their role, or the group is public and project_creation_level is \"maintainer\" or \"noone\". Note the first case passes even when project_creation_level is \"developer\": that setting governs who may create projects, not how public they may be.",
+			model.StatusVerifiedFail: "The group is public AND project_creation_level is \"developer\", so an ordinary member can create a world-readable project. Both conditions are required — a permissive creation level inside a private or internal group is not a finding.",
+			model.StatusNotCheckable: "The group object could not be read, or reported a visibility or creation level this build does not recognise.",
 		})
 	reg(idMembersWithout2FA, "No members without two-factor authentication",
 		"Not evidenceable on GitLab: the members API exposes no per-user two-factor state. Enforce 2FA at the group level and confirm enrolment through your identity provider or GitLab admin area instead.",

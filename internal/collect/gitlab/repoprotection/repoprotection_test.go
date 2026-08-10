@@ -334,6 +334,14 @@ func TestCodeOwnerApprovalMergesPermissively(t *testing.T) {
 // and compares the statuses actually observed against the statuses documented.
 // A rubric entry for a status the collector cannot produce is a false promise
 // to a reader; a status with no entry ships a conclusion with no stated basis.
+//
+// ⚠ Its limit is worth stating, because a third instance of the same defect was
+// found in orgsecurity by review and would NOT have failed here: this compares
+// which statuses are emitted, not whether their descriptions are true. A rubric
+// whose wording rots while its status set stays valid — a pass that starts
+// being reached by a second, undescribed route — passes this test. Nothing
+// mechanical catches that; it needs a reader who checks the rubric whenever a
+// status's entry conditions change.
 func TestRubricsMatchWhatTheCollectorCanActuallyEmit(t *testing.T) {
 	states := []routes{
 		defaults(),
@@ -362,10 +370,19 @@ func TestRubricsMatchWhatTheCollectorCanActuallyEmit(t *testing.T) {
 		t.Fatal("no results collected; this test would prove nothing")
 	}
 
-	for id, seen := range observed {
-		meta, ok := collect.LookupPlatform(platform, id)
-		if !ok {
-			t.Errorf("%s: emitted but not registered", id)
+	// Iterate the REGISTERED checks, not just the observed ones: a check
+	// registered for this platform that the collector never emits would
+	// otherwise escape both directions of this test entirely, which is the
+	// quietest way for a check to be documented and dead at the same time.
+	for _, meta := range collect.Registered() {
+		if meta.Platform != platform || meta.Collector != collectorID {
+			continue
+		}
+		id := meta.ID
+		seen, emitted := observed[id]
+		if !emitted {
+			t.Errorf("%s is registered for this collector but no fixture state emits it — it is documented and "+
+				"unreachable, or this matrix is missing the case that reaches it", id)
 			continue
 		}
 		for status := range seen {
