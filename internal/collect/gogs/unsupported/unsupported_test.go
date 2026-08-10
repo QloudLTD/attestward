@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -195,5 +196,43 @@ func TestCollectorsAreGroupedByCollectorID(t *testing.T) {
 		if !got[id] {
 			t.Errorf("no collector returned for %q", id)
 		}
+	}
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10)
+// once, across all eight collectorID groups this package backs, since one
+// implementation stands behind them: everything here is always not-checkable
+// by design (TestNothingIsEverVerifiedFail), so there is exactly one status
+// per check and the matrix that proves it is not the interesting part.
+//
+// What the guard buys, forward-looking exactly as it did for repoprotection:
+// the day one of these checks starts observing something real — Gogs grows an
+// audit-log endpoint, say — it must fail here first, because its rubric will
+// still say "always" until a person updates it to match. That is the same
+// drift class that has now shipped three times without a mechanical guard.
+//
+// Two scopes, matching the two states this file's other tests already use:
+// a normal org+repo scope, and an org-only scope with no repos (which must
+// still emit the org-scoped checks — TestOrgScopedChecksSurviveAnEmptyRepoList
+// already pins that; this adds "and every one of those results is documented").
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	byCollector := map[string][]model.CheckResult{}
+	for _, scope := range []collect.Scope{
+		{Org: "acme", Repos: []string{"alpha"}},
+		{Org: "acme"},
+	} {
+		for _, c := range Collectors() {
+			got, err := c.Collect(context.Background(), scope)
+			if err != nil {
+				t.Fatalf("%s.Collect: %v", c.ID(), err)
+			}
+			byCollector[c.ID()] = append(byCollector[c.ID()], got...)
+		}
+	}
+	if len(byCollector) != len(Collectors()) {
+		t.Fatalf("collected results for %d collector groups, want %d", len(byCollector), len(Collectors()))
+	}
+	for id, results := range byCollector {
+		collecttest.AssertRubricsMatchObservedBehaviour(t, platform, id, results)
 	}
 }
