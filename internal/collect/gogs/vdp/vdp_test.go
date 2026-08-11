@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	gogscollect "gitlab.com/sioakeim/attestward/internal/collect/gogs"
 	"gitlab.com/sioakeim/attestward/internal/collect/gogs/gogsfixture"
 	"gitlab.com/sioakeim/attestward/internal/model"
@@ -309,4 +310,78 @@ func mustMeta(t *testing.T, id string) collect.CheckMeta {
 		t.Fatalf("%s not registered", id)
 	}
 	return meta
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue
+// #10), with per-state expected statuses compared as a whole map — the
+// lesson from review earlier the same day: a state that merely executes a
+// code path without asserting its outcome is worse than no state at all.
+// States reuse the fixtures TestCollect_* above already established rather
+// than reinventing them.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	pass, fail, partial, nc := model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable
+	always := map[string]model.Status{privateReportingID: nc, securityPolicyOrgID: nc}
+	withRepoChecks := func(securityMD, intake model.Status) map[string]model.Status {
+		out := map[string]model.Status{}
+		for k, v := range always {
+			out[k] = v
+		}
+		out[securityMDID] = securityMD
+		out[intakeChannelID] = intake
+		return out
+	}
+
+	states := []struct {
+		name string
+		fx   func() *gogsfixture.Transport
+		want map[string]model.Status
+	}{
+		{"resolved with an actionable channel", func() *gogsfixture.Transport {
+			fx := gogsfixture.New()
+			fx.Set("GET", contentsPath(".github/SECURITY.md"), fileResponse("Report to security@acme.example."))
+			return fx
+		}, withRepoChecks(pass, pass)},
+		{"resolved but vague", func() *gogsfixture.Transport {
+			fx := gogsfixture.New()
+			fx.Set("GET", contentsPath(".github/SECURITY.md"), notFound())
+			fx.Set("GET", contentsPath("SECURITY.md"), fileResponse("We take security seriously."))
+			return fx
+		}, withRepoChecks(pass, partial)},
+		{"absent everywhere", func() *gogsfixture.Transport {
+			fx := gogsfixture.New()
+			for _, p := range candidatePaths {
+				fx.Set("GET", contentsPath(p), notFound())
+			}
+			return fx
+		}, withRepoChecks(fail, fail)},
+		{"API error", func() *gogsfixture.Transport {
+			fx := gogsfixture.New()
+			fx.Set("GET", contentsPath(".github/SECURITY.md"), gogsfixture.Response{
+				Status: 500, Body: map[string]any{"message": "internal server error"},
+			})
+			return fx
+		}, withRepoChecks(nc, nc)},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			res := collectWith(t, st.fx())
+			got := map[string]model.Status{}
+			for _, r := range res {
+				got[r.CheckID] = r.Status
+			}
+			if len(got) != len(st.want) {
+				t.Fatalf("got %d results, want %d", len(got), len(st.want))
+			}
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			all = append(all, res...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, platform, collectorID, all)
 }
