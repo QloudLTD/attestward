@@ -5,24 +5,44 @@
 # request behind a condition nothing could satisfy. A gate with no pipeline is
 # not a strict repository — it is a stuck one.
 #
-# # Scope: standard Linux x64 only
+# # Runner: a self-hosted project runner, not GitLab's shared pool
 #
-# Every job runs on GitLab's shared `saas-linux-small-amd64` runners via the
-# official `golang` image. No custom images, no self-hosted runners, no
-# multi-arch matrix. The binary is pure Go with CGO disabled, so one Linux
-# runner cross-compiles every published target.
+# Jobs run on a project-locked runner (tag `mac-studio`, docker executor,
+# `golang:1.25` image — the same image shared runners used) registered on a
+# personal machine, not GitLab's shared `saas-linux-*` pool. This reverses
+# what this file used to say ("no self-hosted runners") — that was the right
+# call until the sioakeim personal namespace's 400 shared-runner
+# compute-minutes/month quota started running out (25% remaining, 2026-08-11)
+# from this repo's own pipeline traffic. Self-hosted runner minutes are not
+# metered by GitLab at all, so this removes the constraint rather than
+# working around it.
+#
+# ⚠ This is safe against a fork's MR running arbitrary code on that machine
+# only because `ci_allow_fork_pipelines_to_run_in_parent_project` is set
+# `false` on the project (Settings → CI/CD, or via the Projects API) — a
+# fork's MR pipeline then runs in the FORK's own context, never against this
+# runner. That project setting is the actual control; nothing in this file
+# enforces it, so if this repo ever needs to accept outside contributions,
+# re-check that setting before merging this file's tags back onto a shared
+# runner, or scope this runner down to `protected: true` instead.
+#
+# The binary is pure Go with CGO disabled, so one Linux-container runner
+# cross-compiles every published target regardless of the host OS underneath
+# the docker executor.
 #
 # ⚠ The GitHub workflow has a `test-macos` job that this deliberately does NOT
 # reproduce. It exists there to keep real darwin coverage for the darwin
-# binaries the project ships, and GitLab's macOS runners are a separate paid
-# tier. So darwin test coverage currently comes from GitHub only — that is a
-# real gap in this pipeline, not an oversight, and it is recorded here rather
-# than left for someone to discover from a darwin-only bug.
+# binaries the project ships. Despite the runner above now living on a Mac,
+# that does not close this gap: jobs execute inside a Linux `golang` container
+# via the docker executor, not natively on the host — GitLab-hosted macOS
+# runners remain a separate paid tier this project doesn't use. Darwin test
+# coverage still comes from GitHub only; recorded here rather than left for
+# someone to discover from a darwin-only bug.
 
 default:
   image: golang:1.25
   tags:
-    - saas-linux-small-amd64
+    - mac-studio
   # Infrastructure faults only. A failed runner acquisition should not read as
   # a failing merge request — that is how a team learns to ignore a red
   # pipeline. Job timeouts are deliberately NOT retried: a test that hangs is a
