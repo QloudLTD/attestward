@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -535,4 +536,115 @@ func TestPrivateReportingRemediationUsesCurrentSettingsPath(t *testing.T) {
 	if !strings.Contains(remediation, "Advanced Security") {
 		t.Errorf("C10.vdp.private-reporting remediation should name the current \"Advanced Security\" settings section: %q", remediation)
 	}
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue
+// #10). Unlike the gogs and Azure DevOps twins, all four checks here are
+// real — GitHub genuinely has both private vulnerability reporting and a
+// ".github"-repo org-wide-default fallback — so the state matrix must reach
+// nine distinct (check, status) pairs across four checks, not just two.
+// Every state below reuses an existing test's exact mux setup rather than
+// inventing new fixtures, so it is testing the same server responses this
+// file's own TestCollect_* functions already individually verified produce
+// the status named.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	pass, fail, partial, nc := model.StatusVerifiedPass, model.StatusVerifiedFail, model.StatusPartial, model.StatusNotCheckable
+
+	states := []struct {
+		name      string
+		org, repo string
+		mux       func(t *testing.T, org, repo string) *http.ServeMux
+		want      map[string]model.Status
+	}{
+		{"repo-root pass, private-reporting enabled, no org fallback", "acme", "widgets",
+			func(t *testing.T, org, repo string) *http.ServeMux {
+				mux := http.NewServeMux()
+				registerSecurityMDLookup(t, mux, org, repo, map[string]string{repo + ":SECURITY.md": goodSecurityMD})
+				registerPrivateReporting(t, mux, org, repo, true)
+				registerDotGithubRepoMissing(t, mux, org)
+				return mux
+			}, map[string]model.Status{securityMDID: pass, intakeChannelID: pass, privateReportingID: pass, securityPolicyOrgID: nc}},
+
+		{"org .github fallback has SECURITY.md", "acme", "widgets",
+			func(t *testing.T, org, repo string) *http.ServeMux {
+				mux := http.NewServeMux()
+				registerSecurityMDLookup(t, mux, org, repo, map[string]string{".github:SECURITY.md": goodSecurityMD})
+				registerPrivateReporting(t, mux, org, repo, false)
+				registerDotGithubRepoExists(t, mux, org)
+				return mux
+			}, map[string]model.Status{securityMDID: pass, intakeChannelID: pass, privateReportingID: fail, securityPolicyOrgID: pass}},
+
+		{"resolved but vague", "acme", "widgets",
+			func(t *testing.T, org, repo string) *http.ServeMux {
+				mux := http.NewServeMux()
+				registerSecurityMDLookup(t, mux, org, repo, map[string]string{repo + ":SECURITY.md": vagueSecurityMD})
+				registerPrivateReporting(t, mux, org, repo, false)
+				registerDotGithubRepoMissing(t, mux, org)
+				return mux
+			}, map[string]model.Status{securityMDID: pass, intakeChannelID: partial, privateReportingID: fail, securityPolicyOrgID: nc}},
+
+		{"absent everywhere, .github missing", "acme", "widgets",
+			func(t *testing.T, org, repo string) *http.ServeMux {
+				mux := http.NewServeMux()
+				registerSecurityMDLookup(t, mux, org, repo, nil)
+				registerPrivateReporting(t, mux, org, repo, false)
+				registerDotGithubRepoMissing(t, mux, org)
+				return mux
+			}, map[string]model.Status{securityMDID: fail, intakeChannelID: fail, privateReportingID: fail, securityPolicyOrgID: nc}},
+
+		{".github exists but has no SECURITY.md", "acme", "widgets",
+			func(t *testing.T, org, repo string) *http.ServeMux {
+				mux := http.NewServeMux()
+				registerSecurityMDLookup(t, mux, org, repo, nil)
+				registerPrivateReporting(t, mux, org, repo, false)
+				registerDotGithubRepoExists(t, mux, org)
+				return mux
+			}, map[string]model.Status{securityMDID: fail, intakeChannelID: fail, privateReportingID: fail, securityPolicyOrgID: fail}},
+
+		{"private-reporting plan-gated 404", "acme", "private-repo",
+			func(t *testing.T, org, repo string) *http.ServeMux {
+				mux := http.NewServeMux()
+				registerSecurityMDLookup(t, mux, org, repo, map[string]string{repo + ":SECURITY.md": goodSecurityMD})
+				registerPrivateReportingStatus(t, mux, org, repo, http.StatusNotFound)
+				registerDotGithubRepoMissing(t, mux, org)
+				return mux
+			}, map[string]model.Status{securityMDID: pass, intakeChannelID: pass, privateReportingID: nc, securityPolicyOrgID: nc}},
+
+		{"security-md resolve failure (403)", "acme", "forbidden-repo",
+			func(t *testing.T, org, repo string) *http.ServeMux {
+				mux := http.NewServeMux()
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/SECURITY.md", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+				})
+				registerPrivateReporting(t, mux, org, repo, true)
+				registerDotGithubRepoMissing(t, mux, org)
+				return mux
+			}, map[string]model.Status{securityMDID: nc, intakeChannelID: nc, privateReportingID: pass, securityPolicyOrgID: nc}},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			c := newCollectorForServer(t, newTestServer(t, st.mux(t, st.org, st.repo)))
+			results, err := c.Collect(context.Background(), collect.Scope{Org: st.org, Repos: []string{st.repo}})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+			got := map[string]model.Status{}
+			for _, r := range results {
+				got[r.CheckID] = r.Status
+			}
+			if len(got) != len(st.want) {
+				t.Fatalf("got %d results, want %d", len(got), len(st.want))
+			}
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }

@@ -47,7 +47,6 @@ var rubricGuardUnwired = map[string]bool{
 	"github/C07.provenance":            true,
 	"github/C08.actions-security":      true,
 	"github/C09.audit-logging":         true,
-	"github/C10.vdp":                   true,
 	"gitlab/C01.org-security":          true,
 	"gitlab/C04.secrets-hygiene":       true,
 	"gitlab/C05.sast-history":          true,
@@ -128,6 +127,7 @@ func TestRubricGuardCoverageOnlyShrinks(t *testing.T) {
 // rubricGuardWired is the shrinking half: collectors whose package tests call
 // the assertion. Moving an entry here is the unit of progress on the follow-up.
 var rubricGuardWired = map[string]bool{
+	"github/C10.vdp":             true,
 	"gogs/C10.vdp":               true,
 	"gitlab/C03.env-separation":  true,
 	"gitlab/C10.vdp":             true,
