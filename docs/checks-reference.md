@@ -742,15 +742,15 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments restrict which branches/tags can deploy
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+- **not-checkable:** always — GitLab has no per-environment branch-restriction mechanism; which branch or tag may deploy is controlled by each deploy job's own `rules:` in .gitlab-ci.yml, which is per-job pipeline configuration this check does not read, not an environment-scoped API result
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** No remediation applicable via this tool: GitLab has no per-environment branch-restriction mechanism — restrict which branch/tag may deploy in the deploy job's own `rules:` in .gitlab-ci.yml instead, and document that control in the self-attestation questionnaire.
 
 #### gogs — Environments restrict which branches may deploy
 
@@ -807,15 +807,17 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — A production-like environment exists
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
+- **API endpoint(s):** `GET /projects/{id}/environments`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+- **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
+- **not-checkable:** the environments list, or the protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **verified-pass:** at least one environment's name matches the production-like heuristic (`prod`* prefix, case-insensitive)
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Deployments → Environments → New environment → name it "production" (or any prod*/production variant — this check's name heuristic is case-insensitive) so deployments can be routed through it.
 
 #### gogs — Deployment environments are defined
 
@@ -874,15 +876,18 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments have at least one protection rule
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
+- **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+- **verified-fail:** at least one production-like environment has no matching protected_environments entry
+- **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
+- **not-checkable:** the environments list, or the protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **verified-pass:** every production-like environment has a matching protected_environments entry (any protection at all — GitLab requires at least deploy_access_levels to protect one, so a matching entry's mere existence is the "any type" signal, mirroring the GitHub twin's identical framing)
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment, restricting at least who may deploy to it (Allowed to Deploy).
 
 #### gogs — Environments have protection rules
 
@@ -941,15 +946,18 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments require reviewer approval before deployment
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
+- **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet
+- **verified-fail:** at least one production-like environment has no protected_environments entry, or one with no approval_rules entry requiring at least one approval
+- **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
+- **not-checkable:** the environments list, or the protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **verified-pass:** every production-like environment's protected_environments entry has at least one approval_rules entry with required_approvals >= 1
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment and add an Approval rule requiring at least one approval.
 
 #### gogs — Production environments require reviewers
 
