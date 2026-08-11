@@ -1973,15 +1973,15 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Release artifacts are traceable to a workflow run on the release commit
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — this check makes no API call of its own; see the package doc comment
+- **Fixture:** `internal/collect/gitlab/provenance/provenance_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+- **not-checkable:** evaluating this needs matching GitLab CI pipeline/job run history against a provenance-tool signature registry, the same engine internal/collect/gitlab/provenance's own checks depend on for release.checksums/signatures/tags-signed's siblings on GitHub and Azure DevOps — porting it to GitLab CI is real, separately-scoped work (issue #1), not read by this build yet
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually generates provenance.
 
 #### gogs — Releases link to the commits they were built from
 
@@ -2040,15 +2040,15 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — A provenance-generating tool is configured
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — this check makes no API call of its own; see the package doc comment
+- **Fixture:** `internal/collect/gitlab/provenance/provenance_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+- **not-checkable:** evaluating this needs matching GitLab CI pipeline/job run history against a provenance-tool signature registry, the same engine internal/collect/gitlab/provenance's own checks depend on for release.checksums/signatures/tags-signed's siblings on GitHub and Azure DevOps — porting it to GitLab CI is real, separately-scoped work (issue #1), not read by this build yet
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually generates provenance.
 
 #### gogs — A build provenance workflow exists
 
@@ -2103,15 +2103,17 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Releases ship checksum assets
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/provenance/provenance_test.go`
+- **API endpoint(s):** `GET /projects/{id}/releases`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+- **verified-fail:** at least one release in the lookback window has no asset matching a known checksum-file naming convention
+- **not-checkable:** no releases match the configured release tag pattern within the lookback window, or the releases list itself couldn't be read (403/404/other API error)
+- **verified-pass:** every release in the lookback window ships at least one asset matching a known checksum-file naming convention (checksums.txt, SHA256SUMS, or a per-file `.sha256`/`.sha256sum` sidecar)
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Attach a checksums.txt (or per-file .sha256 sidecar) to each release, generated from the published assets.
 
 #### gogs — Release artifacts publish checksums
 
@@ -2167,15 +2169,17 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Releases ship signature or attestation assets
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/provenance/provenance_test.go`
+- **API endpoint(s):** `GET /projects/{id}/releases`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+- **verified-fail:** at least one release in the lookback window has no asset matching a known signature/attestation naming convention
+- **not-checkable:** no releases match the configured release tag pattern within the lookback window, or the releases list itself couldn't be read (403/404/other API error)
+- **verified-pass:** every release in the lookback window ships an asset matching a known signature/attestation naming convention (`.sig`, `.pem`, `.intoto.jsonl`, `.sigstore`, `.bundle`) — GitLab has no digest-lookup attestation mechanism to check as a second, independent kind of evidence the way the GitHub twin does
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Attach a signature/attestation asset to each release (e.g. a cosign `.sig`/`.bundle` or `.pem` bundle) — GitLab has no GitHub-Artifact-Attestation-style digest-lookup equivalent, so a named asset is the only evidence this check can find.
 
 #### gogs — Releases are signed
 
@@ -2230,17 +2234,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Sign release tags with a GPG or SSH key (`git tag -s` or `git tag -u <key> vX.Y.Z`), and register the matching public key under the tagging user's own account Settings -> SSH and GPG keys — add it specifically as a "Signing Key" (a key added only for authentication won't verify signatures). Signature verification is always tied to the individual tagger's personal account; there is no equivalent org-level key registration.
 
-#### gitlab — Release tags are signed and GitHub reports the signature verified
+#### gitlab — Release tags are signed and GitLab reports the signature verified
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project)
+- **Fixture:** `internal/collect/gitlab/provenance/provenance_test.go`
+- **API endpoint(s):** `GET /projects/{id}/releases`, `GET /projects/{id}/repository/tags/{tag_name}/signature`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet
+- **verified-fail:** at least one release tag in the lookback window is unsigned (a 404 at the signature endpoint) or signed but GitLab reports its verification_status as something other than "verified" (e.g. "unverified")
+- **partial:** every resolvable release tag in the lookback window is signed and verified, but at least one tag's own signature lookup was inconclusive — an error other than the documented 404-means-unsigned response, or a 2xx body with no verification_status field at all — unresolved, not a confirmed pass or fail
+- **not-checkable:** no releases match the configured release tag pattern within the lookback window, or the releases list itself couldn't be read (403/404/other API error)
+- **verified-pass:** every release tag in the lookback window is signed and GitLab reports its verification_status as "verified" (GET /projects/:id/repository/tags/:tag/signature)
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Sign each release tag (GPG or X.509) before pushing it, and confirm GitLab reports the signature verified at GET /projects/:id/repository/tags/:tag/signature.
 
 #### gogs — Release tags are signed
 

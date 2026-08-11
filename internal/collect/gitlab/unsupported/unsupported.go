@@ -146,31 +146,13 @@ var checks = []check{
 		collectorID: "C06.sca-history", scope: orgScoped,
 		reason: "GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet",
 	},
-	{
-		id: "C07.provenance.commit-linkage", title: "Release artifacts are traceable to a workflow run on the release commit",
-		collectorID: "C07.provenance", scope: orgScoped,
-		reason: "GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet",
-	},
-	{
-		id: "C07.provenance.workflow", title: "A provenance-generating tool is configured",
-		collectorID: "C07.provenance", scope: orgScoped,
-		reason: "GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet",
-	},
-	{
-		id: "C07.release.checksums", title: "Releases ship checksum assets",
-		collectorID: "C07.provenance", scope: orgScoped,
-		reason: "GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet",
-	},
-	{
-		id: "C07.release.signatures", title: "Releases ship signature or attestation assets",
-		collectorID: "C07.provenance", scope: orgScoped,
-		reason: "GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet",
-	},
-	{
-		id: "C07.release.tags-signed", title: "Release tags are signed and GitHub reports the signature verified",
-		collectorID: "C07.provenance", scope: orgScoped,
-		reason: "GitLab exposes releases, tags and release assets (GET /projects/{id}/releases), which is where build provenance and signatures would be evidenced. This build does not read them yet",
-	},
+	// C07 provenance moved to internal/collect/gitlab/provenance: checksums,
+	// signatures and tags-signed are real, free-tier checks — this table's
+	// blanket "does not read them yet" reason was true of them but not the
+	// reason to reflag; commit-linkage and workflow stay always-not-checkable
+	// there too, for a genuine remaining-scope reason (a cross-platform
+	// pipeline-run-history matching engine, not yet ported to GitLab CI), not
+	// this one.
 	{
 		id: "C08.actions.oidc-vs-secrets", title: "Cloud deployments use OIDC rather than long-lived static credentials",
 		collectorID: "C08.actions-security", scope: orgScoped,
