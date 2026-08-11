@@ -2175,7 +2175,7 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** at least one release in the lookback window has neither a matching signature/attestation asset
+- **verified-fail:** at least one release in the lookback window has no asset matching a known signature/attestation naming convention
 - **not-checkable:** no releases match the configured release tag pattern within the lookback window, or the releases list itself couldn't be read (403/404/other API error)
 - **verified-pass:** every release in the lookback window ships an asset matching a known signature/attestation naming convention (`.sig`, `.pem`, `.intoto.jsonl`, `.sigstore`, `.bundle`) — GitLab has no digest-lookup attestation mechanism to check as a second, independent kind of evidence the way the GitHub twin does
 
@@ -2242,8 +2242,8 @@ This check is registered under more than one platform — details for each below
 
 **Status rubric:**
 
-- **verified-fail:** at least one release tag in the lookback window is unsigned (a 404 at the signature endpoint) or signed but GitLab reports its verification_status as "unverified"
-- **partial:** every resolvable release tag in the lookback window is signed and verified, but at least one tag's own signature lookup failed with something other than the documented 404-means-unsigned response — unresolved, not a confirmed pass or fail
+- **verified-fail:** at least one release tag in the lookback window is unsigned (a 404 at the signature endpoint) or signed but GitLab reports its verification_status as something other than "verified" (e.g. "unverified")
+- **partial:** every resolvable release tag in the lookback window is signed and verified, but at least one tag's own signature lookup was inconclusive — an error other than the documented 404-means-unsigned response, or a 2xx body with no verification_status field at all — unresolved, not a confirmed pass or fail
 - **not-checkable:** no releases match the configured release tag pattern within the lookback window, or the releases list itself couldn't be read (403/404/other API error)
 - **verified-pass:** every release tag in the lookback window is signed and GitLab reports its verification_status as "verified" (GET /projects/:id/repository/tags/:tag/signature)
 

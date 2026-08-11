@@ -98,8 +98,8 @@ var checkRubrics = map[string]map[model.Status]string{
 			"signature/attestation naming convention (`.sig`, `.pem`, `.intoto.jsonl`, `.sigstore`, " +
 			"`.bundle`) — GitLab has no digest-lookup attestation mechanism to check as a second, " +
 			"independent kind of evidence the way the GitHub twin does",
-		model.StatusVerifiedFail: "at least one release in the lookback window has neither a matching " +
-			"signature/attestation asset",
+		model.StatusVerifiedFail: "at least one release in the lookback window has no asset matching a " +
+			"known signature/attestation naming convention",
 		model.StatusNotCheckable: sharedNoWindowRubric + ", or the releases list itself couldn't be read " +
 			"(403/404/other API error)",
 	},
@@ -107,10 +107,12 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusVerifiedPass: "every release tag in the lookback window is signed and GitLab reports " +
 			"its verification_status as \"verified\" (GET /projects/:id/repository/tags/:tag/signature)",
 		model.StatusVerifiedFail: "at least one release tag in the lookback window is unsigned (a 404 at " +
-			"the signature endpoint) or signed but GitLab reports its verification_status as \"unverified\"",
+			"the signature endpoint) or signed but GitLab reports its verification_status as something " +
+			"other than \"verified\" (e.g. \"unverified\")",
 		model.StatusPartial: "every resolvable release tag in the lookback window is signed and verified, " +
-			"but at least one tag's own signature lookup failed with something other than the documented " +
-			"404-means-unsigned response — unresolved, not a confirmed pass or fail",
+			"but at least one tag's own signature lookup was inconclusive — an error other than the " +
+			"documented 404-means-unsigned response, or a 2xx body with no verification_status field at " +
+			"all — unresolved, not a confirmed pass or fail",
 		model.StatusNotCheckable: sharedNoWindowRubric + ", or the releases list itself couldn't be read " +
 			"(403/404/other API error)",
 	},

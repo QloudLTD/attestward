@@ -208,11 +208,49 @@ func TestTagSignedButUnverifiedIsAFail(t *testing.T) {
 	}
 }
 
+// TestTagSignedResponseWithNoVerificationStatusIsUnresolved covers a 2xx
+// body that doesn't carry the documented verification_status field (e.g.
+// `{}` or a 204 with no body) — that's an unresolvable lookup, not evidence
+// the tag is signed-but-not-verified, which is what an empty string would
+// otherwise be read as under the plain err==nil-and-not-"verified" case.
+func TestTagSignedResponseWithNoVerificationStatusIsUnresolved(t *testing.T) {
+	releases := []string{releaseJSON("v1.0.0", nil)}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/g%2Fp/releases", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, "["+releases[0]+"]")
+	})
+	mux.HandleFunc("/api/v4/projects/g%2Fp/repository/tags/v1.0.0/signature", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{}`)
+	})
+	got := byID(collectWith(t, mux, "g", "p"))
+	if got[idTagsSigned].Status != model.StatusPartial {
+		t.Errorf("tags-signed = %q, want partial — a 2xx body with no verification_status field is unresolved, not a confirmed fail", got[idTagsSigned].Status)
+	}
+}
+
 func TestTagSignatureLookupErrorIsPartialNotFail(t *testing.T) {
 	releases := []string{releaseJSON("v1.0.0", nil)}
 	got := byID(collectWith(t, provMux(releases, map[string]int{"v1.0.0": 500}, nil), "g", "p"))
 	if got[idTagsSigned].Status != model.StatusPartial {
 		t.Errorf("tags-signed = %q, want partial — a 500 says nothing about whether the tag is signed", got[idTagsSigned].Status)
+	}
+}
+
+// TestFailBeatsUnresolvedAcrossMultipleReleases exercises
+// rollupReleaseResults with more than one release in the window — every
+// other tags-signed test only ever supplies one, so a swap of the
+// anyFailed/anyUnresolved precedence in the switch (partial winning over a
+// confirmed fail) would pass the rest of this file's tests unnoticed.
+func TestFailBeatsUnresolvedAcrossMultipleReleases(t *testing.T) {
+	releases := []string{
+		releaseJSON("v2.0.0", nil), // unresolved: signature lookup 500s
+		releaseJSON("v1.0.0", nil), // confirmed fail: unsigned (404)
+	}
+	got := byID(collectWith(t, provMux(releases, map[string]int{"v2.0.0": 500, "v1.0.0": 404}, nil), "g", "p"))
+	if got[idTagsSigned].Status != model.StatusVerifiedFail {
+		t.Errorf("tags-signed = %q, want verified-fail — a confirmed failure must win over an unresolved release, not the reverse", got[idTagsSigned].Status)
 	}
 }
 

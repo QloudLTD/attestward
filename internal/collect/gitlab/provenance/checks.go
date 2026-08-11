@@ -147,6 +147,13 @@ func checkTagsSigned(ctx context.Context, client *gitlabcollect.Client, org, rep
 		case err == nil && sig.VerificationStatus == "verified":
 			results = append(results, releaseCheckResult{TagName: rel.TagName, Verdict: releasePassed,
 				Reason: "signed, verification_status \"verified\""})
+		case err == nil && sig.VerificationStatus == "":
+			// A 2xx response with no verification_status field says nothing
+			// about whether the tag is signed — that's not the documented
+			// signed/unsigned shape, so it's unresolved, not a confirmed
+			// fail asserting a signed-but-bad state that was never observed.
+			results = append(results, releaseCheckResult{TagName: rel.TagName, Verdict: releaseUnresolved,
+				Reason: "signature endpoint returned 2xx with no verification_status field"})
 		case err == nil:
 			results = append(results, releaseCheckResult{TagName: rel.TagName, Verdict: releaseFailed,
 				Reason: fmt.Sprintf("signed, but verification_status is %q, not \"verified\"", sig.VerificationStatus)})
