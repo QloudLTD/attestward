@@ -40,6 +40,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect/github/vdp"
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
 	gitlabauditlogging "gitlab.com/sioakeim/attestward/internal/collect/gitlab/auditlogging"
+	gitlabenvseparation "gitlab.com/sioakeim/attestward/internal/collect/gitlab/envseparation"
 	gitlaborgsecurity "gitlab.com/sioakeim/attestward/internal/collect/gitlab/orgsecurity"
 	gitlabrepoprotection "gitlab.com/sioakeim/attestward/internal/collect/gitlab/repoprotection"
 	gitlabunsupported "gitlab.com/sioakeim/attestward/internal/collect/gitlab/unsupported"
@@ -227,6 +228,7 @@ func defaultGitLabCollectors(baseURL, token string) []collect.Collector {
 		gitlabrepoprotection.New(baseURL, token),
 		gitlabauditlogging.New(baseURL, token),
 		gitlabvdp.New(baseURL, token),
+		gitlabenvseparation.New(baseURL, token),
 	)
 }
 

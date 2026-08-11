@@ -65,26 +65,17 @@ type check struct {
 const remediation = "Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it."
 
 var checks = []check{
-	{
-		id: "C03.env.branch-policy", title: "Production-like environments restrict which branches/tags can deploy",
-		collectorID: "C03.env-separation", scope: orgScoped,
-		reason: "GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet",
-	},
-	{
-		id: "C03.env.exists", title: "A production-like environment exists",
-		collectorID: "C03.env-separation", scope: orgScoped,
-		reason: "GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet",
-	},
-	{
-		id: "C03.env.protection-rules", title: "Production-like environments have at least one protection rule",
-		collectorID: "C03.env-separation", scope: orgScoped,
-		reason: "GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet",
-	},
-	{
-		id: "C03.env.required-reviewers", title: "Production-like environments require reviewer approval before deployment",
-		collectorID: "C03.env-separation", scope: orgScoped,
-		reason: "GitLab has environments (GET /projects/{id}/environments). Protected environments, which carry the deployment-approval controls this check looks for, are a paid-tier feature. This build reads neither yet",
-	},
+	// C03 env-separation moved to internal/collect/gitlab/envseparation: three
+	// of its four checks are real — exists, protection-rules and
+	// required-reviewers all read GitLab's Environments + Protected
+	// Environments APIs, which (contrary to this table's previous blanket
+	// "paid tier" reason) are Free-tier and were verified live, including a
+	// real write with an approval rule, against this project. The fourth,
+	// branch-policy, is always-not-checkable there too, but now for a
+	// platform-gap reason rather than a tier one: GitLab has no
+	// per-environment branch-restriction mechanism at all — that lives in
+	// each deploy job's own `rules:` in .gitlab-ci.yml, outside any
+	// environment-scoped API this check could read.
 	{
 		id: "C04.deps.dependabot-alerts", title: "Dependabot vulnerability alerts are enabled",
 		collectorID: "C04.secrets-hygiene", scope: orgScoped,
