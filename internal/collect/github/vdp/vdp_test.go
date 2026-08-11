@@ -542,7 +542,12 @@ func TestPrivateReportingRemediationUsesCurrentSettingsPath(t *testing.T) {
 // #10). Unlike the gogs and Azure DevOps twins, all four checks here are
 // real — GitHub genuinely has both private vulnerability reporting and a
 // ".github"-repo org-wide-default fallback — so the state matrix must reach
-// nine distinct (check, status) pairs across four checks, not just two.
+// thirteen distinct (check, status) pairs across four checks: security-md
+// {pass, fail, not-checkable}, intake-channel {pass, partial, fail,
+// not-checkable}, private-reporting {pass, fail, not-checkable}, and
+// security-policy-org {pass, fail, not-checkable} — not just two.
+// (An earlier draft of this comment, and the commit that introduced it,
+// both miscounted this — nine and ten respectively; found in review.)
 // Every state below reuses an existing test's exact mux setup rather than
 // inventing new fixtures, so it is testing the same server responses this
 // file's own TestCollect_* functions already individually verified produce
