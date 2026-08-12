@@ -2,6 +2,7 @@ package secretshygiene
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +35,7 @@ func collectWith(t *testing.T, handler http.Handler, org string, repos ...string
 }
 
 func varJSON(key, value string, masked bool) string {
-	return fmt.Sprintf(`{"key":%q,"value":%q,"masked":%v}`, key, value, masked)
+	return fmt.Sprintf(`{"key":%q,"value":%q,"masked":%v,"environment_scope":"*"}`, key, value, masked)
 }
 
 // varsMux serves GET /projects/:id/variables — verified live 2026-08-13
@@ -81,15 +82,30 @@ func TestSensitiveEmptyValueIsIgnored(t *testing.T) {
 	}
 }
 
+// offendingKeys extracts the "key" field from each Facts.offending_variables
+// entry, tolerating both the real []map[string]any shape a live decode
+// produces and (defensively) a plain []string, so this helper stays useful
+// regardless of which internal representation checkSecretMasking uses.
+func offendingKeys(t *testing.T, r model.CheckResult) []string {
+	t.Helper()
+	raw, _ := r.Facts["offending_variables"].([]map[string]any)
+	keys := make([]string, 0, len(raw))
+	for _, o := range raw {
+		key, _ := o["key"].(string)
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 func TestSensitiveUnmaskedVariableFails(t *testing.T) {
 	vars := []string{varJSON("DB_PASSWORD", "hunter2plaintext", false)}
 	got := collectWith(t, varsMux(vars), "g", "p")
 	if got[0].Status != model.StatusVerifiedFail {
 		t.Fatalf("status = %q, want verified-fail; reason=%q", got[0].Status, got[0].Reason)
 	}
-	offending, _ := got[0].Facts["offending_variables"].([]string)
+	offending := offendingKeys(t, got[0])
 	if len(offending) != 1 || offending[0] != "DB_PASSWORD" {
-		t.Errorf("Facts.offending_variables = %v, want [DB_PASSWORD]", offending)
+		t.Errorf("Facts.offending_variables keys = %v, want [DB_PASSWORD]", offending)
 	}
 }
 
@@ -103,25 +119,66 @@ func TestMixOfOffendingAndCleanVariablesFailsAndListsOnlyOffenders(t *testing.T)
 	if got[0].Status != model.StatusVerifiedFail {
 		t.Fatalf("status = %q, want verified-fail", got[0].Status)
 	}
-	offending, _ := got[0].Facts["offending_variables"].([]string)
+	offending := offendingKeys(t, got[0])
 	if len(offending) != 1 || offending[0] != "DB_PASSWORD" {
-		t.Errorf("Facts.offending_variables = %v, want exactly [DB_PASSWORD]", offending)
+		t.Errorf("Facts.offending_variables keys = %v, want exactly [DB_PASSWORD]", offending)
+	}
+}
+
+// TestSameKeyAtDifferentEnvironmentScopesAreDistinguishable covers the
+// case a review of this package flagged: GitLab permits the same variable
+// Key at multiple environment scopes, and Facts must not collapse them
+// into what reads as one duplicated entry.
+func TestSameKeyAtDifferentEnvironmentScopesAreDistinguishable(t *testing.T) {
+	vars := []string{
+		`{"key":"DB_PASSWORD","value":"prod-value","masked":false,"environment_scope":"production"}`,
+		`{"key":"DB_PASSWORD","value":"staging-value","masked":false,"environment_scope":"staging"}`,
+	}
+	got := collectWith(t, varsMux(vars), "g", "p")
+	raw, _ := got[0].Facts["offending_variables"].([]map[string]any)
+	if len(raw) != 2 {
+		t.Fatalf("Facts.offending_variables = %v, want 2 distinguishable entries", raw)
+	}
+	scopes := map[string]bool{}
+	for _, o := range raw {
+		scope, _ := o["environment_scope"].(string)
+		scopes[scope] = true
+	}
+	if !scopes["production"] || !scopes["staging"] {
+		t.Errorf("Facts.offending_variables scopes = %v, want both \"production\" and \"staging\"", raw)
 	}
 }
 
 // TestNeverLeaksVariableValues is this check's sentinel test — proving a
-// distinctive real value never appears anywhere in the marshaled result,
-// not just that checkSecretMasking's own code doesn't reference it. Same
-// discipline Azure DevOps's own secretshygiene package established
-// (TestCollect_SecretHygiene_NeverLeaksVariableValues).
+// distinctive real value never appears anywhere in the pack's actual
+// output format, not just that checkSecretMasking's own code doesn't
+// reference it. Same discipline Azure DevOps's own secretshygiene package
+// established (TestCollect_SecretHygiene_NeverLeaksVariableValues):
+// json.Marshal the result (the format the pack actually ships, not a %+v
+// debug dump), confirm the status is verified-fail as a fixture sanity
+// check, and confirm the non-secret KEY marker IS present — proving this
+// test actually exercised the offending-variable path rather than
+// vacuously passing on an empty Facts map.
 func TestNeverLeaksVariableValues(t *testing.T) {
-	const distinctiveValue = "hunter2plaintext-distinctive-marker"
-	vars := []string{varJSON("DB_PASSWORD", distinctiveValue, false)}
+	const sentinelValue = "ZzZ-do-not-leak-this-exact-sentinel-value-ZzZ"
+	const keyMarker = "SECRET_TOKEN_SHOULD_APPEAR_AS_A_KEY"
+	vars := []string{varJSON(keyMarker, sentinelValue, false)}
 	got := collectWith(t, varsMux(vars), "g", "p")
+	if got[0].Status != model.StatusVerifiedFail {
+		t.Fatalf("status = %q, want verified-fail (fixture setup sanity check)", got[0].Status)
+	}
 
-	marshaled := fmt.Sprintf("%+v", got)
-	if strings.Contains(marshaled, distinctiveValue) {
-		t.Fatalf("result contains the raw variable value — Facts must record only variable names: %s", marshaled)
+	marshaled, err := json.Marshal(got[0])
+	if err != nil {
+		t.Fatalf("json.Marshal(result): %v", err)
+	}
+	if strings.Contains(string(marshaled), sentinelValue) {
+		t.Fatalf("marshaled CheckResult contains the sentinel secret value verbatim — Facts must carry only "+
+			"variable names, never values: %s", marshaled)
+	}
+	if !strings.Contains(string(marshaled), keyMarker) {
+		t.Fatalf("marshaled CheckResult is missing the expected key marker — Facts may not have recorded "+
+			"the offending variable at all: %s", marshaled)
 	}
 }
 

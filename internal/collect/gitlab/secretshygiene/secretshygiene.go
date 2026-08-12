@@ -34,6 +34,18 @@
 // `value` field regardless of its `masked` or `protected` flags — masking
 // in GitLab only affects what appears in CI/CD job console output, it does
 // not change what an API caller with sufficient project access can read.
+//
+// Scope: this check reads ONLY the project's own CI/CD variables — it
+// does NOT read group- or instance-level variables inherited into the
+// project (docs.gitlab.com: "Variables from subgroups are recursively
+// inherited", surfaced via a separate endpoint, GET /groups/:id/variables,
+// that this package does not call). GitLab's own Settings > CI/CD >
+// Variables page shows both project and inherited group variables
+// together, so a reader relying on this check alone would wrongly assume
+// full coverage of that page — see checkTitle/checkRubric/checkRemediation,
+// which all name "project-level" explicitly rather than leaving that
+// implicit. Reading group-level variables too is real, separately-scoped
+// follow-up work, not folded into this check.
 package secretshygiene
 
 import (
@@ -51,7 +63,7 @@ const platform = "gitlab"
 const collectorID = "C04.secrets-hygiene"
 const idSecretMasking = "C04.vars.secret-masking"
 
-const checkTitle = "Sensitive-named CI/CD variables are masked in job logs"
+const checkTitle = "Sensitive-named project-level CI/CD variables are masked in job logs"
 
 const checkTokenScope = "Maintainer role on the project — docs.gitlab.com documents Maintainer as required " +
 	"to manage CI/CD variables, and this build's own verification token held that role; a lower-privileged " +
@@ -67,23 +79,27 @@ const fixtureRef = "internal/collect/gitlab/secretshygiene/secretshygiene_test.g
 // remediation a reader can't actually satisfy is worse than none — and
 // carries GitLab's own caveat that masking is a log-redaction control, not
 // a hard access boundary.
-const checkRemediation = "Open the flagged variable (Settings -> CI/CD -> Variables) and enable \"Mask " +
-	"variable\". GitLab requires the value to \"be a single line with no spaces\", \"be 8 characters or " +
-	"longer\", and \"not match the name of an existing predefined or custom CI/CD variable\" — rotate the " +
-	"value first if it doesn't qualify. Note GitLab's own caution: \"Masking a CI/CD variable is not a " +
-	"guaranteed way to prevent malicious users from accessing variable values\" — masking redacts a value " +
-	"from job console output, it does not change who can read it via the API or UI."
+const checkRemediation = "Open the flagged variable (Settings -> CI/CD -> Variables, Project-level section) " +
+	"and enable \"Mask variable\". GitLab requires the value to \"be a single line with no spaces\", \"be 8 " +
+	"characters or longer\", and \"not match the name of an existing predefined or custom CI/CD variable\" — " +
+	"rotate the value first if it doesn't qualify. Note GitLab's own caution: \"Masking a CI/CD variable is " +
+	"not a guaranteed way to prevent malicious users from accessing variable values\" — masking redacts a " +
+	"value from job console output, it does not change who can read it via the API or UI. This check reads " +
+	"only project-level variables — the same Settings > CI/CD > Variables page also shows any group-level " +
+	"variables inherited into this project, which this check does not evaluate; review those separately."
 
 var checkRubric = map[model.Status]string{
-	model.StatusVerifiedPass: "no CI/CD variable in the project has both a name matching " +
-		"(?i)(password|passwd|pwd|secret|credentials?|token|api[_-]?key|connstr|connection[_-]?string) and " +
-		"masked=false with a non-empty value",
-	model.StatusVerifiedFail: "at least one CI/CD variable has a sensitive-looking name, masked=false, and " +
-		"a non-empty value — GitLab will show that value unredacted in any job's console output. The " +
-		"offending variable name(s) are recorded in Facts, never the value",
-	model.StatusNotCheckable: "the project's CI/CD variables list couldn't be read (403/404/other API error " +
-		"— a 403 here commonly means the token lacks Maintainer role on this project, which GitLab requires " +
-		"to read CI/CD variables at all)",
+	model.StatusVerifiedPass: "no project-level CI/CD variable (GET /projects/{id}/variables) has both a " +
+		"name matching (?i)(password|passwd|pwd|secret|credentials?|token|api[_-]?key|connstr|connection[_-]?" +
+		"string) and masked=false with a non-empty value — this does NOT evaluate group- or instance-level " +
+		"variables inherited into the project (a separate GitLab scope, GET /groups/{id}/variables, that " +
+		"this check does not read)",
+	model.StatusVerifiedFail: "at least one project-level CI/CD variable has a sensitive-looking name, " +
+		"masked=false, and a non-empty value — GitLab will show that value unredacted in any job's console " +
+		"output. The offending variable name(s) are recorded in Facts, never the value",
+	model.StatusNotCheckable: "the project's own CI/CD variables list (GET /projects/{id}/variables) " +
+		"couldn't be read (403/404/other API error — a 403 here commonly means the token lacks Maintainer " +
+		"role on this project, which GitLab requires to read CI/CD variables at all)",
 }
 
 func init() {
@@ -108,15 +124,21 @@ type variableRaw struct {
 	Key    string `json:"key"`
 	Value  string `json:"value"`
 	Masked bool   `json:"masked"`
+	// EnvironmentScope is recorded (never Value) so two variables sharing
+	// a Key at different scopes ("*" vs "production", etc — GitLab
+	// permits this) are distinguishable in Facts rather than reading as
+	// one duplicated entry.
+	EnvironmentScope string `json:"environment_scope"`
 }
 
 // offendingVariable names one masked=false, sensitive-named variable — KEY
-// only, deliberately no Value field on this type at all, so there is
-// nothing for a caller to accidentally forward into Facts even by a
-// future refactor. Same discipline as Azure DevOps's own
+// and EnvironmentScope only, deliberately no Value field on this type at
+// all, so there is nothing for a caller to accidentally forward into
+// Facts even by a future refactor. Same discipline as Azure DevOps's own
 // offendingVariable (internal/collect/azuredevops/secretshygiene).
 type offendingVariable struct {
-	Key string
+	Key              string
+	EnvironmentScope string
 }
 
 // fetchVariables lists every CI/CD variable in a project via GET
@@ -127,7 +149,9 @@ func fetchVariables(ctx context.Context, client *gitlabcollect.Client, projID st
 
 // checkSecretMasking is C04.vars.secret-masking — see the package doc
 // comment for why it registers under its own ID rather than reusing Azure
-// DevOps's C04.vars.secret-hygiene.
+// DevOps's C04.vars.secret-hygiene, and for why this evaluates only the
+// project's own CI/CD variables, never group- or instance-level ones
+// inherited into it.
 //
 // The property this verifies is deliberately NOT "is this value encrypted
 // at rest" the way ADO's isSecret is: docs.gitlab.com states every CI/CD
@@ -152,27 +176,32 @@ func checkSecretMasking(org, repo string, vars []variableRaw, prov []model.Prove
 		if v.Value == "" {
 			continue // nothing stored — masking an empty value protects nothing
 		}
-		offending = append(offending, offendingVariable{Key: v.Key})
+		offending = append(offending, offendingVariable{Key: v.Key, EnvironmentScope: v.EnvironmentScope})
 	}
-	sort.Slice(offending, func(i, j int) bool { return offending[i].Key < offending[j].Key })
+	sort.Slice(offending, func(i, j int) bool {
+		if offending[i].Key != offending[j].Key {
+			return offending[i].Key < offending[j].Key
+		}
+		return offending[i].EnvironmentScope < offending[j].EnvironmentScope
+	})
 
-	factOffending := make([]string, 0, len(offending))
+	factOffending := make([]map[string]any, 0, len(offending))
 	for _, o := range offending {
-		factOffending = append(factOffending, o.Key)
+		factOffending = append(factOffending, map[string]any{"key": o.Key, "environment_scope": o.EnvironmentScope})
 	}
 	facts := map[string]any{"offending_variables": factOffending, "offending_count": len(offending)}
 
 	if len(offending) > 0 {
 		return model.CheckResult{
 			CheckID: idSecretMasking, Title: checkTitle, Status: model.StatusVerifiedFail,
-			Reason: fmt.Sprintf("%d sensitive-named CI/CD variable(s) are not masked — see "+
+			Reason: fmt.Sprintf("%d sensitive-named project-level CI/CD variable(s) are not masked — see "+
 				"Facts.offending_variables for the variable names, never the values", len(offending)),
 			Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov, Facts: facts,
 		}
 	}
 	return model.CheckResult{
 		CheckID: idSecretMasking, Title: checkTitle, Status: model.StatusVerifiedPass,
-		Reason: "no sensitive-named CI/CD variable in this project is unmasked",
+		Reason: "no sensitive-named project-level CI/CD variable in this project is unmasked",
 		Scope:  model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov, Facts: facts,
 	}
 }
