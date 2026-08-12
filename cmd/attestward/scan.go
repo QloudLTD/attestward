@@ -44,6 +44,7 @@ import (
 	gitlaborgsecurity "gitlab.com/sioakeim/attestward/internal/collect/gitlab/orgsecurity"
 	gitlabprovenance "gitlab.com/sioakeim/attestward/internal/collect/gitlab/provenance"
 	gitlabrepoprotection "gitlab.com/sioakeim/attestward/internal/collect/gitlab/repoprotection"
+	gitlabsecretshygiene "gitlab.com/sioakeim/attestward/internal/collect/gitlab/secretshygiene"
 	gitlabunsupported "gitlab.com/sioakeim/attestward/internal/collect/gitlab/unsupported"
 	gitlabvdp "gitlab.com/sioakeim/attestward/internal/collect/gitlab/vdp"
 	gogscollect "gitlab.com/sioakeim/attestward/internal/collect/gogs"
@@ -231,6 +232,7 @@ func defaultGitLabCollectors(baseURL, token string) []collect.Collector {
 		gitlabvdp.New(baseURL, token),
 		gitlabenvseparation.New(baseURL, token),
 		gitlabprovenance.New(baseURL, token),
+		gitlabsecretshygiene.New(baseURL, token),
 	)
 }
 

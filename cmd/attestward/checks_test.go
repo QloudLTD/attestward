@@ -199,17 +199,21 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 	//
 	// wantIDs lists each shared check ID once per platform that registers
 	// it — the four C01.org.* IDs, the six C02.branch.* IDs (both issue
-	// #150), the four C03.env.* IDs and five of C04's six IDs (issue #151
-	// — C04.vars.secret-hygiene is the sixth, azuredevops-only, so it
-	// appears just once, not twice; see its own doc comment), the four
-	// C05.sast.* IDs and the five C06.sca.* IDs (both issue #152), the
+	// #150), the four C03.env.* IDs and five of C04's original six IDs
+	// (issue #151 — C04.vars.secret-hygiene is the sixth, azuredevops-only,
+	// so it appears just once, not twice; see its own doc comment), the
+	// four C05.sast.* IDs and the five C06.sca.* IDs (both issue #152), the
 	// four C09.* IDs, and the four C10.vdp.* IDs (both issue #154) are
 	// each registered under both azuredevops and github (same ID,
 	// per-platform metadata; see issue #34's check-identity model), so
 	// buildMatrix's own one-row-per-(platform,ID) contract
 	// (TestBuildMatrix_SameID...) means each appears twice here, sorted by
 	// CheckID then Platform — "azuredevops" sorts before "github", so the
-	// ADO row comes first.
+	// ADO row comes first. C04.vars.secret-masking (added by #1's GitLab
+	// C04 work) is a SEVENTH C04 check ID, gitlab-only, appearing once for
+	// the same reason C04.vars.secret-hygiene does — see
+	// internal/collect/gitlab/secretshygiene's package doc comment for why
+	// it is its own ID rather than reusing the azuredevops one.
 	ssdf, err := mapping.LoadSSDFFS(mappings.FS, "ssdf-800-218.yaml")
 	if err != nil {
 		t.Fatalf("LoadSSDFFS: %v", err)
@@ -302,6 +306,7 @@ func TestBuildMatrixAgainstRealEmbeddedMappings(t *testing.T) {
 		"C04.secrets.scanning-enabled",
 		"C04.secrets.scanning-enabled",
 		"C04.vars.secret-hygiene",
+		"C04.vars.secret-masking",
 		"C05.sast.cadence",
 		"C05.sast.cadence",
 		"C05.sast.cadence",
@@ -485,7 +490,15 @@ func TestAllC01ThroughC10ChecksHaveRemediation(t *testing.T) {
 	// 140 once C02 repo-protection's six Gogs checks are wired in — they
 	// existed but were never imported, so never registered and never ran
 	// (see defaultGogsCollectors).
-	if len(registered) != 186 {
-		t.Fatalf("len(collect.Registered()) = %d, want 186 — did the registered check count change?", len(registered))
+	//
+	// GitLab's own #1 work (real collectors replacing gitlab/unsupported
+	// entries one group at a time, plus internal/collect/gitlab/
+	// secretshygiene's C04.vars.secret-masking — an eighth wholly-new
+	// registry entry, gitlab-only, the same shape as C04.vars.secret-
+	// hygiene and C08.pipelines.fork-protection above but registered under
+	// its own ID rather than either of those, since neither is documented
+	// as a shared-across-platforms ID) brought the count to 187.
+	if len(registered) != 187 {
+		t.Fatalf("len(collect.Registered()) = %d, want 187 — did the registered check count change?", len(registered))
 	}
 }
