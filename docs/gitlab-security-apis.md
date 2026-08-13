@@ -47,11 +47,20 @@ No `errors` key. No null. Just empty arrays that are structurally identical to
 > from a spotless one, and would silently report a Free project as passing.**
 > Use REST for the entitlement decision.
 
+**This contradicts GitLab's own documented null-vs-empty contract, which is
+the sharper version of the finding.** GitLab's GraphQL docs say a field
+returns `null` (with no `errors` entry) when the caller lacks permission or
+the required tier — and separately, `{"nodes": []}` is the documented shape
+for "permitted, but nothing there." An implementer who read only that and
+wrote `if securityScanners == nil { unsupported }` would ship a guard that
+never fires: the Free capture below shows `securityScanners` itself is a
+**non-null object containing empty arrays**, not a null field. GitLab's own
+stated contract does not flag this case at all — you have to check
+`available` specifically (next).
+
 ### The one exception that makes GraphQL usable
 
-`project.securityScanners.available` is the discriminator, and it is a tier
-signal rather than a scan-history signal — it lists what the tier *could* run,
-independent of what any pipeline did run:
+`project.securityScanners.available` is the discriminator:
 
 | Field | Free | Ultimate |
 |---|---|---|
@@ -59,11 +68,29 @@ independent of what any pipeline did run:
 | `enabled` | `[]` | `["SAST","DEPENDENCY_SCANNING","SECRET_DETECTION"]` |
 | `pipelineRun` | `[]` | `["SAST","DEPENDENCY_SCANNING","SECRET_DETECTION"]` |
 
-That three-way split maps almost exactly onto the distinction the checks need:
-`available` = tier capability (→ `unsupported` when empty), `enabled` =
-configured in CI (→ `C05.sast.tool-configured` / `C06.sca.tool-configured`),
-`pipelineRun` = actually executed (→ the `ran-per-release` and `cadence`
-checks). Recorded as `graphql-security-scanners-{ultimate,free}.json`.
+⚠ **The "tier capability" reading of `available` is an inference from this
+one two-project sample, not something GitLab's docs state.** GitLab documents
+`available` only as "List of analyzers which are available for the project" —
+nothing about licence/subscription/entitlement specifically. An empty
+`available` on the Free project is *consistent* with "this tier can't run
+these scanners", but the two-point sample here can't rule out a project- or
+config-level cause instead of a tier-level one. Treat it as the best signal
+observed, not a documented guarantee — and prefer REST for the actual
+entitlement decision, per the boxed recommendation above.
+
+`enabled` (configured in CI, → `C05.sast.tool-configured` /
+`C06.sca.tool-configured`) and `available` map cleanly onto checks this repo
+already has. **`pipelineRun` does not, and should not be used for
+`ran-per-release` or `cadence`:** GitLab documents it as "List of analyzers
+which ran successfully in the **latest pipeline**" — a single-pipeline
+snapshot, not history. Both `ran-per-release` and `cadence` are explicitly
+lookback-window checks (`internal/collect/gitlab/unsupported/unsupported.go`:
+"SAST run cadence over the **lookback window**", "ran for **each release in
+the lookback window**") — a signal describing only the latest pipeline cannot
+answer either one. Build cadence/ran-per-release from per-pipeline iteration
+(the jobs API's `finished_at`, already recommended in §4 for timing) instead;
+`pipelineRun` is only useful as a fast "did the most recent pipeline scan at
+all" check. Recorded as `graphql-security-scanners-{ultimate,free}.json`.
 
 ---
 
@@ -107,7 +134,9 @@ project returns `securityReportSummary: null` wholesale. Absence here means
 
 Note `pipeline(iid:)` takes the **project-scoped iid**, not the global pipeline
 id that REST uses. The findings pipeline is REST id `2745885318` = GraphQL
-`iid: "3"`.
+`iid: "3"`. If a collector only has the REST id, GraphQL also accepts it
+directly as a global id — `project.pipeline(id: "gid://gitlab/Ci::Pipeline/2745885318")` —
+so an iid lookup isn't required.
 
 ---
 
@@ -133,6 +162,14 @@ declared solely under `artifacts:reports:` are listed but not served:
 | `gl-secret-detection-report.json` | yes | **200** |
 | `gl-dependency-scanning-report.json` | **no** | **404** |
 | `gl-sbom.cdx.json.gz` | no (an unzipped per-package variant is) | **404** |
+
+The SBOM asymmetry has a mechanism, not just an observation: the stock
+template declares its CycloneDX outputs under `artifacts:paths:` as the glob
+`**/gl-sbom-*.cdx.json` — which matches the per-package file
+`gl-sbom-npm.cdx.json` but does not match `gl-sbom.cdx.json.gz` at all (wrong
+extension). The gzipped combined SBOM was never going to be in the archive;
+it isn't a case of "declared but not published" the way the dependency-
+scanning report is.
 
 Two dead ends, both tested, neither worth retrying:
 
@@ -185,16 +222,22 @@ dedupe), `category`, `name`, `description`, `severity`, `scanner{id,name}`,
 mixed list where `type` varies by scanner. Across these three reports the
 observed set is exactly `cve`, `cwe`, `gemnasium`, `ghsa`, `gitleaks_rule_id`,
 `gosec_rule_id`, `owasp`, `semgrep_id` — and a single finding carries several
-at once, in no guaranteed order. Match on `type`, never on list position.
+at once, in no guaranteed order. Match on `type`, never on list position —
+and expect **more than one identifier of the same `type`** on a single
+finding (the SAST finding here carries two separate `owasp` identifiers,
+`A02:2021 - Cryptographic Failures` and `A3:2017 - Sensitive Data Exposure`);
+a `map[type]identifier` reduction silently drops one.
 
 ⚠ **`severity` is capitalised (`"Critical"`, `"High"`, `"Medium"`) in the raw
 reports, but SCREAMING_CASE (`"CRITICAL"`) in GraphQL and lowercase
 (`"critical"`) in the REST `/vulnerabilities` response.** Three casings for one
 concept across three surfaces of the same product. Normalise on ingest.
 
-⚠ **`dependency_files` is absent entirely from the dependency-scanning report**
-(the key is `null`, not an empty array — so a `len()` on it reads as 0 and hides
-the fact that it was never sent). Gemnasium 6.6.1 emits a CycloneDX SBOM instead
+⚠ **`dependency_files` is absent entirely from the dependency-scanning
+report** — not present as a key at all (measured: the report's top-level keys
+are exactly `scan`, `version`, `vulnerabilities`), so a `len()` on a decoded-
+but-missing field reads as 0 and hides the fact that it was never sent.
+Gemnasium 6.6.1 emits a CycloneDX SBOM instead
 (`gl-sbom-npm.cdx.json`, `bomFormat: CycloneDX`, `specVersion: 1.4`). Anything
 wanting the dependency inventory should read the SBOM or
 `GET /projects/:id/dependencies`, not this field.
