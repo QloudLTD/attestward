@@ -3,6 +3,7 @@ package repoprotection
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	ghgithub "github.com/google/go-github/v75/github"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -533,4 +535,499 @@ func TestAdminEnforcedRemediationRequiresRemovingAllBypassActors(t *testing.T) {
 	if strings.Contains(remediation, "narrowly scope") {
 		t.Errorf("C02.branch.admin-enforced remediation says to \"narrowly scope\" a bypass actor — that still leaves len(bypassActors) > 0, which caps the result at partial, never verified-pass: %q", remediation)
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// Every check in this collector bottoms out at the same three upstream reads
+// — GET /repos/{org}/{repo}, GET .../branches/main/protection and
+// GET .../rules/branches/main — so those three plus the per-ruleset
+// bypass-actor lookup are the whole input surface.
+type rubricState struct {
+	name string
+	// repoStatus non-200 short-circuits collectRepo before either
+	// protection read happens, which is the only route to all six checks
+	// reporting not-checkable together.
+	repoStatus int
+	// legacyStatus 404 is not an error: collectRepo reads it as "no legacy
+	// protection configured", a normal input for a ruleset-only repo.
+	legacyStatus  int
+	legacy        map[string]any
+	rules         []wireBranchRule
+	rulesetID     int64
+	rulesetStatus int
+	ruleset       map[string]any
+	want          map[string]model.Status
+}
+
+func (st rubricState) mux(t *testing.T, org, repo string) *http.ServeMux {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/"+org+"/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+		if st.repoStatus != http.StatusOK {
+			writeJSON(t, w, st.repoStatus, map[string]any{"message": "nope"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		if st.legacyStatus != http.StatusOK {
+			writeJSON(t, w, st.legacyStatus, map[string]any{"message": "Branch not protected"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, st.legacy)
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		// A nil slice would encode as JSON null; the rules endpoint always
+		// returns an array, so send one even when it is empty.
+		rules := st.rules
+		if rules == nil {
+			rules = []wireBranchRule{}
+		}
+		writeJSON(t, w, http.StatusOK, rules)
+	})
+	if st.rulesetID != 0 {
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/rulesets/%d", org, repo, st.rulesetID), func(w http.ResponseWriter, _ *http.Request) {
+			if st.rulesetStatus != http.StatusOK {
+				writeJSON(t, w, st.rulesetStatus, map[string]any{"message": "Forbidden"})
+				return
+			}
+			writeJSON(t, w, http.StatusOK, st.ruleset)
+		})
+	}
+	return mux
+}
+
+// reviewRuleWithCount builds the ruleset-side pull-request rule with an
+// explicit required_approving_review_count, so the `< 1` boundary in
+// applyRules can be exercised with a rule that exists and still requires
+// nothing (GitHub allows a PR rule with zero required approvals).
+func reviewRuleWithCount(rulesetID int64, count int) wireBranchRule {
+	return wireBranchRule{
+		Type: "pull_request", RulesetSourceType: "Repository", RulesetID: rulesetID,
+		Parameters: ghgithub.PullRequestRuleParameters{RequiredApprovingReviewCount: count},
+	}
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// # Why this matrix is shaped the way it is
+//
+// All six C02 checks read ONE merged effectiveProtection value built from the
+// SAME three responses, and four of them (status-checks, force-push,
+// deletion, plus protection-exists) are single-boolean reads off that struct.
+// That is a standing conflation risk with nothing structural against it: a
+// matrix built only from "fully protected" and "fully unprotected" fixtures —
+// which is what the older tests in this file are — reaches every status while
+// moving all six checks in lockstep, so it could not tell
+// checkDeletionBlocked reading eff.deletionBlocked apart from it reading
+// eff.forcePushBlocked. The two fields have identical shape and are set side
+// by side in both places they are derived.
+//
+// ⚠ "Both places" is the part that is easy to under-test, and this matrix got
+// it wrong on the first pass. forcePushBlocked and deletionBlocked are
+// derived TWICE, in two independent code paths: from legacy protection's
+// allow_force_pushes/allow_deletions booleans in applyLegacy, and from the
+// presence of a ruleset's NonFastForward/Deletion rule lists in applyRules.
+// Splitting them on the legacy side does nothing for the ruleset side. Every
+// ruleset-bearing state here except 13 uses fullProtectionRules, which sets
+// all four rule types at once — so before state 13 was made asymmetric, the
+// two ruleset-side derivations never disagreed anywhere in the package and
+// swapping which rule list each read survived the ENTIRE suite, in both
+// directions.
+//
+// So states 2-4 and 13 exist to make same-shaped checks disagree, and 13
+// carries the ruleset half of that job alone:
+//
+//	state  2: legacy exists, permits everything -> exists PASS, other five FAIL
+//	state  3: legacy blocks force pushes, allows deletions, reviews yes, checks no
+//	state  4: legacy blocks deletions, allows force pushes, checks yes, reviews no
+//	state 13: RULESET blocks force pushes and NOT deletion (a non_fast_forward
+//	          rule with no deletion rule beside it), with a PR rule requiring
+//	          ZERO approvals
+//
+// Every pair among {protection-exists, required-reviews,
+// required-status-checks, force-push-blocked, deletion-blocked} disagrees in
+// at least one state on EACH derivation path, and admin-enforced disagrees
+// with all five in states 9, 10 and 12.
+//
+// The three not-obvious admin-enforced states are each a documented branch
+// that a smaller matrix would leave unreached:
+//
+//	state  9: legacy exists with enforce_admins=false while a ruleset cleanly
+//	          binds admins -> FAIL, because resolveEffectiveProtection requires
+//	          EVERY contributing regime to bind admins, not just one
+//	state 12: the same, plus a CONDITIONAL bypass actor -> still FAIL. This is
+//	          the exact scenario the historical len(bypassActors) > 0 bug got
+//	          backwards (adding a merely-conditional actor improved the
+//	          reported status from fail to partial)
+//	state 10: the bypass-actor lookup itself 403s -> admin-enforced alone goes
+//	          not-checkable while the other five still resolve
+//
+// # Confirmed by mutation, not assumed
+//
+// Each of these was injected into the production code and traced to the exact
+// states that caught it:
+//
+//   - checkDeletionBlocked reading eff.forcePushBlocked (the conflation this
+//     matrix is built against): caught by states 3, 4 and 13, in both
+//     directions, and by nothing else in the package's older lockstep
+//     fixtures.
+//   - applyRules' ruleset-side derivations swapped — forcePushBlocked keyed
+//     off rules.Deletion, and separately deletionBlocked keyed off
+//     rules.NonFastForward: each caught by state 13 ALONE. Both survived the
+//     entire package suite until state 13 dropped its deletion rule, which is
+//     the whole reason it no longer mirrors state 4 exactly.
+//   - checkRequiredStatusChecks reading eff.reviewRequired instead of
+//     len(eff.statusCheckNames): caught by states 3 and 4. NOT by state 13,
+//     where reviews and status checks are both absent and so agree anyway —
+//     which is the point: only the states that make them disagree can tell
+//     the two apart.
+//   - applyLegacy's `RequiredApprovingReviewCount >= 1` weakened to `>= 0`:
+//     caught by state 4 alone, the only state whose legacy protection carries
+//     a required_pull_request_reviews block that requires zero approvals.
+//   - applyRules' `RequiredApprovingReviewCount < 1 { continue }` weakened to
+//     `< 0`: caught by state 13 alone, the ruleset-side counterpart of the
+//     legacy boundary above.
+//   - resolveEffectiveProtection's legacyBindsAdmins guard dropped (the OR-vs-
+//     AND bug its own comment records): caught by states 9 and 12.
+//   - checkAdminEnforced's `case eff.hasAlwaysBypass` reverted to
+//     `case len(eff.bypassActors) > 0`: caught by state 12 alone — it is the
+//     only state where admins are unbound AND the sole bypass actor is
+//     conditional, which is precisely the shape the bug misread.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const org, repo = "attestward-demo", "svc"
+
+	states := []rubricState{
+		{
+			// Nothing protects the branch under either regime: the only
+			// route to protection-exists reporting verified-fail.
+			name:         "no legacy protection and no ruleset",
+			repoStatus:   http.StatusOK,
+			legacyStatus: http.StatusNotFound,
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedFail,
+				"C02.branch.required-reviews":       model.StatusVerifiedFail,
+				"C02.branch.required-status-checks": model.StatusVerifiedFail,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedFail,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedFail,
+				"C02.branch.admin-enforced":         model.StatusVerifiedFail,
+			},
+		},
+		{
+			// applyLegacy sets exists unconditionally, so a protection rule
+			// that grants nothing still counts as "protection exists". This
+			// is the state that splits protection-exists from all five
+			// substantive checks at once.
+			name:         "legacy protection exists but permits everything",
+			repoStatus:   http.StatusOK,
+			legacyStatus: http.StatusOK,
+			legacy: map[string]any{
+				"enforce_admins":     map[string]any{"enabled": false},
+				"allow_force_pushes": map[string]any{"enabled": true},
+				"allow_deletions":    map[string]any{"enabled": true},
+			},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedFail,
+				"C02.branch.required-status-checks": model.StatusVerifiedFail,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedFail,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedFail,
+				"C02.branch.admin-enforced":         model.StatusVerifiedFail,
+			},
+		},
+		{
+			name:         "legacy blocks force pushes and requires reviews, but allows deletion and requires no checks",
+			repoStatus:   http.StatusOK,
+			legacyStatus: http.StatusOK,
+			legacy: map[string]any{
+				"required_pull_request_reviews": map[string]any{"required_approving_review_count": 2},
+				"enforce_admins":                map[string]any{"enabled": true},
+				"allow_force_pushes":            map[string]any{"enabled": false},
+				"allow_deletions":               map[string]any{"enabled": true},
+			},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedPass,
+				"C02.branch.required-status-checks": model.StatusVerifiedFail,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedFail,
+				"C02.branch.admin-enforced":         model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The exact mirror of the state above, so neither
+			// force-push/deletion nor reviews/status-checks can be swapped
+			// for the other without a failure in one direction or the
+			// other. required_pull_request_reviews is PRESENT here with a
+			// count of zero rather than omitted, which is what exercises
+			// applyLegacy's `>= 1` boundary.
+			name:         "legacy blocks deletion and requires checks, but allows force push and requires zero approvals",
+			repoStatus:   http.StatusOK,
+			legacyStatus: http.StatusOK,
+			legacy: map[string]any{
+				"required_pull_request_reviews": map[string]any{"required_approving_review_count": 0},
+				"required_status_checks":        map[string]any{"contexts": []string{"ci/test"}},
+				"enforce_admins":                map[string]any{"enabled": true},
+				"allow_force_pushes":            map[string]any{"enabled": true},
+				"allow_deletions":               map[string]any{"enabled": false},
+			},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedFail,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedFail,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The only route to required-reviews reporting partial: legacy
+			// bypass_pull_request_allowances names someone who can skip the
+			// review requirement outright. A ruleset has no equivalent field.
+			name:         "legacy requires reviews but names a bypass allowance",
+			repoStatus:   http.StatusOK,
+			legacyStatus: http.StatusOK,
+			legacy: map[string]any{
+				"required_pull_request_reviews": map[string]any{
+					"required_approving_review_count": 1,
+					"bypass_pull_request_allowances": map[string]any{
+						"users": []map[string]any{{"login": "octocat"}},
+					},
+				},
+				"required_status_checks": map[string]any{"contexts": []string{"ci/test"}},
+				"enforce_admins":         map[string]any{"enabled": true},
+				"allow_force_pushes":     map[string]any{"enabled": false},
+				"allow_deletions":        map[string]any{"enabled": false},
+			},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusPartial,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Ruleset-only, zero bypass actors: the clean all-pass world,
+			// and the one that proves admin-enforced can pass with no legacy
+			// protection present at all.
+			name:          "ruleset-only repo with no bypass actors",
+			repoStatus:    http.StatusOK,
+			legacyStatus:  http.StatusNotFound,
+			rules:         fullProtectionRules(21),
+			rulesetID:     21,
+			rulesetStatus: http.StatusOK,
+			ruleset:       map[string]any{"id": 21, "name": "main-protection"},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedPass,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusVerifiedPass,
+			},
+		},
+		{
+			// admin-enforced partial, route (a): admins ARE bound by every
+			// contributing regime, but a conditional bypass actor exists.
+			name:          "ruleset with a conditional bypass actor",
+			repoStatus:    http.StatusOK,
+			legacyStatus:  http.StatusNotFound,
+			rules:         fullProtectionRules(22),
+			rulesetID:     22,
+			rulesetStatus: http.StatusOK,
+			ruleset: map[string]any{
+				"id": 22, "name": "main-protection",
+				"bypass_actors": []map[string]any{
+					{"actor_type": "Team", "bypass_mode": "pull_request"},
+				},
+			},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedPass,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusPartial,
+			},
+		},
+		{
+			// admin-enforced partial, route (b): an unconditional bypass
+			// actor, which blocks adminEnforced from ever being set and is
+			// reported through a different arm of the same switch.
+			name:          "ruleset with an unconditional bypass actor",
+			repoStatus:    http.StatusOK,
+			legacyStatus:  http.StatusNotFound,
+			rules:         fullProtectionRules(23),
+			rulesetID:     23,
+			rulesetStatus: http.StatusOK,
+			ruleset: map[string]any{
+				"id": 23, "name": "main-protection",
+				"bypass_actors": []map[string]any{
+					{"actor_type": "OrganizationAdmin", "bypass_mode": "always"},
+				},
+			},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedPass,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusPartial,
+			},
+		},
+		{
+			// Both regimes protect the branch, but legacy exempts admins.
+			// admin-enforced alone fails while the other five pass — the
+			// ruleset's clean admin binding must not paper over legacy's
+			// exemption.
+			name:          "legacy exempts admins while a ruleset binds them",
+			repoStatus:    http.StatusOK,
+			legacyStatus:  http.StatusOK,
+			legacy:        map[string]any{"enforce_admins": map[string]any{"enabled": false}},
+			rules:         fullProtectionRules(24),
+			rulesetID:     24,
+			rulesetStatus: http.StatusOK,
+			ruleset:       map[string]any{"id": 24, "name": "main-protection"},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedPass,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The bypass-actor lookup is the one upstream read only
+			// admin-enforced depends on, so its failure must narrow to that
+			// check alone rather than taking the collector down with it.
+			name:          "ruleset bypass-actor lookup forbidden",
+			repoStatus:    http.StatusOK,
+			legacyStatus:  http.StatusNotFound,
+			rules:         fullProtectionRules(25),
+			rulesetID:     25,
+			rulesetStatus: http.StatusForbidden,
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedPass,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusNotCheckable,
+			},
+		},
+		{
+			// The repo read itself fails, so nothing downstream ran: the
+			// only route to all six reporting not-checkable together.
+			name:       "repo read forbidden",
+			repoStatus: http.StatusForbidden,
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusNotCheckable,
+				"C02.branch.required-reviews":       model.StatusNotCheckable,
+				"C02.branch.required-status-checks": model.StatusNotCheckable,
+				"C02.branch.force-push-blocked":     model.StatusNotCheckable,
+				"C02.branch.deletion-blocked":       model.StatusNotCheckable,
+				"C02.branch.admin-enforced":         model.StatusNotCheckable,
+			},
+		},
+		{
+			// Legacy exempts admins AND the only bypass actor is
+			// conditional. The result must still be verified-fail: admins
+			// already aren't bound by every contributing regime, and a
+			// conditional actor doesn't upgrade that to partial.
+			name:          "legacy exempts admins and the ruleset has a conditional bypass actor",
+			repoStatus:    http.StatusOK,
+			legacyStatus:  http.StatusOK,
+			legacy:        map[string]any{"enforce_admins": map[string]any{"enabled": false}},
+			rules:         fullProtectionRules(26),
+			rulesetID:     26,
+			rulesetStatus: http.StatusOK,
+			ruleset: map[string]any{
+				"id": 26, "name": "main-protection",
+				"bypass_actors": []map[string]any{
+					{"actor_type": "Team", "bypass_mode": "pull_request"},
+				},
+			},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedPass,
+				"C02.branch.required-status-checks": model.StatusVerifiedPass,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedPass,
+				"C02.branch.admin-enforced":         model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The ruleset-side mirror of state 4, and the ONLY state whose
+			// ruleset carries a non_fast_forward rule WITHOUT a deletion
+			// rule. Every other ruleset-bearing state uses
+			// fullProtectionRules, which sets all four rule types at once —
+			// so without this asymmetry the two ruleset-side derivations in
+			// applyRules move together everywhere and swapping which rule
+			// list each reads survives the whole package suite (confirmed by
+			// injection; see the mutation notes below). The pull-request
+			// rule requires zero approvals, which is what exercises
+			// applyRules' own `< 1` boundary.
+			name:         "ruleset blocks force pushes but not deletion, and requires zero approvals",
+			repoStatus:   http.StatusOK,
+			legacyStatus: http.StatusNotFound,
+			rules: []wireBranchRule{
+				reviewRuleWithCount(27, 0),
+				{Type: "non_fast_forward", RulesetSourceType: "Repository", RulesetID: 27},
+			},
+			rulesetID:     27,
+			rulesetStatus: http.StatusOK,
+			ruleset:       map[string]any{"id": 27, "name": "main-protection"},
+			want: map[string]model.Status{
+				"C02.branch.protection-exists":      model.StatusVerifiedPass,
+				"C02.branch.required-reviews":       model.StatusVerifiedFail,
+				"C02.branch.required-status-checks": model.StatusVerifiedFail,
+				"C02.branch.force-push-blocked":     model.StatusVerifiedPass,
+				"C02.branch.deletion-blocked":       model.StatusVerifiedFail,
+				"C02.branch.admin-enforced":         model.StatusVerifiedPass,
+			},
+		},
+	}
+
+	// Guards the states above against the fixture drifting into something
+	// that no longer splits the same-shaped checks apart.
+	if got := len(states); got != 13 {
+		t.Fatalf("len(states) = %d, want 13 — this matrix's whole point is the splitting states; see the doc comment before adding or removing one", got)
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			c := newCollectorForServer(t, newTestServer(t, st.mux(t, org, repo)))
+			results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repo}})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much
+			// a defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }
