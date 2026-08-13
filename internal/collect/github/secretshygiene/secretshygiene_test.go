@@ -755,9 +755,17 @@ func (st rubricState) mux(t *testing.T, org, repo string) *http.ServeMux {
 //     GitHub's licensing model showing through, not a coincidence of the
 //     fixtures.
 //
-// Each state pins the whole result map rather than a count. Three of the five
-// checks are derived from the same repo response, so a defect that swapped two
-// of them would leave any count assertion untouched.
+// A fifth state reaches no status the four miss, and is here anyway. Three of
+// the five checks read the same repo response, and with the four states alone
+// scanning-enabled, push-protection and org.security-defaults agree in every
+// one — so a defect reading the wrong field was invisible. Verified rather
+// than assumed: pointing checkPushProtection at sa.SecretScanning instead of
+// sa.SecretScanningPushProtection passed the four-state matrix cleanly. The
+// fifth state turns one feature on and the other off, which separates all
+// three, and every pair of the five checks then disagrees somewhere.
+//
+// Each state pins the whole result map rather than a count — a count would
+// show none of this.
 func TestRubricsMatchObservedBehaviour(t *testing.T) {
 	const org, repo = "attestward-demo", "subject"
 
@@ -830,6 +838,22 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 				"C04.secrets.push-protection":   model.StatusNotCheckable,
 				"C04.secrets.advanced-security": model.StatusVerifiedFail,
 				"C04.deps.dependabot-alerts":    model.StatusVerifiedPass,
+				"C04.org.security-defaults":     model.StatusNotCheckable,
+			},
+		},
+		{
+			// One feature on, the other off — the state that stops
+			// scanning-enabled, push-protection and org.security-defaults
+			// from being indistinguishable from each other.
+			name:       "private repo, GHAS licensed, scanning on but push protection off",
+			repoStatus: http.StatusOK, repoBody: privateRepo("enabled", "disabled", "enabled"),
+			vulnAlertsStatus: http.StatusNotFound,
+			orgBody:          orgDefaultsInvisible,
+			want: map[string]model.Status{
+				"C04.secrets.scanning-enabled":  model.StatusVerifiedPass,
+				"C04.secrets.push-protection":   model.StatusVerifiedFail,
+				"C04.secrets.advanced-security": model.StatusVerifiedPass,
+				"C04.deps.dependabot-alerts":    model.StatusVerifiedFail,
 				"C04.org.security-defaults":     model.StatusNotCheckable,
 			},
 		},
