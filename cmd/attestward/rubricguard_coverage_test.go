@@ -29,7 +29,6 @@ import (
 // documented-but-unreachable rubrics that are really just uncovered. Rushing
 // them would trade real drift detection for noise and exemption sprawl.
 var rubricGuardUnwired = map[string]bool{
-	"azuredevops/C05.sast-history":     true,
 	"azuredevops/C06.sca-history":      true,
 	"azuredevops/C07.provenance":       true,
 	"azuredevops/C08.actions-security": true,
@@ -164,6 +163,7 @@ var rubricGuardWired = map[string]bool{
 	"azuredevops/C09.audit-logging":   true,
 	"azuredevops/C03.env-separation":  true,
 	"azuredevops/C02.repo-protection": true,
+	"azuredevops/C05.sast-history":    true,
 	// gitlab/C08.actions-security is here rather than in the unwired
 	// baseline because all five of its check IDs live in ONE package
 	// (internal/collect/gitlab/actionssecurity) whose own test calls the
