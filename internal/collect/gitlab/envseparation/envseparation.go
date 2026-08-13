@@ -232,6 +232,13 @@ var checkRemediations = map[string]string{
 const sharedNotCheckableRubric = "the environments list, or the project-level protected-environments list, " +
 	"couldn't be read (403/404/other API error), or the project has zero environments configured at all"
 
+// existsNotCheckableRubric is deliberately NARROWER than the shared one: a
+// failed protected-environments read does not reach this check, because it
+// reads only the environments list and is answered before that call is made.
+const existsNotCheckableRubric = "the environments list couldn't be read (403/404/other API error), or the " +
+	"project has zero environments configured at all — a failed protected-environments read does NOT " +
+	"reach this check, which is answered from the environments list alone"
+
 const sharedPartialRubric = "one or more environments exist, but none match the production-like naming " +
 	"heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is " +
 	"actually production before this check can evaluate anything"
@@ -256,7 +263,7 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusVerifiedPass: "at least one environment's name matches the production-like heuristic " +
 			"(`prod`* prefix, case-insensitive)",
 		model.StatusPartial:      sharedPartialRubric,
-		model.StatusNotCheckable: sharedNotCheckableRubric,
+		model.StatusNotCheckable: existsNotCheckableRubric,
 	},
 	idProtectionRules: {
 		model.StatusVerifiedPass: "every production-like environment is protected, by either of the two " +
@@ -458,7 +465,18 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 	protected, err := gitlabcollect.GetJSONPaged[protectedEnvironment](ctx, client, "/projects/"+id+"/protected_environments", nil)
 	prov = client.Provenance()
 	if err != nil {
-		return allNotCheckable(org, repo, fmt.Sprintf("could not read protected environments: %v", err), prov)
+		// exists is NOT swept into this failure. It reads only GET
+		// .../environments, which succeeded above, and prodNames is already
+		// in hand — its answer is computed, not unknown. Blanking it out
+		// with its siblings would report not-checkable for the check whose
+		// documented scope, Reporter, is exactly the scope that CANNOT read
+		// protected environments (403; see checkTokenScopes), so the most
+		// likely operator to hit this branch would lose the one check their
+		// token does entitle them to (issue #17).
+		return append(
+			[]model.CheckResult{checkExists(org, repo, prodNames, existsProv)},
+			protectionNotCheckable(org, repo,
+				fmt.Sprintf("could not read protected environments: %v", err), prov)...)
 	}
 	byName := map[string]protectedEnvironment{}
 	for _, pe := range protected {
@@ -792,6 +810,27 @@ func allNotCheckable(org, repo, reason string, prov []model.Provenance) []model.
 	}
 	// branch-policy's own not-checkable reason is unconditional and never the
 	// caller-supplied reason above — see its own doc comment.
+	out = append(out, branchPolicyResult(org, repo))
+	return out
+}
+
+// protectionNotCheckable is allNotCheckable minus exists, for the one state
+// where exists is already answered and its siblings are not: the
+// environments read succeeded and found a production-like environment, and
+// only the protected-environments read failed. branch-policy still comes
+// from branchPolicyResult, so its unconditional reason is never replaced by
+// the caller's, exactly as in allNotCheckable.
+func protectionNotCheckable(org, repo, reason string, prov []model.Provenance) []model.CheckResult {
+	if prov == nil {
+		prov = []model.Provenance{}
+	}
+	out := make([]model.CheckResult, 0, 3)
+	for _, id := range []string{idProtectionRules, idRequiredReviewers} {
+		out = append(out, model.CheckResult{
+			CheckID: id, Title: checkTitles[id], Status: model.StatusNotCheckable, Reason: reason,
+			Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
+		})
+	}
 	out = append(out, branchPolicyResult(org, repo))
 	return out
 }

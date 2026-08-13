@@ -470,6 +470,13 @@ Reporter as sufficient: an operator who granted exactly the scope the docs
 asked for got both checks silently degraded to `not-checkable` instead of the
 answer the docs promised. Their `TokenScope` now says Maintainer.
 
+Keeping Reporter on `exists` took a collector change as well as a doc one. The
+403 on row 2 used to abort the whole repo into not-checkable for all four
+checks, `exists` included — so the Reporter operator the doc now sends away
+with one working check would in fact have got none. The protected-environments
+failure path now emits the computed `exists` result and marks only its two
+protection siblings not-checkable.
+
 The third row is not a regression — it is the same namespace-visibility caveat
 the two protection checks already carry, restated at the highest project role:
 project membership does not buy group-level reads at any role, so the

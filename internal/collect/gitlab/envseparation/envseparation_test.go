@@ -307,13 +307,42 @@ func TestEnvironmentsReadFailureIsNotCheckable(t *testing.T) {
 	}
 }
 
-func TestProtectedEnvironmentsReadFailureIsNotCheckable(t *testing.T) {
+// TestProtectedEnvironmentsReadFailureSparesExists pins the split this state
+// exists to produce (issue #17): the protected-environments read failing must
+// not take `exists` down with it. exists reads only GET .../environments —
+// which succeeded here — so its answer is computed, not unknown, and a
+// Reporter token, the exact scope that 403s on protected environments live,
+// is the operator most likely to land in this branch. Sweeping all three into
+// not-checkable would hand that operator nothing while the docs promise them
+// this check.
+func TestProtectedEnvironmentsReadFailureSparesExists(t *testing.T) {
 	got := byID(collectWith(t, envMux([]string{"production"}, 200, nil, 403), "g", "p"))
-	for _, id := range []string{idExists, idProtectionRules, idRequiredReviewers} {
+
+	if got[idExists].Status != model.StatusVerifiedPass {
+		t.Errorf("exists = %q, want verified-pass — the environments read succeeded and returned a "+
+			"production-like environment, so this check is answered regardless of the protected-"+
+			"environments failure", got[idExists].Status)
+	}
+	if !strings.Contains(got[idExists].Reason, "production") {
+		t.Errorf("exists reason = %q, want it to name the production-like environment(s) found",
+			got[idExists].Reason)
+	}
+	// The same evidence-integrity rule as the happy path: exists cites only
+	// the call it is about, never the failed protected-environments one.
+	for _, p := range got[idExists].Provenance {
+		if strings.Contains(p.Endpoint, "protected_environments") {
+			t.Errorf("exists provenance cites %q — it must cite only the environments read", p.Endpoint)
+		}
+	}
+
+	for _, id := range []string{idProtectionRules, idRequiredReviewers, idBranchPolicy} {
 		if got[id].Status != model.StatusNotCheckable {
 			t.Errorf("%s = %q, want not-checkable — the protected-environments read failed, so this "+
 				"cannot honestly assert pass or fail", id, got[id].Status)
 		}
+	}
+	if len(got) != 4 {
+		t.Errorf("got %d checks, want 4", len(got))
 	}
 }
 
@@ -786,8 +815,14 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 			map[string]model.Status{idExists: nc, idProtectionRules: nc, idRequiredReviewers: nc, idBranchPolicy: nc}},
 		{"environments unreadable", envMux(nil, 403, nil, 200), "",
 			map[string]model.Status{idExists: nc, idProtectionRules: nc, idRequiredReviewers: nc, idBranchPolicy: nc}},
+		// exists is pass, not nc: it is answered off the environments list,
+		// which succeeded, and only its two protection siblings depend on
+		// the call that failed (issue #17). This is the only state where the
+		// three state-dependent checks do not move together, which is why
+		// TestProtectedEnvironmentsReadFailureSparesExists asserts it in
+		// detail as well as in this matrix.
 		{"protected environments unreadable", envMux([]string{"production"}, 200, nil, 403), "",
-			map[string]model.Status{idExists: nc, idProtectionRules: nc, idRequiredReviewers: nc, idBranchPolicy: nc}},
+			map[string]model.Status{idExists: pass, idProtectionRules: nc, idRequiredReviewers: nc, idBranchPolicy: nc}},
 		// The four group-level states below reach no status the six above do
 		// not, and they are in the matrix anyway: the guard compares which
 		// statuses are emitted, so a second, undescribed route to an
