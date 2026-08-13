@@ -277,13 +277,15 @@ var checkRubrics = map[string]map[model.Status]string{
 	idOIDC: {
 		model.StatusVerifiedPass: "at least one entry in the merged CI configuration declares an `id_tokens:` " +
 			"block (a job, or the `default:` section jobs inherit from), and no project-level CI/CD variable " +
-			"holds one of the exact names a cloud SDK reads a long-lived credential from",
+			"holds one of the exact names a cloud SDK reads a long-lived credential from with a non-empty " +
+			"value — a masked-and-hidden variable counts as holding a value even though GitLab always " +
+			"returns its `value` field as empty, since GitLab enforces a minimum length at creation time",
 		model.StatusPartial: "`id_tokens:` is declared somewhere AND a long-lived cloud credential variable " +
-			"is still stored — OIDC is in use for something, but a static credential remains available to " +
-			"every job",
-		model.StatusVerifiedFail: "a project-level CI/CD variable holds a long-lived cloud credential and " +
-			"nothing in the merged CI configuration declares `id_tokens:` at all. The offending variable " +
-			"NAMES are recorded in Facts, never the values",
+			"is still stored (masked-and-hidden or plainly non-empty) — OIDC is in use for something, but a " +
+			"static credential remains available to every job",
+		model.StatusVerifiedFail: "a project-level CI/CD variable holds a long-lived cloud credential " +
+			"(masked-and-hidden or plainly non-empty) and nothing in the merged CI configuration declares " +
+			"`id_tokens:` at all. The offending variable NAMES are recorded in Facts, never the values",
 		model.StatusNotCheckable: sharedCIConfigNotCheckableRubric + ". Also: the merged configuration was " +
 			"empty or did not parse as YAML; or GET /projects/{id}/variables could not be read, so a stored " +
 			"credential could be neither found nor ruled out; or — the ordinary case for a project that does " +

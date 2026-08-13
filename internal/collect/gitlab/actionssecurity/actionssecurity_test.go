@@ -158,6 +158,15 @@ func varJSON(key, value string) string {
 	return fmt.Sprintf(`{"key":%q,"value":%q}`, key, value)
 }
 
+// varJSONHidden serves a masked-and-hidden variable the way GitLab actually
+// returns one: value null (decodes to ""), hidden true. GitLab enforces the
+// masking minimum length at creation, so a hidden variable always holds
+// something — that's the whole reason hidden must not be read the same as
+// genuinely empty.
+func varJSONHidden(key string) string {
+	return fmt.Sprintf(`{"key":%q,"value":null,"hidden":true}`, key)
+}
+
 // cleanProject is a project doing everything this collector asks for.
 var cleanProject = fixture{
 	project:       `{"visibility":"public","ci_allow_fork_pipelines_to_run_in_parent_project":false}`,
@@ -337,6 +346,14 @@ func TestRemoteSHAMustBeAWholePathSegment(t *testing.T) {
 	if !remoteURLHasCommitSHA("https://example.com/raw/" + shaRef + "/ci.yml") {
 		t.Error("a SHA as its own path segment was rejected")
 	}
+	// A SHA that's a slash-delimited segment of the QUERY VALUE, not the
+	// path, would satisfy a naive "contains /SHA/" check on the raw URL
+	// string — this is the case that actually discriminates "only u.Path is
+	// examined" from "the whole URL is examined": both readings agree on
+	// the three cases above.
+	if remoteURLHasCommitSHA("https://example.com/ci.yml?file=/" + shaRef + "/ci.yml") {
+		t.Error("a SHA as a path-shaped segment of the QUERY VALUE was accepted; only the URL's own path pins the response")
+	}
 }
 
 // TestUnpinnedIncludeIsNamedInFacts proves the fail path records which
@@ -432,6 +449,62 @@ func TestStaticCloudCredentialsAreMatchedExactlyAndCaseSensitively(t *testing.T)
 	if len(got) != 1 || got[0].Key != "AWS_SECRET_ACCESS_KEY" || got[0].Cloud != "aws" {
 		t.Fatalf("findStaticCloudCredentials = %+v, want exactly the exact-name, non-empty AWS key", got)
 	}
+}
+
+// TestEveryStaticCloudCredentialNameIsDetected exercises every entry in
+// staticCloudCredentialVariables individually, table-driven — the table IS
+// the entire detection surface of this check, and the sibling test above
+// only ever supplies AWS_SECRET_ACCESS_KEY, leaving the other four names
+// (and their cloud labels) completely unexercised.
+func TestEveryStaticCloudCredentialNameIsDetected(t *testing.T) {
+	for name, wantCloud := range staticCloudCredentialVariables {
+		t.Run(name, func(t *testing.T) {
+			got := findStaticCloudCredentials([]variableRaw{{Key: name, Value: "real"}})
+			if len(got) != 1 || got[0].Key != name || got[0].Cloud != wantCloud {
+				t.Fatalf("findStaticCloudCredentials(%s) = %+v, want [{%s %s}]", name, got, name, wantCloud)
+			}
+		})
+	}
+}
+
+// TestHiddenCredentialVariableCountsAsStored is the regression test for a
+// real bug caught in review: GitLab always returns "value": null (decodes
+// to "") for a masked-and-hidden variable, and the pre-fix code read an
+// empty Value as "nothing stored" — so a hidden AWS_SECRET_ACCESS_KEY, the
+// most security-conscious configuration a team could choose, produced a
+// confident verified-pass whose reason text ("this project stores no
+// long-lived cloud credential variable") was false. Hidden must be treated
+// as holding a value regardless of what Value decodes to.
+func TestHiddenCredentialVariableCountsAsStored(t *testing.T) {
+	got := findStaticCloudCredentials([]variableRaw{{Key: "AWS_SECRET_ACCESS_KEY", Hidden: true}})
+	if len(got) != 1 || got[0].Key != "AWS_SECRET_ACCESS_KEY" || got[0].Cloud != "aws" {
+		t.Fatalf("findStaticCloudCredentials(hidden) = %+v, want the hidden AWS key detected despite empty Value", got)
+	}
+}
+
+// TestHiddenCredentialWithNoOIDCFailsNotPasses reproduces the false-pass
+// end to end through Collect, not just the extraction function: a project
+// with no id_tokens: block and a hidden, unmasked-name cloud credential
+// must fail, never read as clean because Value came back empty.
+func TestHiddenCredentialWithNoOIDCFailsNotPasses(t *testing.T) {
+	f := noCloudProject
+	f.variables = `[` + varJSONHidden("AWS_SECRET_ACCESS_KEY") + `]`
+	got := collectWith(t, f)
+	assertStatus(t, got, idOIDC, model.StatusVerifiedFail)
+}
+
+// TestHiddenCredentialWithOIDCIsPartialNotPass reproduces the more severe
+// of the two false results found in review: a project WITH id_tokens:
+// declared AND a hidden AWS_SECRET_ACCESS_KEY must read as partial (OIDC in
+// use for something, but a static credential remains available too), never
+// as verified-pass — the pre-fix code read the hidden variable's empty
+// Value as "no credential stored" and shipped a pack asserting the project
+// stored no long-lived cloud credential, which was false.
+func TestHiddenCredentialWithOIDCIsPartialNotPass(t *testing.T) {
+	f := cleanProject
+	f.variables = `[` + varJSONHidden("AWS_SECRET_ACCESS_KEY") + `]`
+	got := collectWith(t, f)
+	assertStatus(t, got, idOIDC, model.StatusPartial)
 }
 
 // TestOIDCNeverLeaksCredentialValues is this check's sentinel: it reads

@@ -49,11 +49,21 @@ type runnerRaw struct {
 // variableRaw is the subset of GET /projects/:id/variables needed to spot a
 // stored long-lived cloud credential. Value is read ONLY to tell "a
 // credential is stored here" from "the variable exists but is empty" — it is
-// never copied into a Reason or into Facts. Same discipline as
-// internal/collect/gitlab/secretshygiene's own variableRaw.
+// never copied into a Reason or into Facts.
+//
+// Hidden matters on its own: GitLab returns Value as null (decodes to "") for
+// a masked-and-hidden variable — Ci::VariableValue#evaluate returns nil
+// whenever the variable is hidden, regardless of what's actually stored.
+// internal/collect/gitlab/secretshygiene's variableRaw omits Hidden safely,
+// because it checks Masked before ever looking at Value (hidden implies
+// masked, so that check never reaches the empty-value branch) — this
+// package has no such check, so treating hidden the same as genuinely-empty
+// would read a masked-and-hidden AWS key, exactly the case a careful team
+// would configure, as "nothing stored" and ship a false verified-pass.
 type variableRaw struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key    string `json:"key"`
+	Value  string `json:"value"`
+	Hidden bool   `json:"hidden"`
 }
 
 // ciInclude is one entry of the CI Lint API's `includes` array.
@@ -86,10 +96,13 @@ type ciInclude struct {
 	ContextProject string `json:"context_project"`
 }
 
-// ciIncludeExtra is the per-include-type detail block. It is populated only
-// for `include: project:` entries (type "file"), where ref is the whole
-// point — see ciInclude's doc comment; every other type observed live
-// returned an empty object.
+// ciIncludeExtra is the per-include-type detail block. Only Project/Ref are
+// modeled here, which is all this package reads — `extra` isn't limited to
+// `include: project:` entries the way an earlier draft of this comment
+// claimed: a live lint of gitlab-org/gitlab-runner returned a non-empty
+// `extra` (a `rules` block) for a `local:` include too. Project/Ref are
+// populated specifically and only for type "file" (`include: project:`),
+// which is the one case this package needs — see ciInclude's doc comment.
 type ciIncludeExtra struct {
 	Project string `json:"project"`
 	Ref     string `json:"ref"`
@@ -359,14 +372,18 @@ type staticCredentialFinding struct {
 }
 
 // findStaticCloudCredentials returns the stored long-lived cloud
-// credentials among a project's own CI/CD variables. An empty value is
-// skipped: the variable exists but holds nothing, so nothing is stored to
-// be long-lived.
+// credentials among a project's own CI/CD variables. A genuinely empty,
+// unhidden value is skipped: the variable exists but holds nothing, so
+// nothing is stored to be long-lived. A hidden variable is never skipped on
+// that basis — GitLab always returns Value == "" for one regardless of what
+// it holds (see variableRaw's doc comment), and GitLab enforces the masking
+// minimum length at creation, so a hidden variable definitionally holds a
+// value.
 func findStaticCloudCredentials(vars []variableRaw) []staticCredentialFinding {
 	var out []staticCredentialFinding
 	for _, v := range vars {
 		cloud, recognized := staticCloudCredentialVariables[v.Key]
-		if !recognized || v.Value == "" {
+		if !recognized || (v.Value == "" && !v.Hidden) {
 			continue
 		}
 		out = append(out, staticCredentialFinding{Key: v.Key, Cloud: cloud})
