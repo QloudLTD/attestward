@@ -35,7 +35,6 @@ var rubricGuardUnwired = map[string]bool{
 	"azuredevops/C07.provenance":       true,
 	"azuredevops/C08.actions-security": true,
 	"github/C02.repo-protection":       true,
-	"github/C06.sca-history":           true,
 	"github/C07.provenance":            true,
 	"github/C08.actions-security":      true,
 	// gitlab/C04.secrets-hygiene: NOT the same shape as every other entry
@@ -144,6 +143,7 @@ var rubricGuardWired = map[string]bool{
 	"gitlab/C02.repo-protection": true,
 	"github/C01.org-security":    true,
 	"github/C05.sast-history":    true,
+	"github/C06.sca-history":     true,
 	// gitlab/C05.sast-history and gitlab/C06.sca-history stay wired, but
 	// what backs them changed: they used to be guarded by the trivial
 	// always-not-checkable matrix in internal/collect/gitlab/unsupported,
