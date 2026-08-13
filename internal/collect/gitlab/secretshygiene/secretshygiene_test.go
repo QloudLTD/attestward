@@ -83,9 +83,10 @@ func TestSensitiveEmptyValueIsIgnored(t *testing.T) {
 }
 
 // offendingKeys extracts the "key" field from each Facts.offending_variables
-// entry, tolerating both the real []map[string]any shape a live decode
-// produces and (defensively) a plain []string, so this helper stays useful
-// regardless of which internal representation checkSecretMasking uses.
+// entry ([]map[string]any, checkSecretMasking's actual shape). A type-assert
+// failure yields an empty slice rather than a panic, which is enough for
+// callers here — their own "len(offending) != 1" assertions already fail
+// loudly on that, no separate ok-check needed.
 func offendingKeys(t *testing.T, r model.CheckResult) []string {
 	t.Helper()
 	raw, _ := r.Facts["offending_variables"].([]map[string]any)
