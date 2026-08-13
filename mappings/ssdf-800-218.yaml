@@ -227,6 +227,7 @@ tasks:
         C04.secrets.advanced-security,
         C04.org.security-defaults,
         C04.vars.secret-hygiene,
+        C04.vars.secret-masking,
         C08.actions.token-permissions,
         C08.actions.pull-request-target,
         C08.pipelines.fork-protection,

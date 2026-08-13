@@ -48,10 +48,23 @@ var rubricGuardUnwired = map[string]bool{
 	"github/C08.actions-security":      true,
 	"github/C09.audit-logging":         true,
 	"gitlab/C01.org-security":          true,
-	"gitlab/C04.secrets-hygiene":       true,
-	"gitlab/C05.sast-history":          true,
-	"gitlab/C06.sca-history":           true,
-	"gitlab/C08.actions-security":      true,
+	// gitlab/C04.secrets-hygiene: NOT the same shape as every other entry
+	// here. This key covers 6 check IDs, not one collector: 5 permanently
+	// not-checkable in internal/collect/gitlab/unsupported (they depend on
+	// GitLab's paid-tier Secret Detection/Dependency Scanning) plus
+	// C04.vars.secret-masking, a real check in internal/collect/gitlab/
+	// secretshygiene whose OWN tests DO call the guard. Since this baseline
+	// is per-(platform,Collector) — see registered's construction in
+	// TestRubricGuardCoverageOnlyShrinks — one real check's guard coverage
+	// can't move the whole key to wired while 5 of 6 IDs under it stay
+	// unguarded. Unlike every other unwired entry, this one cannot shrink
+	// to zero by more guard-wiring alone: the 5 not-checkable IDs would
+	// need to actually gain real behaviour (paid-tier collection) before
+	// there is anything more here to guard.
+	"gitlab/C04.secrets-hygiene":  true,
+	"gitlab/C05.sast-history":     true,
+	"gitlab/C06.sca-history":      true,
+	"gitlab/C08.actions-security": true,
 }
 
 // TestRubricGuardCoverageOnlyShrinks fails when a registered collector is

@@ -1326,6 +1326,28 @@ This check is registered under more than one platform — details for each below
 
 ---
 
+### `C04.vars.secret-masking` — Sensitive-named project-level CI/CD variables are masked in job logs
+
+- **Token permission:** Maintainer role on the project — docs.gitlab.com documents Maintainer as required to manage CI/CD variables, and this build's own verification token held that role; a lower-privileged token's exact response against this endpoint (an empty list vs. a 403) was not independently observed
+- **SSDF task(s):** `PO.5.1` (practice `PO.5`: Implement and Maintain Secure Environments for Software Development)
+- **CISA form cluster(s):** 1, 2, 3
+- **Fixture:** `internal/collect/gitlab/secretshygiene/secretshygiene_test.go`
+- **API endpoint(s):** `GET /projects/{id}/variables`
+
+**Status rubric:**
+
+- **verified-fail:** at least one project-level CI/CD variable has a sensitive-looking name, masked=false, and a non-empty value — GitLab will show that value unredacted in any job's console output. The offending variable name(s) are recorded in Facts, never the value
+- **not-checkable:** the project's own CI/CD variables list (GET /projects/{id}/variables) couldn't be read (403/404/other API error — a 403 here commonly means the token lacks Maintainer role on this project, which GitLab requires to read CI/CD variables at all)
+- **verified-pass:** no project-level CI/CD variable (GET /projects/{id}/variables) has both a name matching (?i)(password|passwd|pwd|secret|credentials?|token|api[_-]?key|connstr|connection[_-]?string) and masked=false with a non-empty value — this does NOT evaluate group- or instance-level variables inherited into the project (a separate GitLab scope, GET /groups/{id}/variables, that this check does not read)
+
+**Remediation:** Open the flagged variable (Settings -> CI/CD -> Variables, Project-level section) and enable "Mask variable". GitLab requires the value to "be a single line with no spaces", "be 8 characters or longer", and "not match the name of an existing predefined or custom CI/CD variable" — rotate the value first if it doesn't qualify. Note GitLab's own caution: "Masking a CI/CD variable is not a guaranteed way to prevent malicious users from accessing variable values" — masking redacts a value from job console output, it does not change who can read it via the API or UI. This check reads only project-level variables — the same Settings > CI/CD > Variables page also shows any group-level variables inherited into this project, which this check does not evaluate; review those separately.
+
+**SSDF task text (verbatim from NIST SP 800-218):**
+
+> **`PO.5.1`:** Separate and protect each environment involved in software development.
+
+---
+
 ## C05.sast-history
 
 ### `C05.sast.cadence`
