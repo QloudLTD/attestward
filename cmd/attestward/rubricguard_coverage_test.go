@@ -62,8 +62,6 @@ var rubricGuardUnwired = map[string]bool{
 	// need to actually gain real behaviour (paid-tier collection) before
 	// there is anything more here to guard.
 	"gitlab/C04.secrets-hygiene":  true,
-	"gitlab/C05.sast-history":     true,
-	"gitlab/C06.sca-history":      true,
 	"gitlab/C08.actions-security": true,
 }
 
@@ -156,4 +154,6 @@ var rubricGuardWired = map[string]bool{
 	"gogs/C02.repo-protection":   true,
 	"gitlab/C02.repo-protection": true,
 	"github/C01.org-security":    true,
+	"gitlab/C05.sast-history":    true,
+	"gitlab/C06.sca-history":     true,
 }
