@@ -14,15 +14,28 @@
 // Whatever the billing tier badge says, the REST API a collector actually
 // reads accepts and returns this data on Free.
 //
-// This deliberately does NOT try to prove the approval rule is enforced at
-// deploy time (a real deployment created directly via the Deployments API
-// went straight to status "running" with pending_approval_count 0, despite
-// the rule existing — though that may just mean the Deployments API's
-// create-a-record endpoint bypasses the pipeline-level approval gate
-// entirely, tier aside; it was inconclusive either way). No check anywhere
-// in this codebase asserts live enforcement — C02 repo-protection doesn't
-// push a bad commit to prove a branch rule blocks it, either. Every check
-// here reads configuration state, matching that established convention.
+// The approval rule is stored and readable on Free, but it is NOT enforced
+// at deploy time there. Settled live 2026-08-13 (issue #12) on a Free
+// namespace: a real .gitlab-ci.yml job with `environment: name: production`
+// was pushed at a protected environment carrying an approval_rules entry
+// with required_approvals 1. The job went pending → running → success and
+// the deployment reached status "success" with pending_approval_count 0 and
+// approvals []. Decisively, that deployment's own approval_summary listed
+// the rule with deployment_approvals: [] — GitLab tracked the requirement
+// against the deployment and then let it finish having satisfied none of
+// it. So the earlier inconclusive Deployments-API probe was not an artifact
+// of that endpoint; the gate simply does not fire on Free. There is also no
+// alternative config form to try: POSTing the older required_approval_count
+// is rejected outright (422, "deprecated and shouldn't be used"), so
+// approval_rules — what this check reads — is the only mechanism there is.
+//
+// The check still reports verified-pass on the stored rule, because reading
+// configuration state is what every check in this codebase does — C02
+// repo-protection doesn't push a bad commit to prove a branch rule blocks
+// it, either. But this is the one place we know config and enforcement come
+// apart for an entire tier, so the rubric, reason and remediation are all
+// worded to claim the stored configuration and nothing more. Don't
+// "simplify" them back into language that asserts a deployment is gated.
 //
 // The fourth check, branch-policy, stays always-not-checkable — but now for
 // a platform-gap reason, not the old wrong tier one. GitLab's Protected
@@ -80,7 +93,10 @@ var checkRemediations = map[string]string{
 	idProtectionRules: "Project → Settings → CI/CD → Protected environments → protect the production-like " +
 		"environment, restricting at least who may deploy to it (Allowed to Deploy).",
 	idRequiredReviewers: "Project → Settings → CI/CD → Protected environments → protect the production-like " +
-		"environment and add an Approval rule requiring at least one approval.",
+		"environment and add an Approval rule requiring at least one approval. Note that the rule is stored " +
+		"and readable on Free but only enforced at deploy time on a paid tier — on Free a deployment to the " +
+		"environment runs unblocked — so confirm the namespace's tier before relying on this as an " +
+		"operative gate.",
 	idBranchPolicy: "No remediation applicable via this tool: GitLab has no per-environment branch-" +
 		"restriction mechanism — restrict which branch/tag may deploy in the deploy job's own `rules:` in " +
 		".gitlab-ci.yml instead, and document that control in the self-attestation questionnaire.",
@@ -112,7 +128,9 @@ var checkRubrics = map[string]map[model.Status]string{
 	},
 	idRequiredReviewers: {
 		model.StatusVerifiedPass: "every production-like environment's protected_environments entry has at " +
-			"least one approval_rules entry with required_approvals >= 1",
+			"least one approval_rules entry with required_approvals >= 1. That is the stored configuration, " +
+			"not a demonstrated gate: on a Free namespace GitLab accepts, returns and even tracks the rule " +
+			"against a deployment, yet lets that deployment succeed with zero approvals",
 		model.StatusVerifiedFail: "at least one production-like environment has no protected_environments " +
 			"entry, or one with no approval_rules entry requiring at least one approval",
 		model.StatusPartial:      sharedPartialRubric,
@@ -291,10 +309,19 @@ func checkRequiredReviewers(org, repo string, prodNames []string, byName map[str
 			Facts: map[string]any{"missing_required_reviewers": missing},
 		}
 	}
+	// ⚠ Deliberately conservative wording (issue #12). "requires at least one
+	// approval" would assert a live gate, and on Free that assertion is
+	// false — verified by a real pipeline deployment that succeeded with
+	// pending_approval_count 0 against exactly this configuration (see the
+	// package doc comment). State the stored rule; let the reader's tier
+	// decide whether it fires.
 	return model.CheckResult{
 		CheckID: idRequiredReviewers, Title: checkTitles[idRequiredReviewers], Status: model.StatusVerifiedPass,
-		Reason: fmt.Sprintf("every production-like environment requires at least one approval: %v", prodNames),
-		Scope:  model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
+		Reason: fmt.Sprintf("every production-like environment has a stored approval rule requiring at least "+
+			"one approval: %v. That is the recorded configuration, not evidence the gate fires — GitLab "+
+			"enforces it at deploy time only on a paid tier; on Free the deployment runs unblocked",
+			prodNames),
+		Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
 		Facts: map[string]any{"production_like_environments": prodNames},
 	}
 }
