@@ -39,6 +39,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect/github/secretshygiene"
 	"gitlab.com/sioakeim/attestward/internal/collect/github/vdp"
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
+	gitlabactionssecurity "gitlab.com/sioakeim/attestward/internal/collect/gitlab/actionssecurity"
 	gitlabauditlogging "gitlab.com/sioakeim/attestward/internal/collect/gitlab/auditlogging"
 	gitlabenvseparation "gitlab.com/sioakeim/attestward/internal/collect/gitlab/envseparation"
 	gitlaborgsecurity "gitlab.com/sioakeim/attestward/internal/collect/gitlab/orgsecurity"
@@ -233,6 +234,7 @@ func defaultGitLabCollectors(baseURL, token string) []collect.Collector {
 		gitlabenvseparation.New(baseURL, token),
 		gitlabprovenance.New(baseURL, token),
 		gitlabsecretshygiene.New(baseURL, token),
+		gitlabactionssecurity.New(baseURL, token),
 	)
 }
 

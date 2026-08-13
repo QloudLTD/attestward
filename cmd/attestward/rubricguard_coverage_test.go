@@ -58,8 +58,7 @@ var rubricGuardUnwired = map[string]bool{
 	// to zero by more guard-wiring alone: the 5 not-checkable IDs would
 	// need to actually gain real behaviour (paid-tier collection) before
 	// there is anything more here to guard.
-	"gitlab/C04.secrets-hygiene":  true,
-	"gitlab/C08.actions-security": true,
+	"gitlab/C04.secrets-hygiene": true,
 }
 
 // TestRubricGuardCoverageOnlyShrinks fails when a registered collector is
@@ -156,4 +155,13 @@ var rubricGuardWired = map[string]bool{
 	"azuredevops/C04.secrets-hygiene": true,
 	"gitlab/C01.org-security":         true,
 	"github/C04.secrets-hygiene":      true,
+	// gitlab/C08.actions-security is here rather than in the unwired
+	// baseline because all five of its check IDs live in ONE package
+	// (internal/collect/gitlab/actionssecurity) whose own test calls the
+	// assertion over a six-state matrix — nothing was left behind in
+	// gitlab/unsupported. Contrast gitlab/C04.secrets-hygiene above,
+	// which cannot move while 5 of its 6 IDs stay split across two
+	// packages: a split collector cannot claim guard coverage from the
+	// half that has tests.
+	"gitlab/C08.actions-security": true,
 }

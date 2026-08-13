@@ -2328,17 +2328,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Configure the login action's OIDC parameters — for aws-actions/configure-aws-credentials use `role-to-assume` (with `permissions: id-token: write` on the job); for azure/login use `client-id`+`tenant-id`+`subscription-id` (also needs `permissions: id-token: write`); for google-github-actions/auth use `workload_identity_provider` (also needs `permissions: id-token: write`). If this replaces an existing long-lived static credential (verified-fail), delete it afterward from repo/org Settings -> Secrets and variables; if instead neither an OIDC nor a static-credential parameter was recognized at all (the "ambiguous" partial case), there's no existing secret to remove — just add the OIDC parameters above.
 
-#### gitlab — Cloud deployments use OIDC rather than long-lived static credentials
+#### gitlab — Cloud authentication uses CI OIDC id_tokens rather than long-lived stored credentials
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** Maintainer role on the project — GET /projects/{id}/variables requires it, and this check needs that half of its evidence to rule a stored credential out. GET /projects/{id}/ci/lint, its other half, needs far less
+- **Fixture:** `internal/collect/gitlab/actionssecurity/actionssecurity_test.go`
+- **API endpoint(s):** `GET /projects/{id}/ci/lint`, `GET /projects/{id}/variables`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+- **verified-fail:** a project-level CI/CD variable holds a long-lived cloud credential and nothing in the merged CI configuration declares `id_tokens:` at all. The offending variable NAMES are recorded in Facts, never the values
+- **partial:** `id_tokens:` is declared somewhere AND a long-lived cloud credential variable is still stored — OIDC is in use for something, but a static credential remains available to every job
+- **not-checkable:** GET /projects/{id}/ci/lint failed outright, or answered with a null `includes` — which GitLab returns both for a project that has no CI configuration and for one whose configuration exists but has an include that would not resolve; the errors GitLab reported are quoted in the reason rather than guessed between. Also: the merged configuration was empty or did not parse as YAML; or GET /projects/{id}/variables could not be read, so a stored credential could be neither found nor ruled out; or — the ordinary case for a project that does no cloud deployment — neither signal was present at all, which is not-checkable rather than a pass, since "no cloud deployment detected" is not a security property. ⚠ This reads only the project's OWN CI/CD variables: a credential inherited from a group- or instance-level variable is invisible to it
+- **verified-pass:** at least one entry in the merged CI configuration declares an `id_tokens:` block (a job, or the `default:` section jobs inherit from), and no project-level CI/CD variable holds one of the exact names a cloud SDK reads a long-lived credential from
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Replace the stored cloud credential with GitLab's OIDC flow: declare an `id_tokens:` block on the job (with the cloud's own `aud:`), exchange that token for short-lived credentials in the job (for AWS `sts assume-role-with-web-identity`, for GCP workload identity federation, for Azure a federated credential on the app registration), and then DELETE the long-lived variable from Settings -> CI/CD -> Variables and revoke the underlying key at the cloud provider — leaving it in place keeps the credential this check flags. If the variable is inherited from a group rather than this project, this check cannot see it; remove it at the group instead.
 
 #### gogs — Pipelines prefer OIDC over long-lived secrets
 
@@ -2392,17 +2395,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Pin every third-party action/reusable-workflow `uses:` reference to a full 40-char commit SHA, not a tag or branch (e.g. `uses: actions/checkout@<full-sha> # v5.0.0` — keep the version as a comment for readability). A tool like `pin-github-action`/`pinact`, or Renovate's digest-pinning preset, can do this initial tag-to-SHA conversion (Dependabot cannot — it only keeps an already-pinned reference's version comment up to date going forward, via that same trailing comment). First-party `actions/*` references on a mutable tag are tolerated (capped at partial) but should be pinned too for a full pass.
 
-#### gitlab — Third-party actions and reusable workflows are pinned to a full commit SHA
+#### gitlab — Included external CI configuration is pinned to a full commit SHA
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api, and less — GET /projects/{id}/ci/lint answered 200 with no token at all against a public project in this build's own live verification. A private project needs enough access to read it; the exact minimum role was not independently established
+- **Fixture:** `internal/collect/gitlab/actionssecurity/actionssecurity_test.go`
+- **API endpoint(s):** `GET /projects/{id}/ci/lint`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+- **verified-fail:** at least one resolved include naming external CI configuration is not pinned to a full 40-character commit SHA — a branch or tag ref, an omitted `ref:` (which the lint API reports as "HEAD", following the target project's default branch), a catalog version on a component, or a `remote:` URL that does not address a specific commit
+- **partial:** every include this build recognizes is pinned, but the lint response contained at least one include of a type this build does not classify — its pinning was not evaluated, so a clean result over the rest is not a clean result over everything
+- **not-checkable:** GET /projects/{id}/ci/lint failed outright, or answered with a null `includes` — which GitLab returns both for a project that has no CI configuration and for one whose configuration exists but has an include that would not resolve; the errors GitLab reported are quoted in the reason rather than guessed between
+- **verified-pass:** every include GitLab resolved that carries a ref or version — `project:` (reported by the lint API as type "file", judged on extra.ref as written), `component:` (judged on the version after the `@`) and `remote:` (judged on whether its URL path addresses a specific commit) — is pinned to a full 40-character SHA; or there was no such include at all. `local:` and `template:` includes are excluded from the judgment entirely: the first is already fixed by this repository's own commit, and the second has no pinning mechanism to satisfy
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Pin every `include:` that names external CI configuration to a full 40-character commit SHA. For `include: project:`, set `ref:` to the SHA rather than a branch or tag (and never omit `ref:` — it then follows the target project's default branch). For `include: component:`, put the SHA after the `@` instead of a catalog version or branch. A `remote:` include carries no ref at all: either point its URL at a specific commit (the `/-/raw/<sha>/<file>` form) or, better, replace it with a `project:` include that can be pinned properly. `local:` includes need nothing — they are already fixed by this repository's own commit — and `template:` includes cannot be pinned at all, so neither is evaluated.
 
 #### gogs — Pipeline steps are pinned to immutable versions
 
@@ -2456,17 +2462,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Switch the trigger to `pull_request` if privileged (secrets/write token) access to the base repo isn't actually needed. If it genuinely is needed against fork code, use the two-workflow pattern instead: an untrusted `pull_request`-triggered workflow that uploads an artifact, and a separate, minimally-privileged `workflow_run`-triggered workflow that consumes it — either fully eliminates the pull_request_target trigger and reaches a pass. Just removing the `actions/checkout` step's PR-head ref (`github.event.pull_request.head.*` or `github.head_ref`) while keeping the pull_request_target trigger only demotes this from a fail to partial — pull_request_target itself is still flagged as risky by design.
 
-#### gitlab — pull_request_target is not combined with checking out the PR head
+#### gitlab — Fork merge requests cannot run pipelines in this project's context
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** Maintainer role on the project — ci_allow_fork_pipelines_to_run_in_parent_project is absent from the project payload below it (confirmed live: an unauthenticated read of a public project returned neither that field nor any other CI setting), and this check reports not-checkable rather than reading its absence as a value
+- **Fixture:** `internal/collect/gitlab/actionssecurity/actionssecurity_test.go`
+- **API endpoint(s):** `GET /projects/{id}`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+- **partial:** the project is public AND permits a fork's merge request pipeline to run in this project's context, with this project's CI/CD variables, settings and runners. This check has no verified-fail outcome, by design: GitLab requires a parent-project member with at least the Developer role to start such a pipeline deliberately, after accepting a warning, so this is an exposure to review rather than the automatic exploit path GitHub's pull_request_target opens
+- **not-checkable:** the project could not be read; or it was read but carried no ci_allow_fork_pipelines_to_run_in_parent_project field at all, which GitLab omits for a caller below the Maintainer role — an absent field is not the setting being off, and is never reported as a pass
+- **verified-pass:** ci_allow_fork_pipelines_to_run_in_parent_project is false, so a fork's merge request pipeline always runs in the fork with the fork's own CI/CD variables and runners; or it is true but the project is not public, so forking it already requires granted access and the untrusted outside contributor this check is about does not arise
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Set "Run pipelines for merge requests from forks" off in Settings -> CI/CD -> General pipelines, or PUT ci_allow_fork_pipelines_to_run_in_parent_project=false through the Projects API. A fork's merge request pipeline then runs in the fork, with the fork's own CI/CD variables and runners, and can never be started against this project's. If the setting is genuinely needed, treat starting such a pipeline as a code review: GitLab requires a member with at least the Developer role to start it, and the fork's diff should be read before they do.
 
 #### gogs — No dangerous pull-request triggers are used
 
@@ -2521,17 +2529,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Only moving the job to a GitHub-hosted runner actually clears this check (it looks solely at whether `runs-on: self-hosted` appears, not at trigger/approval settings). Real-world exposure can also be reduced without changing this check's result: require approval for first-time/outside contributors (Settings -> Actions -> General -> "Approval for running fork pull request workflows from contributors"), or don't trigger the job on pull_request/pull_request_target from forks at all.
 
-#### gitlab — Self-hosted runners are not exposed to public-repo pull requests
+#### gitlab — Project- and group-registered runners are not exposed to fork merge requests
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** Maintainer or Auditor role on the project — docs.gitlab.com states GET /projects/{id}/runners requires "at least the Maintainer or Auditor role for the target project", and the same Maintainer-gated project field C08.actions.pull-request-target depends on is needed once any runner is found
+- **Fixture:** `internal/collect/gitlab/actionssecurity/actionssecurity_test.go`
+- **API endpoint(s):** `GET /projects/{id}`, `GET /projects/{id}/runners`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+- **partial:** one or more project- or group-registered runners are attached to a public project that permits fork merge request pipelines to run in its own context. Like its GitHub twin this check has no verified-fail outcome: runner exposure is only ever capped at partial
+- **not-checkable:** the project could not be read; or GET /projects/{id}/runners could not be listed (a 403 here commonly means the token lacks the Maintainer or Auditor role GitLab requires for it); or runners WERE found but the project carried no ci_allow_fork_pipelines_to_run_in_parent_project field, which GitLab omits below the Maintainer role — with runners present, that setting is what decides the answer, so its absence is not a pass
+- **verified-pass:** no project- or group-registered runner is attached to the project, so there is nothing self-managed for a fork to reach; or one or more are attached but ci_allow_fork_pipelines_to_run_in_parent_project is false, so a fork's merge request pipeline runs in the fork and never acquires them; or they are attached and fork pipelines are permitted but the project is not public. ⚠ Instance-registered runners are never counted: on GitLab.com they are GitLab's own hosted fleet, and nothing in the API distinguishes those from the operator-run instance runners of a self-managed GitLab — so on a self-managed instance this check understates
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Set "Run pipelines for merge requests from forks" off (Settings -> CI/CD -> General pipelines, or ci_allow_fork_pipelines_to_run_in_parent_project=false through the Projects API): a fork's merge request pipeline then runs in the fork and never acquires this project's runners, which clears this check without giving up the runners. Alternatives, if that setting must stay on: mark the runner protected so it only runs jobs on protected branches and tags, or move the jobs to GitLab-hosted runners.
 
 #### gogs — Self-hosted runner usage is understood
 
@@ -2588,17 +2598,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Add an explicit `permissions:` block — at workflow level, or per job for finer scoping — set to the minimum needed (e.g. `contents: read`), not the ambient default. Replace any `permissions: write-all` with a specific, scoped list of only the permissions that job actually needs.
 
-#### gitlab — Workflows declare explicit, least-privilege GITHUB_TOKEN permissions
+#### gitlab — CI/CD job token access to this project is restricted to an allowlist
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** Maintainer or Owner role on the project — docs.gitlab.com states the job token scope endpoints require it, and this build's verification token held Owner. A lower-privileged token's exact response was not independently observed
+- **Fixture:** `internal/collect/gitlab/actionssecurity/actionssecurity_test.go`
+- **API endpoint(s):** `GET /projects/{id}/job_token_scope`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet
+- **verified-fail:** inbound_enabled=false — docs.gitlab.com: "If disabled, all projects have access." A CI job in any project on the instance can use its job token against this project. Reachable only on a self-managed instance; see the verified-pass entry for why GitLab.com cannot produce it
+- **not-checkable:** GET /projects/{id}/job_token_scope could not be read (a 403 here commonly means the token lacks the Maintainer role GitLab requires for it). The allowlist member counts are context facts only and are read through separate endpoints whose failure is tolerated — they never cause this status
+- **verified-pass:** GET /projects/{id}/job_token_scope reported inbound_enabled=true — only allowlisted projects and groups may use a CI_JOB_TOKEN against this project. This is GitLab's least-privilege control for the job token and is NOT an equivalent of GitHub's per-workflow permissions block: it governs which other projects reach INTO this one, and GitLab has no keyword that scopes down what this project's own job token may do. ⚠ On GitLab.com this pass is the INSTANCE's doing, not the producer's: turning the setting off there is refused outright (verified live — PATCH answered 400 "Job token scope cannot be disabled for this project because it is enforced for the instance"), so every GitLab.com project passes. The check discriminates only on a self-managed instance whose administrator has not enforced it
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Turn on Settings -> CI/CD -> Job token permissions -> "Limit access to this project" (the API's inbound_enabled), then add only the projects and groups whose pipelines genuinely need to reach this one. Note what this does and does not control: it governs which other projects' jobs may use a CI_JOB_TOKEN against THIS project. GitLab has no equivalent of a per-workflow token-permissions declaration, so there is nothing further to scope down inside .gitlab-ci.yml.
 
 #### gogs — Pipeline tokens are least-privilege
 
