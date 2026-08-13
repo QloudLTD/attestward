@@ -3,6 +3,7 @@ package actionssecurity
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -623,4 +625,384 @@ func TestPinnedRemediationDoesNotClaimDependabotDoesInitialPinning(t *testing.T)
 	if strings.Contains(remediation, "Dependabot") && strings.Contains(remediation, "can automate this") {
 		t.Errorf("C08.actions.pinned remediation implies Dependabot can perform the initial tag-to-SHA pinning conversion, which it doesn't support: %q", remediation)
 	}
+}
+
+// registerUnreadableContent registers a workflow path whose content fetch
+// fails with a 500 rather than a 404. The distinction is load-bearing: a
+// 404 at the ref is a benign absence that fetchWorkflows drops silently,
+// while any other failure becomes a skippedWorkflow — which is what feeds
+// downgradeIfIncompleteEvidence.
+func registerUnreadableContent(t *testing.T, mux *http.ServeMux, org, repo, path string) {
+	t.Helper()
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/"+path, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusInternalServerError, map[string]any{"message": "boom"})
+	})
+}
+
+// asRubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// files maps a workflow path to the testdata fixture backing it; an EMPTY
+// fixture name means that path is listed but its content fetch fails,
+// producing a skippedWorkflow.
+type asRubricState struct {
+	name       string
+	private    bool
+	repoStatus int
+	files      [][2]string
+	want       map[string]model.Status
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// # Conflation risk, which in this collector is the whole problem
+//
+// C08 is the most conflation-prone collector in the tree: all five checks
+// are pure static analyses of the SAME []workflowUnit slice, built once in
+// collectRepo. There is no per-check upstream read to tell them apart —
+// every one of them reads the same parsed YAML, and three of them
+// (pinned, pull-request-target, oidc-vs-secrets) read the same `uses:`
+// strings within it. On top of that, four of the five funnel their
+// verified-pass through ONE shared helper, downgradeIfIncompleteEvidence,
+// and four return not-checkable off the same len(units) == 0 condition.
+//
+// So the two fixtures a naive matrix would reach for — a clean repo and a
+// repo with an unreadable workflow — move all five checks in lockstep,
+// twice, and prove nothing about which analysis each check actually runs.
+// The states below are built specifically against that:
+//
+//   - state 6 (prtarget_dangerous) holds ONE `uses: actions/checkout@v5`
+//     step that pinned and pull-request-target both read. pinned sees an
+//     unpinned first-party tag (partial); pull-request-target sees a
+//     checkout of the PR head (verified-fail). Same line, opposite
+//     verdicts.
+//   - state 11 (azure partial) holds ONE `uses: azure/login@v2` step that
+//     pinned and oidc-vs-secrets both read. pinned sees an unpinned
+//     third-party reference (verified-fail); oidc sees an incomplete OIDC
+//     parameter set (partial). Same line, opposite verdicts.
+//   - state 4 (permissions_missing) has no `uses:` at all, so pinned
+//     passes with "nothing to pin" while token-permissions reports a
+//     confirmed absence of every permissions block.
+//   - state 13 breaks the downgrade lockstep. It pairs a self-hosted
+//     workflow on a PRIVATE repo with an unreadable one: self-hosted
+//     applies downgradeIfIncompleteEvidence ONLY on its zero-findings
+//     branch, so it stays verified-pass while the other three that reached
+//     pass are all capped at partial. State 12 is its lockstep counterpart,
+//     where the downgrade legitimately does move four checks together —
+//     the pair is what distinguishes "the helper fires" from "the helper
+//     fires everywhere".
+//   - state 1 splits oidc-vs-secrets off immediately: its not-checkable
+//     condition is "no cloud-login step found", not the len(units) == 0 the
+//     other four share, so a clean single-workflow repo already gets a
+//     different answer from it than from any of the others.
+//
+// # Confirmed by mutation, not assumed
+//
+// Each was injected into the production code and traced to the exact states
+// that caught it:
+//
+//   - checkPullRequestTarget's findCheckoutOfPRHead reduced to "is there an
+//     actions/checkout step at all", i.e. reading pinned's evidence rather
+//     than its own: caught by state 8 ALONE. Not by state 6, whose checkout
+//     genuinely is of the PR head, and not by any state whose workflow
+//     lacks the pull_request_target trigger, since the loop never reaches
+//     the checkout inspection there. State 8 exists for this one mutation.
+//   - checkSelfHosted's `case len(findings) > 0` (private) arm folded into
+//     the default so it too takes the downgrade: caught by state 13 alone.
+//   - checkTokenPermissions' `missing > 0 && missing == len(allFindings)`
+//     weakened to `missing > 0`, collapsing its partial into its fail:
+//     caught by state 3 alone — the only state that MIXES a workflow with
+//     an explicit permissions block and one without. Every other partial
+//     this check produces comes from the write-all arm, where missing is
+//     zero and the mutated condition is false too.
+//   - checkPinned's first-party carve-out removed (isFirstPartyActionsSlug
+//     always false), turning its partial into a fail: caught by states 2, 6
+//     and 8 — including the two states where pinned shares its `uses:` line
+//     with pull-request-target, so the carve-out is bound on exactly the
+//     evidence the two checks read in common.
+//   - classifyCloudLoginStep's azure OIDC test loosened from
+//     `client-id AND tenant-id` to either one: caught by state 11 alone.
+//   - downgradeIfIncompleteEvidence made a no-op: caught by states 12 and
+//     13 — the two states that hold a skipped workflow.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const org = "acme"
+
+	states := []asRubricState{
+		{
+			// A clean repo. oidc-vs-secrets already disagrees with the
+			// other four: its not-checkable is "no cloud-login step", not
+			// "no workflows".
+			name:  "single clean SHA-pinned workflow",
+			files: [][2]string{{".github/workflows/build.yml", "pinned_thirdparty_sha.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedPass,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			name:  "first-party action on a mutable tag",
+			files: [][2]string{{".github/workflows/build.yml", "pinned_firstparty_tag.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusPartial,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			name: "unpinned third-party action alongside a workflow with no permissions block",
+			files: [][2]string{
+				{".github/workflows/build.yml", "pinned_thirdparty_unpinned.yaml"},
+				{".github/workflows/other.yml", "permissions_missing.yaml"},
+			},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedFail,
+				checkTokenPermissionsID: model.StatusPartial,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			// No `uses:` anywhere, so pinned passes on "nothing to pin"
+			// while token-permissions reports a confirmed, total absence —
+			// two checks reading one file to opposite ends of the scale.
+			name:  "every job relies on the default GITHUB_TOKEN permissions",
+			files: [][2]string{{".github/workflows/build.yml", "permissions_missing.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedPass,
+				checkTokenPermissionsID: model.StatusVerifiedFail,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			// write-all is token-permissions' second partial route, and the
+			// self-hosted job on a PUBLIC repo is self-hosted's only one.
+			name: "write-all permissions and a self-hosted runner on a public repo",
+			files: [][2]string{
+				{".github/workflows/build.yml", "permissions_write_all.yaml"},
+				{".github/workflows/runner.yml", "selfhosted_bare_string.yaml"},
+			},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedPass,
+				checkTokenPermissionsID: model.StatusPartial,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusPartial,
+			},
+		},
+		{
+			// ONE `uses: actions/checkout@v5` line, two checks, opposite
+			// verdicts: an unpinned first-party tag to pinned, a checkout
+			// of the PR head to pull-request-target.
+			name:  "pull_request_target checking out the PR head",
+			files: [][2]string{{".github/workflows/pr.yml", "prtarget_dangerous.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusPartial,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusVerifiedFail,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			name:  "bare pull_request_target with no checkout at all",
+			files: [][2]string{{".github/workflows/pr.yml", "prtarget_bare.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedPass,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusPartial,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			// State 6's necessary counterpart: pull_request_target WITH an
+			// actions/checkout step that does NOT take a PR-head ref. Its
+			// job is to keep pull-request-target from being satisfied by
+			// the mere presence of a checkout — the exact shortcut that
+			// would make it a restatement of pinned's evidence.
+			name:  "pull_request_target with a checkout of the base ref",
+			files: [][2]string{{".github/workflows/pr.yml", "prtarget_safe_base_checkout.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusPartial,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusPartial,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			name:  "cloud deployment using long-lived static credentials",
+			files: [][2]string{{".github/workflows/deploy.yml", "deploy_aws_static.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedPass,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusVerifiedFail,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			name:  "cloud deployment using OIDC",
+			files: [][2]string{{".github/workflows/deploy.yml", "deploy_aws_oidc.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedPass,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusVerifiedPass,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			// ONE `uses: azure/login@v2` line, two checks, opposite
+			// verdicts: an unpinned third-party reference to pinned, an
+			// incomplete OIDC parameter set to oidc-vs-secrets.
+			name:  "azure login with client-id but no tenant-id",
+			files: [][2]string{{".github/workflows/deploy.yml", "deploy_azure_partial_client_id_only.yaml"}},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusVerifiedFail,
+				checkTokenPermissionsID: model.StatusVerifiedPass,
+				checkPRTargetID:         model.StatusVerifiedPass,
+				checkOIDCID:             model.StatusPartial,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The legitimate lockstep: an otherwise-clean repo with one
+			// unreadable workflow caps every check that reached
+			// verified-pass at partial, because "no violation found among
+			// what we read" is not "no violation exists". State 13 is what
+			// keeps this from being the ONLY thing the downgrade is tested
+			// against.
+			name: "one unreadable workflow caps every clean pass at partial",
+			files: [][2]string{
+				{".github/workflows/deploy.yml", "deploy_aws_oidc.yaml"},
+				{".github/workflows/broken.yml", ""},
+			},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusPartial,
+				checkTokenPermissionsID: model.StatusPartial,
+				checkPRTargetID:         model.StatusPartial,
+				checkOIDCID:             model.StatusPartial,
+				checkSelfHostedID:       model.StatusPartial,
+			},
+		},
+		{
+			// The asymmetry state. self-hosted usage on a PRIVATE repo
+			// takes checkSelfHosted's `len(findings) > 0` arm, which
+			// deliberately does NOT apply the downgrade — its verdict is
+			// already robust to unread workflows, since private-ness caps
+			// it at pass however many usages exist. So it stays
+			// verified-pass while the same skipped workflow drags the other
+			// three passes down to partial.
+			name:    "self-hosted runner on a private repo with one unreadable workflow",
+			private: true,
+			files: [][2]string{
+				{".github/workflows/runner.yml", "selfhosted_bare_string.yaml"},
+				{".github/workflows/broken.yml", ""},
+			},
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusPartial,
+				checkTokenPermissionsID: model.StatusPartial,
+				checkPRTargetID:         model.StatusPartial,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			// GitHub lists no workflows at all, so four checks have nothing
+			// to analyse and oidc has no cloud-login step to find. The only
+			// route to all five reporting not-checkable without the repo
+			// read itself failing.
+			name:  "repo has no workflows",
+			files: nil,
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusNotCheckable,
+				checkTokenPermissionsID: model.StatusNotCheckable,
+				checkPRTargetID:         model.StatusNotCheckable,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusNotCheckable,
+			},
+		},
+		{
+			// The repo read fails, so collectRepo returns before any
+			// workflow is fetched — the same five not-checkable statuses as
+			// state 14 but by an entirely different route (allNotCheckable
+			// rather than each check's own guard).
+			name:       "repo read forbidden",
+			repoStatus: http.StatusForbidden,
+			want: map[string]model.Status{
+				checkPinnedID:           model.StatusNotCheckable,
+				checkTokenPermissionsID: model.StatusNotCheckable,
+				checkPRTargetID:         model.StatusNotCheckable,
+				checkOIDCID:             model.StatusNotCheckable,
+				checkSelfHostedID:       model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for i, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			// A distinct repo name per state keeps each state's handler
+			// registrations on their own mux paths.
+			repo := fmt.Sprintf("rubric-repo-%02d", i+1)
+			mux := http.NewServeMux()
+
+			if st.repoStatus != 0 {
+				mux.HandleFunc("/repos/"+org+"/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, st.repoStatus, map[string]any{"message": "Forbidden"})
+				})
+			} else {
+				registerRepo(t, mux, org, repo, "main", st.private)
+				registerDefaultWorkflowPermissions(t, mux, org, repo, "read")
+				paths := make([]string, 0, len(st.files))
+				for _, f := range st.files {
+					paths = append(paths, f[0])
+				}
+				registerWorkflows(t, mux, org, repo, paths)
+				for _, f := range st.files {
+					if f[1] == "" {
+						registerUnreadableContent(t, mux, org, repo, f[0])
+						continue
+					}
+					registerContent(t, mux, org, repo, f[0], f[1])
+				}
+			}
+
+			c := newCollectorForServer(t, newTestServer(t, mux))
+			results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repo}})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much
+			// a defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }
