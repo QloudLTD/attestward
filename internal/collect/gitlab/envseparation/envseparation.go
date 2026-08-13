@@ -190,24 +190,25 @@ func (c *Collector) ID() string { return collectorID }
 // A read failure yields not-checkable results rather than an error, so one
 // unreadable project cannot fail a whole scan.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
-	client, err := c.newClient()
-	if err != nil {
-		reason := fmt.Sprintf("could not build a GitLab client: %v", err)
-		var out []model.CheckResult
-		for _, repo := range scope.Repos {
-			out = append(out, allNotCheckable(scope.Org, repo, reason, nil)...)
-		}
-		return out, nil
-	}
-
 	var all []model.CheckResult
 	for _, repo := range scope.Repos {
-		all = append(all, collectRepo(ctx, client, scope.Org, repo)...)
+		all = append(all, c.collectRepo(ctx, scope.Org, repo)...)
 	}
 	return all, nil
 }
 
-func collectRepo(ctx context.Context, client *gitlabcollect.Client, org, repo string) []model.CheckResult {
+// collectRepo builds its own client per repo rather than sharing one across
+// scope.Repos. Client.Provenance() is cumulative over every call ever made
+// through that client instance, so a shared one attributed an earlier repo's
+// API calls to a later repo's CheckResult.Provenance — evidence citing a
+// project the result is not about (issue #14). Same convention as
+// internal/collect/gitlab/repoprotection and .../secretshygiene.
+func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.CheckResult {
+	client, err := c.newClient()
+	if err != nil {
+		return allNotCheckable(org, repo, fmt.Sprintf("could not build a GitLab client: %v", err), nil)
+	}
+
 	id := projectID(org, repo)
 
 	envs, err := gitlabcollect.GetJSONPaged[environment](ctx, client, "/projects/"+id+"/environments", nil)
