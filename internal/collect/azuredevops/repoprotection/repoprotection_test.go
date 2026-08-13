@@ -767,7 +767,7 @@ func (st rubricState) fixture() *adofixture.Transport {
 
 // TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
 //
-// Ten states reach every status this collector can emit. force-push-blocked,
+// Eleven states reach every status this collector can emit. force-push-blocked,
 // deletion-blocked and admin-enforced make no API call at all and return
 // not-checkable unconditionally (they are ACL-governed — see the package doc
 // comment), so no fixture can move them; the guard's
@@ -788,13 +788,20 @@ func (st rubricState) fixture() *adofixture.Transport {
 //     policy degraded. Neither involves a missing policy, so they separate
 //     the two checks by the field each reads on its OWN policy.
 //
-// Verified by injection rather than assumed — see the commit message for which
-// states caught which mutation.
+// Two states then cover the ways a policy can be well-formed and still have to
+// be IGNORED, which is the other half of what matchingPolicies does: one scoped
+// to a sibling repo, and one pair that is disabled and soft-deleted. The second
+// is the only place the "enabled, non-deleted" wording in all three rubrics is
+// observable at all — before it, removing either flag from the filter left the
+// whole repository's test suite green.
 //
-// State 8 is the one not-checkable route with no transport failure anywhere:
-// both calls return 200 and the repo simply has no default branch. That is the
+// One state is the not-checkable route with no transport failure anywhere: both
+// calls return 200 and the repo simply has no default branch. That is the
 // difference between "the API broke" and "the data says nothing is protected",
 // which a matrix built only from 403s would never separate.
+//
+// Verified by injection rather than assumed — see the commit message for which
+// states caught which mutation.
 func TestRubricsMatchObservedBehaviour(t *testing.T) {
 	const repoID = "repo-a-id"
 	const otherRepoID = "repo-b-id"
@@ -823,6 +830,19 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 		map[string]any{"id": otherRepoID, "name": "repo-b", "defaultBranch": branch},
 	)
 	onScope := repoScope(branch, "Exact", repoID)
+	// withFlag flips exactly one of the two flags matchingPolicies filters on,
+	// leaving type, scope, blocking and approver count identical to the passing
+	// fixtures. The shared builders hardcode isEnabled:true/isDeleted:false, so
+	// without this nothing in the file could reach a policy that is well-formed
+	// and still must be ignored.
+	withFlag := func(policy map[string]any, key string, value bool) map[string]any {
+		out := make(map[string]any, len(policy))
+		for k, v := range policy {
+			out[k] = v
+		}
+		out[key] = value
+		return out
+	}
 
 	fixedNotCheckable := func(m map[string]model.Status) map[string]model.Status {
 		m[idForcePushBlocked] = model.StatusNotCheckable
@@ -948,6 +968,27 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 			policies: policiesOK(
 				minReviewersPolicy(repoScope(branch, "Exact", otherRepoID), 1, true, false),
 				buildValidationPolicy(repoScope(branch, "Exact", otherRepoID), true),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedFail,
+				idRequiredReviews:      model.StatusVerifiedFail,
+				idRequiredStatusChecks: model.StatusVerifiedFail,
+			}),
+		},
+		{
+			// The other way a well-formed policy must be ignored, and the only
+			// state that exercises matchingPolicies' enabled/non-deleted filter
+			// at all: both policies are correctly scoped to this repo's default
+			// branch, blocking, and of a tracked type — one is merely disabled
+			// and the other soft-deleted. Every rubric here says "no ENABLED,
+			// NON-DELETED policy", and until this state that phrase described
+			// behaviour no test could observe: dropping either flag from the
+			// filter left the whole repository's suite green.
+			name:  "the only matching policies are one disabled and one soft-deleted",
+			repos: bothRepos,
+			policies: policiesOK(
+				withFlag(minReviewersPolicy(onScope, 1, true, false), "isEnabled", false),
+				withFlag(buildValidationPolicy(onScope, true), "isDeleted", true),
 			),
 			want: fixedNotCheckable(map[string]model.Status{
 				idProtectionExists:     model.StatusVerifiedFail,
