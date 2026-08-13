@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -703,4 +704,209 @@ func TestGHASRemediationsDontOverclaimLicensingPrerequisite(t *testing.T) {
 	if strings.Contains(checkRemediations["C04.secrets.scanning-enabled"], "license first") {
 		t.Errorf("C04.secrets.scanning-enabled remediation says a GHAS license is needed \"first\" — but the only reachable private-repo fail case already has GHAS licensed (evalGHASGatedFeature requires ghasStatus==enabled to reach verified-fail rather than not-checkable)")
 	}
+}
+
+// rubricState is one org+repo configuration for the matrix below, and its
+// expected result for every check this collector registers.
+type rubricState struct {
+	name string
+	// repoStatus and repoBody are what GET /repos/{org}/{repo} returns. A
+	// non-200 repoStatus is the repo-fetch-failed path, where the
+	// vulnerability-alerts call never happens at all.
+	repoStatus int
+	repoBody   map[string]any
+	// vulnAlertsStatus is GET .../vulnerability-alerts. GitHub carries this
+	// endpoint's boolean in the status code: 204 enabled, 404 disabled (an
+	// honest "off", not an error), anything else undeterminable.
+	vulnAlertsStatus int
+	orgBody          map[string]any
+	want             map[string]model.Status
+}
+
+func (st rubricState) mux(t *testing.T, org, repo string) *http.ServeMux {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/orgs/"+org, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, st.orgBody)
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, st.repoStatus, st.repoBody)
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, st.vulnAlertsStatus, nil)
+	})
+	return mux
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Four states reach all fifteen (five checks × three statuses) combinations
+// this collector can emit. Two of the checks need a state nothing else in this
+// file's matrix would have produced, which is why the states are shaped the way
+// they are:
+//
+//   - advanced-security is not-checkable on a PUBLIC repo, so its
+//     verified-pass and verified-fail both need private repos, and its
+//     not-checkable is reached here through the repo-fetch failure rather
+//     than through visibility.
+//   - scanning-enabled and push-protection are not-checkable only in the
+//     private + feature-off + GHAS-unlicensed corner, which is also the one
+//     state where advanced-security is a verified-fail. That coincidence is
+//     GitHub's licensing model showing through, not a coincidence of the
+//     fixtures.
+//
+// A fifth state reaches no status the four miss, and is here anyway. Three of
+// the five checks read the same repo response, and with the four states alone
+// scanning-enabled, push-protection and org.security-defaults agree in every
+// one — so a defect reading the wrong field was invisible. Verified rather
+// than assumed: pointing checkPushProtection at sa.SecretScanning instead of
+// sa.SecretScanningPushProtection passed the four-state matrix cleanly. The
+// fifth state turns one feature on and the other off, which separates all
+// three, and every pair of the five checks then disagrees somewhere.
+//
+// Each state pins the whole result map rather than a count — a count would
+// show none of this.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const org, repo = "attestward-demo", "subject"
+
+	orgAllDefaultsOn := map[string]any{
+		"login": org,
+		"secret_scanning_enabled_for_new_repositories":                 true,
+		"secret_scanning_push_protection_enabled_for_new_repositories": true,
+		"dependabot_alerts_enabled_for_new_repositories":               true,
+		"advanced_security_enabled_for_new_repositories":               true,
+	}
+	orgSomeDefaultsOff := map[string]any{
+		"login": org,
+		"secret_scanning_enabled_for_new_repositories":                 true,
+		"secret_scanning_push_protection_enabled_for_new_repositories": false,
+		"dependabot_alerts_enabled_for_new_repositories":               true,
+		"advanced_security_enabled_for_new_repositories":               false,
+	}
+	// The permission-gated shape: a token without org owner or security
+	// manager gets the org object back with all four fields simply absent.
+	orgDefaultsInvisible := map[string]any{"login": org}
+
+	privateRepo := func(secretScanning, pushProtection, advancedSecurity string) map[string]any {
+		return map[string]any{
+			"private": true,
+			"security_and_analysis": map[string]any{
+				"secret_scanning":                 map[string]any{"status": secretScanning},
+				"secret_scanning_push_protection": map[string]any{"status": pushProtection},
+				"advanced_security":               map[string]any{"status": advancedSecurity},
+			},
+		}
+	}
+
+	states := []rubricState{
+		{
+			name:       "private repo, GHAS licensed, every feature on, org defaults all on",
+			repoStatus: http.StatusOK, repoBody: privateRepo("enabled", "enabled", "enabled"),
+			vulnAlertsStatus: http.StatusNoContent,
+			orgBody:          orgAllDefaultsOn,
+			want: map[string]model.Status{
+				"C04.secrets.scanning-enabled":  model.StatusVerifiedPass,
+				"C04.secrets.push-protection":   model.StatusVerifiedPass,
+				"C04.secrets.advanced-security": model.StatusVerifiedPass,
+				"C04.deps.dependabot-alerts":    model.StatusVerifiedPass,
+				"C04.org.security-defaults":     model.StatusVerifiedPass,
+			},
+		},
+		{
+			// GHAS licensed is what makes the two feature checks a real gap
+			// rather than not-checkable — an unlicensed feature can't be
+			// faulted, so this state has to license it to reach the fails.
+			name:       "private repo, GHAS licensed, features off, org defaults incomplete",
+			repoStatus: http.StatusOK, repoBody: privateRepo("disabled", "disabled", "enabled"),
+			vulnAlertsStatus: http.StatusNotFound,
+			orgBody:          orgSomeDefaultsOff,
+			want: map[string]model.Status{
+				"C04.secrets.scanning-enabled":  model.StatusVerifiedFail,
+				"C04.secrets.push-protection":   model.StatusVerifiedFail,
+				"C04.secrets.advanced-security": model.StatusVerifiedPass,
+				"C04.deps.dependabot-alerts":    model.StatusVerifiedFail,
+				"C04.org.security-defaults":     model.StatusVerifiedFail,
+			},
+		},
+		{
+			name:       "private repo, GHAS unlicensed, org defaults not visible to this token",
+			repoStatus: http.StatusOK, repoBody: privateRepo("disabled", "disabled", "disabled"),
+			vulnAlertsStatus: http.StatusNoContent,
+			orgBody:          orgDefaultsInvisible,
+			want: map[string]model.Status{
+				"C04.secrets.scanning-enabled":  model.StatusNotCheckable,
+				"C04.secrets.push-protection":   model.StatusNotCheckable,
+				"C04.secrets.advanced-security": model.StatusVerifiedFail,
+				"C04.deps.dependabot-alerts":    model.StatusVerifiedPass,
+				"C04.org.security-defaults":     model.StatusNotCheckable,
+			},
+		},
+		{
+			// One feature on, the other off — the state that stops
+			// scanning-enabled, push-protection and org.security-defaults
+			// from being indistinguishable from each other.
+			name:       "private repo, GHAS licensed, scanning on but push protection off",
+			repoStatus: http.StatusOK, repoBody: privateRepo("enabled", "disabled", "enabled"),
+			vulnAlertsStatus: http.StatusNotFound,
+			orgBody:          orgDefaultsInvisible,
+			want: map[string]model.Status{
+				"C04.secrets.scanning-enabled":  model.StatusVerifiedPass,
+				"C04.secrets.push-protection":   model.StatusVerifiedFail,
+				"C04.secrets.advanced-security": model.StatusVerifiedPass,
+				"C04.deps.dependabot-alerts":    model.StatusVerifiedFail,
+				"C04.org.security-defaults":     model.StatusNotCheckable,
+			},
+		},
+		{
+			// The repo fetch fails before any check-specific logic runs, so
+			// all four per-repo checks degrade together. This is the only
+			// route to not-checkable for advanced-security and
+			// dependabot-alerts.
+			name:       "repo unreadable",
+			repoStatus: http.StatusForbidden, repoBody: map[string]any{"message": "Forbidden"},
+			vulnAlertsStatus: http.StatusNoContent,
+			orgBody:          orgDefaultsInvisible,
+			want: map[string]model.Status{
+				"C04.secrets.scanning-enabled":  model.StatusNotCheckable,
+				"C04.secrets.push-protection":   model.StatusNotCheckable,
+				"C04.secrets.advanced-security": model.StatusNotCheckable,
+				"C04.deps.dependabot-alerts":    model.StatusNotCheckable,
+				"C04.org.security-defaults":     model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			c := newCollectorForServer(t, newTestServer(t, st.mux(t, org, repo)))
+			results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repo}})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }

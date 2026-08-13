@@ -40,7 +40,6 @@ var rubricGuardUnwired = map[string]bool{
 	"azuredevops/C10.vdp":              true,
 	"github/C02.repo-protection":       true,
 	"github/C03.env-separation":        true,
-	"github/C04.secrets-hygiene":       true,
 	"github/C05.sast-history":          true,
 	"github/C06.sca-history":           true,
 	"github/C07.provenance":            true,
@@ -156,4 +155,5 @@ var rubricGuardWired = map[string]bool{
 	"gitlab/C06.sca-history":          true,
 	"azuredevops/C04.secrets-hygiene": true,
 	"gitlab/C01.org-security":         true,
+	"github/C04.secrets-hygiene":      true,
 }
