@@ -10,6 +10,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -659,4 +660,181 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 // Reason text without pinning its exact casing.
 func containsFold(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour: the
+// two responses this collector reads, plus the whole result map that world
+// must produce.
+type rubricState struct {
+	name     string
+	users    adofixture.Response
+	projects adofixture.Response
+	want     map[string]model.Status
+}
+
+func (st rubricState) fixture() *adofixture.Transport {
+	return adofixture.New().
+		Set("GET", azuredevops.HostGraph, usersPath(), st.users).
+		Set("GET", azuredevops.HostCore, projectsPath(), st.projects)
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Four states reach every status ADO C01 can emit. Two of the four checks —
+// members-without-2fa and default-repo-permission — are not-checkable
+// unconditionally with no endpoint behind them, so no fixture can move them;
+// the guard's documented-but-unreachable direction is what pins that. The
+// other two never reach verified-pass at all, deliberately (see the package
+// doc comment): 2fa-required caps at partial because MFA enforcement lives in
+// Entra Conditional Access, and members-can-create-public cannot tell a
+// policy-off org from an unused policy-on one.
+//
+// The two API-backed checks read different calls — 2fa-required the Graph
+// users list, members-can-create-public the projects list — and both degrade
+// to not-checkable when THEIR OWN call fails, so a matrix that fails both
+// calls together would leave which call drives which check unpinned. States 1
+// and 3 break that in both directions: state 1 has the graph readable while
+// the projects list yields not-checkable, state 3 the reverse.
+//
+// Within 2fa-required, the aad, msa and unclassifiable buckets are three
+// readings of one origin field on one response, so states have to make them
+// disagree. Two injections confirm they do:
+//
+//   - swapping the originAAD and originMSA cases in classifyGraphUsers turns
+//     states 1 and 4 into verified-fails and takes partial out of the matrix
+//     entirely. State 2 does NOT catch that swap — it holds one identity of
+//     each origin, so after a swap msaCount is still non-zero and it stays a
+//     fail. The aad-only state is what does the work.
+//   - folding the unrecognized-origin bucket into aadCount makes state 4 read
+//     as partial: an org this tool cannot classify would claim uniform Entra
+//     backing. Only state 4 catches it.
+//
+// The remaining bucket split (vsts service identities vs unrecognized human
+// origins) is NOT separable by status — both land on not-checkable — so it is
+// pinned by Facts in TestCollect_ServicePrincipalsAndGroupsExcluded and
+// TestCollect_NoRecognizedHumanIdentities_NotCheckable instead, not here.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	usersOK := func(users ...map[string]any) adofixture.Response {
+		return adofixture.Response{
+			Status: http.StatusOK,
+			Body:   map[string]any{"count": len(users), "value": users},
+		}
+	}
+	projectsOK := func(projects ...map[string]any) adofixture.Response {
+		return adofixture.Response{
+			Status: http.StatusOK,
+			Body:   map[string]any{"count": len(projects), "value": projects},
+		}
+	}
+
+	states := []rubricState{
+		{
+			// Graph readable and uniformly Entra-backed; projects readable and
+			// all private. The two checks disagree without either call failing.
+			name: "every member aad, no public project",
+			users: usersOK(
+				map[string]any{"subjectKind": "user", "origin": "aad"},
+				map[string]any{"subjectKind": "user", "origin": "aad"},
+			),
+			projects: projectsOK(map[string]any{"name": "internal-project", "visibility": "private"}),
+			want: map[string]model.Status{
+				id2FARequired:            model.StatusPartial,
+				idMembersWithout2FA:      model.StatusNotCheckable,
+				idDefaultRepoPermission:  model.StatusNotCheckable,
+				idMembersCanCreatePublic: model.StatusNotCheckable,
+			},
+		},
+		{
+			// One personal-account identity alongside aad ones: a definitive
+			// fail that coexisting aad members must not average away. The
+			// public project is the only route to the other check's fail.
+			name: "one msa member, a public project exists",
+			users: usersOK(
+				map[string]any{"subjectKind": "user", "origin": "aad"},
+				map[string]any{"subjectKind": "user", "origin": "msa"},
+			),
+			projects: projectsOK(
+				map[string]any{"name": "internal-project", "visibility": "private"},
+				map[string]any{"name": "open-source-thing", "visibility": "public"},
+			),
+			want: map[string]model.Status{
+				id2FARequired:            model.StatusVerifiedFail,
+				idMembersWithout2FA:      model.StatusNotCheckable,
+				idDefaultRepoPermission:  model.StatusNotCheckable,
+				idMembersCanCreatePublic: model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The reverse of state 1: the graph call is refused while the
+			// projects call answers with a public project. 2fa-required's
+			// not-checkable here comes from ITS OWN call failing, which no
+			// other state shows.
+			name: "graph users unreadable, projects readable with a public project",
+			users: adofixture.Response{
+				Status: http.StatusForbidden,
+				Body:   map[string]any{"message": "forbidden"},
+			},
+			projects: projectsOK(map[string]any{"name": "open-source-thing", "visibility": "public"}),
+			want: map[string]model.Status{
+				id2FARequired:            model.StatusNotCheckable,
+				idMembersWithout2FA:      model.StatusNotCheckable,
+				idDefaultRepoPermission:  model.StatusNotCheckable,
+				idMembersCanCreatePublic: model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The other not-checkable route for 2fa-required: the graph call
+			// SUCCEEDS but carries a human identity whose origin this tool
+			// cannot classify, so the aad-only claim isn't available. Paired
+			// with an unreadable projects list.
+			name: "aad members plus an unclassifiable origin, projects unreadable",
+			users: usersOK(
+				map[string]any{"subjectKind": "user", "origin": "aad"},
+				map[string]any{"subjectKind": "user", "origin": "ghb"},
+			),
+			projects: adofixture.Response{
+				Status: http.StatusForbidden,
+				Body:   map[string]any{"message": "forbidden"},
+			},
+			want: map[string]model.Status{
+				id2FARequired:            model.StatusNotCheckable,
+				idMembersWithout2FA:      model.StatusNotCheckable,
+				idDefaultRepoPermission:  model.StatusNotCheckable,
+				idMembersCanCreatePublic: model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			results, err := newTestCollector(st.fixture()).Collect(context.Background(), collect.Scope{Org: testOrg})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
