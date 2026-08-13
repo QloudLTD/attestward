@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -1202,4 +1203,461 @@ func TestCodeScanningRemediationsUseCurrentSettingsPath(t *testing.T) {
 			t.Errorf("%s remediation should name the current \"Advanced Security\" settings section: %q", id, remediation)
 		}
 	}
+}
+
+// lowConfidenceCodeQLYAML is named "CodeQL" — matching the codeql
+// signature's low-confidence workflow_name_pattern — while containing
+// neither the codeql-action step nor any run-pattern text, so it produces a
+// name-only match and nothing stronger.
+const lowConfidenceCodeQLYAML = "name: CodeQL\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n"
+
+// registerNamedWorkflow registers one workflow file with an explicit id,
+// path and content, for the states that need a workflow the shared
+// registerCodeQLWorkflow helper doesn't produce.
+func registerNamedWorkflow(t *testing.T, mux *http.ServeMux, org, repo, name, path, content string, id int64) {
+	t.Helper()
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"total_count": 1,
+			"workflows":   []map[string]any{{"id": id, "name": name, "path": path, "state": "active"}},
+		})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/"+path, func(w http.ResponseWriter, _ *http.Request) {
+		if content == "" {
+			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": content, "sha": "content-sha"})
+	})
+}
+
+func successfulRun(sha string, daysAgo int) map[string]any {
+	return map[string]any{
+		"head_sha": sha, "head_branch": "main", "conclusion": "success",
+		"created_at": time.Now().UTC().AddDate(0, 0, -daysAgo).Format(time.RFC3339),
+	}
+}
+
+// sastRubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// The four C05 checks draw on four different subsets of the same evidence
+// (workflow matches, run history, release coverage, the default-setup
+// query), and which subset each state needs to bend varies too much for a
+// flat struct of optional fields — so each state registers its own handlers.
+type sastRubricState struct {
+	name  string
+	setup func(t *testing.T, mux *http.ServeMux, org, repo string)
+	want  map[string]model.Status
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// # Conflation risks this matrix is built against
+//
+// Three pairs of C05 checks read the same evidence, and in each pair the
+// obvious fixtures move both checks together:
+//
+//  1. tool-configured and cadence BOTH call matchConfidence(matched) and
+//     defaultSetupConfigured(ds), and both apply the same
+//     "low-confidence-only caps at partial" rule from the same helpers. A
+//     matrix where a match always comes with runs would never separate them.
+//     States 1, 4, 5, 7 and 14 do: state 5 in particular has ONE
+//     low-confidence match, zero runs and zero releases, and gets three
+//     different answers out of it — tool-configured partial, cadence
+//     verified-fail, ran-per-release not-checkable.
+//  2. cadence and ran-per-release BOTH consume the merged runs pool and the
+//     same runsErr. They deliberately taint differently (issue #291:
+//     coverage status is monotone in the runs pool, run_count and
+//     longest_gap_days are not), which is exactly the kind of asymmetry a
+//     lockstep matrix would erase. State 8 is that split — one of two
+//     matched workflows fails its run fetch while every release already
+//     reads "ran", so ran-per-release passes and cadence does not.
+//  3. tool-configured and default-setup BOTH read ds/dsResp/dsErr, and
+//     tool-configured passes outright when default setup is configured.
+//     States 2, 3, 4, 8, 9 and 13 hold a workflow match while default setup
+//     reads not-configured (pass vs fail); state 11 fails the default-setup
+//     query while a match stands (pass vs not-checkable); state 7 is the
+//     reverse — default setup configured with no workflow at all.
+//
+// # Confirmed by mutation, not assumed
+//
+// Each of these was injected into the production code and traced to the
+// exact states that caught it:
+//
+//   - checkCadence's zero-run arm moved BELOW its lowConfidenceOnly arm, so
+//     cadence answers with tool-configured's verdict instead of its own:
+//     caught by states 4, 5 and 7 — every state where a tool is configured
+//     and has not run.
+//   - checkCadence's lowConfidenceOnly dropping its
+//     `&& !defaultSetupConfigured(ds)` escape hatch: caught by state 14
+//     alone, the only state where a weak match is rescued by default setup.
+//   - checkToolConfigured's `case hasAny` (partial) deleted so a
+//     low-confidence match falls through to verified-fail: caught by states
+//     5 and 6.
+//   - checkCadence's toolConfigured guard changed to len(matched) > 0
+//     alone, dropping the default-setup arm: caught by state 7 — CodeQL
+//     default setup configured with no workflow surfaced is the only state
+//     where those two disagree.
+//   - checkRanPerRelease's runsErr guard widened to taint unconditionally
+//     (i.e. reverting #291's narrowing to cadence's own shape): caught by
+//     state 8 alone.
+//   - checkRanPerRelease's `case allRan && droppedTags == 0` weakened to
+//     `case allRan`: caught by state 13 alone, the only state with a
+//     dropped tag alongside otherwise-clean coverage.
+//   - checkDefaultSetup's `state == "configured"` weakened to `state != ""`:
+//     caught by all ten states whose default setup reads not-configured.
+//     Included deliberately as the control at the other extreme — a
+//     mutation this broad SHOULD fail almost everywhere, and its breadth is
+//     what shows the matrix binds default-setup's own boolean rather than
+//     only tool-configured's view of it.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const org = "attestward-demo"
+	yesterday := time.Now().UTC().AddDate(0, 0, -1)
+
+	states := []sastRubricState{
+		{
+			// No SAST evidence of any kind, but a release to evaluate.
+			// cadence has nothing to compute a cadence FOR, which is a
+			// different answer from ran-per-release's confirmed absence.
+			name: "no SAST tool at all with a release in scope",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNoWorkflows(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedFail,
+				"C05.sast.ran-per-release": model.StatusVerifiedFail,
+				"C05.sast.cadence":         model.StatusNotCheckable,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			name: "CodeQL workflow ran successfully for the release",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerCodeQLWorkflow(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{successfulRun("sha1", 1)})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusVerifiedPass,
+				"C05.sast.cadence":         model.StatusVerifiedPass,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The tool ran and failed. cadence counts the attempt (a run
+			// happened); ran-per-release does not accept it as coverage.
+			name: "CodeQL workflow ran for the release but failed",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerCodeQLWorkflow(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{
+					{"head_sha": "sha1", "head_branch": "main", "conclusion": "failure", "created_at": yesterday.Format(time.RFC3339)},
+				})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusPartial,
+				"C05.sast.cadence":         model.StatusVerifiedPass,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Configured and silent: the workflow exists and matched at
+			// high confidence, it has simply never run. tool-configured
+			// passes on match evidence alone while both run-derived checks
+			// fail.
+			name: "CodeQL workflow configured but never ran",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerCodeQLWorkflow(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusVerifiedFail,
+				"C05.sast.cadence":         model.StatusVerifiedFail,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The three-way split. One low-confidence match, zero runs,
+			// zero releases: tool-configured caps at partial on the weak
+			// signal, cadence treats the match as configuration and calls
+			// the zero-run history a real absence, ran-per-release has no
+			// release to evaluate. No two of them agree.
+			name: "low-confidence-only match with no runs and no releases",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNamedWorkflow(t, mux, org, repo, "CodeQL", ".github/workflows/codeql.yml", lowConfidenceCodeQLYAML, 1)
+				registerNoReleases(t, mux, org, repo)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusPartial,
+				"C05.sast.ran-per-release": model.StatusNotCheckable,
+				"C05.sast.cadence":         model.StatusVerifiedFail,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The same weak match, now with runs: the only route to
+			// cadence's partial.
+			name: "low-confidence-only match with runs",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNamedWorkflow(t, mux, org, repo, "CodeQL", ".github/workflows/codeql.yml", lowConfidenceCodeQLYAML, 1)
+				registerNoReleases(t, mux, org, repo)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{successfulRun("sha1", 1)})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusPartial,
+				"C05.sast.ran-per-release": model.StatusNotCheckable,
+				"C05.sast.cadence":         model.StatusPartial,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// CodeQL default setup is configured but ListWorkflows does not
+			// surface its virtual entry, so there is no workflow to fetch
+			// runs from. tool-configured and default-setup both pass on the
+			// default-setup state alone while cadence, which treats that
+			// same state as "a tool IS configured", reports a real zero.
+			name: "default setup configured with no workflow surfaced",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNoWorkflows(t, mux, org, repo)
+				registerNoReleases(t, mux, org, repo)
+				registerDefaultSetup(t, mux, org, repo, "configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusNotCheckable,
+				"C05.sast.cadence":         model.StatusVerifiedFail,
+				"C05.sast.default-setup":   model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Issue #291's asymmetry, and the sharpest cadence /
+			// ran-per-release split: two matched workflows, the second's
+			// run fetch 403s, and the release already reads "ran" from the
+			// first. Coverage cannot be invalidated by runs it never
+			// needed; cadence's own non-monotone numbers can.
+			name: "second workflow's run fetch fails while every release already ran",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, map[string]any{
+						"total_count": 2,
+						"workflows": []map[string]any{
+							{"id": 1, "name": "CodeQL", "path": ".github/workflows/codeql.yml", "state": "active"},
+							{"id": 2, "name": "Semgrep", "path": ".github/workflows/semgrep.yml", "state": "active"},
+						},
+					})
+				})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/codeql.yml", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, map[string]any{"content": codeqlWorkflowYAML, "sha": "content-sha-1"})
+				})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/semgrep.yml", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, map[string]any{"content": semgrepWorkflowYAML, "sha": "content-sha-2"})
+				})
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{successfulRun("sha1", 1)})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows/2/runs", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+				})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusVerifiedPass,
+				"C05.sast.cadence":         model.StatusNotCheckable,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Issue #287: the only matched workflow's run fetch fails and
+			// the resulting coverage table asserts an absence, so both
+			// run-derived checks go not-checkable while tool-configured,
+			// which never reads run history, still passes.
+			name: "the only workflow's run fetch fails with an uncovered release",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerCodeQLWorkflow(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows/1/runs", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+				})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusNotCheckable,
+				"C05.sast.cadence":         model.StatusNotCheckable,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The repo's only workflow can't be inspected (issue #178), so
+			// "no SAST tool" is an evidence gap, not an absence — and
+			// default-setup, which doesn't read workflows at all, still
+			// answers.
+			name: "the only workflow is unreadable",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNamedWorkflow(t, mux, org, repo, "Mystery", ".github/workflows/mystery.yml", "", 1)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusNotCheckable,
+				"C05.sast.ran-per-release": model.StatusNotCheckable,
+				"C05.sast.cadence":         model.StatusNotCheckable,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The default-setup query itself fails. Workflow evidence
+			// already answers the other three, so only default-setup is
+			// left without a basis.
+			name: "default-setup query fails while a workflow match stands",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerCodeQLWorkflow(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{successfulRun("sha1", 1)})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/code-scanning/default-setup", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusInternalServerError, map[string]any{"message": "boom"})
+				})
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusVerifiedPass,
+				"C05.sast.cadence":         model.StatusVerifiedPass,
+				"C05.sast.default-setup":   model.StatusNotCheckable,
+			},
+		},
+		{
+			// The repo read fails, so collectRepo returns before any
+			// check-specific evidence exists: the only route to all four
+			// reporting not-checkable together.
+			name: "repo read forbidden",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				mux.HandleFunc("/repos/"+org+"/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+				})
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusNotCheckable,
+				"C05.sast.ran-per-release": model.StatusNotCheckable,
+				"C05.sast.cadence":         model.StatusNotCheckable,
+				"C05.sast.default-setup":   model.StatusNotCheckable,
+			},
+		},
+		{
+			// Coverage is clean for every release that resolved, but one
+			// in-window tag couldn't be resolved at all. ran-per-release
+			// caps at partial rather than certifying releases it never
+			// evaluated — the droppedTags == 0 arm of its switch.
+			name: "one in-window release tag is unresolvable",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerCodeQLWorkflow(t, mux, org, repo)
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, []map[string]any{
+						{"tag_name": "v1.0.0", "target_commitish": "main", "published_at": yesterday.Format(time.RFC3339)},
+						{"tag_name": "v0.9.0", "target_commitish": "main", "published_at": time.Now().UTC().AddDate(0, 0, -30).Format(time.RFC3339)},
+					})
+				})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, map[string]any{"ref": "refs/tags/v1.0.0", "object": map[string]any{"type": "commit", "sha": "sha1"}})
+				})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/git/ref/tags/v0.9.0", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+				})
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{successfulRun("sha1", 1)})
+				registerDefaultSetup(t, mux, org, repo, "not-configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusPartial,
+				"C05.sast.cadence":         model.StatusVerifiedPass,
+				"C05.sast.default-setup":   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// A weak workflow match rescued by CodeQL default setup. Both
+			// tool-configured and cadence carry a
+			// !defaultSetupConfigured(ds) escape hatch on their own
+			// low-confidence rule, and this is the only state where that
+			// term is load-bearing: without it cadence would cap at partial
+			// while tool-configured passes outright, on identical evidence.
+			name: "low-confidence match plus configured default setup, with runs",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNamedWorkflow(t, mux, org, repo, "CodeQL", ".github/workflows/codeql.yml", lowConfidenceCodeQLYAML, 1)
+				registerNoReleases(t, mux, org, repo)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{successfulRun("sha1", 1)})
+				registerDefaultSetup(t, mux, org, repo, "configured")
+			},
+			want: map[string]model.Status{
+				"C05.sast.tool-configured": model.StatusVerifiedPass,
+				"C05.sast.ran-per-release": model.StatusNotCheckable,
+				"C05.sast.cadence":         model.StatusVerifiedPass,
+				"C05.sast.default-setup":   model.StatusVerifiedPass,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for i, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			// A distinct repo name per state keeps each state's handler
+			// registrations on their own mux paths, so a helper that
+			// registers a fixed path can't collide across states.
+			repo := fmt.Sprintf("rubric-repo-%02d", i+1)
+			mux := http.NewServeMux()
+			st.setup(t, mux, org, repo)
+
+			c := newCollectorForServer(t, newTestServer(t, mux))
+			scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+			results, err := c.Collect(context.Background(), scope)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much
+			// a defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }
