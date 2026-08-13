@@ -13,6 +13,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -840,5 +841,332 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 		if meta.FixtureRef == "" {
 			t.Errorf("%s: FixtureRef is empty", id)
 		}
+	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// build is a function rather than data because these worlds differ in WHICH
+// endpoints exist at all, not just in what they answer.
+type rubricState struct {
+	name  string
+	build func(fx *adofixture.Transport)
+	want  map[string]model.Status
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Nine states reach every status this collector can emit. tags-signed,
+// checksums and signatures make no API call and return not-checkable on every
+// repo unconditionally — Azure DevOps's GitAnnotatedTag carries no signature
+// field at all, and the platform has no release-asset concept for the other two
+// to inspect — so no fixture can move them; the guard's
+// documented-but-unreachable direction is what pins their single-status rubrics.
+//
+// The conflation risk between the two EVIDENCE checks is specific and worth
+// naming, because the code makes a deliberate choice that a careless matrix
+// would never exercise: workflow reads the signature-matched pipeline set, while
+// commit-linkage passes definitionIDs=nil to FetchBuilds on purpose — it asks
+// whether ANY build ran on the release's commit, not whether a provenance build
+// did. Set up a cosign pipeline whose build is also the release build and both
+// checks move together forever. So:
+//
+//   - state 3 has NO provenance tooling whatsoever and a perfectly traceable
+//     release: workflow fails, commit-linkage passes. If commit-linkage ever
+//     started filtering by the matched pipelines' definition IDs, this is the
+//     state that would catch it.
+//   - state 2 is the reverse, with the tool configured and the build sitting on
+//     a different commit.
+//   - state 5 splits them a third way, on evidence quality rather than presence:
+//     an uninspectable pipeline makes workflow not-checkable while commit-linkage
+//     evaluates normally, since a pipeline this collector could not read says
+//     nothing about whether a build ran on the release commit.
+//
+// Verified by mutation rather than assumed — see the commit message for which
+// states caught which.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	releaseDate := time.Now().UTC().AddDate(0, 0, -30)
+
+	repos := func(fx *adofixture.Transport) {
+		registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	}
+	// cosignPipeline is a real run-pattern match against the embedded
+	// signature registry; slsaNamedPipeline matches on the pipeline NAME only,
+	// which is the weakest tier and must never alone justify a pass.
+	cosignPipeline := func(fx *adofixture.Transport) {
+		registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+		registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+		registerYAML(fx, testRepoID, "steps:\n  - script: cosign sign-blob --bundle=out.bundle artifact.bin\n")
+	}
+	slsaNamedPipeline := func(fx *adofixture.Transport) {
+		registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+		registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+		registerYAML(fx, testRepoID, "name: My SLSA Provenance Pipeline\nsteps:\n  - script: echo hello\n")
+	}
+	// uninspectablePipeline resolves to a YAML pipeline whose yamlFilename is
+	// missing, which is what MatchPipelines records as a SkippedPipeline.
+	uninspectablePipeline := func(fx *adofixture.Transport) {
+		registerPipelines(fx, map[string]any{"id": 1, "name": "unresolved-pipeline"})
+		registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": ""}, testRepoID, "refs/heads/main")
+	}
+	oneRelease := func(fx *adofixture.Transport) {
+		registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+		registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+	}
+	build := func(sha string) map[string]any {
+		return map[string]any{
+			"sourceVersion": sha, "sourceBranch": "refs/heads/main",
+			"result": "succeeded", "queueTime": releaseDate.Format(time.RFC3339),
+		}
+	}
+	denied := adofixture.Response{Status: http.StatusForbidden, Body: map[string]any{"message": "denied"}}
+
+	alwaysNC := func(m map[string]model.Status) map[string]model.Status {
+		for _, id := range alwaysNotCheckableIDs {
+			m[id] = model.StatusNotCheckable
+		}
+		return m
+	}
+
+	states := []rubricState{
+		{
+			name: "a cosign pipeline and a release traceable to a build on its commit",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				cosignPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1"))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusVerifiedPass,
+				idCommitLinkage: model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// The tool is configured and the release is untraceable: a build
+			// exists, it just is not on the release's commit.
+			name: "a cosign pipeline whose only build is on a different commit",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				cosignPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha-unrelated"))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusVerifiedPass,
+				idCommitLinkage: model.StatusVerifiedFail,
+			}),
+		},
+		{
+			// The state that pins commit-linkage's definitionIDs=nil choice:
+			// there is no provenance tooling anywhere, and the release is still
+			// fully traceable because SOME build ran on its commit. A
+			// commit-linkage that filtered by the matched pipelines' definition
+			// IDs would have nothing to search and would fail here.
+			name: "no provenance tooling at all, but a build on the release commit",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				registerPipelines(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1"))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusVerifiedFail,
+				idCommitLinkage: model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// The confidence cap: a pipeline NAMED after a provenance tool with
+			// no invocation in it. commit-linkage is unaffected — it never
+			// consults the match at all.
+			name: "a pipeline whose NAME suggests provenance, with a traceable release",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				slsaNamedPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1"))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusPartial,
+				idCommitLinkage: model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// The third split, on evidence quality rather than presence: the
+			// repo's only pipeline could not be read, so workflow must not
+			// assert an absence — while commit-linkage is untouched, since an
+			// unreadable pipeline says nothing about whether a build ran on the
+			// release commit.
+			name: "the repo's only pipeline cannot be inspected, and the release is traceable",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				uninspectablePipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1"))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusNotCheckable,
+				idCommitLinkage: model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// commit-linkage's only route to partial: every release that could
+			// be evaluated is traceable, and one undateable tag matching the
+			// pattern still caps the result.
+			name: "every evaluated release is traceable but one release tag cannot be dated",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				cosignPipeline(fx)
+				fx.Set("GET", azuredevops.HostCore, refsPath(testRepoID), adofixture.Response{
+					Status: http.StatusOK,
+					Body: map[string]any{"count": 2, "value": []map[string]any{
+						{"name": "refs/tags/v1.0.0", "objectId": "sha1"},
+						{"name": "refs/tags/v2.0.0", "objectId": "sha2"},
+					}},
+				})
+				registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+				fx.Set("GET", azuredevops.HostCore, commitsPath(testRepoID, "sha2"), adofixture.Response{
+					Status: http.StatusNotFound, Body: map[string]any{"message": "not found"},
+				})
+				registerBuilds(fx, build("sha1"))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusVerifiedPass,
+				idCommitLinkage: model.StatusPartial,
+			}),
+		},
+		{
+			// Nothing to evaluate rather than an evidence gap: no tag matches
+			// the release pattern, so no build search is even attempted.
+			name: "a configured cosign pipeline with no release tags at all",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				cosignPipeline(fx)
+				fx.Set("GET", azuredevops.HostCore, refsPath(testRepoID), adofixture.Response{
+					Status: http.StatusOK,
+					Body:   map[string]any{"count": 0, "value": []map[string]any{}},
+				})
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusVerifiedPass,
+				idCommitLinkage: model.StatusNotCheckable,
+			}),
+		},
+		{
+			// commit-linkage's other not-checkable route, and a second state
+			// where it goes not-checkable alone: releases exist and it is the
+			// build history that cannot be read.
+			name: "the build history is denied while the release tags resolve",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				cosignPipeline(fx)
+				oneRelease(fx)
+				fx.Set("GET", azuredevops.HostCore, buildsPath(), denied)
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusVerifiedPass,
+				idCommitLinkage: model.StatusNotCheckable,
+			}),
+		},
+		{
+			// The shared upstream gate — the one failure that legitimately
+			// moves both evidence checks together, and the only lockstep state
+			// in the matrix. It earns its place by being the contrast: states
+			// 5, 7 and 8 show each check going not-checkable ALONE, so this one
+			// is not mistaken for the general shape.
+			name: "the project's pipeline listing is denied",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				fx.Set("GET", azuredevops.HostCore, pipelinesPath(), denied)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1"))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idWorkflow:      model.StatusNotCheckable,
+				idCommitLinkage: model.StatusNotCheckable,
+			}),
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			fx := adofixture.New()
+			st.build(fx)
+
+			results, err := newCollector(fx).Collect(context.Background(), defaultScope())
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
+}
+
+// TestCommitLinkageSearchesEveryBuildNotOnlyProvenanceBuilds pins collectRepo's
+// deliberate definitionIDs=nil: commit-linkage asks whether ANY build ran on
+// the release's commit, not whether a provenance-tool build did.
+//
+// This is a separate test rather than another state in
+// TestRubricsMatchObservedBehaviour because the matrix structurally cannot make
+// the claim. `definitions` is a QUERY parameter on Builds - List and
+// adofixture matches on "METHOD host path" alone, so a fixture returns the same
+// builds whether the parameter is present or not — found by mutation: rewriting
+// collectRepo to pass the matched pipelines' definition IDs changed no status in
+// any of the nine states. The request itself is the only place the claim is
+// observable.
+//
+// A cosign pipeline IS configured here on purpose, unlike
+// TestCollect_CommitLinkageBuildsFetch_MinTimeAnchoredToOldestReleaseMinusGraceWindow
+// above, which registers none. With no matched pipeline this test would prove
+// nothing: FetchBuilds treats an empty definition list as "unfiltered" anyway,
+// so `definitions` would be absent for the wrong reason.
+func TestCommitLinkageSearchesEveryBuildNotOnlyProvenanceBuilds(t *testing.T) {
+	fx := adofixture.New()
+	registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	registerPipelines(fx, map[string]any{"id": 7, "name": "CI"})
+	registerDefinition(fx, 7, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+	registerYAML(fx, testRepoID, "steps:\n  - script: cosign sign-blob --bundle=out.bundle artifact.bin\n")
+	releaseDate := time.Now().UTC().AddDate(0, 0, -30)
+	registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+	registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+	registerBuilds(fx, map[string]any{
+		"sourceVersion": "sha1", "sourceBranch": "refs/heads/main",
+		"result": "succeeded", "queueTime": releaseDate.Format(time.RFC3339),
+	})
+
+	capture := &queryCapturingTransport{base: fx, path: buildsPath()}
+	c := New(azuredevops.NewClientForTest(testOrg, "ado-test-pat", capture))
+	if _, err := c.Collect(context.Background(), defaultScope()); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	if capture.lastQuery == nil {
+		t.Fatal("no Builds - List request was made at all; this assertion would prove nothing")
+	}
+	if got := capture.lastQuery.Get("definitions"); got != "" {
+		t.Errorf("Builds - List was filtered to definitions=%q; commit-linkage must search every build on the "+
+			"release commit, not only builds of the provenance pipeline", got)
 	}
 }
