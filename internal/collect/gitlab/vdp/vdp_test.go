@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
@@ -240,6 +241,66 @@ func TestClientBuildFailureIsNotCheckableForEveryCheck(t *testing.T) {
 func TestID(t *testing.T) {
 	if got := New("https://gitlab.example", "t").ID(); got != collectorID {
 		t.Errorf("ID() = %q, want %q", got, collectorID)
+	}
+}
+
+// twoRepoVDPMux serves a readable project and a root SECURITY.md with an
+// actionable intake channel for each of two distinct projects, so both
+// per-repo checks reach their evidence-carrying pass and every recorded
+// provenance endpoint — the project read and the file read alike — names
+// exactly one project, making a cross-repo attribution visible in the
+// endpoint string itself.
+func twoRepoVDPMux(repos ...string) http.Handler {
+	mux := http.NewServeMux()
+	for _, repo := range repos {
+		id := "g%2F" + repo
+		content := "Report vulnerabilities to security@" + repo + ".example.com"
+		mux.HandleFunc("/api/v4/projects/"+id, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"default_branch":"main"}`)
+		})
+		mux.HandleFunc("/api/v4/projects/"+id+"/repository/files/SECURITY.md", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"encoding":"base64","content":%q}`, base64.StdEncoding.EncodeToString([]byte(content)))
+		})
+	}
+	return mux
+}
+
+// TestProvenanceNeverCitesAnotherReposAPICalls pins issue #15, the same
+// defect #14 fixed in envseparation/provenance and which was empirically
+// reproduced here: scanning p1,p2 in one run, repo p2's C10.vdp.security-md
+// and C10.vdp.intake-channel results carried a provenance entry citing GET
+// /api/v4/projects/g%2Fp1/repository/files/SECURITY.md. Client.Provenance()
+// is cumulative over every call ever made through a client instance, so a
+// client built once outside the scope.Repos loop attributes an earlier
+// repo's API calls to a later repo's evidence — for an attestation tool
+// whose whole claim is that each status is independently auditable from its
+// own recorded API calls, that is an evidence-integrity defect, not a
+// cosmetic one. Building the client per repo is what keeps each result's
+// evidence its own; this test fails if that construction moves back out of
+// collectRepo.
+func TestProvenanceNeverCitesAnotherReposAPICalls(t *testing.T) {
+	results := collectWith(t, twoRepoVDPMux("p1", "p2"), "g", "p1", "p2")
+
+	sawP2Evidence := false
+	for _, r := range results {
+		if r.Scope.Repo != "p2" {
+			continue
+		}
+		for _, p := range r.Provenance {
+			if strings.Contains(p.Endpoint, "p1") {
+				t.Errorf("%s (repo p2) provenance cites %s %s — an API call made while processing repo p1, "+
+					"not p2", r.CheckID, p.Method, p.Endpoint)
+			}
+			if strings.Contains(p.Endpoint, "p2") {
+				sawP2Evidence = true
+			}
+		}
+	}
+	if !sawP2Evidence {
+		t.Fatal("no p2 result carried a single provenance entry naming p2 — the cross-repo assertion above " +
+			"would have passed vacuously")
 	}
 }
 

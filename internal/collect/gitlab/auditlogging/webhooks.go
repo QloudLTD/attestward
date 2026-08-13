@@ -43,7 +43,19 @@ func (h hook) exportsRelevantEvents() bool {
 	return h.PushEvents || h.ReleasesEvents || h.DeploymentEvents
 }
 
-func webhooksResult(ctx context.Context, client *gitlabcollect.Client, org, repo string) model.CheckResult {
+// webhooksResult builds its own client per repo rather than sharing one
+// across scope.Repos. Client.Provenance() is cumulative over every call ever
+// made through that client instance, so a shared one attributed an earlier
+// repo's API calls to a later repo's CheckResult.Provenance — evidence citing
+// a project the result is not about (issue #15, the same defect as #14). Same
+// convention as internal/collect/gitlab/repoprotection and .../secretshygiene.
+func (c *Collector) webhooksResult(ctx context.Context, org, repo string) model.CheckResult {
+	client, err := c.newClient()
+	if err != nil {
+		return notCheckableAlways(idRepoWebhooks, webhooksTitle, org, repo,
+			fmt.Sprintf("could not build a GitLab client: %v", err))
+	}
+
 	id := projectID(org, repo)
 	hooks, err := gitlabcollect.GetJSONPaged[hook](ctx, client, "/projects/"+id+"/hooks", nil)
 	prov := client.Provenance()

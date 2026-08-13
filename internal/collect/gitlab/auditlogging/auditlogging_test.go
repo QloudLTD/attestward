@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
@@ -185,6 +186,56 @@ func TestNoReposMeansOnlyTheOrgLevelChecksEmit(t *testing.T) {
 func TestID(t *testing.T) {
 	if got := New("https://gitlab.example", "t").ID(); got != collectorID {
 		t.Errorf("ID() = %q, want %q", got, collectorID)
+	}
+}
+
+// twoRepoHooksMux serves one executable, event-exporting hook for each of
+// two distinct projects, so C09.repo.webhooks reaches its evidence-carrying
+// pass for both and the single recorded provenance endpoint per result names
+// exactly one project, making a cross-repo attribution visible in the
+// endpoint string itself.
+func twoRepoHooksMux(repos ...string) http.Handler {
+	mux := http.NewServeMux()
+	for i, repo := range repos {
+		body := "[" + hookJSON(i+1, alertExecutable, true, false, false) + "]"
+		mux.HandleFunc("/api/v4/projects/g%2F"+repo+"/hooks", hooksHandler(200, body))
+	}
+	return mux
+}
+
+// TestProvenanceNeverCitesAnotherReposAPICalls pins issue #15, the same
+// defect #14 fixed in envseparation/provenance and which was empirically
+// reproduced here: scanning p1,p2 in one run, repo p2's C09.repo.webhooks
+// result carried a provenance entry citing GET /api/v4/projects/g%2Fp1/hooks.
+// Client.Provenance() is cumulative over every call ever made through a
+// client instance, so a client built once outside the scope.Repos loop
+// attributes an earlier repo's API calls to a later repo's evidence — for an
+// attestation tool whose whole claim is that each status is independently
+// auditable from its own recorded API calls, that is an evidence-integrity
+// defect, not a cosmetic one. Building the client per repo is what keeps each
+// result's evidence its own; this test fails if that construction moves back
+// out of webhooksResult.
+func TestProvenanceNeverCitesAnotherReposAPICalls(t *testing.T) {
+	results := collectWith(t, twoRepoHooksMux("p1", "p2"), "g", "p1", "p2")
+
+	sawP2Evidence := false
+	for _, r := range results {
+		if r.Scope.Repo != "p2" {
+			continue
+		}
+		for _, p := range r.Provenance {
+			if strings.Contains(p.Endpoint, "p1") {
+				t.Errorf("%s (repo p2) provenance cites %s %s — an API call made while processing repo p1, "+
+					"not p2", r.CheckID, p.Method, p.Endpoint)
+			}
+			if strings.Contains(p.Endpoint, "p2") {
+				sawP2Evidence = true
+			}
+		}
+	}
+	if !sawP2Evidence {
+		t.Fatal("no p2 result carried a single provenance entry naming p2 — the cross-repo assertion above " +
+			"would have passed vacuously")
 	}
 }
 
