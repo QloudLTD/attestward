@@ -12,6 +12,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -866,4 +867,178 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 			}
 		}
 	}
+}
+
+// --- rubric guard (issue #10) ---
+
+// noVariableGroups and allOnCreateDefaults are the "nothing to report" org and
+// project responses, used by the states below that vary only the repo.
+func noVariableGroups() map[string]any {
+	return map[string]any{"count": 0, "value": []map[string]any{}}
+}
+
+func allOnCreateDefaults() map[string]any {
+	return orgEnablementBody(true, true, true, true, false, false)
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard.
+//
+// Three states reach all eighteen combinations (six checks × three statuses)
+// this collector can emit — an all-on, an all-off and an all-unreadable one —
+// because each of the three fetches is independent: repo enablement backs four
+// checks, org enablement backs org.security-defaults, and variable groups back
+// vars.secret-hygiene. The all-unreadable state is also the ONLY route to
+// not-checkable for dependabot-alerts, whose sole path to it is the repo fetch
+// failing: codeSecurityEnabled is a plain bool, so unlike its three siblings it
+// has no null-field guard of its own.
+//
+// # Two further states exist to make the four repo checks distinguishable
+//
+// Reaching every status is not the same as pinning it to the right check. All
+// four repo checks read one response and only two fields decide them, so with
+// on/off/unreadable alone the four move in lockstep and a defect that read the
+// wrong field would be invisible. That is not hypothetical: with three states
+// this matrix passed cleanly while advanced-security had the
+// secretProtectionEnabled half of its AND deleted.
+//
+// So the last two states split the flags — Code Security on with Secret
+// Protection off, then the reverse. Between them every pair of the four
+// disagrees in at least one state, which is what lets the whole-map comparison
+// below catch a swap rather than only a miscount.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	// A sensitive-looking name with a plaintext value, which is what makes
+	// vars.secret-hygiene a verified-fail rather than a pass.
+	plaintextSecretGroup := map[string]any{
+		"count": 1,
+		"value": []map[string]any{
+			varGroup("db-vars", map[string]any{
+				"DB_PASSWORD": map[string]any{"value": "hunter2plaintext"},
+			}),
+		},
+	}
+
+	fixture := func(repo, org, vars adofixture.Response) *adofixture.Transport {
+		fx := adofixture.New().Set("GET", azuredevops.HostAdvSec, repoEnablementPath(testRepo), repo)
+		fx.Set("GET", azuredevops.HostAdvSec, orgEnablementPath(), org)
+		fx.Set("GET", azuredevops.HostCore, variableGroupsPath(), vars)
+		return fx
+	}
+	ok := func(body map[string]any) adofixture.Response {
+		return adofixture.Response{Status: http.StatusOK, Body: body}
+	}
+	unreadable := adofixture.Response{Status: http.StatusInternalServerError, Body: map[string]any{"message": "boom"}}
+
+	states := []struct {
+		name string
+		fx   *adofixture.Transport
+		want map[string]model.Status
+	}{
+		{
+			name: "every feature enabled, org defaults all on, no plaintext secrets",
+			fx:   fixture(ok(fullyEnabledRepoBody()), ok(allOnCreateDefaults()), ok(noVariableGroups())),
+			want: map[string]model.Status{
+				idScanningEnabled:     model.StatusVerifiedPass,
+				idPushProtection:      model.StatusVerifiedPass,
+				idAdvancedSecurity:    model.StatusVerifiedPass,
+				idDependabotAlerts:    model.StatusVerifiedPass,
+				idOrgSecurityDefaults: model.StatusVerifiedPass,
+				idSecretHygiene:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			name: "every feature disabled, org defaults off, a plaintext secret in a variable group",
+			fx: fixture(ok(fullyDisabledRepoBody()),
+				ok(orgEnablementBody(false, false, false, false, false, false)),
+				ok(plaintextSecretGroup)),
+			want: map[string]model.Status{
+				idScanningEnabled:     model.StatusVerifiedFail,
+				idPushProtection:      model.StatusVerifiedFail,
+				idAdvancedSecurity:    model.StatusVerifiedFail,
+				idDependabotAlerts:    model.StatusVerifiedFail,
+				idOrgSecurityDefaults: model.StatusVerifiedFail,
+				idSecretHygiene:       model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Each fetch degrades only the checks it backs, so failing all
+			// three at once is what covers every check's not-checkable in one
+			// state — and the only route to it for dependabot-alerts.
+			name: "none of the three fetches can be read",
+			fx:   fixture(unreadable, unreadable, unreadable),
+			want: map[string]model.Status{
+				idScanningEnabled:     model.StatusNotCheckable,
+				idPushProtection:      model.StatusNotCheckable,
+				idAdvancedSecurity:    model.StatusNotCheckable,
+				idDependabotAlerts:    model.StatusNotCheckable,
+				idOrgSecurityDefaults: model.StatusNotCheckable,
+				idSecretHygiene:       model.StatusNotCheckable,
+			},
+		},
+		{
+			// Splits scanning-enabled from push-protection, and
+			// advanced-security from dependabot-alerts.
+			name: "Code Security enabled, Secret Protection disabled",
+			fx: fixture(ok(repoEnablementBody(true, true, true, false, boolPtr(true))),
+				ok(allOnCreateDefaults()), ok(noVariableGroups())),
+			want: map[string]model.Status{
+				idScanningEnabled:     model.StatusVerifiedFail,
+				idPushProtection:      model.StatusVerifiedPass,
+				idAdvancedSecurity:    model.StatusVerifiedFail,
+				idDependabotAlerts:    model.StatusVerifiedPass,
+				idOrgSecurityDefaults: model.StatusVerifiedPass,
+				idSecretHygiene:       model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The reverse split, which is what separates scanning-enabled from
+			// advanced-security: both read secretProtectionEnabled, and only
+			// here does the codeSecurityEnabled half of the AND change the
+			// answer for one of them and not the other.
+			name: "Secret Protection enabled, Code Security disabled",
+			fx: fixture(ok(repoEnablementBody(false, false, false, true, boolPtr(true))),
+				ok(allOnCreateDefaults()), ok(noVariableGroups())),
+			want: map[string]model.Status{
+				idScanningEnabled:     model.StatusVerifiedPass,
+				idPushProtection:      model.StatusVerifiedPass,
+				idAdvancedSecurity:    model.StatusVerifiedFail,
+				idDependabotAlerts:    model.StatusVerifiedFail,
+				idOrgSecurityDefaults: model.StatusVerifiedPass,
+				idSecretHygiene:       model.StatusVerifiedPass,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			c := newTestCollector(st.fx)
+			results, err := c.Collect(context.Background(), collect.Scope{Org: testOrg, Project: testProject, Repos: []string{testRepo}})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
