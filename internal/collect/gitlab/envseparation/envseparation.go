@@ -29,13 +29,71 @@
 // is rejected outright (422, "deprecated and shouldn't be used"), so
 // approval_rules — what this check reads — is the only mechanism there is.
 //
-// The check still reports verified-pass on the stored rule, because reading
-// configuration state is what every check in this codebase does — C02
-// repo-protection doesn't push a bad commit to prove a branch rule blocks
-// it, either. But this is the one place we know config and enforcement come
-// apart for an entire tier, so the rubric, reason and remediation are all
-// worded to claim the stored configuration and nothing more. Don't
-// "simplify" them back into language that asserts a deployment is gated.
+// A stored rule therefore reports PARTIAL, not verified-pass, and the
+// rubric, reason and remediation are all worded to claim the stored
+// configuration and nothing more. Don't "simplify" them back into language
+// that asserts a deployment is gated, and don't restore the pass — see the
+// next section for why neither is available.
+//
+// # Why a stored approval rule reports partial, not verified-pass
+//
+// Wording alone was the first fix (issue #12) and it was not enough. Status
+// is what feeds TaskRollup/ClusterRollup in a signed evidence pack, and
+// prose does not reach a rollup: a Free namespace, where the rule is
+// confirmed not to fire, was emitting the identical verified-pass as a
+// Premium/Ultimate one where it does (issue #16).
+//
+// The targeted fix would be to branch on the namespace's subscription tier
+// and pass only where the enforcement mechanism exists. Measured live
+// 2026-08-13, that tier is not readable by this collector at any privilege
+// level it can assume:
+//
+//   - GET /namespaces/:id does carry a `plan` field, but it 404s for any
+//     namespace the calling identity is not a direct MEMBER of — not 403,
+//     not a redacted body. Confirmed with a broad `api`-scoped personal
+//     token that owns its own namespace: gitlab-org, gitlab-com and
+//     inkscape (all public, all readable through /groups/:id) each 404 by
+//     path and by numeric ID.
+//   - Membership of a PROJECT in that namespace does not count. A project
+//     access token scoped read_api at Reporter — exactly this check's
+//     documented scope — 404s on its own project's namespace, by path and
+//     by ID. So does the same token at Maintainer, a strictly higher role
+//     than documented, against both a Free personal namespace and an
+//     Ultimate-trial group.
+//   - GET /groups/:id is not an alternative route. It returns no `plan`,
+//     `trial` or `trial_ends_on` field at all — not even for a group Owner
+//     on a live Ultimate trial. Nor does the `namespace` sub-object of
+//     GET /projects/:id.
+//   - GET /namespaces (list) returns only namespaces the identity belongs
+//     to, which for a project access token is the BOT's own namespace. That
+//     one does carry a plan, and it read "free" for a bot whose project sits
+//     in the Ultimate-trial group — a field that looks like the answer, is
+//     trivially reachable, and describes the wrong namespace. Don't wire it.
+//
+// So this check cannot tell an entitled namespace from an unentitled one,
+// and issue #16's own fallback applies: partial. That is precisely what
+// partial is for — "the evidence is suggestive but not conclusive proof
+// either way" (model.StatusPartial's doc) — and it matches
+// C02.branch.required-reviews, which already declines to call a review
+// requirement a pass when a named actor can bypass it.
+//
+// Two reasons not to reach instead for a conditional read that passes
+// whenever the tier happens to be visible:
+//
+//   - It would make Status depend on WHO ran the scan rather than on the
+//     posture being audited. The same project with the same config, scanned
+//     by an owner's personal token and by a CI service account, would land
+//     different statuses in two signed packs — and a pack's whole point is
+//     to diff cleanly across runs of the same scan.
+//   - Even a confirmed paid tier would buy only GitLab's DOCUMENTED
+//     behaviour, and this package's own opening paragraph records that
+//     documentation's tier badge being wrong about this exact API surface.
+//     Issue #12 tested the negative on Free; nothing has tested the positive
+//     on a paid namespace. Passing on the strength of a badge already caught
+//     being wrong is not evidence.
+//
+// verified-fail is unaffected and stays decisive: no subscription tier makes
+// an absent approval rule present.
 //
 // The fourth check, branch-policy, stays always-not-checkable — but now for
 // a platform-gap reason, not the old wrong tier one. GitLab's Protected
@@ -157,11 +215,13 @@ var checkRemediations = map[string]string{
 	idRequiredReviewers: "Project → Settings → CI/CD → Protected environments → protect the production-like " +
 		"environment and add an Approval rule requiring at least one approval. On Premium and above the " +
 		"equivalent group-level rule, added at Group → Settings → CI/CD → Protected environments against " +
-		"the environment's deployment tier, satisfies this check too. Note that the rule is stored and " +
-		"readable on Free, but verified live that it is NOT enforced at deploy time there — a real " +
-		"deployment against exactly this configuration ran unblocked. GitLab documents deploy-time " +
-		"enforcement of this rule as a Premium/Ultimate feature (not independently verified here on a paid " +
-		"namespace) — confirm the namespace's tier before relying on this as an operative gate.",
+		"the environment's deployment tier, satisfies this check too. Note that doing so moves this check " +
+		"from verified-fail to partial, not to verified-pass: the rule is stored and readable on Free, but " +
+		"verified live that it is NOT enforced at deploy time there — a real deployment against exactly " +
+		"this configuration ran unblocked. GitLab documents deploy-time enforcement as a Premium/Ultimate " +
+		"feature (not independently verified here on a paid namespace), and this check cannot read the " +
+		"namespace's subscription tier to tell the two cases apart, so confirm your own tier before " +
+		"relying on this as an operative gate.",
 	idBranchPolicy: "No remediation applicable via this tool: GitLab has no per-environment branch-" +
 		"restriction mechanism — restrict which branch/tag may deploy in the deploy job's own `rules:` in " +
 		".gitlab-ci.yml instead, and document that control in the self-attestation questionnaire.",
@@ -212,15 +272,22 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusNotCheckable: sharedNotCheckableRubric,
 	},
 	idRequiredReviewers: {
-		model.StatusVerifiedPass: "every production-like environment has an approval_rules entry with " +
-			"required_approvals >= 1, on either its project-level protected_environments entry or a " +
-			"group-level protected environment covering its deployment tier. That is the stored " +
-			"configuration, not a demonstrated gate: on a Free namespace GitLab accepts, returns and even " +
-			"tracks the rule against a deployment, yet lets that deployment succeed with zero approvals",
+		// No verified-pass entry, deliberately — this check cannot reach that
+		// status at all (see the package doc). The shared rubric guard fails
+		// in both directions, so documenting one here would be caught as a
+		// false promise, and emitting one would be caught as undocumented.
+		model.StatusPartial: "either of two states, both short of proof. (a) Every production-like " +
+			"environment has an approval_rules entry with required_approvals >= 1, on its project-level " +
+			"protected_environments entry or on a group-level protected environment covering its " +
+			"deployment tier — the strongest result this check can produce, because that is the stored " +
+			"configuration rather than a demonstrated gate: on a Free namespace GitLab accepts, returns " +
+			"and even tracks the rule against a deployment, yet lets that deployment succeed with zero " +
+			"approvals, and the namespace's subscription tier — which decides whether the rule is " +
+			"enforced at all — is not readable at this check's token scope, so an entitled namespace " +
+			"cannot be told apart from an unentitled one. (b) " + sharedPartialRubric,
 		model.StatusVerifiedFail: "at least one production-like environment is covered by no " +
 			"protected_environments entry at project or group level, or only by ones whose approval_rules " +
 			"require no approvals" + sharedGroupBlindSpotRubric,
-		model.StatusPartial:      sharedPartialRubric,
 		model.StatusNotCheckable: sharedNotCheckableRubric,
 	},
 	idBranchPolicy: {
@@ -636,26 +703,32 @@ func checkRequiredReviewers(org, repo string, prodEnvs []environment, byName map
 			Facts: facts,
 		}
 	}
-	// ⚠ Deliberately conservative wording (issue #12). "requires at least one
+	// ⚠ partial, NOT verified-pass, and deliberately conservative wording —
+	// issues #12 (the wording) and #16 (the status). "requires at least one
 	// approval" would assert a live gate, and on Free that assertion is
-	// false — verified by a real pipeline deployment that succeeded with
-	// pending_approval_count 0 against exactly this configuration (see the
-	// package doc comment). State the stored rule; let the reader's tier
-	// decide whether it fires. This applies equally to a pass reached via
-	// group-level config (issue #13): the same unverified-enforcement gap
-	// exists for that route too, since it's read from the identical
-	// approval_rules shape at a different API level.
+	// false: verified by a real pipeline deployment that succeeded with
+	// pending_approval_count 0 against exactly this configuration. The
+	// status has to carry that too, because Reason does not reach the
+	// rollups a signed pack is read through, and the namespace's tier — the
+	// one thing that would settle it — is unreadable at this check's token
+	// scope. Both are argued in full in the package doc comment; don't
+	// restore the pass without reading it. This applies equally to a result
+	// reached via group-level config (issue #13): that route reads the
+	// identical approval_rules shape at a different API level, so it carries
+	// the identical unverified-enforcement gap.
 	facts := map[string]any{"production_like_environments": prodNames}
 	if len(viaGroup) > 0 {
 		facts["group_required_reviewers"] = viaGroup
 	}
 	return model.CheckResult{
-		CheckID: idRequiredReviewers, Title: checkTitles[idRequiredReviewers], Status: model.StatusVerifiedPass,
+		CheckID: idRequiredReviewers, Title: checkTitles[idRequiredReviewers], Status: model.StatusPartial,
 		Reason: fmt.Sprintf("every production-like environment has a stored approval rule requiring at least "+
-			"one approval: %v%s. That is the recorded configuration, not evidence the gate fires — verified "+
-			"live on a Free namespace that it does not (a real pipeline deployment against exactly this "+
-			"configuration succeeded with pending_approval_count 0); GitLab documents deploy-time enforcement "+
-			"of this rule as a Premium/Ultimate feature, not verified here on a paid namespace",
+			"one approval: %v%s. Reported partial rather than verified-pass: that is the recorded "+
+			"configuration, not evidence the gate fires — verified live on a Free namespace that it does not "+
+			"(a real pipeline deployment against exactly this configuration succeeded with "+
+			"pending_approval_count 0); GitLab documents deploy-time enforcement of this rule as a "+
+			"Premium/Ultimate feature, not verified here on a paid namespace, and this check's token scope "+
+			"cannot read the namespace's subscription tier to tell an entitled namespace from an unentitled one",
 			prodNames, viaGroupSuffix(viaGroup)),
 		Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
 		Facts: facts,

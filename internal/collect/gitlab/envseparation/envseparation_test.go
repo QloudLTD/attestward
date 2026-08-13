@@ -164,7 +164,14 @@ func TestNoProdLikeNameIsPartial(t *testing.T) {
 	}
 }
 
-func TestProtectedWithApprovalIsAllPass(t *testing.T) {
+// TestProtectedWithApprovalPassesProtectionAndPartialsReviewers covers the
+// best configuration this collector can observe — and the point of the test
+// is that it still does not produce a clean sweep of passes. exists and
+// protection-rules pass; required-reviewers tops out at partial, because a
+// stored approval rule is not a demonstrated gate and the namespace tier
+// that would settle it is unreadable here (issue #16, argued in the package
+// doc comment).
+func TestProtectedWithApprovalPassesProtectionAndPartialsReviewers(t *testing.T) {
 	protected := []protectedEnvironment{{Name: "production", ApprovalRules: []approvalRule{{RequiredApprovals: 1}}}}
 	got := byID(collectWith(t, envMux([]string{"production"}, 200, protected, 200), "g", "p"))
 	if got[idExists].Status != model.StatusVerifiedPass {
@@ -173,28 +180,70 @@ func TestProtectedWithApprovalIsAllPass(t *testing.T) {
 	if got[idProtectionRules].Status != model.StatusVerifiedPass {
 		t.Errorf("protection-rules = %q, want verified-pass", got[idProtectionRules].Status)
 	}
-	if got[idRequiredReviewers].Status != model.StatusVerifiedPass {
-		t.Errorf("required-reviewers = %q, want verified-pass; reason=%q", got[idRequiredReviewers].Status, got[idRequiredReviewers].Reason)
+	if got[idRequiredReviewers].Status != model.StatusPartial {
+		t.Errorf("required-reviewers = %q, want partial; reason=%q", got[idRequiredReviewers].Status, got[idRequiredReviewers].Reason)
 	}
 }
 
-// TestRequiredReviewersPassReasonDoesNotAssertLiveEnforcement pins the
-// wording issue #12 exists to fix. A stored approval_rules entry is
+// TestRequiredReviewersNeverReportsVerifiedPass is the direct guard on issue
+// #16's behaviour change, stated as the invariant rather than as one state's
+// expected value: no combination of project-level and group-level config —
+// the two routes that can satisfy this check — may produce verified-pass.
+//
+// The shared rubric guard would also catch a restored pass (the rubric no
+// longer documents that status), but only as a rubric mismatch, and only
+// for states that happen to be in its matrix. This says the thing directly,
+// so a future change that "fixes" the rubric to match a restored pass has to
+// delete an explicit assertion rather than quietly satisfy a symmetry check.
+func TestRequiredReviewersNeverReportsVerifiedPass(t *testing.T) {
+	withApproval := []protectedEnvironment{{Name: "production", ApprovalRules: []approvalRule{{RequiredApprovals: 1}}}}
+	cases := []struct {
+		name string
+		h    http.Handler
+		org  string
+	}{
+		{"project-level approval rule", envMux([]string{"production"}, 200, withApproval, 200), "g"},
+		{"group-level approval rule", envMuxTiered(taggedEnvs([]string{"production"}), 200, nil, 200,
+			map[string]groupState{"g": {status: 200, entries: groupProduction(1)}}), "g"},
+		{"ancestor-group approval rule", envMuxTiered(taggedEnvs([]string{"production"}), 200, nil, 200,
+			map[string]groupState{"top/sub": {status: 200}, "top": {status: 200, entries: groupProduction(1)}}), "top/sub"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := byID(collectWith(t, tc.h, tc.org, "p"))
+			if got[idRequiredReviewers].Status == model.StatusVerifiedPass {
+				t.Errorf("required-reviewers = verified-pass, but a stored approval rule is not evidence "+
+					"the gate fires and this check cannot read the namespace tier that would settle it "+
+					"(issue #16); reason=%q", got[idRequiredReviewers].Reason)
+			}
+		})
+	}
+}
+
+// TestRequiredReviewersStoredConfigReasonDoesNotAssertLiveEnforcement pins
+// the wording issue #12 exists to fix. A stored approval_rules entry is
 // confirmed readable on Free (this package's own doc comment) but verified
 // NOT enforced there — a real pipeline deployment against exactly this
 // configuration ran unblocked with pending_approval_count 0. Without this
-// test, the verified-pass Reason can silently round-trip back to its old
-// wording ("...requires at least one approval", asserting a live gate) and
-// nothing else in the repo catches it: the Reason field is not rendered
-// into docs/checks-reference.md, so make checks-docs-check passes either
-// way — confirmed by reverting the wording and re-running that check before
+// test, the Reason can silently round-trip back to its old wording
+// ("...requires at least one approval", asserting a live gate) and nothing
+// else in the repo catches it: the Reason field is not rendered into
+// docs/checks-reference.md, so make checks-docs-check passes either way —
+// confirmed by reverting the wording and re-running that check before
 // writing this test.
-func TestRequiredReviewersPassReasonDoesNotAssertLiveEnforcement(t *testing.T) {
+//
+// Renamed from ...PassReason... when issue #16 turned that verified-pass
+// into a partial. The rename is the point: a test whose name asserts a
+// status the code no longer emits is the same documentation rot the shared
+// rubric guard exists to catch, one layer up. What it pins is unchanged —
+// the Reason on the strongest result this check can produce must not claim
+// a gate fires.
+func TestRequiredReviewersStoredConfigReasonDoesNotAssertLiveEnforcement(t *testing.T) {
 	protected := []protectedEnvironment{{Name: "production", ApprovalRules: []approvalRule{{RequiredApprovals: 1}}}}
 	got := byID(collectWith(t, envMux([]string{"production"}, 200, protected, 200), "g", "p"))
 	r := got[idRequiredReviewers]
-	if r.Status != model.StatusVerifiedPass {
-		t.Fatalf("required-reviewers = %q, want verified-pass (fixture setup sanity check)", r.Status)
+	if r.Status != model.StatusPartial {
+		t.Fatalf("required-reviewers = %q, want partial (fixture setup sanity check)", r.Status)
 	}
 	if !strings.Contains(r.Reason, "not evidence the gate fires") {
 		t.Errorf("Reason must state the stored rule is not evidence of live enforcement, got: %s", r.Reason)
@@ -311,9 +360,10 @@ func TestGroupLevelProtectionPasses(t *testing.T) {
 			"level, which the project-level list cannot show; reason=%q",
 			got[idProtectionRules].Status, got[idProtectionRules].Reason)
 	}
-	if got[idRequiredReviewers].Status != model.StatusVerifiedPass {
-		t.Errorf("required-reviewers = %q, want verified-pass — the group-level entry requires an approval; "+
-			"reason=%q", got[idRequiredReviewers].Status, got[idRequiredReviewers].Reason)
+	if got[idRequiredReviewers].Status != model.StatusPartial {
+		t.Errorf("required-reviewers = %q, want partial — the group-level entry requires an approval, which "+
+			"is the strongest result this check produces (issue #16); reason=%q",
+			got[idRequiredReviewers].Status, got[idRequiredReviewers].Reason)
 	}
 	if !strings.Contains(got[idProtectionRules].Reason, "group-level") {
 		t.Errorf("reason %q does not say the pass came from group-level config; a reader looking at an empty "+
@@ -418,16 +468,20 @@ func TestGroupApprovalRuleSatisfiesReviewersOverProjectEntryWithout(t *testing.T
 		map[string]groupState{"g": {status: 200, entries: groupProduction(1)}})
 	got := byID(collectWith(t, h, "g", "p"))
 
-	if got[idRequiredReviewers].Status != model.StatusVerifiedPass {
-		t.Errorf("required-reviewers = %q, want verified-pass — the approval requirement is on the "+
+	if got[idRequiredReviewers].Status != model.StatusPartial {
+		t.Errorf("required-reviewers = %q, want partial — the approval requirement is on the "+
 			"group-level entry, and the two rulesets compose; reason=%q",
 			got[idRequiredReviewers].Status, got[idRequiredReviewers].Reason)
 	}
 }
 
 // TestNoGroupLookupWhenProjectLevelAlreadyPasses guards the trigger from the
-// other side: a project that passes both checks on its own config must not
-// pay for the group walk, because no group entry could change that answer.
+// other side: a project whose own config already yields the best answer both
+// checks can give — verified-pass for protection-rules, partial for
+// required-reviewers, which is that check's ceiling since issue #16 — must
+// not pay for the group walk, because no group entry could change either
+// answer. Group and project rulesets compose, so group-level config can only
+// turn a fail into a pass, and neither check is failing here.
 func TestNoGroupLookupWhenProjectLevelAlreadyPasses(t *testing.T) {
 	var groupCalls int
 	inner := envMuxTiered(taggedEnvs([]string{"production"}), 200,
@@ -485,8 +539,8 @@ func TestAncestorApprovalRuleWinsOverNearerGroupWithout(t *testing.T) {
 	})
 	got := byID(collectWith(t, h, "top/sub", "p"))
 
-	if got[idRequiredReviewers].Status != model.StatusVerifiedPass {
-		t.Errorf("required-reviewers = %q, want verified-pass — the parent group requires an approval and "+
+	if got[idRequiredReviewers].Status != model.StatusPartial {
+		t.Errorf("required-reviewers = %q, want partial — the parent group requires an approval and "+
 			"the subgroup cannot override it away; reason=%q",
 			got[idRequiredReviewers].Status, got[idRequiredReviewers].Reason)
 	}
@@ -717,8 +771,13 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 		org  string
 		want map[string]model.Status
 	}{
+		// required-reviewers is partial here, not pass, and partial is ALSO
+		// what "no prod-like name" below produces for it — two genuinely
+		// different routes to one status, which is exactly the description
+		// rot the guard's own doc says it cannot see. Its rubric entry names
+		// both routes as (a) and (b); keep it that way.
 		{"protected with approval", envMux([]string{"production"}, 200, protectedWithApproval, 200), "",
-			map[string]model.Status{idExists: pass, idProtectionRules: pass, idRequiredReviewers: pass, idBranchPolicy: nc}},
+			map[string]model.Status{idExists: pass, idProtectionRules: pass, idRequiredReviewers: partial, idBranchPolicy: nc}},
 		{"unprotected", envMux([]string{"production"}, 200, nil, 200), "",
 			map[string]model.Status{idExists: pass, idProtectionRules: fail, idRequiredReviewers: fail, idBranchPolicy: nc}},
 		{"no prod-like name", envMux([]string{"staging"}, 200, nil, 200), "",
@@ -737,10 +796,10 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 		// wording against a case that produces it.
 		{"protected at group level only", envMuxTiered(taggedEnvs([]string{"production"}), 200, nil, 200,
 			map[string]groupState{"g": {status: 200, entries: groupProduction(1)}}), "",
-			map[string]model.Status{idExists: pass, idProtectionRules: pass, idRequiredReviewers: pass, idBranchPolicy: nc}},
+			map[string]model.Status{idExists: pass, idProtectionRules: pass, idRequiredReviewers: partial, idBranchPolicy: nc}},
 		{"protected at ancestor group only", envMuxTiered(taggedEnvs([]string{"production"}), 200, nil, 200,
 			map[string]groupState{"top/sub": {status: 200}, "top": {status: 200, entries: groupProduction(1)}}), "top/sub",
-			map[string]model.Status{idExists: pass, idProtectionRules: pass, idRequiredReviewers: pass, idBranchPolicy: nc}},
+			map[string]model.Status{idExists: pass, idProtectionRules: pass, idRequiredReviewers: partial, idBranchPolicy: nc}},
 		{"group protection without approval rule", envMuxTiered(taggedEnvs([]string{"production"}), 200, nil, 200,
 			map[string]groupState{"g": {status: 200, entries: groupProduction(0)}}), "",
 			map[string]model.Status{idExists: pass, idProtectionRules: pass, idRequiredReviewers: fail, idBranchPolicy: nc}},
