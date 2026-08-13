@@ -244,6 +244,12 @@ func groupBody(visibility string, twoFactor bool, creationLevel string) string {
 //   - group unreadable — the credential route to not-checkable, covering all
 //     four checks including members-without-2fa, whose rubric documents that
 //     status and nothing else.
+//   - public group, only maintainers may create projects — reaches no status
+//     the four above miss, and is here anyway. Without it the two
+//     visibility-derived checks agree in every state, so a defect that
+//     computed one from the other's logic is invisible; verified by injection
+//     before adding it, where exactly that substitution passed cleanly. With
+//     it, every pair of the four checks disagrees somewhere.
 func TestRubricsMatchObservedBehaviour(t *testing.T) {
 	states := []struct {
 		name   string
@@ -278,6 +284,20 @@ func TestRubricsMatchObservedBehaviour(t *testing.T) {
 				idTwoFactorRequired:   model.StatusVerifiedPass,
 				idDefaultPermission:   model.StatusNotCheckable,
 				idMembersCreatePublic: model.StatusNotCheckable,
+				idMembersWithout2FA:   model.StatusNotCheckable,
+			},
+		},
+		{
+			// The one configuration where the two visibility-derived checks
+			// part company: the group is public, so new projects default to
+			// world-readable, but ordinary members cannot create a project at
+			// all.
+			name: "public group, only maintainers may create projects", status: 200,
+			body: groupBody("public", true, "maintainer"),
+			want: map[string]model.Status{
+				idTwoFactorRequired:   model.StatusVerifiedPass,
+				idDefaultPermission:   model.StatusVerifiedFail,
+				idMembersCreatePublic: model.StatusVerifiedPass,
 				idMembersWithout2FA:   model.StatusNotCheckable,
 			},
 		},
