@@ -46,11 +46,71 @@
 // That restriction lives in each deploy job's own `rules:` in
 // .gitlab-ci.yml, which is per-job CI configuration, not an
 // environment-scoped API this check could read.
+//
+// # Group-level protected environments
+//
+// GET /projects/:id/protected_environments returns PROJECT-level entries
+// only. GitLab also protects environments at the GROUP level, and the two
+// models do not address environments the same way: project-level entries are
+// keyed by environment NAME, group-level entries by DEPLOYMENT TIER
+// (production/staging/testing/development/other), because "a group may
+// consist of many project environments that have unique names". So a project
+// whose production environment is protected only at the group level has an
+// empty project-level list, and reading that list alone reported it as
+// unprotected — a false fail (issue #13).
+//
+// Both protection checks therefore consult group-level config too, and pass
+// an environment protected by either. Verified live against
+// gitlab.com/qloud-ltd-group (Ultimate trial, 2026-08-13); the recorded
+// response is internal/collect/gitlab/gitlabfixture/testdata/
+// group-protected-environments.json, decoded by this package's own struct in
+// a test, and the run is written up in docs/gitlab-security-apis.md § 7.
+//
+// Two measured facts shape how this is read, both contrary to the obvious
+// implementation:
+//
+//   - The API does NOT return inherited protection. A parent group's
+//     protected environment applies to projects in its subgroups — GitLab's
+//     docs say a subgroup "cannot override it" — but
+//     GET /groups/<subgroup>/protected_environments returns [] while the
+//     parent's entry is live. Querying only the project's own namespace would
+//     therefore reproduce the same false fail one level down, so this walks
+//     the namespace and every ancestor group path. That walk needs no
+//     hierarchy discovery: scope.Org already IS the full namespace path, so
+//     the ancestors are its path prefixes.
+//   - A read failure must NOT become not-checkable, which is the opposite of
+//     what this package does for the project-level list and of what
+//     gitlabcollect.ErrTierGated's doctrine says in general. That doctrine
+//     protects a check whose ONLY evidence is tier-gated. Here it is not:
+//     project-level protected environments were verified working on Free
+//     (above), so a fail remains entitled, actionable and correct on the
+//     evidence at hand. Downgrading every unprotected project to
+//     not-checkable because a Premium-only ALTERNATIVE route could not be
+//     read would retire a working check for the majority Free audience. The
+//     blind spot is disclosed in the Reason instead.
+//
+// HTTP 404 from /groups/:path is NOT uniformly "no group exists" — GitLab is
+// documented elsewhere in this tree (gitlabcollect.IsTierGated's own doc
+// comment: "some Premium endpoints 403, some 404 to hide their existence")
+// as inconsistent about which status code hides a group's existence from a
+// token that can't see it. What's structurally provable, independent of
+// that gap: GitLab does not allow subgroups under a personal
+// namespace, so if the project's own namespace is nested ("a/b"), every
+// ancestor path in the walk — including the top-level one — is provably a
+// real group, and a 404 anywhere in that walk can only mean refused/hidden,
+// never absent; it is disclosed as a blind spot the same as a 403. Only for
+// a project directly in a single-segment namespace (the common
+// personal-namespace case, where there is exactly one path to check) does a
+// 404 stay genuinely ambiguous between "no group at all" and "a hidden
+// top-level group" — and stays undisclosed there, rather than caveat the
+// large majority of real fails on a distinction the API doesn't resolve.
 package envseparation
 
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"sort"
 	"strings"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
@@ -91,10 +151,14 @@ var checkRemediations = map[string]string{
 		"prod*/production variant — this check's name heuristic is case-insensitive) so deployments can " +
 		"be routed through it.",
 	idProtectionRules: "Project → Settings → CI/CD → Protected environments → protect the production-like " +
-		"environment, restricting at least who may deploy to it (Allowed to Deploy).",
+		"environment, restricting at least who may deploy to it (Allowed to Deploy). On Premium and above " +
+		"this can instead be done once for the whole group at Group → Settings → CI/CD → Protected " +
+		"environments, which protects by deployment tier rather than by environment name.",
 	idRequiredReviewers: "Project → Settings → CI/CD → Protected environments → protect the production-like " +
-		"environment and add an Approval rule requiring at least one approval. Note that the rule is stored " +
-		"and readable on Free, but verified live that it is NOT enforced at deploy time there — a real " +
+		"environment and add an Approval rule requiring at least one approval. On Premium and above the " +
+		"equivalent group-level rule, added at Group → Settings → CI/CD → Protected environments against " +
+		"the environment's deployment tier, satisfies this check too. Note that the rule is stored and " +
+		"readable on Free, but verified live that it is NOT enforced at deploy time there — a real " +
 		"deployment against exactly this configuration ran unblocked. GitLab documents deploy-time " +
 		"enforcement of this rule as a Premium/Ultimate feature (not independently verified here on a paid " +
 		"namespace) — confirm the namespace's tier before relying on this as an operative gate.",
@@ -103,12 +167,30 @@ var checkRemediations = map[string]string{
 		".gitlab-ci.yml instead, and document that control in the self-attestation questionnaire.",
 }
 
-const sharedNotCheckableRubric = "the environments list, or the protected-environments list, couldn't be " +
-	"read (403/404/other API error), or the project has zero environments configured at all"
+// The qualifier "project-level" is load-bearing: a failed GROUP-level read
+// deliberately does not produce not-checkable (see the package doc), so
+// naming the list unqualified would describe a path that does not exist.
+const sharedNotCheckableRubric = "the environments list, or the project-level protected-environments list, " +
+	"couldn't be read (403/404/other API error), or the project has zero environments configured at all"
 
 const sharedPartialRubric = "one or more environments exist, but none match the production-like naming " +
 	"heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is " +
 	"actually production before this check can evaluate anything"
+
+// sharedGroupBlindSpotRubric is appended to both protection checks' fail
+// entries. A fail is still emitted when group-level config cannot be read,
+// deliberately (see the package doc), so the rubric has to say that the fail
+// can rest on project-level evidence alone — otherwise a reader would take
+// every fail as having ruled out both routes.
+const sharedGroupBlindSpotRubric = ". Group-level config is read from the project's namespace and every " +
+	"ancestor group path; if any of those reads is refused the Reason names it and the fail rests on " +
+	"project-level evidence alone — this includes both 403 (a paid-tier or permission gate) and, when the " +
+	"project's namespace is nested (so every ancestor path is provably a real group), a 404, since GitLab " +
+	"is not consistent about which status code hides a group's existence from a token that can't see it. " +
+	"A 404 is disclosed as a refusal ONLY when the namespace is nested; for a project directly in a " +
+	"single-segment namespace (the common personal-namespace case) a 404 there is genuinely ambiguous " +
+	"between \"no group at all\" and \"a hidden top-level group,\" and stays silent rather than caveat the " +
+	"large majority of real fails"
 
 var checkRubrics = map[string]map[model.Status]string{
 	idExists: {
@@ -118,22 +200,26 @@ var checkRubrics = map[string]map[model.Status]string{
 		model.StatusNotCheckable: sharedNotCheckableRubric,
 	},
 	idProtectionRules: {
-		model.StatusVerifiedPass: "every production-like environment has a matching protected_environments " +
-			"entry (any protection at all — GitLab requires at least deploy_access_levels to protect one, " +
-			"so a matching entry's mere existence is the \"any type\" signal, mirroring the GitHub twin's " +
-			"identical framing)",
-		model.StatusVerifiedFail: "at least one production-like environment has no matching " +
-			"protected_environments entry",
+		model.StatusVerifiedPass: "every production-like environment is protected, by either of the two " +
+			"routes GitLab offers: a matching project-level protected_environments entry (any protection at " +
+			"all — GitLab requires at least deploy_access_levels to protect one, so a matching entry's mere " +
+			"existence is the \"any type\" signal, mirroring the GitHub twin's identical framing), or a " +
+			"group-level protected environment whose deployment tier matches the environment's own tier",
+		model.StatusVerifiedFail: "at least one production-like environment has neither a matching " +
+			"project-level protected_environments entry nor a group-level protected environment covering " +
+			"its deployment tier" + sharedGroupBlindSpotRubric,
 		model.StatusPartial:      sharedPartialRubric,
 		model.StatusNotCheckable: sharedNotCheckableRubric,
 	},
 	idRequiredReviewers: {
-		model.StatusVerifiedPass: "every production-like environment's protected_environments entry has at " +
-			"least one approval_rules entry with required_approvals >= 1. That is the stored configuration, " +
-			"not a demonstrated gate: on a Free namespace GitLab accepts, returns and even tracks the rule " +
-			"against a deployment, yet lets that deployment succeed with zero approvals",
-		model.StatusVerifiedFail: "at least one production-like environment has no protected_environments " +
-			"entry, or one with no approval_rules entry requiring at least one approval",
+		model.StatusVerifiedPass: "every production-like environment has an approval_rules entry with " +
+			"required_approvals >= 1, on either its project-level protected_environments entry or a " +
+			"group-level protected environment covering its deployment tier. That is the stored " +
+			"configuration, not a demonstrated gate: on a Free namespace GitLab accepts, returns and even " +
+			"tracks the rule against a deployment, yet lets that deployment succeed with zero approvals",
+		model.StatusVerifiedFail: "at least one production-like environment is covered by no " +
+			"protected_environments entry at project or group level, or only by ones whose approval_rules " +
+			"require no approvals" + sharedGroupBlindSpotRubric,
 		model.StatusPartial:      sharedPartialRubric,
 		model.StatusNotCheckable: sharedNotCheckableRubric,
 	},
@@ -145,10 +231,32 @@ var checkRubrics = map[string]map[model.Status]string{
 	},
 }
 
+const projectTokenScope = "read_api (Reporter or above on the project)"
+
+// Only the two protection checks read group-level config, so only they carry
+// the extra namespace requirement. Stating it on all four would tell a reader
+// that branch-policy — which makes no API call at all — needs group
+// visibility.
+var checkTokenScopes = map[string]string{
+	idExists: projectTokenScope,
+	idProtectionRules: projectTokenScope + ", plus visibility of the project's namespace to read " +
+		"group-level protected environments (without it the check still runs, on project-level config alone)",
+	idRequiredReviewers: projectTokenScope + ", plus visibility of the project's namespace to read " +
+		"group-level protected environments (without it the check still runs, on project-level config alone)",
+	idBranchPolicy: "none — this check makes no API call of its own; GitLab has no per-environment " +
+		"branch-restriction mechanism, so the result is a fixed fact rather than something read",
+}
+
+var protectionEndpoints = []string{
+	"GET /projects/{id}/environments",
+	"GET /projects/{id}/protected_environments",
+	"GET /groups/{namespace}/protected_environments",
+}
+
 var checkEndpoints = map[string][]string{
 	idExists:            {"GET /projects/{id}/environments"},
-	idProtectionRules:   {"GET /projects/{id}/environments", "GET /projects/{id}/protected_environments"},
-	idRequiredReviewers: {"GET /projects/{id}/environments", "GET /projects/{id}/protected_environments"},
+	idProtectionRules:   protectionEndpoints,
+	idRequiredReviewers: protectionEndpoints,
 	idBranchPolicy:      nil,
 }
 
@@ -158,7 +266,7 @@ func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
 			ID: id, Platform: platform, Title: checkTitles[id], Collector: collectorID,
-			TokenScope:  "read_api (Reporter or above on the project)",
+			TokenScope:  checkTokenScopes[id],
 			Remediation: checkRemediations[id], Rubric: checkRubrics[id],
 			Endpoints: checkEndpoints[id], FixtureRef: fixtureRef,
 		})
@@ -166,13 +274,28 @@ func init() {
 }
 
 // environment is the subset of GitLab's Environments response this needs.
+//
+// Tier is the environment's deployment tier — production, staging, testing,
+// development or other. It is what group-level protected environments are
+// keyed by, and it is NOT the name: GitLab derives it from the name when it
+// can (an environment called "production" comes back tier "production") but
+// it is settable independently, so "gprd" with tier "production" is both
+// normal and, by design, exactly the case group-level protection exists to
+// cover. Both were created live to confirm it (2026-08-13).
 type environment struct {
 	Name string `json:"name"`
+	Tier string `json:"tier"`
 }
 
 // protectedEnvironment is the subset of GitLab's Protected Environments
 // response this needs, verified 2026-08-11 against a live protected
 // environment created (and deleted) on this project.
+//
+// It decodes group-level entries too — their bodies are the same shape,
+// confirmed against a live group-level entry (2026-08-13). The one thing
+// that changes is what Name means: an environment name at project level, a
+// deployment tier at group level. Callers must not mix the two up, which is
+// why groupProtection below keys its map by tier explicitly.
 type protectedEnvironment struct {
 	Name          string         `json:"name"`
 	ApprovalRules []approvalRule `json:"approval_rules"`
@@ -232,6 +355,14 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 
 	envs, err := gitlabcollect.GetJSONPaged[environment](ctx, client, "/projects/"+id+"/environments", nil)
 	prov := client.Provenance()
+	// existsProv is captured here, before any further call, and is what
+	// checkExists gets below — its own declared Endpoints is only GET
+	// .../environments, and Provenance() is cumulative, so reusing the
+	// later, wider `prov` (which grows to include protected_environments
+	// and, when the group-level walk runs, every group path too) would
+	// have this result cite API calls it isn't about — the same class of
+	// evidence-integrity defect issue #14 fixed elsewhere in this package.
+	existsProv := prov
 	if err != nil {
 		return allNotCheckable(org, repo, fmt.Sprintf("could not read environments: %v", err), prov)
 	}
@@ -240,10 +371,11 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 	}
 
 	allNames := envNames(envs)
-	prodNames := prodLikeNames(allNames)
-	if len(prodNames) == 0 {
+	prodEnvs := prodLikeEnvs(envs)
+	if len(prodEnvs) == 0 {
 		return allPartialNoProdEnv(org, repo, allNames, prov)
 	}
+	prodNames := envNames(prodEnvs)
 
 	protected, err := gitlabcollect.GetJSONPaged[protectedEnvironment](ctx, client, "/projects/"+id+"/protected_environments", nil)
 	prov = client.Provenance()
@@ -255,12 +387,168 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 		byName[pe.Name] = pe
 	}
 
+	// Only projects already heading for a fail pay for the group-level walk.
+	// If project-level config alone answers both checks with a pass, no
+	// group-level entry could change that answer — group and project rules
+	// compose (GitLab: "the user must be allowed in both rulesets"), so
+	// group-level config can only ever turn a fail into a pass here, never
+	// the reverse.
+	var group groupProtection
+	if needsGroupLookup(prodEnvs, byName) {
+		group = readGroupProtection(ctx, client, org)
+		prov = client.Provenance()
+	}
+
 	return []model.CheckResult{
-		checkExists(org, repo, prodNames, prov),
-		checkProtectionRules(org, repo, prodNames, byName, prov),
-		checkRequiredReviewers(org, repo, prodNames, byName, prov),
+		checkExists(org, repo, prodNames, existsProv),
+		checkProtectionRules(org, repo, prodEnvs, byName, group, prov),
+		checkRequiredReviewers(org, repo, prodEnvs, byName, group, prov),
 		branchPolicyResult(org, repo),
 	}
+}
+
+// groupProtection is what the group-level walk found: the protected
+// deployment tiers it could read, and the group paths it could not.
+//
+// blocked is not cosmetic. It is the difference between "we looked at both
+// routes and neither protects this" and "we looked at one route" — and both
+// of those emit verified-fail, so without it the two are indistinguishable
+// to whoever reads the pack.
+type groupProtection struct {
+	byTier  map[string]protectedEnvironment
+	blocked []string
+}
+
+// needsGroupLookup reports whether group-level config could still change an
+// answer — i.e. whether either protection check would fail on project-level
+// evidence alone. It covers both checks' fail conditions, including the case
+// where an environment IS protected at project level but that entry requires
+// no approvals, which fails required-reviewers only.
+func needsGroupLookup(prodEnvs []environment, byName map[string]protectedEnvironment) bool {
+	for _, e := range prodEnvs {
+		pe, ok := byName[e.Name]
+		if !ok || !hasRequiredApproval(pe) {
+			return true
+		}
+	}
+	return false
+}
+
+// readGroupProtection walks the project's namespace and every ancestor group
+// path, collecting group-level protected environments by deployment tier.
+//
+// The walk exists because the API does not return inherited protection — see
+// the package doc. It needs no hierarchy discovery call: org is already the
+// full namespace path, so "a/b/c" yields "a/b/c", "a/b", "a".
+//
+// A 404 on a SINGLE-SEGMENT org is skipped silently — it's genuinely
+// ambiguous there (a personal namespace with no group at all, vs. a
+// top-level group hidden from this token the way client.go's own doc
+// comment says GitLab inconsistently does: "some Premium endpoints 403,
+// some 404 to hide their existence"). But when org itself is nested
+// ("a/b"), GitLab does not allow subgroups under a personal namespace, so
+// EVERY ancestor path in the walk — including the top-level one — is
+// provably a real group; a 404 anywhere in that walk can then only mean
+// refused/hidden, never absent, and must be disclosed the same as a 403.
+// Getting this wrong isn't cosmetic: this MR's own rubric text tells a
+// reader "no caveat means both routes were ruled out," so silently
+// swallowing a disclosable 404 would make a false-fail read as complete
+// when it isn't, in a tool whose output goes into a signed attestation.
+// Anything else (403, 5xx, network) is always recorded as a blind spot;
+// the walk always continues past a blocked path — a group being unreadable
+// says nothing about whether its parent is.
+func readGroupProtection(ctx context.Context, client *gitlabcollect.Client, org string) groupProtection {
+	provablyGroup := strings.Contains(strings.Trim(org, "/"), "/")
+	gp := groupProtection{byTier: map[string]protectedEnvironment{}}
+	for _, path := range namespacePaths(org) {
+		entries, err := gitlabcollect.GetJSONPaged[protectedEnvironment](ctx, client,
+			"/groups/"+escapePath(path)+"/protected_environments", nil)
+		if err != nil {
+			if code, ok := gitlabcollect.StatusCodeOf(err); ok {
+				if code == http.StatusNotFound && !provablyGroup {
+					continue
+				}
+				gp.blocked = append(gp.blocked, fmt.Sprintf("%s: HTTP %d", path, code))
+				continue
+			}
+			gp.blocked = append(gp.blocked, fmt.Sprintf("%s: %v", path, err))
+			continue
+		}
+		for _, e := range entries {
+			// An entry naming no tier protects no tier. Dropping it here
+			// keeps every key in byTier a real deployment tier, which is what
+			// lets the lookup be a plain map read: an environment reporting
+			// no tier finds nothing rather than colliding with this entry and
+			// passing on it. A false PASS is the one direction this check
+			// must never fail in.
+			if e.Name == "" {
+				continue
+			}
+			// Deepest group wins unless a shallower one requires approvals:
+			// the rulesets compose, so an approval demanded anywhere up the
+			// chain is demanded, and keeping the entry that carries it is
+			// what lets required-reviewers see it.
+			if existing, ok := gp.byTier[e.Name]; ok && hasRequiredApproval(existing) {
+				continue
+			}
+			gp.byTier[e.Name] = e
+		}
+	}
+	return gp
+}
+
+// namespacePaths returns org and each of its ancestor group paths, deepest
+// first: "a/b/c" yields "a/b/c", "a/b", "a".
+func namespacePaths(org string) []string {
+	trimmed := strings.Trim(org, "/")
+	if trimmed == "" {
+		return nil
+	}
+	parts := strings.Split(trimmed, "/")
+	out := make([]string, 0, len(parts))
+	for i := len(parts); i > 0; i-- {
+		out = append(out, strings.Join(parts[:i], "/"))
+	}
+	return out
+}
+
+// groupEntryFor returns the group-level entry covering e, if any. Group-level
+// protection is keyed by deployment tier and nothing else, so an environment
+// reporting no tier — an older self-managed instance, say — matches nothing:
+// readGroupProtection keeps empty tiers out of the map, which makes an empty
+// tier a non-answer here rather than a wildcard.
+func groupEntryFor(e environment, gp groupProtection) (protectedEnvironment, bool) {
+	pe, ok := gp.byTier[e.Tier]
+	return pe, ok
+}
+
+// blindSpotSuffix renders the disclosure appended to a fail Reason when some
+// group path could not be read, so a fail never silently claims to have
+// ruled out a route it never saw.
+func (gp groupProtection) blindSpotSuffix() string {
+	if len(gp.blocked) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("; group-level protected environments could not be read (%s), so protection "+
+		"configured there is not visible to this check", strings.Join(gp.blocked, ", "))
+}
+
+// tiersOf renders the distinct deployment tiers of envs for a Reason string.
+func tiersOf(envs []environment) string {
+	seen := map[string]bool{}
+	var out []string
+	for _, e := range envs {
+		tier := e.Tier
+		if tier == "" {
+			tier = "(none reported)"
+		}
+		if !seen[tier] {
+			seen[tier] = true
+			out = append(out, tier)
+		}
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
 }
 
 func checkExists(org, repo string, prodNames []string, prov []model.Provenance) model.CheckResult {
@@ -272,43 +560,80 @@ func checkExists(org, repo string, prodNames []string, prov []model.Provenance) 
 	}
 }
 
-func checkProtectionRules(org, repo string, prodNames []string, byName map[string]protectedEnvironment, prov []model.Provenance) model.CheckResult {
-	var unprotected []string
-	for _, name := range prodNames {
-		if _, ok := byName[name]; !ok {
-			unprotected = append(unprotected, name)
+func checkProtectionRules(org, repo string, prodEnvs []environment, byName map[string]protectedEnvironment,
+	gp groupProtection, prov []model.Provenance) model.CheckResult {
+	var unprotected, viaGroup []string
+	var unprotectedEnvs []environment
+	for _, e := range prodEnvs {
+		if _, ok := byName[e.Name]; ok {
+			continue
 		}
+		if _, ok := groupEntryFor(e, gp); ok {
+			viaGroup = append(viaGroup, e.Name)
+			continue
+		}
+		unprotected = append(unprotected, e.Name)
+		unprotectedEnvs = append(unprotectedEnvs, e)
 	}
+
+	prodNames := envNames(prodEnvs)
 	if len(unprotected) > 0 {
+		facts := map[string]any{"unprotected_environments": unprotected}
+		if len(gp.blocked) > 0 {
+			facts["group_level_unreadable"] = gp.blocked
+		}
 		return model.CheckResult{
 			CheckID: idProtectionRules, Title: checkTitles[idProtectionRules], Status: model.StatusVerifiedFail,
-			Reason: fmt.Sprintf("no protected_environments entry for: %v", unprotected),
-			Scope:  model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
-			Facts: map[string]any{"unprotected_environments": unprotected},
+			Reason: fmt.Sprintf("no project-level protected_environments entry for: %v, and no group-level "+
+				"protected environment covering deployment tier(s): %s%s",
+				unprotected, tiersOf(unprotectedEnvs), gp.blindSpotSuffix()),
+			Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
+			Facts: facts,
 		}
+	}
+
+	facts := map[string]any{"production_like_environments": prodNames}
+	if len(viaGroup) > 0 {
+		facts["group_protected_environments"] = viaGroup
 	}
 	return model.CheckResult{
 		CheckID: idProtectionRules, Title: checkTitles[idProtectionRules], Status: model.StatusVerifiedPass,
-		Reason: fmt.Sprintf("every production-like environment is protected: %v", prodNames),
-		Scope:  model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
-		Facts: map[string]any{"production_like_environments": prodNames},
+		Reason: fmt.Sprintf("every production-like environment is protected: %v%s",
+			prodNames, viaGroupSuffix(viaGroup)),
+		Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
+		Facts: facts,
 	}
 }
 
-func checkRequiredReviewers(org, repo string, prodNames []string, byName map[string]protectedEnvironment, prov []model.Provenance) model.CheckResult {
-	var missing []string
-	for _, name := range prodNames {
-		pe, ok := byName[name]
-		if !ok || !hasRequiredApproval(pe) {
-			missing = append(missing, name)
+func checkRequiredReviewers(org, repo string, prodEnvs []environment, byName map[string]protectedEnvironment,
+	gp groupProtection, prov []model.Provenance) model.CheckResult {
+	var missing, viaGroup []string
+	var missingEnvs []environment
+	for _, e := range prodEnvs {
+		if pe, ok := byName[e.Name]; ok && hasRequiredApproval(pe) {
+			continue
 		}
+		if pe, ok := groupEntryFor(e, gp); ok && hasRequiredApproval(pe) {
+			viaGroup = append(viaGroup, e.Name)
+			continue
+		}
+		missing = append(missing, e.Name)
+		missingEnvs = append(missingEnvs, e)
 	}
+
+	prodNames := envNames(prodEnvs)
 	if len(missing) > 0 {
+		facts := map[string]any{"missing_required_reviewers": missing}
+		if len(gp.blocked) > 0 {
+			facts["group_level_unreadable"] = gp.blocked
+		}
 		return model.CheckResult{
 			CheckID: idRequiredReviewers, Title: checkTitles[idRequiredReviewers], Status: model.StatusVerifiedFail,
-			Reason: fmt.Sprintf("no approval rule requiring at least one approval for: %v", missing),
-			Scope:  model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
-			Facts: map[string]any{"missing_required_reviewers": missing},
+			Reason: fmt.Sprintf("no approval rule requiring at least one approval, at project level or on a "+
+				"group-level protected environment covering deployment tier(s) %s, for: %v%s",
+				tiersOf(missingEnvs), missing, gp.blindSpotSuffix()),
+			Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
+			Facts: facts,
 		}
 	}
 	// ⚠ Deliberately conservative wording (issue #12). "requires at least one
@@ -316,18 +641,35 @@ func checkRequiredReviewers(org, repo string, prodNames []string, byName map[str
 	// false — verified by a real pipeline deployment that succeeded with
 	// pending_approval_count 0 against exactly this configuration (see the
 	// package doc comment). State the stored rule; let the reader's tier
-	// decide whether it fires.
+	// decide whether it fires. This applies equally to a pass reached via
+	// group-level config (issue #13): the same unverified-enforcement gap
+	// exists for that route too, since it's read from the identical
+	// approval_rules shape at a different API level.
+	facts := map[string]any{"production_like_environments": prodNames}
+	if len(viaGroup) > 0 {
+		facts["group_required_reviewers"] = viaGroup
+	}
 	return model.CheckResult{
 		CheckID: idRequiredReviewers, Title: checkTitles[idRequiredReviewers], Status: model.StatusVerifiedPass,
 		Reason: fmt.Sprintf("every production-like environment has a stored approval rule requiring at least "+
-			"one approval: %v. That is the recorded configuration, not evidence the gate fires — verified live "+
-			"on a Free namespace that it does not (a real pipeline deployment against exactly this "+
+			"one approval: %v%s. That is the recorded configuration, not evidence the gate fires — verified "+
+			"live on a Free namespace that it does not (a real pipeline deployment against exactly this "+
 			"configuration succeeded with pending_approval_count 0); GitLab documents deploy-time enforcement "+
 			"of this rule as a Premium/Ultimate feature, not verified here on a paid namespace",
-			prodNames),
+			prodNames, viaGroupSuffix(viaGroup)),
 		Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
-		Facts: map[string]any{"production_like_environments": prodNames},
+		Facts: facts,
 	}
+}
+
+// viaGroupSuffix names the environments that passed on group-level config,
+// so a pass says which of the two routes it came from rather than leaving
+// the reader to guess from an empty project-level list.
+func viaGroupSuffix(viaGroup []string) string {
+	if len(viaGroup) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (%v via group-level protection of the environment's deployment tier)", viaGroup)
 }
 
 func hasRequiredApproval(pe protectedEnvironment) bool {
@@ -408,11 +750,11 @@ func envNames(envs []environment) []string {
 	return out
 }
 
-func prodLikeNames(names []string) []string {
-	var out []string
-	for _, n := range names {
-		if prodLikeName(n) {
-			out = append(out, n)
+func prodLikeEnvs(envs []environment) []environment {
+	var out []environment
+	for _, e := range envs {
+		if prodLikeName(e.Name) {
+			out = append(out, e)
 		}
 	}
 	return out

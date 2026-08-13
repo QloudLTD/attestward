@@ -283,3 +283,116 @@ nothing. The distinction is the whole point of the check, so the wording should
 be tightened when the C06 collector lands. Left alone here deliberately: this
 change is a fixture capture, and rewriting shared reason strings from a
 capture branch is how two sessions collide.
+
+## 7. Group-level protected environments (issue #13)
+
+Captured **2026-08-13** on the same two namespaces, for a different reason: not a
+tier question but an *address* question. `GET /projects/:id/protected_environments`
+returns project-level entries only, and a project whose production environment is
+protected at the **group** level has an empty project-level list — so C03's two
+protection checks read a genuinely protected project as `verified-fail`.
+
+Reproduced end to end on `qloud-ltd-group/attestward-fixtures`: with one
+group-level entry live and no project-level entry, the project list was `[]`.
+
+### The two models do not address environments the same way
+
+| | Project level | Group level |
+|---|---|---|
+| Endpoint | `GET /projects/:id/protected_environments` | `GET /groups/:id/protected_environments` |
+| Keyed by | environment **name** | deployment **tier** |
+| Tier badge | Premium/Ultimate — but **works on Free** (verified 2026-08-11) | Premium/Ultimate; Free behaviour **unmeasured**, see below |
+
+`name` on a group-level entry is a *deployment tier*: `production`, `staging`,
+`testing`, `development` or `other`. GitLab's rationale is that "a group may
+consist of many project environments that have unique names", so name-keying does
+not scale across a group. The bodies are otherwise the same shape, which is why
+one struct decodes both — and why mixing them up is easy. Recorded as
+`group-protected-environments.json`:
+
+```json
+[{"name": "production",
+  "deploy_access_levels": [{"access_level": 40, "access_level_description": "Maintainers", "…": "…"}],
+  "required_approval_count": 0,
+  "approval_rules": [{"access_level": 40, "required_approvals": 1, "…": "…"}]}]
+```
+
+The matching key on the other side is the environment's own `tier`, which
+`GET /projects/:id/environments` already returns. GitLab derives it from the name
+when it can but it is settable independently — both were created live to confirm:
+
+```json
+[{"id": 39113195, "name": "production", "tier": "production", "state": "available"},
+ {"id": 39113196, "name": "gprd",       "tier": "production", "state": "available"}]
+```
+
+### The finding: inherited protection is NOT returned
+
+**A parent group's protected environment governs projects in its subgroups —
+GitLab's docs say a subgroup "cannot override it" — but the subgroup's own
+endpoint does not report it.** Measured against a subgroup created under
+`qloud-ltd-group` while the parent's `production` entry was live:
+
+```
+GET /groups/qloud-ltd-group/protected_environments                 → [{"name":"production",…}]
+GET /groups/qloud-ltd-group%2Fpe-inherit-probe/protected_environments → []
+```
+
+So a collector that queries only the project's own namespace reproduces exactly
+the false fail it set out to remove, one level down. `envseparation` walks the
+namespace and every ancestor path instead. That walk needs no hierarchy
+discovery call: `scope.Org` already IS the full namespace path, so the ancestors
+are its path prefixes.
+
+### What could not be measured, and what that forced
+
+**The Free-tier behaviour of `GET /groups/:id/protected_environments` is
+unknown.** There was no Free group to ask: the only accessible group is the
+Ultimate-trial one, projects under `sioakeim` are in a *personal namespace*
+(`/groups/sioakeim` → **404 Group Not Found**, so there is no group to query at
+all), and creating a throwaway Free top-level group was refused —
+`POST /groups` → **403**. Whether Free answers 403 like the REST security
+endpoints in §1, or 200 `[]` like the project-level list that also carries a
+Premium badge, is untested. Do not assume either.
+
+That gap is the reason a failed group read does **not** become `not-checkable`,
+which is otherwise this codebase's rule for tier-gated endpoints
+(`ErrTierGated`). That rule protects a check whose *only* evidence is gated;
+here it is not — project-level protected environments work on Free, so the fail
+stays entitled and actionable. If Free does 403, treating that as
+`not-checkable` would silently retire C03's two protection checks for the
+majority audience. The blind spot is disclosed in the Reason instead.
+
+**404 is NOT uniformly "no group exists."** GitLab is documented elsewhere in
+this codebase (`internal/collect/gitlab/client.go`) as inconsistent about which
+status code hides a group's existence from a token that can't see it — some
+Premium endpoints 403, some 404. Whether that's true for THIS endpoint on Free
+was never measured (see above). What's structurally provable, independent of
+that gap: GitLab does not allow subgroups under a personal namespace, so if the
+project's own namespace is nested (`a/b`), every ancestor path in the walk —
+including the top-level one — is provably a real group, and a 404 anywhere in
+that walk can only mean refused/hidden, never absent. The collector discloses
+a 404 as a blind spot in that case, the same as a 403. Only for a project
+directly in a single-segment namespace (the common personal-namespace case,
+where there's exactly one path to check) does a 404 stay genuinely ambiguous
+between "no group at all" and "a hidden top-level group" — and stays silent
+there, rather than caveat the large majority of real fails on an unresolvable
+distinction.
+
+### Recreating this state
+
+Everything below was deleted after capture; the group, the subgroup and the two
+environments are gone. To rebuild it (needs Maintainer+ and a Premium/Ultimate
+group — the trial ends **2026-09-08**):
+
+```bash
+curl -X POST -H "PRIVATE-TOKEN: $T" -H 'Content-Type: application/json' \
+  "$API/groups/$GID/protected_environments" \
+  -d '{"name":"production","deploy_access_levels":[{"access_level":40}],
+       "approval_rules":[{"access_level":40,"required_approvals":1}]}'
+curl -X POST -H "PRIVATE-TOKEN: $T" -H 'Content-Type: application/json' \
+  "$API/projects/$PID/environments" -d '{"name":"gprd","tier":"production"}'
+```
+
+Teardown is `DELETE /groups/$GID/protected_environments/production` and, for an
+environment, a `POST …/environments/:id/stop` before `DELETE …/environments/:id`.

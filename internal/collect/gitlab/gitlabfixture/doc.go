@@ -67,6 +67,15 @@
 //   - vulnerabilities-all-states.json drives IsOpenVulnerability in the parent
 //     package, which is where the decision that a dismissed or resolved finding
 //     must never count as open is written down and tested.
+//   - group-protected-environments.json is decoded by
+//     internal/collect/gitlab/envseparation through that package's own
+//     protectedEnvironment struct, which is the whole point of keeping it: it
+//     pins the one thing about the group-level endpoint a reader is likely to
+//     get wrong. The entry's "name" is a deployment TIER, not an environment
+//     name, so the same struct that decodes the project-level list decodes
+//     this one while meaning something different by the same field. Recorded
+//     2026-08-13 from a live group-level protected environment created and
+//     deleted on gitlab.com/qloud-ltd-group (Ultimate trial).
 //   - every file here is parsed by TestEveryRecordedFixtureIsReadableAndParses,
 //     so a truncated or corrupted capture fails at the commit that made it
 //     rather than months later when its collector is finally written.

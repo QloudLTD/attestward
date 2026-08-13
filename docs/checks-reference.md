@@ -742,7 +742,7 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments restrict which branches/tags can deploy
 
-- **Token permission:** read_api (Reporter or above on the project)
+- **Token permission:** none — this check makes no API call of its own; GitLab has no per-environment branch-restriction mechanism, so the result is a fixed fact rather than something read
 - **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
@@ -814,7 +814,7 @@ This check is registered under more than one platform — details for each below
 **Status rubric:**
 
 - **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
-- **not-checkable:** the environments list, or the protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **not-checkable:** the environments list, or the project-level protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
 - **verified-pass:** at least one environment's name matches the production-like heuristic (`prod`* prefix, case-insensitive)
 
 **Remediation:** Project → Deployments → Environments → New environment → name it "production" (or any prod*/production variant — this check's name heuristic is case-insensitive) so deployments can be routed through it.
@@ -876,18 +876,18 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments have at least one protection rule
 
-- **Token permission:** read_api (Reporter or above on the project)
+- **Token permission:** read_api (Reporter or above on the project), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
 - **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
-- **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`
+- **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`, `GET /groups/{namespace}/protected_environments`
 
 **Status rubric:**
 
-- **verified-fail:** at least one production-like environment has no matching protected_environments entry
+- **verified-fail:** at least one production-like environment has neither a matching project-level protected_environments entry nor a group-level protected environment covering its deployment tier. Group-level config is read from the project's namespace and every ancestor group path; if any of those reads is refused the Reason names it and the fail rests on project-level evidence alone — this includes both 403 (a paid-tier or permission gate) and, when the project's namespace is nested (so every ancestor path is provably a real group), a 404, since GitLab is not consistent about which status code hides a group's existence from a token that can't see it. A 404 is disclosed as a refusal ONLY when the namespace is nested; for a project directly in a single-segment namespace (the common personal-namespace case) a 404 there is genuinely ambiguous between "no group at all" and "a hidden top-level group," and stays silent rather than caveat the large majority of real fails
 - **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
-- **not-checkable:** the environments list, or the protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
-- **verified-pass:** every production-like environment has a matching protected_environments entry (any protection at all — GitLab requires at least deploy_access_levels to protect one, so a matching entry's mere existence is the "any type" signal, mirroring the GitHub twin's identical framing)
+- **not-checkable:** the environments list, or the project-level protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **verified-pass:** every production-like environment is protected, by either of the two routes GitLab offers: a matching project-level protected_environments entry (any protection at all — GitLab requires at least deploy_access_levels to protect one, so a matching entry's mere existence is the "any type" signal, mirroring the GitHub twin's identical framing), or a group-level protected environment whose deployment tier matches the environment's own tier
 
-**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment, restricting at least who may deploy to it (Allowed to Deploy).
+**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment, restricting at least who may deploy to it (Allowed to Deploy). On Premium and above this can instead be done once for the whole group at Group → Settings → CI/CD → Protected environments, which protects by deployment tier rather than by environment name.
 
 #### gogs — Environments have protection rules
 
@@ -946,18 +946,18 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments require reviewer approval before deployment
 
-- **Token permission:** read_api (Reporter or above on the project)
+- **Token permission:** read_api (Reporter or above on the project), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
 - **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
-- **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`
+- **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`, `GET /groups/{namespace}/protected_environments`
 
 **Status rubric:**
 
-- **verified-fail:** at least one production-like environment has no protected_environments entry, or one with no approval_rules entry requiring at least one approval
+- **verified-fail:** at least one production-like environment is covered by no protected_environments entry at project or group level, or only by ones whose approval_rules require no approvals. Group-level config is read from the project's namespace and every ancestor group path; if any of those reads is refused the Reason names it and the fail rests on project-level evidence alone — this includes both 403 (a paid-tier or permission gate) and, when the project's namespace is nested (so every ancestor path is provably a real group), a 404, since GitLab is not consistent about which status code hides a group's existence from a token that can't see it. A 404 is disclosed as a refusal ONLY when the namespace is nested; for a project directly in a single-segment namespace (the common personal-namespace case) a 404 there is genuinely ambiguous between "no group at all" and "a hidden top-level group," and stays silent rather than caveat the large majority of real fails
 - **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
-- **not-checkable:** the environments list, or the protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
-- **verified-pass:** every production-like environment's protected_environments entry has at least one approval_rules entry with required_approvals >= 1. That is the stored configuration, not a demonstrated gate: on a Free namespace GitLab accepts, returns and even tracks the rule against a deployment, yet lets that deployment succeed with zero approvals
+- **not-checkable:** the environments list, or the project-level protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **verified-pass:** every production-like environment has an approval_rules entry with required_approvals >= 1, on either its project-level protected_environments entry or a group-level protected environment covering its deployment tier. That is the stored configuration, not a demonstrated gate: on a Free namespace GitLab accepts, returns and even tracks the rule against a deployment, yet lets that deployment succeed with zero approvals
 
-**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment and add an Approval rule requiring at least one approval. Note that the rule is stored and readable on Free, but verified live that it is NOT enforced at deploy time there — a real deployment against exactly this configuration ran unblocked. GitLab documents deploy-time enforcement of this rule as a Premium/Ultimate feature (not independently verified here on a paid namespace) — confirm the namespace's tier before relying on this as an operative gate.
+**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment and add an Approval rule requiring at least one approval. On Premium and above the equivalent group-level rule, added at Group → Settings → CI/CD → Protected environments against the environment's deployment tier, satisfies this check too. Note that the rule is stored and readable on Free, but verified live that it is NOT enforced at deploy time there — a real deployment against exactly this configuration ran unblocked. GitLab documents deploy-time enforcement of this rule as a Premium/Ultimate feature (not independently verified here on a paid namespace) — confirm the namespace's tier before relying on this as an operative gate.
 
 #### gogs — Production environments require reviewers
 
