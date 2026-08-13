@@ -10,6 +10,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -556,4 +557,312 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 			t.Errorf("%s: FixtureRef is empty", id)
 		}
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// envs is the Environments - List response; perEnvChecks is one Check
+// Configurations - List response per PRODUCTION-LIKE environment, in the
+// order fetchAllCheckConfigurations walks them; checksErr, when set, replaces
+// the whole checks sequence with that one failing response.
+type rubricState struct {
+	name         string
+	envs         adofixture.Response
+	perEnvChecks [][]map[string]any
+	checksErr    *adofixture.Response
+	want         map[string]model.Status
+}
+
+func (st rubricState) fixture() *adofixture.Transport {
+	fx := adofixture.New()
+	fx.Set("GET", azuredevops.HostCore, environmentsPath(), st.envs)
+	switch {
+	case st.checksErr != nil:
+		fx.Set("GET", azuredevops.HostCore, checksPath(), *st.checksErr)
+	case st.perEnvChecks != nil:
+		checksFixtureSequence(fx, st.perEnvChecks...)
+	}
+	return fx
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Twelve states reach every status this collector can emit. env.exists has no
+// verified-fail in its rubric at all — Collect computes it only after the
+// environments list has already confirmed a production-like environment, so a
+// "no such environment" world is partial or not-checkable, never a fail. The
+// guard's both-directions comparison is what holds that: adding a
+// verified-fail entry to its rubric would immediately be reported as
+// documented-but-unreachable.
+//
+// Two conflation risks are real here and both are structural rather than
+// hypothetical:
+//
+//  1. protection-rules, required-reviewers and branch-policy all read the SAME
+//     per-environment check-configuration list, and differ only in which check
+//     TYPE they look for and whether they read isDisabled. A matrix that varies
+//     "does this environment have checks" moves all three in lockstep. States 2
+//     and 3 split required-reviewers from branch-policy in opposite directions
+//     (an Approval-only environment vs a Task-Check-only one); state 4 splits
+//     protection-rules from BOTH with a check of a third type that neither of
+//     them recognises; state 5 splits them again with no missing check at all —
+//     the Approval check is present but disabled while the Task Check is live.
+//
+//  2. env.exists shares the environments response with the other three but
+//     deliberately does NOT share their second call: Collect answers it from the
+//     environments list alone, before Check Configurations - List is attempted.
+//     State 12 is the only state that proves this — the checks call is denied and
+//     env.exists still passes while the other three go not-checkable. A matrix
+//     that only ever failed the environments list would move all four together
+//     and never test the claim.
+//
+// Verified by mutation rather than assumed — see the commit message for which
+// states caught which.
+//
+// Three of the four not-checkable/partial routes involve no transport failure
+// whatsoever: state 9 has environments that simply do not look like production,
+// state 10 has an empty (but successful) environments list, and state 12's
+// environments call succeeds. Only state 11 is an actual API denial.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	envsOK := func(envs ...map[string]any) adofixture.Response {
+		return adofixture.Response{
+			Status: http.StatusOK,
+			Body:   map[string]any{"count": len(envs), "value": envs},
+		}
+	}
+	env := func(id int, name string) map[string]any {
+		return map[string]any{"id": id, "name": name}
+	}
+	forbidden := adofixture.Response{Status: http.StatusForbidden, Body: map[string]any{"message": "denied"}}
+
+	// businessHoursCheck is a real, enabled check of a type this collector
+	// recognises as neither Approval nor Task Check — the "Business hours"
+	// check named in idProtectionRules' own remediation text. It is what makes
+	// state 4 a split rather than a blank: protection-rules counts any enabled
+	// check, and the other two must not count this one.
+	businessHoursCheck := map[string]any{
+		"id": 3, "isDisabled": false,
+		"type": map[string]any{"id": "7c6ecd7c-b1e0-4b6a-a5f0-4b1b6d5a1f2e", "name": "Business Hours"},
+	}
+	onlyProd := envsOK(env(11, "production"))
+
+	states := []rubricState{
+		{
+			name: "one production environment with an Approval check and a Task Check restricting to main",
+			envs: onlyProd,
+			perEnvChecks: [][]map[string]any{{
+				approvalCheck(false),
+				taskCheckWithAllowedBranches("refs/heads/main", false),
+			}},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedPass,
+				idRequiredReviewers: model.StatusVerifiedPass,
+				idBranchPolicy:      model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Type split, half one: an Approval check satisfies
+			// protection-rules and required-reviewers and must not satisfy
+			// branch-policy.
+			name:         "one production environment with only an Approval check",
+			envs:         onlyProd,
+			perEnvChecks: [][]map[string]any{{approvalCheck(false)}},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedPass,
+				idRequiredReviewers: model.StatusVerifiedPass,
+				idBranchPolicy:      model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Type split, the exact reverse of state 2.
+			name:         "one production environment with only a Task Check restricting to main",
+			envs:         onlyProd,
+			perEnvChecks: [][]map[string]any{{taskCheckWithAllowedBranches("refs/heads/main", false)}},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedPass,
+				idRequiredReviewers: model.StatusVerifiedFail,
+				idBranchPolicy:      model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Splits protection-rules from both type-specific checks: a real,
+			// enabled check of neither tracked type. protection-rules counts
+			// any check; the other two must recognise this one as neither.
+			name:         "one production environment whose only check is neither an Approval nor a Task Check",
+			envs:         onlyProd,
+			perEnvChecks: [][]map[string]any{{businessHoursCheck}},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedPass,
+				idRequiredReviewers: model.StatusVerifiedFail,
+				idBranchPolicy:      model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The isDisabled axis, and a split with nothing missing: both
+			// tracked check types are configured on this environment and only
+			// the Approval one is disabled. required-reviewers must read
+			// isDisabled; protection-rules still passes on the live Task Check.
+			name: "production environment with a DISABLED Approval check alongside a live Task Check",
+			envs: onlyProd,
+			perEnvChecks: [][]map[string]any{{
+				approvalCheck(true),
+				taskCheckWithAllowedBranches("refs/heads/main", false),
+			}},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedPass,
+				idRequiredReviewers: model.StatusVerifiedFail,
+				idBranchPolicy:      model.StatusVerifiedPass,
+			},
+		},
+		{
+			// protection-rules' only route to verified-fail. It is necessarily
+			// lockstep — an environment with no live check cannot have a live
+			// check of a particular type — so the fixture earns its keep a
+			// different way: the checks are PRESENT and merely disabled, so
+			// this is not the trivially-empty list.
+			name: "production environment whose Approval and Task checks are both disabled",
+			envs: onlyProd,
+			perEnvChecks: [][]map[string]any{{
+				approvalCheck(true),
+				taskCheckWithAllowedBranches("refs/heads/main", true),
+			}},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedFail,
+				idRequiredReviewers: model.StatusVerifiedFail,
+				idBranchPolicy:      model.StatusVerifiedFail,
+			},
+		},
+		{
+			// branch-policy's ambiguous route to partial, reached with the
+			// mixed list a previous version of hasRealBranchRestriction misread
+			// as a genuine restriction: "*" alongside a specific branch still
+			// allows every branch. The Approval check is live, so this state
+			// also holds branch-policy apart from the other two while nothing
+			// is missing.
+			name: "production environment whose Task Check allows main AND a match-all wildcard",
+			envs: onlyProd,
+			perEnvChecks: [][]map[string]any{{
+				approvalCheck(false),
+				taskCheckWithAllowedBranches("refs/heads/main,*", false),
+			}},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedPass,
+				idRequiredReviewers: model.StatusVerifiedPass,
+				idBranchPolicy:      model.StatusPartial,
+			},
+		},
+		{
+			// Three production-like environments, walked in order, each in a
+			// different branch-policy state: restricted, ambiguous, absent.
+			// This is the state that pins two things a single-environment
+			// matrix cannot: that the checks are evaluated across EVERY
+			// production-like environment rather than the first, and that a
+			// confident absence outranks an honest "can't tell" when both
+			// occur at once.
+			name: "three production environments: one restricted, one ambiguous, one with no Task Check",
+			envs: envsOK(env(11, "production"), env(12, "prod-eu"), env(13, "prod-us")),
+			perEnvChecks: [][]map[string]any{
+				{approvalCheck(false), taskCheckWithAllowedBranches("refs/heads/main", false)},
+				{approvalCheck(false), taskCheckWithAllowedBranches("*", false)},
+				{approvalCheck(false)},
+			},
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusVerifiedPass,
+				idRequiredReviewers: model.StatusVerifiedPass,
+				idBranchPolicy:      model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Every check's only route to partial except branch-policy's, and
+			// the only state where env.exists is partial. No checks call is
+			// made at all here, which is why the fixture registers none.
+			name: "environments exist but none is named production-like",
+			envs: envsOK(env(21, "staging"), env(22, "dev")),
+			want: map[string]model.Status{
+				idExists:            model.StatusPartial,
+				idProtectionRules:   model.StatusPartial,
+				idRequiredReviewers: model.StatusPartial,
+				idBranchPolicy:      model.StatusPartial,
+			},
+		},
+		{
+			// Not-checkable with no transport failure anywhere: the
+			// environments call succeeds and the project simply has none.
+			name: "the project has zero environments",
+			envs: envsOK(),
+			want: map[string]model.Status{
+				idExists:            model.StatusNotCheckable,
+				idProtectionRules:   model.StatusNotCheckable,
+				idRequiredReviewers: model.StatusNotCheckable,
+				idBranchPolicy:      model.StatusNotCheckable,
+			},
+		},
+		{
+			name: "the environments list is denied",
+			envs: forbidden,
+			want: map[string]model.Status{
+				idExists:            model.StatusNotCheckable,
+				idProtectionRules:   model.StatusNotCheckable,
+				idRequiredReviewers: model.StatusNotCheckable,
+				idBranchPolicy:      model.StatusNotCheckable,
+			},
+		},
+		{
+			// The state that pins env.exists' independence from the second
+			// call: a production environment demonstrably exists and only the
+			// checks read is denied. Nothing else in the matrix separates
+			// env.exists from the other three on the not-checkable axis.
+			name:      "a production environment exists but its check configurations are denied",
+			envs:      onlyProd,
+			checksErr: &forbidden,
+			want: map[string]model.Status{
+				idExists:            model.StatusVerifiedPass,
+				idProtectionRules:   model.StatusNotCheckable,
+				idRequiredReviewers: model.StatusNotCheckable,
+				idBranchPolicy:      model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			results, err := newTestCollector(st.fixture()).Collect(context.Background(), collect.Scope{
+				Org: testOrg, Project: testProject, Repos: []string{"repo-a"},
+			})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
