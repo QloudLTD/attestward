@@ -12,6 +12,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -874,4 +875,381 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 			t.Errorf("%s: FixtureRef is empty", id)
 		}
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// build is a function rather than data because these worlds differ in WHICH
+// endpoints exist at all, not just in what they answer — a state with no
+// pipelines registers no definition or YAML fixture, and a state with no
+// release tags registers no commit-date fixture.
+type rubricState struct {
+	name  string
+	build func(fx *adofixture.Transport)
+	want  map[string]model.Status
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Twelve states reach every status this collector can emit. default-setup has
+// no partial in its rubric — it is a direct reading of one boolean field on one
+// response — and the guard's documented-but-unreachable direction is what keeps
+// that honest.
+//
+// Three conflation risks are real here, and each one exists because two checks
+// read the SAME computed intermediate:
+//
+//  1. tool-configured and cadence both call matchConfidence(matched) and both
+//     read enablement. They agree on the confidence ladder, which is exactly
+//     what makes a naive matrix useless: high confidence passes both, a
+//     low-confidence-only match caps both at partial. State 6 is the state that
+//     splits them, and it splits them on the divergence checks.go documents on
+//     purpose — a low-confidence match alongside CodeQL default setup ENABLED
+//     passes tool-configured (default setup is real configuration) while cadence
+//     stays partial (GHAzDO default setup contributes zero observable builds, so
+//     it must not upgrade a run count that came entirely from a low-confidence
+//     match). If cadence ever grew the twin's "&& !setupConfigured" rescue, this
+//     is the only state in the matrix that would notice.
+//
+//  2. ran-per-release and cadence both consume the SAME []RunInfo from
+//     FetchBuilds and differ only in what they do with it — linkage to a release
+//     versus a count over the window. States 2 and 3 split them in opposite
+//     directions with the identical build count: in state 2 a build exists in the
+//     window but covers no release (cadence passes, ran-per-release fails), and in
+//     state 3 the build covers the release but did not succeed (ran-per-release is
+//     partial, cadence still passes).
+//
+//  3. tool-configured and default-setup both read enablement.CodeQLEnabled, and
+//     both go not-checkable on an enablement failure — but only when
+//     tool-configured has no other evidence. State 10 is what pins that: the
+//     enablement query is denied and a high-confidence pipeline match exists, so
+//     default-setup alone goes not-checkable while the other three pass. State 1
+//     splits the same pair the other way, with default setup genuinely off next
+//     to a configured pipeline.
+//
+// Verified by mutation rather than assumed — see the commit message for which
+// states caught which.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	releaseDate := time.Now().UTC().AddDate(0, 0, -30)
+	recent := time.Now().UTC().AddDate(0, 0, -5)
+
+	repos := func(fx *adofixture.Transport) {
+		registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	}
+	// highConfPipeline is a real ado_task match against the embedded "codeql"
+	// signature — the top of the confidence ladder.
+	highConfPipeline := func(fx *adofixture.Transport) {
+		registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+		registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+		registerYAML(fx, testRepoID, "steps:\n  - task: AdvancedSecurity-Codeql-Init@1\n  - task: AdvancedSecurity-Codeql-Analyze@1\n")
+	}
+	// lowConfPipeline matches semgrep's workflow_name_patterns only — a
+	// pipeline whose NAME suggests SAST with no task or CLI invocation.
+	lowConfPipeline := func(fx *adofixture.Transport) {
+		registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+		registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+		registerYAML(fx, testRepoID, "name: My Semgrep Check\nsteps:\n  - script: echo hello\n")
+	}
+	oneRelease := func(fx *adofixture.Transport) {
+		registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+		registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+	}
+	build := func(sha, result string, at time.Time) map[string]any {
+		return map[string]any{
+			"sourceVersion": sha, "sourceBranch": "refs/heads/main",
+			"result": result, "queueTime": at.Format(time.RFC3339),
+		}
+	}
+	enablementDenied := func(fx *adofixture.Transport) {
+		fx.Set("GET", azuredevops.HostAdvSec, enablementPath(testRepoID), adofixture.Response{
+			Status: http.StatusForbidden, Body: map[string]any{"message": "denied"},
+		})
+	}
+
+	states := []rubricState{
+		{
+			name: "a CodeQL task pipeline, a release with a successful build, default setup off",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusVerifiedPass,
+				idCadence:        model.StatusVerifiedPass,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Same single build as state 3, and the two checks that read it
+			// disagree in the opposite direction: the build is recent enough
+			// to count for cadence but sits AFTER the release it would have to
+			// cover and names a different commit, so no release is covered.
+			name: "a build in the lookback window that covers no release",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha-unrelated", "succeeded", recent))
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusVerifiedFail,
+				idCadence:        model.StatusVerifiedPass,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The reverse of state 2: the build covers the release and did not
+			// succeed. cadence counts runs, not outcomes, so it still passes.
+			name: "the release's only build failed",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "failed", releaseDate))
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusPartial,
+				idCadence:        model.StatusVerifiedPass,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// cadence's only route to verified-fail, and it separates
+			// tool-configured (a task IS configured) from the two checks that
+			// need observed builds.
+			name: "a CodeQL task pipeline with zero builds in the lookback window",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx)
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusVerifiedFail,
+				idCadence:        model.StatusVerifiedFail,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The confidence cap, with ran-per-release held apart from it:
+			// the build really did run for the release, so ran-per-release
+			// passes on evidence the other two are only willing to call partial.
+			name: "a pipeline whose NAME suggests SAST, with a successful release build",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				lowConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusPartial,
+				idRanPerRelease:  model.StatusVerifiedPass,
+				idCadence:        model.StatusPartial,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The state that splits tool-configured from cadence, and the only
+			// one that would notice if cadence grew the GitHub twin's
+			// "&& !setupConfigured" rescue. Identical to state 5 except that
+			// CodeQL default setup is ON: that is real configuration, so
+			// tool-configured rises to pass, while cadence stays partial
+			// because GHAzDO default setup contributes no builds this
+			// collector can observe.
+			name: "a NAME-only pipeline match alongside CodeQL default setup enabled",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				lowConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, true)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusVerifiedPass,
+				idCadence:        model.StatusPartial,
+				idDefaultSetup:   model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Default setup is the ONLY evidence. tool-configured and
+			// default-setup pass on it; ran-per-release and cadence must not
+			// report a confident absence from a scan history this collector
+			// has no verified way to observe.
+			name: "CodeQL default setup enabled with no matched pipeline at all",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				registerPipelines(fx)
+				oneRelease(fx)
+				registerEnablement(fx, testRepoID, true)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusNotCheckable,
+				idCadence:        model.StatusNotCheckable,
+				idDefaultSetup:   model.StatusVerifiedPass,
+			},
+		},
+		{
+			// A confirmed absence: no pipeline of any confidence and an
+			// enablement response that genuinely says off. cadence has nothing
+			// to compute a rate over, which is the one status that separates
+			// it from the other three here.
+			name: "no SAST evidence at all and the enablement query answers false",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				registerPipelines(fx)
+				oneRelease(fx)
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedFail,
+				idRanPerRelease:  model.StatusVerifiedFail,
+				idCadence:        model.StatusNotCheckable,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The same world as state 8 except the enablement query is denied
+			// rather than answering. Every check refuses to assert the absence
+			// it asserted a moment ago — which is the whole point of issues
+			// #226/#235: a denied query is an unknown, not a confirmed off.
+			name: "no pipeline evidence and the enablement query is denied",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				registerPipelines(fx)
+				oneRelease(fx)
+				enablementDenied(fx)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusNotCheckable,
+				idRanPerRelease:  model.StatusNotCheckable,
+				idCadence:        model.StatusNotCheckable,
+				idDefaultSetup:   model.StatusNotCheckable,
+			},
+		},
+		{
+			// The default-setup isolation state: the enablement query is
+			// denied exactly as in state 9, but a high-confidence pipeline
+			// match exists, so only default-setup — the check whose entire
+			// evidence IS that query — goes not-checkable. Nothing else in the
+			// matrix separates it from the other three on this axis.
+			name: "the enablement query is denied but a CodeQL task pipeline is configured",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				enablementDenied(fx)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusVerifiedPass,
+				idCadence:        model.StatusVerifiedPass,
+				idDefaultSetup:   model.StatusNotCheckable,
+			},
+		},
+		{
+			// ran-per-release's second, distinct route to partial, and this
+			// package's flagship platform-specific judgment call: every
+			// release that could be evaluated ran cleanly, and a single
+			// undateable tag matching the pattern still caps the result. A
+			// matrix that only reached partial through state 3's failed build
+			// would not notice that cap disappearing.
+			name: "every evaluated release ran cleanly but one release tag cannot be dated",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				fx.Set("GET", azuredevops.HostCore, refsPath(testRepoID), adofixture.Response{
+					Status: http.StatusOK,
+					Body: map[string]any{"count": 2, "value": []map[string]any{
+						{"name": "refs/tags/v1.0.0", "objectId": "sha1"},
+						{"name": "refs/tags/v2.0.0", "objectId": "sha2"},
+					}},
+				})
+				registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+				fx.Set("GET", azuredevops.HostCore, commitsPath(testRepoID, "sha2"), adofixture.Response{
+					Status: http.StatusNotFound, Body: map[string]any{"message": "not found"},
+				})
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusPartial,
+				idCadence:        model.StatusVerifiedPass,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+		{
+			// ran-per-release's not-checkable route that is NOT an evidence
+			// gap: there is simply nothing to evaluate, because no tag matches
+			// the release pattern. Distinguished from state 7 by the fact that
+			// cadence still passes here — the tool is running, it just has no
+			// releases to be measured against.
+			name: "a configured, running pipeline with no release tags at all",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				fx.Set("GET", azuredevops.HostCore, refsPath(testRepoID), adofixture.Response{
+					Status: http.StatusOK,
+					Body:   map[string]any{"count": 0, "value": []map[string]any{}},
+				})
+				registerBuilds(fx, build("sha-x", "succeeded", recent))
+				registerEnablement(fx, testRepoID, false)
+			},
+			want: map[string]model.Status{
+				idToolConfigured: model.StatusVerifiedPass,
+				idRanPerRelease:  model.StatusNotCheckable,
+				idCadence:        model.StatusVerifiedPass,
+				idDefaultSetup:   model.StatusVerifiedFail,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			fx := adofixture.New()
+			st.build(fx)
+
+			results, err := newCollector(fx).Collect(context.Background(), defaultScope())
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
