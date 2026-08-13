@@ -10,6 +10,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -741,4 +742,328 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 			t.Errorf("%s: FixtureRef is empty", id)
 		}
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// Both fields are the only two responses this collector reads, and want is
+// the whole result map that world must produce for the single in-scope repo.
+type rubricState struct {
+	name string
+	// repos and policies back ALL THREE policy-driven checks — there is no
+	// second API surface any of them could read instead, so a state matrix
+	// that only ever varies "are the two calls healthy" moves all three in
+	// lockstep. See the test's doc comment for what splits them.
+	repos    adofixture.Response
+	policies adofixture.Response
+	want     map[string]model.Status
+}
+
+func (st rubricState) fixture() *adofixture.Transport {
+	fx := adofixture.New()
+	fx.Set("GET", azuredevops.HostCore, repositoriesPath(), st.repos)
+	fx.Set("GET", azuredevops.HostCore, policiesPath(), st.policies)
+	return fx
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Eleven states reach every status this collector can emit. force-push-blocked,
+// deletion-blocked and admin-enforced make no API call at all and return
+// not-checkable unconditionally (they are ACL-governed — see the package doc
+// comment), so no fixture can move them; the guard's
+// documented-but-unreachable direction is what pins that rather than any state.
+//
+// The matrix is shaped by a conflation risk that is structural here rather
+// than incidental: protection-exists, required-reviews and required-status-checks
+// are computed from ONE client-side filter (matchingPolicies) over ONE response,
+// and they differ only in which policy TYPE they count and which FIELD of it
+// they read. A matrix that varies whole policy sets moves all three together
+// and a check reading the wrong type ID — or the wrong policy's isBlocking —
+// stays invisible. So the matrix splits them on both axes:
+//
+//   - type axis: state 2 has ONLY a Build policy (required-reviews must fail
+//     while required-status-checks passes); state 3 is the exact reverse.
+//   - blocking axis: state 4 has both types present and only the reviewers
+//     policy degraded; state 6 has both types present and only the Build
+//     policy degraded. Neither involves a missing policy, so they separate
+//     the two checks by the field each reads on its OWN policy.
+//
+// Two states then cover the ways a policy can be well-formed and still have to
+// be IGNORED, which is the other half of what matchingPolicies does: one scoped
+// to a sibling repo, and one pair that is disabled and soft-deleted. The second
+// is the only place the "enabled, non-deleted" wording in all three rubrics is
+// observable at all — before it, removing either flag from the filter left the
+// whole repository's test suite green.
+//
+// One state is the not-checkable route with no transport failure anywhere: both
+// calls return 200 and the repo simply has no default branch. That is the
+// difference between "the API broke" and "the data says nothing is protected",
+// which a matrix built only from 403s would never separate.
+//
+// Verified by injection rather than assumed — see the commit message for which
+// states caught which mutation.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const repoID = "repo-a-id"
+	const otherRepoID = "repo-b-id"
+	const branch = "refs/heads/main"
+
+	reposOK := func(repos ...map[string]any) adofixture.Response {
+		return adofixture.Response{
+			Status: http.StatusOK,
+			Body:   map[string]any{"count": len(repos), "value": repos},
+		}
+	}
+	policiesOK := func(policies ...map[string]any) adofixture.Response {
+		return adofixture.Response{
+			Status: http.StatusOK,
+			Body:   map[string]any{"count": len(policies), "value": policies},
+		}
+	}
+	forbidden := adofixture.Response{Status: http.StatusForbidden, Body: map[string]any{"message": "denied"}}
+
+	// The two repos exist in every state so a policy scoped to otherRepoID is
+	// a real, well-formed policy on a real sibling repo rather than a dangling
+	// id — the scope-mismatch path is worth exercising against something the
+	// project actually contains.
+	bothRepos := reposOK(
+		map[string]any{"id": repoID, "name": "repo-a", "defaultBranch": branch},
+		map[string]any{"id": otherRepoID, "name": "repo-b", "defaultBranch": branch},
+	)
+	onScope := repoScope(branch, "Exact", repoID)
+	// withFlag flips exactly one of the two flags matchingPolicies filters on,
+	// leaving type, scope, blocking and approver count identical to the passing
+	// fixtures. The shared builders hardcode isEnabled:true/isDeleted:false, so
+	// without this nothing in the file could reach a policy that is well-formed
+	// and still must be ignored.
+	withFlag := func(policy map[string]any, key string, value bool) map[string]any {
+		out := make(map[string]any, len(policy))
+		for k, v := range policy {
+			out[k] = v
+		}
+		out[key] = value
+		return out
+	}
+
+	fixedNotCheckable := func(m map[string]model.Status) map[string]model.Status {
+		m[idForcePushBlocked] = model.StatusNotCheckable
+		m[idDeletionBlocked] = model.StatusNotCheckable
+		m[idAdminEnforced] = model.StatusNotCheckable
+		return m
+	}
+
+	states := []rubricState{
+		{
+			name:  "both tracked policy types scoped to the default branch, both blocking, no creator self-vote",
+			repos: bothRepos,
+			policies: policiesOK(
+				minReviewersPolicy(onScope, 2, true, false),
+				buildValidationPolicy(onScope, true),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedPass,
+				idRequiredReviews:      model.StatusVerifiedPass,
+				idRequiredStatusChecks: model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// Type split, half one. A blocking Build policy satisfies
+			// protection-exists and required-status-checks and must NOT
+			// satisfy required-reviews: a reviewers check that counted any
+			// tracked-type policy would pass here.
+			name:     "only a Build policy, blocking",
+			repos:    bothRepos,
+			policies: policiesOK(buildValidationPolicy(onScope, true)),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedPass,
+				idRequiredReviews:      model.StatusVerifiedFail,
+				idRequiredStatusChecks: model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// Type split, the exact reverse of state 2.
+			name:     "only a Minimum approval count policy, blocking, no creator self-vote",
+			repos:    bothRepos,
+			policies: policiesOK(minReviewersPolicy(onScope, 1, true, false)),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedPass,
+				idRequiredReviews:      model.StatusVerifiedPass,
+				idRequiredStatusChecks: model.StatusVerifiedFail,
+			}),
+		},
+		{
+			// Blocking-axis split: both types present, only the reviewers
+			// policy degraded — and degraded by creatorVoteCounts rather than
+			// isBlocking, which is required-reviews' second, distinct route to
+			// partial and the one required-status-checks has no analogue for.
+			name:  "reviewers policy blocking but the author's own vote counts; Build policy blocking",
+			repos: bothRepos,
+			policies: policiesOK(
+				minReviewersPolicy(onScope, 1, true, true),
+				buildValidationPolicy(onScope, true),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedPass,
+				idRequiredReviews:      model.StatusPartial,
+				idRequiredStatusChecks: model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// required-reviews' first route to partial (nothing blocking at
+			// all), reached alongside required-status-checks' only route to it.
+			name:  "neither policy is blocking",
+			repos: bothRepos,
+			policies: policiesOK(
+				minReviewersPolicy(onScope, 1, false, false),
+				buildValidationPolicy(onScope, false),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedPass,
+				idRequiredReviews:      model.StatusPartial,
+				idRequiredStatusChecks: model.StatusPartial,
+			}),
+		},
+		{
+			// Blocking-axis split, the reverse of state 4: both types present,
+			// only the Build policy degraded. A status-checks check reading the
+			// reviewers policy's isBlocking would pass here.
+			name:  "reviewers policy fully blocking, Build policy non-blocking",
+			repos: bothRepos,
+			policies: policiesOK(
+				minReviewersPolicy(onScope, 1, true, false),
+				buildValidationPolicy(onScope, false),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedPass,
+				idRequiredReviews:      model.StatusVerifiedPass,
+				idRequiredStatusChecks: model.StatusPartial,
+			}),
+		},
+		{
+			// The third split axis, and the only one that separates
+			// protection-exists from required-reviews on the SAME policy:
+			// a well-formed, enabled, blocking Minimum approval count policy
+			// scoped to the default branch that requires zero approvers.
+			// protection-exists counts it (it is a tracked type in scope);
+			// required-reviews must not (it reads minimumApproverCount, and
+			// zero approvers is no requirement at all). Added after a mutation
+			// run found the >=1 boundary was unguarded by any test in the repo.
+			name:  "a Minimum approval count policy requiring zero approvers",
+			repos: bothRepos,
+			policies: policiesOK(
+				minReviewersPolicy(onScope, 0, true, false),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedPass,
+				idRequiredReviews:      model.StatusVerifiedFail,
+				idRequiredStatusChecks: model.StatusVerifiedFail,
+			}),
+		},
+		{
+			// The all-fail state, reached by scope rather than by an empty
+			// list: both policies are enabled, blocking and well-formed, and
+			// are scoped to the sibling repo. An empty policy list would fail
+			// too, without exercising the repositoryId comparison at all.
+			name:  "both policies scoped to a different repository in the same project",
+			repos: bothRepos,
+			policies: policiesOK(
+				minReviewersPolicy(repoScope(branch, "Exact", otherRepoID), 1, true, false),
+				buildValidationPolicy(repoScope(branch, "Exact", otherRepoID), true),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedFail,
+				idRequiredReviews:      model.StatusVerifiedFail,
+				idRequiredStatusChecks: model.StatusVerifiedFail,
+			}),
+		},
+		{
+			// The other way a well-formed policy must be ignored, and the only
+			// state that exercises matchingPolicies' enabled/non-deleted filter
+			// at all: both policies are correctly scoped to this repo's default
+			// branch, blocking, and of a tracked type — one is merely disabled
+			// and the other soft-deleted. Every rubric here says "no ENABLED,
+			// NON-DELETED policy", and until this state that phrase described
+			// behaviour no test could observe: dropping either flag from the
+			// filter left the whole repository's suite green.
+			name:  "the only matching policies are one disabled and one soft-deleted",
+			repos: bothRepos,
+			policies: policiesOK(
+				withFlag(minReviewersPolicy(onScope, 1, true, false), "isEnabled", false),
+				withFlag(buildValidationPolicy(onScope, true), "isDeleted", true),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusVerifiedFail,
+				idRequiredReviews:      model.StatusVerifiedFail,
+				idRequiredStatusChecks: model.StatusVerifiedFail,
+			}),
+		},
+		{
+			// Not-checkable with no transport failure: both calls return 200
+			// and repo-a is an empty repository with no default branch. The
+			// policies are the passing set from state 1, so nothing but the
+			// missing branch can be producing this.
+			name: "the in-scope repository has no default branch",
+			repos: reposOK(
+				map[string]any{"id": repoID, "name": "repo-a"},
+				map[string]any{"id": otherRepoID, "name": "repo-b", "defaultBranch": branch},
+			),
+			policies: policiesOK(
+				minReviewersPolicy(onScope, 1, true, false),
+				buildValidationPolicy(onScope, true),
+			),
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusNotCheckable,
+				idRequiredReviews:      model.StatusNotCheckable,
+				idRequiredStatusChecks: model.StatusNotCheckable,
+			}),
+		},
+		{
+			// The other not-checkable shape worth keeping distinct: the
+			// repositories call succeeds and only the policy read is denied,
+			// so this is not "the org is unreachable" — it is one of the two
+			// reads failing.
+			name:     "policy configurations denied, repositories readable",
+			repos:    bothRepos,
+			policies: forbidden,
+			want: fixedNotCheckable(map[string]model.Status{
+				idProtectionExists:     model.StatusNotCheckable,
+				idRequiredReviews:      model.StatusNotCheckable,
+				idRequiredStatusChecks: model.StatusNotCheckable,
+			}),
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			results, err := newTestCollector(st.fixture()).Collect(context.Background(), collect.Scope{
+				Org: testOrg, Project: testProject, Repos: []string{"repo-a"},
+			})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
