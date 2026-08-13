@@ -451,3 +451,26 @@ curl -X POST -H "PRIVATE-TOKEN: $T" -H 'Content-Type: application/json' \
 
 Teardown is `DELETE /groups/$GID/protected_environments/production` and, for an
 environment, a `POST …/environments/:id/stop` before `DELETE …/environments/:id`.
+
+## 8. `protected_environments` needs Maintainer, `environments` does not (issue #17)
+
+Measured **2026-08-13** on `qloud-ltd-group/attestward-fixtures` with a pair of
+project access tokens minted on the same project, identical scope (`read_api`),
+differing only in role. Both were revoked immediately after.
+
+| Endpoint | Reporter (20) | Maintainer (40) |
+|---|---|---|
+| `GET /projects/:id/environments` | **200** | 200 |
+| `GET /projects/:id/protected_environments` | **403** | **200** |
+| `GET /groups/qloud-ltd-group/protected_environments` | — | 403 (the bot is a project member, not a group one) |
+
+C03's `env.exists` reads only the first endpoint, so it keeps the Reporter
+scope. The two protection checks read the second, and had been documenting
+Reporter as sufficient: an operator who granted exactly the scope the docs
+asked for got both checks silently degraded to `not-checkable` instead of the
+answer the docs promised. Their `TokenScope` now says Maintainer.
+
+The third row is not a regression — it is the same namespace-visibility caveat
+the two protection checks already carry, restated at the highest project role:
+project membership does not buy group-level reads at any role, so the
+group-level blind spot survives the fix.

@@ -55,11 +55,10 @@
 //     inkscape (all public, all readable through /groups/:id) each 404 by
 //     path and by numeric ID.
 //   - Membership of a PROJECT in that namespace does not count. A project
-//     access token scoped read_api at Reporter — exactly this check's
-//     documented scope — 404s on its own project's namespace, by path and
-//     by ID. So does the same token at Maintainer, a strictly higher role
-//     than documented, against both a Free personal namespace and an
-//     Ultimate-trial group.
+//     access token scoped read_api at Reporter 404s on its own project's
+//     namespace, by path and by ID. So does the same token at Maintainer —
+//     the role these two protection checks document — against both a Free
+//     personal namespace and an Ultimate-trial group.
 //   - GET /groups/:id is not an alternative route. It returns no `plan`,
 //     `trial` or `trial_ends_on` field at all — not even for a group Owner
 //     on a live Ultimate trial. Nor does the `namespace` sub-object of
@@ -300,15 +299,27 @@ var checkRubrics = map[string]map[model.Status]string{
 
 const projectTokenScope = "read_api (Reporter or above on the project)"
 
+// The two protection checks need a strictly higher role than the Reporter the
+// Environments API is happy with: GET /projects/:id/protected_environments
+// returns 403 to a read_api token at Reporter and 200 at Maintainer, measured
+// live 2026-08-13 (issue #17) with a Reporter/Maintainer project access token
+// pair against the same project, gitlab.com/qloud-ltd-group/attestward-fixtures.
+// The same pair reads GET /projects/:id/environments 200 at both roles, which
+// is why exists keeps the lower scope. Documenting Reporter here bought an
+// operator a token that silently degrades both checks to not-checkable rather
+// than the answer the docs promise.
+const protectedEnvTokenScope = "read_api (Maintainer or above on the project — " +
+	"GET /projects/:id/protected_environments returns 403 at Reporter)"
+
 // Only the two protection checks read group-level config, so only they carry
 // the extra namespace requirement. Stating it on all four would tell a reader
 // that branch-policy — which makes no API call at all — needs group
 // visibility.
 var checkTokenScopes = map[string]string{
 	idExists: projectTokenScope,
-	idProtectionRules: projectTokenScope + ", plus visibility of the project's namespace to read " +
+	idProtectionRules: protectedEnvTokenScope + ", plus visibility of the project's namespace to read " +
 		"group-level protected environments (without it the check still runs, on project-level config alone)",
-	idRequiredReviewers: projectTokenScope + ", plus visibility of the project's namespace to read " +
+	idRequiredReviewers: protectedEnvTokenScope + ", plus visibility of the project's namespace to read " +
 		"group-level protected environments (without it the check still runs, on project-level config alone)",
 	idBranchPolicy: "none — this check makes no API call of its own; GitLab has no per-environment " +
 		"branch-restriction mechanism, so the result is a fixed fact rather than something read",

@@ -876,7 +876,7 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments have at least one protection rule
 
-- **Token permission:** read_api (Reporter or above on the project), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
+- **Token permission:** read_api (Maintainer or above on the project — GET /projects/:id/protected_environments returns 403 at Reporter), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
 - **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`, `GET /groups/{namespace}/protected_environments`
 
@@ -946,7 +946,7 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments require reviewer approval before deployment
 
-- **Token permission:** read_api (Reporter or above on the project), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
+- **Token permission:** read_api (Maintainer or above on the project — GET /projects/:id/protected_environments returns 403 at Reporter), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
 - **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`, `GET /groups/{namespace}/protected_environments`
 
