@@ -10,6 +10,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -635,4 +636,142 @@ type queryCapturingTransport struct {
 func (c *queryCapturingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	c.queries = append(c.queries, req.URL.Query())
 	return c.base.RoundTrip(req)
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// items is the response sequence Items - Get serves as resolveSecurityMD
+// walks candidatePaths (both candidates hit the identical URL path and
+// differ only in the "path" query parameter, so order is the only way to
+// distinguish them — see TestCollect_SecurityMD_FallbackHit_VerifiedPass).
+type rubricState struct {
+	name  string
+	items []adofixture.Response
+	want  map[string]model.Status
+}
+
+func (st rubricState) fixture() *adofixture.Transport {
+	fx := adofixture.New()
+	fx.SetSequence("GET", azuredevops.HostCore, itemsPath(testProject, testRepo), st.items...)
+	return fx
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Four states reach every status ADO C10 can emit. private-reporting and
+// security-policy-org make no API call and are not-checkable unconditionally
+// (Azure DevOps has neither feature), so no fixture can move them; the guard's
+// documented-but-unreachable direction is what pins that.
+//
+// security-md and intake-channel are the conflated pair here, and genuinely
+// so: they are computed from ONE resolveSecurityMD call, sharing its error and
+// its Found flag, so three of the four states below necessarily move them in
+// lockstep. State 2 is the one that separates them — a SECURITY.md that
+// resolves but says nothing actionable — and without it the two checks would
+// agree in every state despite reading different fields of the same struct.
+//
+// That separation is verified by injection, not assumed. Two mutations, and
+// it takes states 1 and 2 TOGETHER to catch them — either state alone leaves
+// one of the two undetected:
+//
+//   - running findIntakeChannelMatches over resolved.Path instead of
+//     resolved.Content is caught by state 1: the path "/SECURITY.md" carries
+//     no email or URL, so the pass becomes a partial and intake-channel's
+//     verified-pass leaves the matrix.
+//   - treating a resolved-but-vague file as a pass — dropping the
+//     len(matches) == 0 branch — is caught by state 2: it becomes a
+//     verified-pass and partial leaves the matrix.
+//
+// State 2 also serves the /docs/ fallback: its first response 404s, so the
+// file it resolves is the second candidate, not the first.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	states := []rubricState{
+		{
+			name:  "SECURITY.md at the repo root advertising an email",
+			items: []adofixture.Response{contentResponse("Report vulnerabilities to security@example.com")},
+			want: map[string]model.Status{
+				securityMDID:        model.StatusVerifiedPass,
+				intakeChannelID:     model.StatusVerifiedPass,
+				privateReportingID:  model.StatusNotCheckable,
+				securityPolicyOrgID: model.StatusNotCheckable,
+			},
+		},
+		{
+			// The separating state: the file resolves (via the docs/ fallback)
+			// so security-md passes, but it carries no actionable channel, so
+			// intake-channel caps at partial. The only state where these two
+			// disagree.
+			name: "SECURITY.md resolves via the docs/ fallback but names no channel",
+			items: []adofixture.Response{
+				notFoundResponse(),
+				contentResponse("We take security seriously and review all reports carefully."),
+			},
+			want: map[string]model.Status{
+				securityMDID:        model.StatusVerifiedPass,
+				intakeChannelID:     model.StatusPartial,
+				privateReportingID:  model.StatusNotCheckable,
+				securityPolicyOrgID: model.StatusNotCheckable,
+			},
+		},
+		{
+			// Both candidates 404: a confirmed absence, not a gap — which is
+			// why both checks fail rather than degrading.
+			name:  "no SECURITY.md at either candidate path",
+			items: []adofixture.Response{notFoundResponse(), notFoundResponse()},
+			want: map[string]model.Status{
+				securityMDID:        model.StatusVerifiedFail,
+				intakeChannelID:     model.StatusVerifiedFail,
+				privateReportingID:  model.StatusNotCheckable,
+				securityPolicyOrgID: model.StatusNotCheckable,
+			},
+		},
+		{
+			// A 2xx whose shape resolveSecurityMD refuses to trust as a read
+			// file. Distinct from a 404: the resolve itself errored, so both
+			// dependent checks degrade rather than reporting an absence they
+			// did not establish.
+			name:  "items - get returns an untrustworthy shape",
+			items: []adofixture.Response{contentOmittedResponse()},
+			want: map[string]model.Status{
+				securityMDID:        model.StatusNotCheckable,
+				intakeChannelID:     model.StatusNotCheckable,
+				privateReportingID:  model.StatusNotCheckable,
+				securityPolicyOrgID: model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			results, err := newCollector(st.fixture()).Collect(context.Background(), collect.Scope{
+				Org: testOrg, Project: testProject, Repos: []string{testRepo},
+			})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
