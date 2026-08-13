@@ -20,7 +20,6 @@ package auditlogging
 
 import (
 	"context"
-	"fmt"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
@@ -77,16 +76,8 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 		notCheckableAlways(idRetentionAware, "Audit-log retention window (informational)", scope.Org, "", auditPaidTierReason),
 	)
 
-	client, err := c.newClient()
-	if err != nil {
-		reason := fmt.Sprintf("could not build a GitLab client: %v", err)
-		for _, repo := range scope.Repos {
-			out = append(out, notCheckableAlways(idRepoWebhooks, webhooksTitle, scope.Org, repo, reason))
-		}
-		return out, nil
-	}
 	for _, repo := range scope.Repos {
-		out = append(out, webhooksResult(ctx, client, scope.Org, repo))
+		out = append(out, c.webhooksResult(ctx, scope.Org, repo))
 	}
 	return out, nil
 }

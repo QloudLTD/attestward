@@ -185,22 +185,8 @@ func (c *Collector) ID() string { return collectorID }
 // checks once per repo in scope.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	all := []model.CheckResult{checkSecurityPolicyOrg(scope.Org)}
-
-	client, err := c.newClient()
-	if err != nil {
-		reason := fmt.Sprintf("could not build a GitLab client: %v", err)
-		for _, repo := range scope.Repos {
-			all = append(all,
-				notCheckableResult(securityMDID, scope.Org, repo, reason, nil),
-				notCheckableResult(intakeChannelID, scope.Org, repo, reason, nil),
-				checkPrivateReporting(scope.Org, repo),
-			)
-		}
-		return all, nil
-	}
-
 	for _, repo := range scope.Repos {
-		all = append(all, collectRepo(ctx, client, scope.Org, repo)...)
+		all = append(all, c.collectRepo(ctx, scope.Org, repo)...)
 	}
 	return all, nil
 }
@@ -209,7 +195,24 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // resolveSecurityMD needs as ref), resolves SECURITY.md once (shared by
 // security-md and intake-channel), and reports private-reporting as its
 // own fixed, evidence-free result.
-func collectRepo(ctx context.Context, client *gitlabcollect.Client, org, repo string) []model.CheckResult {
+//
+// It builds its own client per repo rather than sharing one across
+// scope.Repos. Client.Provenance() is cumulative over every call ever made
+// through that client instance, so a shared one attributed an earlier repo's
+// API calls to a later repo's CheckResult.Provenance — evidence citing a
+// project the result is not about (issue #15, the same defect as #14). Same
+// convention as internal/collect/gitlab/repoprotection and .../secretshygiene.
+func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.CheckResult {
+	client, err := c.newClient()
+	if err != nil {
+		reason := fmt.Sprintf("could not build a GitLab client: %v", err)
+		return []model.CheckResult{
+			notCheckableResult(securityMDID, org, repo, reason, nil),
+			notCheckableResult(intakeChannelID, org, repo, reason, nil),
+			checkPrivateReporting(org, repo),
+		}
+	}
+
 	id := projectID(org, repo)
 	var proj struct {
 		DefaultBranch string `json:"default_branch"`
