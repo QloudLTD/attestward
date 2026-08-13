@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -558,4 +559,153 @@ func TestHostnameOf(t *testing.T) {
 			}
 		})
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour:
+// the two API responses this collector's two API-backed checks read, plus
+// the whole result map that world must produce.
+type rubricState struct {
+	name string
+	// auditLogStatus is what GET /orgs/{org}/audit-log returns. 200 is the
+	// only reachable pass; every other code is not-checkable, and the
+	// plan-gated ones (402/404) are indistinguishable from a missing scope.
+	auditLogStatus int
+	// hooksStatus and hooks are GET /repos/{org}/{repo}/hooks. A non-200
+	// hooksStatus is the listing-failed path; 200 with an empty or
+	// non-matching list is a definitive fail, not a gap.
+	hooksStatus int
+	hooks       []map[string]any
+	want        map[string]model.Status
+}
+
+func (st rubricState) mux(t *testing.T, org, repo string) *http.ServeMux {
+	t.Helper()
+	mux := http.NewServeMux()
+	registerOrgPlan(t, mux, org, "enterprise")
+	mux.HandleFunc("/orgs/"+org+"/audit-log", func(w http.ResponseWriter, _ *http.Request) {
+		if st.auditLogStatus == http.StatusOK {
+			writeJSON(t, w, http.StatusOK, []map[string]any{{"action": "org.update_member"}})
+			return
+		}
+		writeJSON(t, w, st.auditLogStatus, map[string]any{"message": "nope"})
+	})
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		if st.hooksStatus == http.StatusOK {
+			writeJSON(t, w, http.StatusOK, st.hooks)
+			return
+		}
+		writeJSON(t, w, st.hooksStatus, map[string]any{"message": "nope"})
+	})
+	return mux
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Only two of C09's four checks make an API call at all: log-streaming and
+// retention-awareness are constants that return not-checkable with no request
+// (there is no org-scoped endpoint for either — see their doc comments), so
+// every state below emits not-checkable for them and no state could ever do
+// otherwise. That is the documented behaviour, and the guard's
+// documented-but-unreachable direction is what pins it: if either check ever
+// grew a second status without a rubric entry, or a rubric entry appeared for
+// a status it cannot reach, this fails.
+//
+// The two real checks read different responses — org-log-available reads
+// /orgs/{org}/audit-log, webhooks reads /repos/{org}/{repo}/hooks — so no
+// shared-field swap is possible between them. What IS possible is the weaker
+// lockstep failure: a matrix where both move together in every state proves
+// nothing about which response drives which check. States 2 and 3 break that
+// in both directions (pass/fail and fail/pass respectively), so no single
+// upstream failure explains both results.
+//
+// State 2 also carries an INACTIVE webhook subscribed to `push` alongside an
+// active one subscribed to nothing relevant. That is the state that pins the
+// active-only filter: dropping the h.GetActive() guard in checkRepoWebhooks
+// turns this state's verified-fail into a verified-pass, and no other state
+// here notices.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const org, repo = "acme", "widgets"
+
+	states := []rubricState{
+		{
+			name:           "audit log reachable, an active webhook exports push",
+			auditLogStatus: http.StatusOK,
+			hooksStatus:    http.StatusOK,
+			hooks: []map[string]any{
+				{"active": true, "events": []string{"push"}, "config": map[string]any{"url": "https://siem.example.com/in"}},
+			},
+			want: map[string]model.Status{
+				orgLogAvailableID:    model.StatusVerifiedPass,
+				logStreamingID:       model.StatusNotCheckable,
+				retentionAwarenessID: model.StatusNotCheckable,
+				webhooksID:           model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Plan-gated audit log AND a repo whose only push subscriber is
+			// switched off: the two API-backed checks disagree, and the
+			// inactive hook is what makes the fail meaningful rather than
+			// trivially empty.
+			name:           "audit log plan-gated, only an inactive hook covers push",
+			auditLogStatus: http.StatusNotFound,
+			hooksStatus:    http.StatusOK,
+			hooks: []map[string]any{
+				{"active": false, "events": []string{"push"}, "config": map[string]any{"url": "https://siem.example.com/in"}},
+				{"active": true, "events": []string{"issues"}, "config": map[string]any{"url": "https://tickets.example.com/in"}},
+			},
+			want: map[string]model.Status{
+				orgLogAvailableID:    model.StatusNotCheckable,
+				logStreamingID:       model.StatusNotCheckable,
+				retentionAwarenessID: model.StatusNotCheckable,
+				webhooksID:           model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The other direction: the org call succeeds while the repo call
+			// is refused. webhooks' not-checkable is reachable only here.
+			name:           "audit log reachable, webhook listing forbidden",
+			auditLogStatus: http.StatusOK,
+			hooksStatus:    http.StatusForbidden,
+			want: map[string]model.Status{
+				orgLogAvailableID:    model.StatusVerifiedPass,
+				logStreamingID:       model.StatusNotCheckable,
+				retentionAwarenessID: model.StatusNotCheckable,
+				webhooksID:           model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			c := newCollectorForServer(t, newTestServer(t, st.mux(t, org, repo)))
+			results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repo}})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }
