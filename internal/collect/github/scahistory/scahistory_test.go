@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -1282,4 +1283,586 @@ func TestAlertsTriagedRemediationCoversDisabledFailMode(t *testing.T) {
 	if !strings.Contains(remediation, "enable") {
 		t.Errorf("C06.sca.alerts-triaged remediation doesn't cover enabling Dependabot alerts (the check's verified-fail mode is the feature being disabled entirely): %q", checkRemediations["C06.sca.alerts-triaged"])
 	}
+}
+
+const grypeWorkflowYAML = `name: Grype Scan
+on: [push]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anchore/scan-action@v4
+`
+
+// lowConfidenceSnykYAML is named "Snyk" — matching the snyk signature's
+// low-confidence workflow_name_pattern — while invoking neither a snyk
+// action nor the snyk CLI, so it produces a name-only match and nothing
+// stronger.
+const lowConfidenceSnykYAML = `name: Snyk
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+`
+
+func scaSuccessfulRun(sha string, daysAgo int) map[string]any {
+	return map[string]any{
+		"head_sha": sha, "head_branch": "main", "conclusion": "success",
+		"created_at": time.Now().UTC().AddDate(0, 0, -daysAgo).Format(time.RFC3339),
+	}
+}
+
+// registerDependabotConfigStatus registers a Dependabot config fetch that
+// FAILS (rather than legitimately 404ing at both paths), which
+// fetchDependabotConfig reports as a real error rather than a confirmed
+// absence.
+func registerDependabotConfigStatus(t *testing.T, mux *http.ServeMux, org, repo string, status int) {
+	t.Helper()
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/dependabot.yml", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, status, map[string]any{"message": "Forbidden"})
+	})
+}
+
+func dependabotConfigFor(ecosystems ...string) string {
+	out := "version: 2\nupdates:\n"
+	for _, e := range ecosystems {
+		out += "  - package-ecosystem: \"" + e + "\"\n    directory: \"/\"\n    schedule:\n      interval: weekly\n"
+	}
+	return out
+}
+
+// scaRubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// C06's five checks draw on six different upstream reads in varying
+// combinations, and which of them a given state needs to bend varies too
+// much for a flat struct of optional fields — so each state registers its
+// own handlers.
+type scaRubricState struct {
+	name  string
+	setup func(t *testing.T, mux *http.ServeMux, org, repo string)
+	want  map[string]model.Status
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// # Conflation risks
+//
+// Four of C06's five checks read overlapping evidence, and in each pair the
+// naive fixture moves both together:
+//
+//  1. tool-configured and dependabot-config BOTH read the same
+//     .github/dependabot.yml fetch (configExists, cfg, dependabotErr).
+//     tool-configured passes on the config merely existing with one usable
+//     `updates:` entry; dependabot-config passes only if it COVERS every
+//     detected ecosystem. State 4 makes them disagree — a config that
+//     covers gomod while npm is also detected — and state 12 splits their
+//     shared failure handling.
+//  2. tool-configured and dependency-review BOTH read workflowMatches, but
+//     through different lenses: matchConfidence over ALL SCA matches versus
+//     findMatchedSignature for the dependency-review signature specifically.
+//     Any state whose SCA workflow is Trivy or Grype rather than
+//     dependency-review-action separates them (2, 3, 5, 7, 10, 13, 14, 15).
+//  3. tool-configured and ran-per-release BOTH read workflowMatches plus the
+//     Dependabot config. States 3 and 4 are the split: Dependabot alone is
+//     a configured tool with no per-release run history to evaluate, so one
+//     passes while the other reports not-checkable.
+//  4. ran-per-release and dependency-review BOTH consume matched workflows,
+//     and dependency-review-action is ITSELF SCA-category, so in a
+//     dependency-review-only repo the same workflow feeds both. State 8
+//     holds exactly that repo and still splits them.
+//
+// C06.sca.alerts-triaged is the one check with NO conflation risk: it reads
+// only GET /repos/{owner}/{repo}/dependabot/alerts, shares no intermediate
+// with any other check, and nothing else in the collector reads that
+// response. Its four statuses are still driven independently across the
+// matrix (fail in state 2, partial in 3 and 4 by the two different routes
+// the rubric documents, not-checkable in 10 and 11) rather than left to
+// ride along at pass.
+//
+// # Confirmed by mutation, not assumed
+//
+// Each was injected into the production code and traced to the exact states
+// that caught it:
+//
+//   - checkDependabotConfig's uncovered-ecosystem comparison short-circuited
+//     to always-covered (`var uncovered []string` with the loop removed):
+//     caught by state 4 alone, the only state whose config covers some but
+//     not all detected ecosystems.
+//   - checkDependencyReview keyed off `len(matched) > 0` instead of the
+//     dependency-review signature specifically — i.e. reading
+//     tool-configured's evidence: caught by states 2, 5, 7, 10, 13, 14 and
+//     15, every state with a non-dep-review SCA workflow. NOT by 3 or 4,
+//     which have no workflows at all, so the mutated expression is false
+//     there too.
+//   - checkRanPerRelease's dependabotOnly guard dropped, so a
+//     Dependabot-only repo has its releases evaluated against zero runs:
+//     caught by state 3 alone. State 4 is Dependabot-only as well but has
+//     no releases, so it reports not-checkable by the other route either
+//     way — a reminder that "reaches the guard" and "binds the guard" are
+//     different properties.
+//   - checkRanPerRelease's runsErr guard widened to taint unconditionally
+//     (reverting #291's narrowing): caught by state 13 alone.
+//   - checkRanPerRelease's `case allRan && droppedTags == 0` weakened to
+//     `case allRan`: caught by state 15 alone.
+//   - checkDependencyReview's triggersOnPullRequest guard dropped: caught by
+//     state 8 alone — and only after that state was given an exactly-named
+//     required status check. Its first form registered no branch
+//     protection, so it reported partial with the guard AND partial without
+//     it (falling through to "no required check matches"), and the mutation
+//     survived. That near-miss is why the state now configures the required
+//     check: it forces the two paths to different statuses.
+//   - checkAlertsTriaged's `case summary.OpenUnclassifiedCount > 0` arm
+//     deleted: caught by state 4 alone, the only state with an alert whose
+//     severity this build cannot interpret.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const org = "attestward-demo"
+	yesterday := time.Now().UTC().AddDate(0, 0, -1)
+	staleCritical := []map[string]any{{
+		"number": 1, "state": "open",
+		"security_advisory": map[string]any{"severity": "critical"},
+		"created_at":        time.Now().UTC().AddDate(0, 0, -60).Format(time.RFC3339),
+	}}
+	unclassified := []map[string]any{{
+		"number": 1, "state": "open",
+		"created_at": time.Now().UTC().AddDate(0, 0, -3).Format(time.RFC3339),
+	}}
+
+	states := []scaRubricState{
+		{
+			// Everything healthy, and the only state that reaches
+			// dependency-review's verified-pass: the workflow triggers on
+			// pull_request AND its name exactly matches a required status
+			// check.
+			name: "workflow SCA, covered release, full Dependabot config, required dependency review",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+					workflowFixture{ID: 2, Path: ".github/workflows/dep-review.yml", Name: "Dependency Review", Content: dependencyReviewWorkflowYAML},
+				)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{scaSuccessfulRun("sha1", 1)})
+				registerWorkflowRuns(t, mux, org, repo, 2, []map[string]any{scaSuccessfulRun("sha1", 1)})
+				registerRootFiles(t, mux, org, repo)
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("github-actions"))
+				registerRequiredStatusCheck(t, mux, org, repo, "main", "Dependency Review")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusVerifiedPass,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusVerifiedPass,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// A real SCA workflow that is NOT dependency-review, no
+			// Dependabot config at all, no releases, and alerts switched
+			// off: four different answers off one repo.
+			name: "Trivy workflow only, no Dependabot config, no releases, alerts disabled",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+				)
+				registerNoReleases(t, mux, org, repo)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{})
+				registerRootFiles(t, mux, org, repo, "go.mod")
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerAlertsStatus(t, mux, org, repo, http.StatusForbidden, "Dependabot alerts are disabled for this repository.")
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusVerifiedFail,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Dependabot is the sole SCA tool. tool-configured passes on
+			// it; ran-per-release has no per-release run history such a
+			// tool could ever produce.
+			name: "Dependabot-only repo with a stale critical alert",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNoWorkflows(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerRootFiles(t, mux, org, repo, "go.mod")
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("gomod"))
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerAlerts(t, mux, org, repo, staleCritical)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusPartial,
+			},
+		},
+		{
+			// The tool-configured / dependabot-config split: the same
+			// config that satisfies "a tool is configured" leaves npm
+			// uncovered. Also the only state whose alerts carry a severity
+			// this build cannot interpret.
+			name: "Dependabot config covers one of two detected ecosystems",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNoWorkflows(t, mux, org, repo)
+				registerNoReleases(t, mux, org, repo)
+				registerRootFiles(t, mux, org, repo, "go.mod", "package.json")
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("gomod"))
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerAlerts(t, mux, org, repo, unclassified)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusPartial,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusPartial,
+			},
+		},
+		{
+			// The only route to tool-configured's partial: a workflow named
+			// "Snyk" that invokes nothing recognizable.
+			name: "low-confidence-only Snyk match",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/snyk.yml", Name: "Snyk", Content: lowConfidenceSnykYAML},
+				)
+				registerNoReleases(t, mux, org, repo)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{})
+				registerRootFiles(t, mux, org, repo)
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusPartial,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusVerifiedFail,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// No SCA evidence from either source, an empty root so nothing
+			// is detected for Dependabot to cover, and a release that
+			// nothing ran for.
+			name: "no SCA evidence at all with a release in scope",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNoWorkflows(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerRootFiles(t, mux, org, repo)
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedFail,
+				"C06.sca.ran-per-release":   model.StatusVerifiedFail,
+				"C06.sca.dependabot-config": model.StatusNotCheckable,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			name: "SCA tool ran for the release but failed",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+				)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{
+					{"head_sha": "sha1", "head_branch": "main", "conclusion": "failure", "created_at": yesterday.Format(time.RFC3339)},
+				})
+				registerRootFiles(t, mux, org, repo)
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("github-actions"))
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusPartial,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// A dependency-review-ONLY repo: one workflow feeds both
+			// ran-per-release (as an SCA-category match) and
+			// dependency-review (as the signature), and they still
+			// disagree, because the workflow never triggers on a pull
+			// request and so gates nothing.
+			//
+			// The required status check is deliberately configured and
+			// deliberately an EXACT name match. Without it this state
+			// reports partial either way — the trigger guard and the
+			// no-required-check fallthrough produce the same status — so
+			// deleting triggersOnPullRequest entirely would go unnoticed.
+			// With it, the two paths diverge: partial while the guard
+			// stands, verified-pass the moment it is removed.
+			name: "dependency-review workflow is a required check but never triggers on pull requests",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 2, Path: ".github/workflows/dep-review.yml", Name: "Dependency Review", Content: dependencyReviewNoTriggerYAML},
+				)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 2, []map[string]any{scaSuccessfulRun("sha1", 1)})
+				registerRootFiles(t, mux, org, repo)
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("github-actions"))
+				registerRequiredStatusCheck(t, mux, org, repo, "main", "Dependency Review")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusVerifiedPass,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusPartial,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The repo's only workflow can't be inspected, so three checks
+			// refuse to assert an absence — while dependabot-config, which
+			// reads the root listing and the config rather than workflow
+			// content, still answers.
+			name: "the only workflow is unreadable",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, map[string]any{
+						"total_count": 1,
+						"workflows":   []map[string]any{{"id": 1, "name": "Mystery", "path": ".github/workflows/mystery.yml", "state": "active"}},
+					})
+				})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/contents/.github/workflows/mystery.yml", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+				})
+				registerNoReleases(t, mux, org, repo)
+				registerRootFiles(t, mux, org, repo)
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusNotCheckable,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusVerifiedFail,
+				"C06.sca.dependency-review": model.StatusNotCheckable,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The alerts endpoint fails with something other than a
+			// confirmed "disabled", which this collector can't read as an
+			// off state. Nothing else depends on that response.
+			name: "alerts fetch 404 while everything else resolves",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+				)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{scaSuccessfulRun("sha1", 1)})
+				registerRootFiles(t, mux, org, repo)
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("github-actions"))
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerAlertsStatus(t, mux, org, repo, http.StatusNotFound, "Not Found")
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusVerifiedPass,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusNotCheckable,
+			},
+		},
+		{
+			// The repo read fails, so collectRepo returns before any
+			// check-specific evidence exists: the only route to all five
+			// reporting not-checkable together.
+			name: "repo read forbidden",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				mux.HandleFunc("/repos/"+org+"/"+repo, func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "Forbidden"})
+				})
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusNotCheckable,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusNotCheckable,
+				"C06.sca.dependency-review": model.StatusNotCheckable,
+				"C06.sca.alerts-triaged":    model.StatusNotCheckable,
+			},
+		},
+		{
+			// The Dependabot config fetch itself fails with no workflow
+			// evidence to fall back on. Three checks that read it go
+			// not-checkable; dependency-review, which never reads it,
+			// still asserts its own confirmed absence.
+			name: "Dependabot config fetch forbidden with no workflow evidence",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerNoWorkflows(t, mux, org, repo)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerRootFiles(t, mux, org, repo, "go.mod")
+				registerDependabotConfigStatus(t, mux, org, repo, http.StatusForbidden)
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusNotCheckable,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusNotCheckable,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Issue #291: one of two matched SCA workflows fails its run
+			// fetch, but the release already reads "ran" from the other.
+			// Coverage is monotone in the runs pool, so it cannot be
+			// invalidated by runs it never needed.
+			name: "second workflow's run fetch fails while every release already ran",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+					workflowFixture{ID: 2, Path: ".github/workflows/grype.yml", Name: "Grype Scan", Content: grypeWorkflowYAML},
+				)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{scaSuccessfulRun("sha1", 1)})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows/2/runs", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+				})
+				registerRootFiles(t, mux, org, repo)
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("github-actions"))
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusVerifiedPass,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Issue #287, and state 13's necessary counterpart: the only
+			// matched workflow's run fetch fails and the coverage table
+			// therefore DOES assert an absence, so ran-per-release refuses
+			// it. Without this state, #291's narrowing could be widened
+			// back to an unconditional taint and only state 13 would
+			// notice; without state 13, it could be deleted entirely and
+			// only this one would.
+			name: "the only workflow's run fetch fails with an uncovered release",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+				)
+				registerOneRelease(t, mux, org, repo, "v1.0.0", "sha1", yesterday)
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/actions/workflows/1/runs", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusForbidden, map[string]any{"message": "API rate limit exceeded"})
+				})
+				registerRootFiles(t, mux, org, repo)
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("github-actions"))
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusNotCheckable,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Coverage is clean for every release that resolved, but an
+			// in-window tag could not be resolved at all — the
+			// droppedTags == 0 arm of ran-per-release's switch.
+			name: "one in-window release tag is unresolvable",
+			setup: func(t *testing.T, mux *http.ServeMux, org, repo string) {
+				registerRepo(t, mux, org, repo, "main")
+				registerWorkflows(t, mux, org, repo,
+					workflowFixture{ID: 1, Path: ".github/workflows/trivy.yml", Name: "Trivy Scan", Content: trivyWorkflowYAML},
+				)
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, []map[string]any{
+						{"tag_name": "v1.0.0", "target_commitish": "main", "published_at": yesterday.Format(time.RFC3339)},
+						{"tag_name": "v0.9.0", "target_commitish": "main", "published_at": time.Now().UTC().AddDate(0, 0, -30).Format(time.RFC3339)},
+					})
+				})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/git/ref/tags/v1.0.0", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusOK, map[string]any{"ref": "refs/tags/v1.0.0", "object": map[string]any{"type": "commit", "sha": "sha1"}})
+				})
+				mux.HandleFunc("/repos/"+org+"/"+repo+"/git/ref/tags/v0.9.0", func(w http.ResponseWriter, _ *http.Request) {
+					writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+				})
+				registerWorkflowRuns(t, mux, org, repo, 1, []map[string]any{scaSuccessfulRun("sha1", 1)})
+				registerRootFiles(t, mux, org, repo)
+				registerDependabotConfig(t, mux, org, repo, dependabotConfigFor("github-actions"))
+				registerNoBranchProtection(t, mux, org, repo, "main")
+				registerNoAlerts(t, mux, org, repo)
+			},
+			want: map[string]model.Status{
+				"C06.sca.tool-configured":   model.StatusVerifiedPass,
+				"C06.sca.ran-per-release":   model.StatusPartial,
+				"C06.sca.dependabot-config": model.StatusVerifiedPass,
+				"C06.sca.dependency-review": model.StatusVerifiedFail,
+				"C06.sca.alerts-triaged":    model.StatusVerifiedPass,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for i, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			// A distinct repo name per state keeps each state's handler
+			// registrations on their own mux paths, so a helper that
+			// registers a fixed path can't collide across states.
+			repo := fmt.Sprintf("rubric-repo-%02d", i+1)
+			mux := http.NewServeMux()
+			st.setup(t, mux, org, repo)
+
+			c := newCollectorForServer(t, newTestServer(t, mux))
+			scope := collect.Scope{Org: org, Repos: []string{repo}, ReleaseTagPattern: "v*", LookbackReleases: 5, LookbackMonths: 12}
+			results, err := c.Collect(context.Background(), scope)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much
+			// a defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }
