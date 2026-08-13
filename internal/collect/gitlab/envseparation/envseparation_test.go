@@ -572,6 +572,29 @@ func TestNested404IsDisclosedNotSwallowed(t *testing.T) {
 	}
 }
 
+// TestExistsProvenanceCitesOnlyItsOwnEndpoint pins the narrowing fix
+// alongside issue #14's identical-class fix elsewhere in this package:
+// C03.env.exists declares only GET .../environments in its Endpoints, so
+// its Provenance must never cite the later /protected_environments or
+// /groups/.../protected_environments calls the same Collect run makes for
+// the other two checks — Provenance() is cumulative on the client, so
+// reusing it unnarrowed would have this result cite calls it isn't about.
+// A revert that renames existsProv back to the later, wider prov happens
+// to fail compilation today (unused variable) — but deleting the variable
+// alongside it would revert silently, which is what this test guards.
+func TestExistsProvenanceCitesOnlyItsOwnEndpoint(t *testing.T) {
+	protected := []protectedEnvironment{{Name: "production", ApprovalRules: []approvalRule{{RequiredApprovals: 1}}}}
+	got := byID(collectWith(t, envMux([]string{"production"}, 200, protected, 200), "g", "p"))
+	for _, p := range got[idExists].Provenance {
+		if !strings.Contains(p.Endpoint, "/environments") || strings.Contains(p.Endpoint, "protected_environments") {
+			t.Errorf("C03.env.exists provenance cites %q, want only the /environments endpoint", p.Endpoint)
+		}
+	}
+	if len(got[idExists].Provenance) == 0 {
+		t.Fatal("C03.env.exists carries no provenance at all — the assertion above would pass vacuously")
+	}
+}
+
 func TestNamespacePaths(t *testing.T) {
 	cases := []struct {
 		org  string
