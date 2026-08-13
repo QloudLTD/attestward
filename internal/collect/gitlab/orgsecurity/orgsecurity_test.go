@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -211,4 +212,113 @@ func TestKnownVisibilitiesStillDecide(t *testing.T) {
 			t.Errorf("visibility %q = %q, want %q", vis, got.Status, want)
 		}
 	}
+}
+
+// groupBody renders the recorded response with a chosen visibility, so the
+// matrix below can vary all three fields the collector reads rather than
+// re-deriving the strings.Replace dance at every call site.
+func groupBody(visibility string, twoFactor bool, creationLevel string) string {
+	return strings.Replace(fmt.Sprintf(realGroupBody, twoFactor, creationLevel),
+		`"visibility": "private"`, fmt.Sprintf(`"visibility": %q`, visibility), 1)
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Four states reach every status this collector's four checks can emit, and
+// each state pins the whole result set rather than a count. That distinction is
+// the point: a state that merely reaches the code while asserting nothing looks
+// like coverage and is not, and here it would be especially easy to fool —
+// three of the four checks read the same group object, so a mistake that
+// swapped two of them would leave the row count untouched.
+//
+// The states, and what each is the only source of:
+//
+//   - private group, 2FA enforced — the all-pass baseline, and the only place
+//     the visibility-ceiling pass for members-can-create-public is reached.
+//   - public group, 2FA off, developers may create projects — the only source
+//     of verified-fail for all three answerable checks at once.
+//   - unrecognised visibility — the only source of not-checkable for the two
+//     visibility-derived checks while the group itself reads fine, which is a
+//     different route to not-checkable than the one below and the one the
+//     refuse-to-guess behaviour actually lives on.
+//   - group unreadable — the credential route to not-checkable, covering all
+//     four checks including members-without-2fa, whose rubric documents that
+//     status and nothing else.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	states := []struct {
+		name   string
+		status int
+		body   string
+		want   map[string]model.Status
+	}{
+		{
+			name: "private group, 2FA enforced", status: 200,
+			body: groupBody("private", true, "developer"),
+			want: map[string]model.Status{
+				idTwoFactorRequired:   model.StatusVerifiedPass,
+				idDefaultPermission:   model.StatusVerifiedPass,
+				idMembersCreatePublic: model.StatusVerifiedPass,
+				idMembersWithout2FA:   model.StatusNotCheckable,
+			},
+		},
+		{
+			name: "public group, 2FA off, developers may create projects", status: 200,
+			body: groupBody("public", false, "developer"),
+			want: map[string]model.Status{
+				idTwoFactorRequired:   model.StatusVerifiedFail,
+				idDefaultPermission:   model.StatusVerifiedFail,
+				idMembersCreatePublic: model.StatusVerifiedFail,
+				idMembersWithout2FA:   model.StatusNotCheckable,
+			},
+		},
+		{
+			name: "unrecognised visibility", status: 200,
+			body: groupBody("martian", true, "developer"),
+			want: map[string]model.Status{
+				idTwoFactorRequired:   model.StatusVerifiedPass,
+				idDefaultPermission:   model.StatusNotCheckable,
+				idMembersCreatePublic: model.StatusNotCheckable,
+				idMembersWithout2FA:   model.StatusNotCheckable,
+			},
+		},
+		{
+			name: "group unreadable", status: http.StatusForbidden,
+			body: `{"message":"denied"}`,
+			want: map[string]model.Status{
+				idTwoFactorRequired:   model.StatusNotCheckable,
+				idDefaultPermission:   model.StatusNotCheckable,
+				idMembersCreatePublic: model.StatusNotCheckable,
+				idMembersWithout2FA:   model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			res := collectAgainst(t, st.status, st.body)
+			got := map[string]model.Status{}
+			for _, r := range res {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and the count alone would not show either.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, res...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, platform, collectorID, all)
 }
