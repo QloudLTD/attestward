@@ -814,7 +814,7 @@ This check is registered under more than one platform — details for each below
 **Status rubric:**
 
 - **partial:** one or more environments exist, but none match the production-like naming heuristic (`prod`* prefix, case-insensitive) — a human reviewer should judge whether one of them is actually production before this check can evaluate anything
-- **not-checkable:** the environments list, or the project-level protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
+- **not-checkable:** the environments list couldn't be read (403/404/other API error), or the project has zero environments configured at all — a failed protected-environments read does NOT reach this check, which is answered from the environments list alone
 - **verified-pass:** at least one environment's name matches the production-like heuristic (`prod`* prefix, case-insensitive)
 
 **Remediation:** Project → Deployments → Environments → New environment → name it "production" (or any prod*/production variant — this check's name heuristic is case-insensitive) so deployments can be routed through it.
@@ -876,7 +876,7 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments have at least one protection rule
 
-- **Token permission:** read_api (Reporter or above on the project), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
+- **Token permission:** read_api (Maintainer or above on the project — GET /projects/:id/protected_environments returns 403 at Reporter), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
 - **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`, `GET /groups/{namespace}/protected_environments`
 
@@ -946,7 +946,7 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Production-like environments require reviewer approval before deployment
 
-- **Token permission:** read_api (Reporter or above on the project), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
+- **Token permission:** read_api (Maintainer or above on the project — GET /projects/:id/protected_environments returns 403 at Reporter), plus visibility of the project's namespace to read group-level protected environments (without it the check still runs, on project-level config alone)
 - **Fixture:** `internal/collect/gitlab/envseparation/envseparation_test.go`
 - **API endpoint(s):** `GET /projects/{id}/environments`, `GET /projects/{id}/protected_environments`, `GET /groups/{namespace}/protected_environments`
 
