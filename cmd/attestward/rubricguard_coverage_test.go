@@ -37,7 +37,6 @@ var rubricGuardUnwired = map[string]bool{
 	"azuredevops/C08.actions-security": true,
 	"azuredevops/C09.audit-logging":    true,
 	"github/C02.repo-protection":       true,
-	"github/C03.env-separation":        true,
 	"github/C05.sast-history":          true,
 	"github/C06.sca-history":           true,
 	"github/C07.provenance":            true,
@@ -164,6 +163,7 @@ var rubricGuardWired = map[string]bool{
 	"github/C09.audit-logging":        true,
 	"azuredevops/C01.org-security":    true,
 	"azuredevops/C10.vdp":             true,
+	"github/C03.env-separation":       true,
 	// gitlab/C08.actions-security is here rather than in the unwired
 	// baseline because all five of its check IDs live in ONE package
 	// (internal/collect/gitlab/actionssecurity) whose own test calls the

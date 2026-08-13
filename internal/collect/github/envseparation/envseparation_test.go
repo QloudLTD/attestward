@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
@@ -470,4 +471,191 @@ func TestBranchPolicyRemediationUsesCurrentUILabel(t *testing.T) {
 	if !strings.Contains(remediation, "No restriction") {
 		t.Errorf("C03.env.branch-policy remediation should name the current \"No restriction\" label as the state being changed from: %q", remediation)
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// Every check in this collector bottoms out at the SAME environments list,
+// so envsStatus/envs is the whole input surface.
+type rubricState struct {
+	name       string
+	envsStatus int
+	envs       []map[string]any
+	want       map[string]model.Status
+}
+
+func (st rubricState) mux(t *testing.T, org, repo string) *http.ServeMux {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/"+org+"/"+repo+"/environments", func(w http.ResponseWriter, _ *http.Request) {
+		if st.envsStatus != http.StatusOK {
+			writeJSON(t, w, st.envsStatus, map[string]any{"message": "nope"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"total_count": len(st.envs), "environments": st.envs})
+	})
+	return mux
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Five states reach all sixteen (four checks × four statuses) combinations,
+// minus C03.env.exists' verified-fail, which this collector deliberately
+// cannot produce — collectRepo returns before calling checkExists unless a
+// production-like environment already exists, so its only open question is
+// which non-fail status applies.
+//
+// Three of the four checks are conflated by construction, not by accident:
+// protection-rules, required-reviewers and branch-policy all read the SAME
+// prodEnvs slice from the SAME ListEnvironments response, and the two states
+// that produce a collector-wide answer (not-checkable, partial) move all four
+// in lockstep. So a matrix built only from "fully protected" and "fully
+// unprotected" prod environments would reach every status while never once
+// making two of these three checks disagree — coverage that proves nothing
+// about which field each check reads.
+//
+// States 1-3 are constructed against exactly that. Each holds ONE
+// production-like environment configured so the three checks split:
+//
+//	state 1: rules present, none of them reviewers, branch policy set
+//	         -> protection PASS, reviewers FAIL, branch PASS
+//	state 2: a real reviewers rule, no deployment_branch_policy at all
+//	         -> protection PASS, reviewers PASS, branch FAIL
+//	state 3: zero protection rules, branch policy set
+//	         -> protection FAIL, reviewers FAIL, branch PASS
+//
+// Every pair among the three disagrees in at least one state (protection vs
+// reviewers in 1 and 2, protection vs branch in 2, reviewers vs branch in 1
+// and 3). Confirmed by injection rather than assumed — three mutations that a
+// lockstep matrix would miss, all caught:
+//
+//   - making checkRequiredReviewers fail on len(e.ProtectionRules) == 0
+//     instead of hasRequiredReviewers — i.e. conflating it with
+//     protection-rules — is caught by state 1 alone, the only state whose
+//     environment has rules but no usable reviewers rule.
+//   - making checkBranchPolicy read hasRequiredReviewers instead of
+//     hasBranchPolicy is caught by states 1, 2 and 3, in both directions.
+//   - dropping hasRequiredReviewers' len(rule.Reviewers) > 0 condition is
+//     caught by state 1, whose environment carries a required_reviewers rule
+//     with an EMPTY reviewers list alongside the wait timer. That is the
+//     rubric's second fail route for the check ("has one configured with zero
+//     reviewers") and is not reachable any other way: a rule of the right type
+//     still has to be rejected.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	const org, repo = "attestward-demo", "svc"
+
+	branchPolicySet := map[string]any{"protected_branches": true, "custom_branch_policies": false}
+
+	states := []rubricState{
+		{
+			name:       "prod env has rules and a branch policy, but no usable reviewers rule",
+			envsStatus: http.StatusOK,
+			envs: []map[string]any{{
+				"name": "production",
+				"protection_rules": []map[string]any{
+					{"type": "wait_timer", "wait_timer": 30},
+					{"type": "required_reviewers", "reviewers": []map[string]any{}},
+				},
+				"deployment_branch_policy": branchPolicySet,
+			}},
+			want: map[string]model.Status{
+				"C03.env.exists":             model.StatusVerifiedPass,
+				"C03.env.protection-rules":   model.StatusVerifiedPass,
+				"C03.env.required-reviewers": model.StatusVerifiedFail,
+				"C03.env.branch-policy":      model.StatusVerifiedPass,
+			},
+		},
+		{
+			name:       "prod env has real reviewers but deploys from any branch",
+			envsStatus: http.StatusOK,
+			envs: []map[string]any{{
+				"name": "prod-us-east",
+				"protection_rules": []map[string]any{
+					{"type": "required_reviewers", "reviewers": []map[string]any{{"type": "Team", "id": 1}}},
+				},
+			}},
+			want: map[string]model.Status{
+				"C03.env.exists":             model.StatusVerifiedPass,
+				"C03.env.protection-rules":   model.StatusVerifiedPass,
+				"C03.env.required-reviewers": model.StatusVerifiedPass,
+				"C03.env.branch-policy":      model.StatusVerifiedFail,
+			},
+		},
+		{
+			name:       "prod env has no protection rules at all but restricts branches",
+			envsStatus: http.StatusOK,
+			envs: []map[string]any{{
+				"name":                     "Production",
+				"protection_rules":         []map[string]any{},
+				"deployment_branch_policy": branchPolicySet,
+			}},
+			want: map[string]model.Status{
+				"C03.env.exists":             model.StatusVerifiedPass,
+				"C03.env.protection-rules":   model.StatusVerifiedFail,
+				"C03.env.required-reviewers": model.StatusVerifiedFail,
+				"C03.env.branch-policy":      model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Environments exist but none is production-like: an affirmative
+			// "ambiguous, a human should judge", so all four report partial
+			// together. The only route to partial.
+			name:       "environments exist but none production-like",
+			envsStatus: http.StatusOK,
+			envs: []map[string]any{
+				{"name": "staging"},
+				{"name": "dev"},
+			},
+			want: map[string]model.Status{
+				"C03.env.exists":             model.StatusPartial,
+				"C03.env.protection-rules":   model.StatusPartial,
+				"C03.env.required-reviewers": model.StatusPartial,
+				"C03.env.branch-policy":      model.StatusPartial,
+			},
+		},
+		{
+			// The list itself is refused, so nothing downstream ran.
+			name:       "environments list forbidden",
+			envsStatus: http.StatusForbidden,
+			want: map[string]model.Status{
+				"C03.env.exists":             model.StatusNotCheckable,
+				"C03.env.protection-rules":   model.StatusNotCheckable,
+				"C03.env.required-reviewers": model.StatusNotCheckable,
+				"C03.env.branch-policy":      model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			c := newCollectorForServer(t, newTestServer(t, st.mux(t, org, repo)))
+			results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repo}})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "github", collectorID, all)
 }
