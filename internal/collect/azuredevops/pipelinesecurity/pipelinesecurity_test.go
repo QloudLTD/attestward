@@ -12,6 +12,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -789,4 +790,381 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 			t.Errorf("%s: FixtureRef is empty", id)
 		}
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// build starts from baselineFixture and overrides only what the state is
+// about, so every state registers all four evidence sources and a reader can
+// see at a glance which one it is varying.
+type rubricState struct {
+	name  string
+	build func(fx *adofixture.Transport)
+	want  map[string]model.Status
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Fifteen states reach every status this collector can emit. pinned and
+// pull-request-target make no API call and return not-checkable on every project
+// unconditionally — Azure Pipelines resolves tasks as Task@MajorVersion with no
+// SHA to pin, and has no pull_request_target-equivalent trigger — so no fixture
+// can move them; the guard's documented-but-unreachable direction is what pins
+// their single-status rubrics. self-hosted has no verified-fail in its rubric
+// either, by design: public-project self-hosted exposure is capped at partial,
+// and the guard is what would notice if a verified-fail entry were ever added
+// without the behaviour to back it.
+//
+// Two conflation risks, the first of them the sharpest in this collector:
+//
+//  1. token-permissions and fork-protection read the SAME General Settings
+//     response, fetched once, and differ only in WHICH of its nine booleans they
+//     consult. A matrix that varied "are the settings readable" or flipped the
+//     booleans together would move them in lockstep forever, and a check reading
+//     the other's fields would be invisible. States 2 and 3 are exact reverses —
+//     all three job-auth flags on with no fork protection at all, then no
+//     job-auth scoping with both fork protections on — and states 4 and 5 split
+//     them again at partial, in opposite directions. No state in the matrix
+//     leaves the two halves of that response agreeing.
+//
+//  2. oidc-vs-secrets and self-hosted each own their own endpoints, and each
+//     goes not-checkable when its own call fails. States 10, 14 and 15 fail one
+//     endpoint at a time, so each check is pinned to its own source rather than
+//     to "some call failed"; state 6 does the same for the shared settings pair.
+//
+// State 13 is worth calling out separately: it is the same self-hosted pool as
+// state 11 on a PRIVATE project, and it passes. That pair is what holds
+// self-hosted's visibility gate in place — without it, a check that ignored
+// visibility entirely and only read the pool would look correct.
+//
+// Verified by mutation rather than assumed — see the commit message for which
+// states caught which.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	// jobAuthAllOn / forkBuildsUnprotected etc. name the two independent halves
+	// of the single General Settings response, so each state below reads as a
+	// combination of the two rather than as nine loose booleans.
+	jobAuthAllOn := map[string]any{
+		"enforceJobAuthScope": true, "enforceJobAuthScopeForReleases": true,
+		"enforceReferencedRepoScopedToken": true,
+	}
+	jobAuthTwoOfThree := map[string]any{
+		"enforceJobAuthScope": true, "enforceJobAuthScopeForReleases": true,
+	}
+	forkBuildsOff := map[string]any{"buildsEnabledForForks": false}
+	forkBuildsUnprotected := map[string]any{"buildsEnabledForForks": true}
+	forkBuildsFullyProtected := map[string]any{
+		"buildsEnabledForForks": true, "forkProtectionEnabled": true,
+		"enforceNoAccessToSecretsFromForks": true,
+	}
+	forkBuildsHalfProtected := map[string]any{
+		"buildsEnabledForForks": true, "forkProtectionEnabled": true,
+	}
+	settings := func(parts ...map[string]any) map[string]any {
+		merged := map[string]any{}
+		for _, p := range parts {
+			for k, v := range p {
+				merged[k] = v
+			}
+		}
+		return fullGeneralSettings(merged)
+	}
+	wifEndpoint := map[string]any{
+		"id": "ep-1", "name": "prod-arm", "type": "azurerm",
+		"authorization": map[string]any{"scheme": "WorkloadIdentityFederation"},
+	}
+	denied := adofixture.Response{Status: http.StatusForbidden, Body: map[string]any{"message": "denied"}}
+
+	alwaysNC := func(m map[string]model.Status) map[string]model.Status {
+		for _, id := range alwaysNotCheckableIDs {
+			m[id] = model.StatusNotCheckable
+		}
+		return m
+	}
+
+	states := []rubricState{
+		{
+			// A public project with a Microsoft-hosted pool, so self-hosted's
+			// pass is EARNED rather than reached by the zero-definitions or
+			// private-project shortcuts — both of which would pass without
+			// looking at a pool at all.
+			name: "everything hardened: job auth fully scoped, fork builds off, federated identity, hosted pool",
+			build: func(fx *adofixture.Transport) {
+				registerGeneralSettings(fx, settings(jobAuthAllOn, forkBuildsOff))
+				registerServiceEndpoints(fx, wifEndpoint)
+				registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+				registerDefinitionPool(fx, 1, "CI", hostedQueue())
+				registerProjectVisibility(fx, "public")
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedPass,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusVerifiedPass,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// Split half one: the same response satisfies token-permissions
+			// completely and fork-protection not at all.
+			name: "job auth fully scoped, fork builds enabled with no fork protection",
+			build: func(fx *adofixture.Transport) {
+				registerGeneralSettings(fx, settings(jobAuthAllOn, forkBuildsUnprotected))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedPass,
+				idForkProtection:   model.StatusVerifiedFail,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// Split half two: the exact reverse of state 2 on the same response.
+			name: "no job-auth scoping at all, fork builds enabled and fully protected",
+			build: func(fx *adofixture.Transport) {
+				registerGeneralSettings(fx, settings(forkBuildsFullyProtected))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// token-permissions' route to partial, reached while
+			// fork-protection sits at pass — so the two are split at partial
+			// too, not only at the extremes.
+			name: "two of three job-auth settings enabled, fork builds off",
+			build: func(fx *adofixture.Transport) {
+				registerGeneralSettings(fx, settings(jobAuthTwoOfThree, forkBuildsOff))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusPartial,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// The reverse of state 4: fork-protection's route to partial with
+			// token-permissions at pass.
+			name: "job auth fully scoped, fork builds enabled with only one of the two protections",
+			build: func(fx *adofixture.Transport) {
+				registerGeneralSettings(fx, settings(jobAuthAllOn, forkBuildsHalfProtected))
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedPass,
+				idForkProtection:   model.StatusPartial,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// The one failure that legitimately moves both settings-derived
+			// checks together — and moves ONLY them, which is the part worth
+			// pinning.
+			name: "the pipeline general settings are denied",
+			build: func(fx *adofixture.Transport) {
+				fx.Set("GET", azuredevops.HostCore, generalSettingsPath(), denied)
+				registerServiceEndpoints(fx, wifEndpoint)
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusNotCheckable,
+				idForkProtection:   model.StatusNotCheckable,
+				idOIDC:             model.StatusVerifiedPass,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// All three scheme classes at once — federated, confirmed static
+			// secret, and unrecognised — because the precedence between the
+			// last two is a real decision: a confirmed long-lived credential
+			// is a fail even when an unknown scheme is also present. A fixture
+			// with only a service principal cannot test that ordering, and a
+			// mutation exposed exactly that gap.
+			name: "an azurerm connection authenticating with a service principal, alongside an unrecognised one",
+			build: func(fx *adofixture.Transport) {
+				registerServiceEndpoints(fx,
+					wifEndpoint,
+					map[string]any{
+						"id": "ep-2", "name": "legacy-arm", "type": "azurerm",
+						"authorization": map[string]any{"scheme": "ServicePrincipal"},
+					},
+					map[string]any{
+						"id": "ep-3", "name": "mystery-arm", "type": "azurerm",
+						"authorization": map[string]any{"scheme": "SomethingElse"},
+					},
+				)
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusVerifiedFail,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// An unrecognised scheme is not confirmed either way. Paired with
+			// state 7, whose fixture also carries a federated connection, this
+			// pins that one bad connection is enough and that "unknown" ranks
+			// below "confirmed static secret".
+			name: "an azurerm connection reporting a scheme this collector does not recognise",
+			build: func(fx *adofixture.Transport) {
+				registerServiceEndpoints(fx,
+					wifEndpoint,
+					map[string]any{
+						"id": "ep-2", "name": "mystery-arm", "type": "azurerm",
+						"authorization": map[string]any{"scheme": "SomethingElse"},
+					},
+				)
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusPartial,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// oidc's not-checkable with nothing broken: the query succeeded and
+			// the project simply has no azurerm connections to judge.
+			name: "the project has no azurerm service connections",
+			build: func(fx *adofixture.Transport) {
+				registerServiceEndpoints(fx)
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// The same status as state 9 by a different route, and the state
+			// that isolates oidc: only its endpoint is denied.
+			name: "the service-connection listing is denied",
+			build: func(fx *adofixture.Transport) {
+				fx.Set("GET", azuredevops.HostCore, serviceEndpointsPath(), denied)
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			name: "a public project with a build definition on a self-hosted pool",
+			build: func(fx *adofixture.Transport) {
+				registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+				registerDefinitionPool(fx, 1, "CI", selfHostedQueue())
+				registerProjectVisibility(fx, "public")
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusPartial,
+			}),
+		},
+		{
+			// self-hosted's second route to partial: the pool is not
+			// self-hosted, it is UNKNOWN — the definition's response carries no
+			// queue at all. A check that only counted non-hosted pools would
+			// pass here.
+			name: "a public project with a build definition whose pool cannot be resolved",
+			build: func(fx *adofixture.Transport) {
+				registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+				registerDefinitionPool(fx, 1, "CI", nil)
+				registerProjectVisibility(fx, "public")
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusPartial,
+			}),
+		},
+		{
+			// The same self-hosted pool as state 11, on a PRIVATE project. The
+			// pair is what holds the visibility gate in place: this check flags
+			// exposure to public contributors, not self-hosted pools per se.
+			name: "a private project with a build definition on a self-hosted pool",
+			build: func(fx *adofixture.Transport) {
+				registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+				registerDefinitionPool(fx, 1, "CI", selfHostedQueue())
+				registerProjectVisibility(fx, "private")
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusVerifiedPass,
+			}),
+		},
+		{
+			// self-hosted isolated on the visibility half of its evidence: the
+			// pools resolve fine and the project's own visibility does not.
+			name: "the project's visibility is denied while its pools resolve",
+			build: func(fx *adofixture.Transport) {
+				registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+				registerDefinitionPool(fx, 1, "CI", hostedQueue())
+				fx.Set("GET", azuredevops.HostCore, projectPath(), denied)
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusNotCheckable,
+			}),
+		},
+		{
+			// self-hosted isolated on the other half of its evidence.
+			name: "the build-definition listing is denied while visibility resolves",
+			build: func(fx *adofixture.Transport) {
+				fx.Set("GET", azuredevops.HostCore, pipelinesPath(), denied)
+				registerProjectVisibility(fx, "public")
+			},
+			want: alwaysNC(map[string]model.Status{
+				idTokenPermissions: model.StatusVerifiedFail,
+				idForkProtection:   model.StatusVerifiedPass,
+				idOIDC:             model.StatusNotCheckable,
+				idSelfHosted:       model.StatusNotCheckable,
+			}),
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			fx := baselineFixture()
+			st.build(fx)
+
+			results, err := newCollector(fx).Collect(context.Background(), defaultScope())
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
