@@ -1,0 +1,11 @@
+{
+  "data": {
+    "project": {
+      "securityScanners": {
+        "enabled": [],
+        "available": [],
+        "pipelineRun": []
+      }
+    }
+  }
+}

@@ -19,6 +19,31 @@
 // Re-recording requires an entitled namespace, so treat testdata/ as expensive
 // to reproduce and do not casually regenerate it.
 //
+// # The raw scanner reports, added 2026-08-13
+//
+// gl-sast-report.json, gl-dependency-scanning-report.json,
+// gl-secret-detection-report.json and gl-sbom-npm.cdx.json are the artifacts
+// the scan jobs themselves wrote — the structured input a collector parses,
+// as opposed to GitLab's post-processed view of it. Their counts corroborate
+// the API recordings independently: 8 dependency-scanning, 1 SAST, 1 secret.
+//
+// gl-dependency-scanning-report.json took a detour worth knowing about. The
+// jobs API lists it, with its real size, but the artifacts API will not serve
+// it: GitLab's stock template declares it only under artifacts:reports:, and
+// only artifacts:paths: files reach the downloadable archive. Asking for it
+// returns 404, and the ?file_type= parameter that looks like the answer is
+// silently ignored rather than rejected. It was recovered by re-declaring it
+// under artifacts:paths: on a throwaway branch and re-running the pipeline.
+// The practical consequence is in docs/gitlab-security-apis.md: a collector
+// cannot expect to read this file from a customer's pipeline, so it is
+// recorded for its schema, not as a retrieval path.
+//
+// The three GraphQL recordings answer the tier question that REST answers with
+// a 403. graphql-security-scanners-free.json is the important one and the
+// reason the pair exists: on a Free project GraphQL returns empty arrays and
+// no error, structurally identical to an entitled, fully scanned, clean
+// project. Only securityScanners.available separates them.
+//
 // # What was trimmed, and why
 //
 // The raw findings carry around forty keys each, most of them UI affordances —
@@ -47,9 +72,10 @@
 //     rather than months later when its collector is finally written.
 //
 // Staged, not yet executed: dependencies.json, vulnerability_findings.json,
-// and the two audit-event recordings, which wait on their collectors. The
-// tier-gated 403 path is covered by inline literals in the existing client and
-// repoprotection tests, NOT by 403-not-entitled.json — that file is staged too.
+// the four raw scanner reports, the three GraphQL recordings, and the two
+// audit-event recordings, which wait on their collectors. The tier-gated 403
+// path is covered by inline literals in the existing client and repoprotection
+// tests, NOT by 403-not-entitled.json — that file is staged too.
 //
 // # Scrubbing
 //
@@ -57,4 +83,15 @@
 // removed and author_id flattened to 1. GitLab does return those fields; their
 // absence here is our hygiene, not the API's shape. A collector author reading
 // these should not conclude the fields are unavailable.
+//
+// gl-secret-detection-report.json has had location.commit.author removed for
+// the same reason; its date, message and sha are untouched. The finding it
+// carries is over AKIAIOSFODNN7EXAMPLE, which is Amazon's own published
+// documentation value and authenticates nothing — it is in the fixture because
+// a secret-detection recording with no detected secret evidences nothing.
+//
+// gl-sast-report.json has scan.primary_identifiers cut from 592 entries to 3.
+// That field is the analyzer's catalogue of every rule it knows, not anything
+// it found, and it was 72,682 of the report's 104,094 bytes. Three are kept so
+// the element shape stays legible. This trim is ours; GitLab sends all 592.
 package gitlabfixture

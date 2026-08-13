@@ -1,0 +1,108 @@
+{
+  "scan": {
+    "analyzer": {
+      "id": "semgrep",
+      "name": "Semgrep",
+      "url": "https://gitlab.com/gitlab-org/security-products/analyzers/semgrep",
+      "vendor": {
+        "name": "GitLab"
+      },
+      "version": "6.18.2"
+    },
+    "scanner": {
+      "id": "semgrep",
+      "name": "Semgrep",
+      "url": "https://github.com/returntocorp/semgrep",
+      "vendor": {
+        "name": "GitLab"
+      },
+      "version": "1.145.0"
+    },
+    "primary_identifiers": [
+      {
+        "type": "semgrep_id",
+        "name": "bandit.B101",
+        "value": "bandit.B101"
+      },
+      {
+        "type": "semgrep_id",
+        "name": "bandit.B102",
+        "value": "bandit.B102"
+      },
+      {
+        "type": "semgrep_id",
+        "name": "bandit.B103",
+        "value": "bandit.B103"
+      }
+    ],
+    "type": "sast",
+    "start_time": "2026-08-10T00:44:45",
+    "end_time": "2026-08-10T00:44:51",
+    "status": "success",
+    "observability": {
+      "events": [
+        {
+          "event": "collect_sast_scan_metrics_from_pipeline",
+          "property": "7a57093b-1db1-4352-b37f-751faab01ffb",
+          "label": "semgrep",
+          "value": 0,
+          "version": "6.18.2",
+          "exit_code": 0,
+          "override_count": 0,
+          "passthrough_count": 0,
+          "custom_exclude_path_count": 0,
+          "time_s": 6,
+          "file_count": 3
+        }
+      ]
+    }
+  },
+  "version": "15.2.2",
+  "vulnerabilities": [
+    {
+      "id": "25ce0c6ce026990f4c9358d000336a8d8f8612bb4a7851b245bce76a499874d1",
+      "category": "sast",
+      "name": "Use of a broken or risky cryptographic algorithm",
+      "description": "The MD5 message-digest algorithm has been cryptographically broken and is unsuitable for\nfurther use. The MD5 hash algorithm has been found to be vulnerable to producing collisions.\nThis means that two different values, when hashed, can lead to the same hash value. It is\nrecommended that the SHA-3 or BLAKE2 family of algorithms be used for non-password based\ncryptographic hashes instead. For password based cryptographic hashes,  consider using the\nbcrypt or Argon2id family of cryptographic hashes.\n\nHashing values using [BLAKE2](https://pkg.go.dev/golang.org/x/crypto/blake2b):\n```\nfileContents := []byte(\"some file contents to create hash for\")\nblake2bHasher, err := blake2b.New512(nil)\nif err != nil {\n  log.Fatal(err)\n}\nhashedValue := blake2bHasher.Sum(fileContents)\nfmt.Printf(\"%s\\n\", hex.EncodeToString(hashedValue))\n```\n\nHashing and securely comparing passwords using\n[Argon2id](https://pkg.go.dev/golang.org/x/crypto/argon2#hdr-Argon2id):\n```\ntype argonParameters struct {\n  variant     string\n  version     int\n  memory      uint32\n  iterations  uint32\n  parallelism uint8\n  saltLength  uint32\n  keyLength   uint32\n}\n\nfunc (a argonParameters) StringFormat(salt, derivedKey []byte) string {\n  encodedSalt := base64.RawStdEncoding.EncodeToString(salt)\n  encodedKey := base64.RawStdEncoding.EncodeToString(derivedKey)\n\n  return fmt.Sprintf(\"$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s\",\n    argon2.Version,\n    a.memory,\n    a.iterations,\n    a.parallelism,\n    encodedSalt,\n    encodedKey,\n  )\n}\n\nfunc main() {\n  // Initialize Argon2id parameters\n  p := argonParameters{\n    memory:      64 * 1024,\n    iterations:  3,\n    parallelism: 2,\n    saltLength:  16,\n    keyLength:   32,\n  }\n\n  // Generate random salt (to be stored alongside derived hash key)\n  salt := make([]byte, p.saltLength)\n  if _, err := io.ReadFull(rand.Reader, salt); err != nil {\n    log.Fatal(err)\n  }\n\n  usersPassword := []byte(\"User's Very S3cur3P4ss@rd@#$%\")\n\n  var derivedKey []byte\n  // Create key hash derived from user's password\n  {\n    derivedKey = argon2.IDKey(usersPassword, salt, p.iterations, p.memory, p.parallelism,\np.keyLength)\n    // store p.StringFormat(...) result in a data store...\n    fmt.Printf(\"%s\\n\", p.StringFormat(salt, derivedKey))\n  }\n\n  // Verify a user's password against key\n  {\n    keyToCompare := argon2.IDKey(usersPassword, salt, p.iterations, p.memory, p.parallelism,\np.keyLength)\n\n    // Use subtle.ConstantTimeCompare(..., ...) to ensure no side channel leaks used in timing\nattacks\n    if subtle.ConstantTimeCompare(derivedKey, keyToCompare) == 1 {\n      fmt.Printf(\"Passwords match\\n\")\n    } else {\n      fmt.Printf(\"Passwords do not match\\n\")\n    }\n  }\n}\n```\n\nFor more information on password storage see OWASP's guide:\nhttps://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html\n",
+      "cve": "semgrep_id:gosec.G501-1:9:10",
+      "severity": "Medium",
+      "scanner": {
+        "id": "semgrep",
+        "name": "Semgrep"
+      },
+      "location": {
+        "file": "insecure.go",
+        "start_line": 9,
+        "end_line": 10
+      },
+      "identifiers": [
+        {
+          "type": "semgrep_id",
+          "name": "gosec.G501-1",
+          "value": "gosec.G501-1"
+        },
+        {
+          "type": "cwe",
+          "name": "CWE-327",
+          "value": "327",
+          "url": "https://cwe.mitre.org/data/definitions/327.html"
+        },
+        {
+          "type": "owasp",
+          "name": "A02:2021 - Cryptographic Failures",
+          "value": "A02:2021"
+        },
+        {
+          "type": "owasp",
+          "name": "A3:2017 - Sensitive Data Exposure",
+          "value": "A3:2017"
+        },
+        {
+          "type": "gosec_rule_id",
+          "name": "Gosec Rule ID G501",
+          "value": "G501"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "data": {
+    "project": {
+      "pipeline": {
+        "securityReportSummary": {
+          "apiFuzzing": null,
+          "clusterImageScanning": null,
+          "containerScanning": null,
+          "coverageFuzzing": null,
+          "dast": null,
+          "dependencyScanning": {
+            "vulnerabilitiesCount": 8
+          },
+          "sast": {
+            "vulnerabilitiesCount": 1,
+            "scannedResourcesCount": 0
+          },
+          "secretDetection": {
+            "vulnerabilitiesCount": 1
+          }
+        }
+      }
+    }
+  }
+}

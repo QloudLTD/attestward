@@ -1,0 +1,30 @@
+{
+  "data": {
+    "project": {
+      "securityScanners": {
+        "enabled": [
+          "SAST",
+          "DEPENDENCY_SCANNING",
+          "SECRET_DETECTION"
+        ],
+        "available": [
+          "SAST",
+          "SAST_ADVANCED",
+          "SAST_IAC",
+          "DAST",
+          "DEPENDENCY_SCANNING",
+          "CONTAINER_SCANNING",
+          "SECRET_DETECTION",
+          "COVERAGE_FUZZING",
+          "API_FUZZING",
+          "CLUSTER_IMAGE_SCANNING"
+        ],
+        "pipelineRun": [
+          "SAST",
+          "DEPENDENCY_SCANNING",
+          "SECRET_DETECTION"
+        ]
+      }
+    }
+  }
+}
