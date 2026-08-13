@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -451,13 +452,30 @@ func TestStaticCloudCredentialsAreMatchedExactlyAndCaseSensitively(t *testing.T)
 	}
 }
 
+// wantStaticCloudCredentialVariables is a literal, independent of
+// staticCloudCredentialVariables, that TestEveryStaticCloudCredentialNameIsDetected
+// checks the real table against — driving the detection loop from the same
+// map it's asserting would let the table silently narrow (drop a name, or
+// mislabel a cloud) with every subtest still reading its own expectation
+// from the shrunk map and passing.
+var wantStaticCloudCredentialVariables = map[string]string{
+	"AWS_ACCESS_KEY_ID":              "aws",
+	"AWS_SECRET_ACCESS_KEY":          "aws",
+	"AZURE_CLIENT_SECRET":            "azure",
+	"GOOGLE_APPLICATION_CREDENTIALS": "gcp",
+	"GOOGLE_CREDENTIALS":             "gcp",
+}
+
 // TestEveryStaticCloudCredentialNameIsDetected exercises every entry in
 // staticCloudCredentialVariables individually, table-driven — the table IS
 // the entire detection surface of this check, and the sibling test above
 // only ever supplies AWS_SECRET_ACCESS_KEY, leaving the other four names
 // (and their cloud labels) completely unexercised.
 func TestEveryStaticCloudCredentialNameIsDetected(t *testing.T) {
-	for name, wantCloud := range staticCloudCredentialVariables {
+	if !reflect.DeepEqual(wantStaticCloudCredentialVariables, staticCloudCredentialVariables) {
+		t.Fatalf("staticCloudCredentialVariables = %v, want %v", staticCloudCredentialVariables, wantStaticCloudCredentialVariables)
+	}
+	for name, wantCloud := range wantStaticCloudCredentialVariables {
 		t.Run(name, func(t *testing.T) {
 			got := findStaticCloudCredentials([]variableRaw{{Key: name, Value: "real"}})
 			if len(got) != 1 || got[0].Key != name || got[0].Cloud != wantCloud {
