@@ -1,0 +1,27 @@
+[
+  {
+    "name": "production",
+    "deploy_access_levels": [
+      {
+        "id": 32000998,
+        "access_level": 40,
+        "access_level_description": "Maintainers",
+        "user_id": null,
+        "group_id": null,
+        "group_inheritance_type": 0
+      }
+    ],
+    "required_approval_count": 0,
+    "approval_rules": [
+      {
+        "id": 3806256,
+        "user_id": null,
+        "group_id": null,
+        "access_level": 40,
+        "access_level_description": "Maintainers",
+        "required_approvals": 1,
+        "group_inheritance_type": 0
+      }
+    ]
+  }
+]
