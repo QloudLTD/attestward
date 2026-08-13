@@ -89,12 +89,21 @@
 //     read would retire a working check for the majority Free audience. The
 //     blind spot is disclosed in the Reason instead.
 //
-// One case is deliberately not disclosed: HTTP 404 from /groups/:path. A
-// project in a personal namespace — the common Free case — has no group at
-// all, and GitLab answers 404 there because group-level protection is
-// structurally impossible, not because something was hidden. 403 is the
-// status that means the group exists and a tier or permission gate refused
-// the read, and that is what gets reported as a blind spot.
+// HTTP 404 from /groups/:path is NOT uniformly "no group exists" — GitLab is
+// documented elsewhere in this tree (gitlabcollect.IsTierGated's own doc
+// comment: "some Premium endpoints 403, some 404 to hide their existence")
+// as inconsistent about which status code hides a group's existence from a
+// token that can't see it. What's structurally provable, independent of
+// that gap: GitLab does not allow subgroups under a personal
+// namespace, so if the project's own namespace is nested ("a/b"), every
+// ancestor path in the walk — including the top-level one — is provably a
+// real group, and a 404 anywhere in that walk can only mean refused/hidden,
+// never absent; it is disclosed as a blind spot the same as a 403. Only for
+// a project directly in a single-segment namespace (the common
+// personal-namespace case, where there is exactly one path to check) does a
+// 404 stay genuinely ambiguous between "no group at all" and "a hidden
+// top-level group" — and stays undisclosed there, rather than caveat the
+// large majority of real fails on a distinction the API doesn't resolve.
 package envseparation
 
 import (
