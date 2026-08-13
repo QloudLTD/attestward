@@ -12,6 +12,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -798,4 +799,192 @@ func (c *queryCapturingTransport) RoundTrip(req *http.Request) (*http.Response, 
 	}
 	c.queries[req.URL.Path] = req.URL.Query()
 	return c.base.RoundTrip(req)
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// Each field is one of the four responses this collector reads, and want is
+// the whole result map that world must produce.
+type rubricState struct {
+	name string
+	// auditLog and streams are BOTH on azuredevops.HostAudit and both go
+	// not-checkable on the same gated status codes (see IsAuditGated), so
+	// which of the two a check actually reads is exactly what a matrix
+	// gating them together would fail to pin. See the test's doc comment.
+	auditLog adofixture.Response
+	streams  adofixture.Response
+	project  adofixture.Response
+	subs     adofixture.Response
+	want     map[string]model.Status
+}
+
+func (st rubricState) fixture() *adofixture.Transport {
+	fx := adofixture.New()
+	fx.Set("GET", azuredevops.HostAudit, auditLogPath(), st.auditLog)
+	fx.Set("GET", azuredevops.HostAudit, streamsPath(), st.streams)
+	fx.Set("GET", azuredevops.HostCore, projectPath(testProject), st.project)
+	fx.Set("GET", azuredevops.HostCore, subscriptionsPath(), st.subs)
+	return fx
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Four states reach every status this collector can emit. retention-awareness
+// makes no API call and returns not-checkable unconditionally, so no state can
+// move it — the guard's documented-but-unreachable direction is what pins that
+// rather than any fixture.
+//
+// The state matrix is shaped by one conflation risk that is real here and was
+// not hypothetical elsewhere: org-log-available and log-streaming both call
+// azuredevops.HostAudit, and both degrade to not-checkable on the SAME gated
+// status codes (IsAuditGated). A matrix that only ever gates the audit host as
+// a whole moves them in lockstep, and a check reading the wrong audit path
+// would be invisible. So:
+//
+//   - state 3 gates /audit/auditlog while /audit/streams answers 200 with an
+//     enabled stream, which is the only state where org-log-available is
+//     not-checkable and log-streaming is a pass;
+//   - state 4 gates /audit/streams while /audit/auditlog answers 200, the
+//     exact reverse.
+//
+// Verified by injection rather than assumed: pointing checkOrgLogAvailable's
+// path at /_apis/audit/streams makes states 3 and 4 fail in OPPOSITE
+// directions, which is what says they pin the path rather than the host.
+//
+// State 2 additionally separates the two audit checks WITHOUT any transport
+// failure — both calls return 200 and they still disagree, because the only
+// configured stream is disabled. That is the difference between "these checks
+// read different endpoints" and "these checks read different fields of what
+// they got back", and it is the state that catches log-streaming ignoring the
+// status field: counting every stream as enabled flips it to a pass and takes
+// verified-fail out of the matrix entirely.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	okAuditLog := adofixture.Response{
+		Status: http.StatusOK,
+		Body:   map[string]any{"value": map[string]any{"decoratedAuditLogEntries": []any{}, "hasMore": false}},
+	}
+	gatedAudit := adofixture.Response{Status: http.StatusUnauthorized, Body: map[string]any{"message": "gated"}}
+	okProject := adofixture.Response{
+		Status: http.StatusOK,
+		Body:   map[string]any{"id": "proj-guid-123", "name": testProject},
+	}
+	streamsWith := func(status string) adofixture.Response {
+		return adofixture.Response{
+			Status: http.StatusOK,
+			Body: map[string]any{"count": 1, "value": []map[string]any{
+				{"id": 1, "consumerType": "Splunk", "status": status},
+			}},
+		}
+	}
+	subsWith := func(subs ...map[string]any) adofixture.Response {
+		return adofixture.Response{
+			Status: http.StatusOK,
+			Body:   map[string]any{"count": len(subs), "value": subs},
+		}
+	}
+
+	states := []rubricState{
+		{
+			name:     "everything reachable: audit log queryable, a stream enabled, a git.push hook on this project",
+			auditLog: okAuditLog,
+			streams:  streamsWith("enabled"),
+			project:  okProject,
+			subs: subsWith(map[string]any{
+				"eventType": "git.push", "status": "enabled",
+				"publisherInputs": map[string]any{"projectId": "proj-guid-123"},
+			}),
+			want: map[string]model.Status{
+				orgLogAvailableID:    model.StatusVerifiedPass,
+				logStreamingID:       model.StatusVerifiedPass,
+				retentionAwarenessID: model.StatusNotCheckable,
+				webhooksID:           model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Both audit calls return 200 and the two checks still disagree:
+			// the only configured stream is disabled. No transport failure is
+			// involved, so this separates them by what they read rather than
+			// by which call broke. The subscription here is a real one scoped
+			// to a DIFFERENT project, which is the webhook fail worth pinning
+			// — an empty list would pass without exercising the project match.
+			name:     "audit log queryable, the only stream disabled, the only hook on another project",
+			auditLog: okAuditLog,
+			streams:  streamsWith("disabled"),
+			project:  okProject,
+			subs: subsWith(map[string]any{
+				"eventType": "git.push", "status": "enabled",
+				"publisherInputs": map[string]any{"projectId": "some-other-guid"},
+			}),
+			want: map[string]model.Status{
+				orgLogAvailableID:    model.StatusVerifiedPass,
+				logStreamingID:       model.StatusVerifiedFail,
+				retentionAwarenessID: model.StatusNotCheckable,
+				webhooksID:           model.StatusVerifiedFail,
+			},
+		},
+		{
+			// Half the audit host gated: /audit/auditlog refuses, /audit/streams
+			// answers. The only route to org-log-available's not-checkable, and
+			// the state a check reading the wrong audit path gets wrong.
+			name:     "auditlog gated but streams readable",
+			auditLog: gatedAudit,
+			streams:  streamsWith("enabled"),
+			project:  okProject,
+			subs:     subsWith(),
+			want: map[string]model.Status{
+				orgLogAvailableID:    model.StatusNotCheckable,
+				logStreamingID:       model.StatusVerifiedPass,
+				retentionAwarenessID: model.StatusNotCheckable,
+				webhooksID:           model.StatusVerifiedFail,
+			},
+		},
+		{
+			// The exact reverse of state 3, plus the unresolvable project that
+			// is webhooks' only route to not-checkable. Nothing here is a
+			// whole-host outage: two of the four calls succeed.
+			name:     "streams gated, auditlog readable, project not resolvable",
+			auditLog: okAuditLog,
+			streams:  adofixture.Response{Status: http.StatusUnauthorized, Body: map[string]any{"message": "gated"}},
+			project:  adofixture.Response{Status: http.StatusNotFound, Body: map[string]any{"message": "no such project"}},
+			subs:     subsWith(),
+			want: map[string]model.Status{
+				orgLogAvailableID:    model.StatusVerifiedPass,
+				logStreamingID:       model.StatusNotCheckable,
+				retentionAwarenessID: model.StatusNotCheckable,
+				webhooksID:           model.StatusNotCheckable,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			results, err := newCollector(st.fixture()).Collect(context.Background(), collect.Scope{Org: testOrg, Project: testProject})
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
