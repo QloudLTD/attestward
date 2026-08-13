@@ -541,6 +541,37 @@ func TestPersonalNamespace404IsNotReportedAsABlindSpot(t *testing.T) {
 	}
 }
 
+// TestNested404IsDisclosedNotSwallowed is the regression test for a real
+// bug caught in review: GitLab is not consistent about whether it 403s or
+// 404s a group the token can't see (see client.go's own doc comment on
+// this). For a SINGLE-segment org, a 404 genuinely can't be told apart
+// from "no group at all" (TestPersonalNamespace404IsNotReportedAsABlindSpot
+// above), so it stays silent. But GitLab does not allow subgroups under a
+// personal namespace — so once org is nested ("g/sub"), every ancestor
+// path in the walk, including the top-level one, is provably a real group,
+// and a 404 anywhere in that walk can only mean refused/hidden. Before the
+// fix, every 404 was swallowed unconditionally, which combined with this
+// MR's own rubric text ("no caveat means both routes were ruled out") to
+// make a false fail read as complete when it wasn't, one token-permission
+// away from the every-fail-is-swallowed case this test pins.
+func TestNested404IsDisclosedNotSwallowed(t *testing.T) {
+	h := envMuxTiered(taggedEnvs([]string{"production"}), 200, nil, 200, nil) // every group path 404s
+	got := byID(collectWith(t, h, "g/sub", "p"))
+
+	for _, id := range []string{idProtectionRules, idRequiredReviewers} {
+		if got[id].Status != model.StatusVerifiedFail {
+			t.Errorf("%s = %q, want verified-fail — project-level evidence still supports it", id, got[id].Status)
+		}
+		if !strings.Contains(got[id].Reason, "could not be read") {
+			t.Errorf("%s reason %q must disclose the blind spot — org is nested, so a 404 here can only mean "+
+				"refused/hidden, never absent", id, got[id].Reason)
+		}
+		if got[id].Facts["group_level_unreadable"] == nil {
+			t.Errorf("%s facts do not record which group path was unreadable", id)
+		}
+	}
+}
+
 func TestNamespacePaths(t *testing.T) {
 	cases := []struct {
 		org  string

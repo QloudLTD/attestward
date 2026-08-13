@@ -363,10 +363,21 @@ stays entitled and actionable. If Free does 403, treating that as
 `not-checkable` would silently retire C03's two protection checks for the
 majority audience. The blind spot is disclosed in the Reason instead.
 
-One case is deliberately **not** disclosed: a **404**. It means no group exists
-at that path — the personal-namespace case above, where group-level protection
-is structurally impossible rather than hidden. **403** is the status that means
-the group exists and something refused the read, and that is what gets reported.
+**404 is NOT uniformly "no group exists."** GitLab is documented elsewhere in
+this codebase (`internal/collect/gitlab/client.go`) as inconsistent about which
+status code hides a group's existence from a token that can't see it — some
+Premium endpoints 403, some 404. Whether that's true for THIS endpoint on Free
+was never measured (see above). What's structurally provable, independent of
+that gap: GitLab does not allow subgroups under a personal namespace, so if the
+project's own namespace is nested (`a/b`), every ancestor path in the walk —
+including the top-level one — is provably a real group, and a 404 anywhere in
+that walk can only mean refused/hidden, never absent. The collector discloses
+a 404 as a blind spot in that case, the same as a 403. Only for a project
+directly in a single-segment namespace (the common personal-namespace case,
+where there's exactly one path to check) does a 404 stay genuinely ambiguous
+between "no group at all" and "a hidden top-level group" — and stays silent
+there, rather than caveat the large majority of real fails on an unresolvable
+distinction.
 
 ### Recreating this state
 

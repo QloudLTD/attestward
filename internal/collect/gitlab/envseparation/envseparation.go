@@ -174,9 +174,14 @@ const sharedPartialRubric = "one or more environments exist, but none match the 
 // can rest on project-level evidence alone — otherwise a reader would take
 // every fail as having ruled out both routes.
 const sharedGroupBlindSpotRubric = ". Group-level config is read from the project's namespace and every " +
-	"ancestor group path; if any of those reads is refused (403 — a paid-tier or permission gate) the " +
-	"Reason names it and the fail rests on project-level evidence alone. A 404 is not a refusal: it means " +
-	"no group exists at that path, as for a project in a personal namespace"
+	"ancestor group path; if any of those reads is refused the Reason names it and the fail rests on " +
+	"project-level evidence alone — this includes both 403 (a paid-tier or permission gate) and, when the " +
+	"project's namespace is nested (so every ancestor path is provably a real group), a 404, since GitLab " +
+	"is not consistent about which status code hides a group's existence from a token that can't see it. " +
+	"A 404 is disclosed as a refusal ONLY when the namespace is nested; for a project directly in a " +
+	"single-segment namespace (the common personal-namespace case) a 404 there is genuinely ambiguous " +
+	"between \"no group at all\" and \"a hidden top-level group,\" and stays silent rather than caveat the " +
+	"large majority of real fails"
 
 var checkRubrics = map[string]map[model.Status]string{
 	idExists: {
@@ -229,7 +234,8 @@ var checkTokenScopes = map[string]string{
 		"group-level protected environments (without it the check still runs, on project-level config alone)",
 	idRequiredReviewers: projectTokenScope + ", plus visibility of the project's namespace to read " +
 		"group-level protected environments (without it the check still runs, on project-level config alone)",
-	idBranchPolicy: projectTokenScope,
+	idBranchPolicy: "none — this check makes no API call of its own; GitLab has no per-environment " +
+		"branch-restriction mechanism, so the result is a fixed fact rather than something read",
 }
 
 var protectionEndpoints = []string{
@@ -340,6 +346,14 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 
 	envs, err := gitlabcollect.GetJSONPaged[environment](ctx, client, "/projects/"+id+"/environments", nil)
 	prov := client.Provenance()
+	// existsProv is captured here, before any further call, and is what
+	// checkExists gets below — its own declared Endpoints is only GET
+	// .../environments, and Provenance() is cumulative, so reusing the
+	// later, wider `prov` (which grows to include protected_environments
+	// and, when the group-level walk runs, every group path too) would
+	// have this result cite API calls it isn't about — the same class of
+	// evidence-integrity defect issue #14 fixed elsewhere in this package.
+	existsProv := prov
 	if err != nil {
 		return allNotCheckable(org, repo, fmt.Sprintf("could not read environments: %v", err), prov)
 	}
@@ -377,7 +391,7 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 	}
 
 	return []model.CheckResult{
-		checkExists(org, repo, prodNames, prov),
+		checkExists(org, repo, prodNames, existsProv),
 		checkProtectionRules(org, repo, prodEnvs, byName, group, prov),
 		checkRequiredReviewers(org, repo, prodEnvs, byName, group, prov),
 		branchPolicyResult(org, repo),
@@ -418,17 +432,31 @@ func needsGroupLookup(prodEnvs []environment, byName map[string]protectedEnviron
 // the package doc. It needs no hierarchy discovery call: org is already the
 // full namespace path, so "a/b/c" yields "a/b/c", "a/b", "a".
 //
-// A 404 is skipped silently (no group at that path — the personal-namespace
-// case), anything else is recorded as a blind spot and the walk continues: a
-// group being unreadable says nothing about whether its parent is.
+// A 404 on a SINGLE-SEGMENT org is skipped silently — it's genuinely
+// ambiguous there (a personal namespace with no group at all, vs. a
+// top-level group hidden from this token the way client.go's own doc
+// comment says GitLab inconsistently does: "some Premium endpoints 403,
+// some 404 to hide their existence"). But when org itself is nested
+// ("a/b"), GitLab does not allow subgroups under a personal namespace, so
+// EVERY ancestor path in the walk — including the top-level one — is
+// provably a real group; a 404 anywhere in that walk can then only mean
+// refused/hidden, never absent, and must be disclosed the same as a 403.
+// Getting this wrong isn't cosmetic: this MR's own rubric text tells a
+// reader "no caveat means both routes were ruled out," so silently
+// swallowing a disclosable 404 would make a false-fail read as complete
+// when it isn't, in a tool whose output goes into a signed attestation.
+// Anything else (403, 5xx, network) is always recorded as a blind spot;
+// the walk always continues past a blocked path — a group being unreadable
+// says nothing about whether its parent is.
 func readGroupProtection(ctx context.Context, client *gitlabcollect.Client, org string) groupProtection {
+	provablyGroup := strings.Contains(strings.Trim(org, "/"), "/")
 	gp := groupProtection{byTier: map[string]protectedEnvironment{}}
 	for _, path := range namespacePaths(org) {
 		entries, err := gitlabcollect.GetJSONPaged[protectedEnvironment](ctx, client,
 			"/groups/"+escapePath(path)+"/protected_environments", nil)
 		if err != nil {
 			if code, ok := gitlabcollect.StatusCodeOf(err); ok {
-				if code == http.StatusNotFound {
+				if code == http.StatusNotFound && !provablyGroup {
 					continue
 				}
 				gp.blocked = append(gp.blocked, fmt.Sprintf("%s: HTTP %d", path, code))
