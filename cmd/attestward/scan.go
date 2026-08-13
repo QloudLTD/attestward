@@ -45,6 +45,8 @@ import (
 	gitlaborgsecurity "gitlab.com/sioakeim/attestward/internal/collect/gitlab/orgsecurity"
 	gitlabprovenance "gitlab.com/sioakeim/attestward/internal/collect/gitlab/provenance"
 	gitlabrepoprotection "gitlab.com/sioakeim/attestward/internal/collect/gitlab/repoprotection"
+	gitlabsasthistory "gitlab.com/sioakeim/attestward/internal/collect/gitlab/sasthistory"
+	gitlabscahistory "gitlab.com/sioakeim/attestward/internal/collect/gitlab/scahistory"
 	gitlabsecretshygiene "gitlab.com/sioakeim/attestward/internal/collect/gitlab/secretshygiene"
 	gitlabunsupported "gitlab.com/sioakeim/attestward/internal/collect/gitlab/unsupported"
 	gitlabvdp "gitlab.com/sioakeim/attestward/internal/collect/gitlab/vdp"
@@ -219,11 +221,11 @@ func defaultAzureDevOpsCollectors(org, _, pat string) []collect.Collector {
 // per-repo client failures as not-checkable rather than vanishing.
 // defaultGitLabCollectors returns the collector set for a GitLab scan.
 //
-// Every check is currently served by the unsupported package, which reports
-// not-checkable with a reason rather than omitting the row — so a GitLab pack
-// has the same shape as a GitHub one and a reader can tell "not evaluated
-// yet" from "clean". As real collectors land (#1) they are appended here and
-// their entries leave that table.
+// Whatever is not yet served by a real collector is served by the unsupported
+// package, which reports not-checkable with a reason rather than omitting the
+// row — so a GitLab pack has the same shape as a GitHub one and a reader can
+// tell "not evaluated yet" from "clean". As real collectors land (#1) they are
+// appended here and their entries leave that table.
 func defaultGitLabCollectors(baseURL, token string) []collect.Collector {
 	collectors := append(collect.Collectors(), gitlabunsupported.Collectors()...)
 	return append(collectors,
@@ -235,6 +237,8 @@ func defaultGitLabCollectors(baseURL, token string) []collect.Collector {
 		gitlabprovenance.New(baseURL, token),
 		gitlabsecretshygiene.New(baseURL, token),
 		gitlabactionssecurity.New(baseURL, token),
+		gitlabsasthistory.New(baseURL, token),
+		gitlabscahistory.New(baseURL, token),
 	)
 }
 

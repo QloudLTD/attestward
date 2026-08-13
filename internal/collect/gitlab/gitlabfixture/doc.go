@@ -38,6 +38,42 @@
 // cannot expect to read this file from a customer's pipeline, so it is
 // recorded for its schema, not as a retrieval path.
 //
+// # The CI-side recordings, added 2026-08-13
+//
+// ci-lint-security-templates.json, jobs-security-pipelines.json and
+// repository-tree.json were captured for the C05/C06 collectors, from the same
+// project, on the same day. Unlike everything above them they are NOT
+// Ultimate-tier: GET /ci/lint, GET /jobs and GET /repository/tree all answer
+// identically on a free project, which is exactly why three of those
+// collectors' checks work on any tier.
+//
+// ci-lint-security-templates.json is the one worth reading before touching
+// internal/collect/gitlab/cihistory. GitLab's stock SAST template declares
+// `artifacts: reports: sast:` on twenty-one entries and only eight of them can
+// ever run — the other thirteen are hidden anchors (".sast-analyzer",
+// ".deprecated-16.8") or entries pinned off with `rules: [{when: never}]` (the
+// `sast` configuration-only stub plus ten retired analyzers). A matcher that
+// counted the declaration alone would credit every project including the
+// template with thirteen scanners it does not have, which is the
+// discrimination this fixture exists to pin. Its merged_yaml is TRIMMED, from 27,302 bytes to one entry of
+// each kind, and re-serialised by the trimmer rather than kept byte-for-byte;
+// the three `exists:` globs GitLab gates its dependency analyzers on are kept
+// intact, because cihistory's dependency-manifest table is transcribed from
+// them and its own test re-derives the table from this file.
+//
+// jobs-security-pipelines.json establishes what the run-history walk depends
+// on: jobs come back newest-first, each with name/status/finished_at, its
+// pipeline's commit SHA, and the artifact file_types it published. user,
+// runner, runner_manager and project were dropped, and the commit object cut
+// to id/short_id/created_at/title — the same hygiene the audit-event
+// recordings got, not the API's shape.
+//
+// repository-tree.json is small but load-bearing for one specific claim: that
+// project's tree holds go.mod AND package-lock.json, while dependencies.json
+// reports package-lock.json only. go.mod is correctly not flagged as
+// uncovered, because GitLab's own analyzer rule gates on go.sum. That pairing
+// is the live cross-check behind C06's manifest-coverage check.
+//
 // The three GraphQL recordings answer the tier question that REST answers with
 // a 403. graphql-security-scanners-free.json is the important one and the
 // reason the pair exists: on a Free project GraphQL returns empty arrays and
@@ -64,9 +100,11 @@
 // they look like coverage in a diff, and they answer no question.
 //
 // Executed today:
+//
 //   - vulnerabilities-all-states.json drives IsOpenVulnerability in the parent
 //     package, which is where the decision that a dismissed or resolved finding
 //     must never count as open is written down and tested.
+//
 //   - group-protected-environments.json is decoded by
 //     internal/collect/gitlab/envseparation through that package's own
 //     protectedEnvironment struct, which is the whole point of keeping it: it
@@ -76,15 +114,32 @@
 //     this one while meaning something different by the same field. Recorded
 //     2026-08-13 from a live group-level protected environment created and
 //     deleted on gitlab.com/qloud-ltd-group (Ultimate trial).
+//
 //   - every file here is parsed by TestEveryRecordedFixtureIsReadableAndParses,
 //     so a truncated or corrupted capture fails at the commit that made it
 //     rather than months later when its collector is finally written.
 //
-// Staged, not yet executed: dependencies.json, vulnerability_findings.json,
-// the four raw scanner reports, the three GraphQL recordings, and the two
-// audit-event recordings, which wait on their collectors. The tier-gated 403
-// path is covered by inline literals in the existing client and repoprotection
-// tests, NOT by 403-not-entitled.json — that file is staged too.
+//   - dependencies.json, vulnerabilities-all-states.json,
+//     ci-lint-security-templates.json, jobs-security-pipelines.json and
+//     repository-tree.json are all driven end to end by
+//     internal/collect/gitlab/{cihistory,sasthistory,scahistory} — the C05 and
+//     C06 collectors, which landed 2026-08-13. dependencies.json and
+//     vulnerabilities-all-states.json in particular are no longer staged:
+//     they are the Ultimate-tier halves of C06's two entitled checks.
+//
+// Staged, not yet executed: vulnerability_findings.json, the four raw scanner
+// reports, the three GraphQL recordings, and the two audit-event recordings.
+//
+// The GraphQL pair is a special case and will probably stay staged: C05 and
+// C06 deliberately make no GraphQL call at all, precisely because
+// graphql-security-scanners-free.json is what it is — an unentitled project
+// answering with empty collections and no error. The recording earns its place
+// as the evidence for a road NOT taken, which is why the collectors' own doc
+// comments cite it.
+//
+// The tier-gated 403 path is covered by inline literals in the client and
+// repoprotection tests and by internal/collect/gitlab/scahistory's own free-
+// tier state, NOT by 403-not-entitled.json — that file is staged too.
 //
 // # Scrubbing
 //

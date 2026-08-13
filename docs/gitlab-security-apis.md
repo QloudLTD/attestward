@@ -275,14 +275,69 @@ to find if a refresh is needed before then; the scannable source file was
 removed after capture, so SAST and Secret Detection now return zero findings
 and would need it restored.
 
-## 6. One correction owed to `unsupported.go`
+## 6. One correction owed to `unsupported.go` — PAID 2026-08-13
 
-The C06 reason string currently says that on a free project "the API returns
+The C06 reason string used to say that on a free project "the API returns
 nothing". Measured, REST returns **403**, and it is *GraphQL* that returns
-nothing. The distinction is the whole point of the check, so the wording should
-be tightened when the C06 collector lands. Left alone here deliberately: this
-change is a fixture capture, and rewriting shared reason strings from a
-capture branch is how two sessions collide.
+nothing. The distinction is the whole point of the check.
+
+Both C05 and C06 have since left `unsupported.go` entirely, for
+`internal/collect/gitlab/{sasthistory,scahistory}`, and the correction landed
+with them. Where the collectors ended up, and why:
+
+| Check | Outcome |
+|---|---|
+| `C05.sast.tool-configured` | real, **Free tier** — merged CI configuration |
+| `C05.sast.ran-per-release` | real, **Free tier** — releases + job history |
+| `C05.sast.cadence` | real, **Free tier** — job history |
+| `C05.sast.default-setup` | not-checkable: no GitLab analogue of a repo-level scanning toggle |
+| `C06.sca.tool-configured` | real, **Free tier** |
+| `C06.sca.ran-per-release` | real, **Free tier** |
+| `C06.sca.alerts-triaged` | real, **Ultimate** — `/vulnerabilities`, 403 → not-checkable |
+| `C06.sca.dependabot-config` | real, **Ultimate** — `/dependencies` vs the repo tree, retitled |
+| `C06.sca.dependency-review` | not-checkable: GitLab has no required-status-check model |
+
+Two things about §1 turned out to matter more than expected once the code was
+written:
+
+- **The tier question mostly evaporated.** Six of the nine checks are answered
+  by `GET /ci/lint`, `GET /releases` and `GET /jobs`, none of which is gated —
+  GitLab defines a scanner job by the `artifacts: reports:` type it publishes,
+  and that declaration is readable on a free project. §1's trap is therefore
+  not navigated by most of this work, it is *avoided*. Only C06's two
+  entitled checks meet it, and they take REST.
+- **§1's own hedge held.** `securityScanners.available` is never read. It is
+  the best signal observed for the tier question, but it is a two-project
+  inference rather than a documented guarantee, and a REST 403 needs no
+  inference at all.
+
+### A trap §1 does not cover, found while writing the collector
+
+`GET /ci/lint`'s `merged_yaml` is not a safe thing to decode into a
+`map[string]Job`. Its top level is not uniformly job-shaped — `stages:` is a
+sequence, `variables:` a map of scalars — so a whole-document decode into a
+struct-valued map fails outright on the first of them, and every real
+project's configuration would have read as unparseable. Decode node by node.
+
+And most entries in GitLab's own SAST template **declare
+`artifacts: reports: sast:` and can never run**. Counted against the live
+template on 2026-08-13:
+
+| | SAST | Dependency Scanning |
+|---|---|---|
+| entries declaring the report type | 21 | 5 |
+| hidden anchors (leading `.`) | 2 | 1 |
+| pinned off with an unconditional `rules: [{when: never}]` | 11 | 1 |
+| **actually runnable** | **8** | **3** |
+
+The eleven disabled SAST entries are the `sast` configuration-only stub plus
+ten retired analyzers (`bandit-sast`, `brakeman-sast`, `eslint-sast`,
+`flawfinder-sast`, `gosec-sast`, `mobsf-android-sast`, `mobsf-ios-sast`,
+`nodejs-scan-sast`, `phpcs-security-audit-sast`, `security-code-scan-sast`).
+Counting the declaration alone credits every project that merely includes the
+template with thirteen scanners it does not have — and, worse, lets a project
+that deliberately disabled its only real analyzer still read as configured.
+Recorded as `ci-lint-security-templates.json`.
 
 ## 7. Group-level protected environments (issue #13)
 

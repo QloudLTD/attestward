@@ -131,23 +131,32 @@ func TestRubricGuardCoverageOnlyShrinks(t *testing.T) {
 // rubricGuardWired is the shrinking half: collectors whose package tests call
 // the assertion. Moving an entry here is the unit of progress on the follow-up.
 var rubricGuardWired = map[string]bool{
-	"gitlab/C07.provenance":           true,
-	"github/C10.vdp":                  true,
-	"gogs/C10.vdp":                    true,
-	"gitlab/C03.env-separation":       true,
-	"gitlab/C10.vdp":                  true,
-	"gogs/C01.org-security":           true,
-	"gogs/C03.env-separation":         true,
-	"gogs/C04.secrets-hygiene":        true,
-	"gogs/C05.sast-history":           true,
-	"gogs/C06.sca-history":            true,
-	"gogs/C07.provenance":             true,
-	"gogs/C08.actions-security":       true,
-	"gogs/C09.audit-logging":          true,
-	"gitlab/C09.audit-logging":        true,
-	"gogs/C02.repo-protection":        true,
-	"gitlab/C02.repo-protection":      true,
-	"github/C01.org-security":         true,
+	"gitlab/C07.provenance":      true,
+	"github/C10.vdp":             true,
+	"gogs/C10.vdp":               true,
+	"gitlab/C03.env-separation":  true,
+	"gitlab/C10.vdp":             true,
+	"gogs/C01.org-security":      true,
+	"gogs/C03.env-separation":    true,
+	"gogs/C04.secrets-hygiene":   true,
+	"gogs/C05.sast-history":      true,
+	"gogs/C06.sca-history":       true,
+	"gogs/C07.provenance":        true,
+	"gogs/C08.actions-security":  true,
+	"gogs/C09.audit-logging":     true,
+	"gitlab/C09.audit-logging":   true,
+	"gogs/C02.repo-protection":   true,
+	"gitlab/C02.repo-protection": true,
+	"github/C01.org-security":    true,
+	// gitlab/C05.sast-history and gitlab/C06.sca-history stay wired, but
+	// what backs them changed: they used to be guarded by the trivial
+	// always-not-checkable matrix in internal/collect/gitlab/unsupported,
+	// and are now guarded by internal/collect/gitlab/{sasthistory,
+	// scahistory}, whose own tests call the assertion over an eight- and
+	// ten-state matrix. Nothing was left behind in gitlab/unsupported for
+	// either — every one of the nine IDs moved — so, unlike
+	// gitlab/C04.secrets-hygiene below, neither is a split collector
+	// claiming coverage from the half that has tests.
 	"gitlab/C05.sast-history":         true,
 	"gitlab/C06.sca-history":          true,
 	"azuredevops/C04.secrets-hygiene": true,
