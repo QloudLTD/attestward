@@ -1389,15 +1389,18 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — SAST run cadence over the lookback window
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project) — the same two endpoints as C05.sast.ran-per-release, minus the releases listing
+- **Fixture:** `internal/collect/gitlab/sasthistory/sasthistory_test.go`
+- **API endpoint(s):** `GET /projects/{id}/ci/lint`, `GET /projects/{id}/jobs`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+- **verified-fail:** a SAST scanner is configured and not one matched job finished inside the lookback window
+- **partial:** matched jobs did run inside the window, but the only thing identifying them as a SAST scanner was a job name matching a signature's name pattern — not enough to call the cadence genuine SAST activity
+- **not-checkable:** GET /projects/{id}/ci/lint failed outright, or returned a merged configuration that was empty or did not parse as YAML — the errors GitLab reported are quoted in the reason rather than guessed between, since the lint API answers 200 with valid=false both for a project with no CI configuration at all and for one whose configuration exists but has an unresolvable include; or the job listing could not be read; or no SAST scanner is configured at all, so there is no cadence to compute (C05.sast.tool-configured reports that absence); or the job-history walk hit its page bound before reaching the far side of the lookback window (a project with more than 2,000 finished jobs in the window), so the run pool is incomplete — unlike per-release coverage, run counts and gap lengths are not monotone in the run pool (a missing run can understate a count or overstate a gap), so any truncation taints this check
+- **verified-pass:** at least one matched SAST job finished inside the lookback window, and the scanner was identified at medium-or-high confidence rather than by job name alone
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** If zero SAST runs were observed in the lookback window, same fix as C05.sast.ran-per-release: confirm the job's `rules:` let it run on ordinary pushes to the default branch or on a schedule, not only on a rare manual trigger. If runs WERE observed but this still reads partial, the tool was only identified by a job name — same fix as C05.sast.tool-configured: emit a GitLab SAST report, or invoke a recognized scanner CLI.
 
 #### gogs — SAST runs on a regular cadence
 
@@ -1453,17 +1456,17 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Repo Settings -> Security -> Advanced Security -> under Code Security, "CodeQL analysis" -> Set up -> Default (choose "Default", not "Advanced", unless a custom workflow is specifically needed).
 
-#### gitlab — CodeQL default setup is configured
+#### gitlab — SAST is enabled by a project-level setting rather than CI configuration
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — this check makes no API call of its own; see the package doc comment
+- **Fixture:** `internal/collect/gitlab/sasthistory/sasthistory_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+- **not-checkable:** GitLab has no equivalent of a repository-level toggle that makes the platform run its own SAST analyzer with no CI configuration. Its two nearest mechanisms answer different questions: Auto DevOps enables SAST only as a side effect of adopting an entire build/deploy pipeline template, so its absence is not a finding for a project that configures SAST explicitly (the ordinary, GitLab-recommended way); and scan execution policies, which do enforce scanners without a project's own CI configuration, are an Ultimate group-governance control living in a separate security policy project this build does not read. Whether SAST is configured at all is reported by C05.sast.tool-configured
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Nothing to remediate: this check reports a mechanism GitLab does not have. Configure SAST in CI instead — see C05.sast.tool-configured's remediation.
 
 #### gogs — Platform-managed SAST is enabled
 
@@ -1521,17 +1524,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Make sure the SAST workflow's trigger actually fires on (or before) the commit each release is cut from — e.g. trigger on push to the release branch, or on the release event itself — and that any run that did fire completed successfully rather than erroring out.
 
-#### gitlab — A SAST tool ran for each release in the lookback window
+#### gitlab — A SAST scanner ran for each release in the lookback window
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project) — GET /projects/{id}/releases and GET /projects/{id}/jobs. ⚠ GitLab lets a project restrict pipeline visibility, in which case the jobs listing needs at least the Reporter role even on a public project
+- **Fixture:** `internal/collect/gitlab/sasthistory/sasthistory_test.go`
+- **API endpoint(s):** `GET /projects/{id}/ci/lint`, `GET /projects/{id}/releases`, `GET /projects/{id}/jobs`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+- **verified-fail:** at least one release in the lookback window has no matched SAST job on its commit at all, not even a failed one — including the case where no SAST scanner is configured, which means nothing scanned any released commit
+- **partial:** every release in the lookback window has at least one matched SAST job on its commit, but for one or more of them none of those jobs succeeded — the scanner ran and did not complete, which is neither a clean pass nor the total absence a fail asserts
+- **not-checkable:** GET /projects/{id}/ci/lint failed outright, or returned a merged configuration that was empty or did not parse as YAML — the errors GitLab reported are quoted in the reason rather than guessed between, since the lint API answers 200 with valid=false both for a project with no CI configuration at all and for one whose configuration exists but has an unresolvable include; or the releases listing or the job listing could not be read; or no release matches the configured tag pattern within the lookback window, so there is nothing to evaluate; or the job-history walk hit its page bound before reaching the far side of the lookback window (a project with more than 2,000 finished jobs in the window), so the run pool is incomplete AND at least one release reads as having no matched run — a truncated pool cannot certify that specific absence. A truncated pool whose coverage already reads ran/failed for every release is NOT reported here: coverage only ever improves as more runs are added, so it cannot have been overstated by runs this build did not fetch (the same monotonicity narrowing the GitHub twin applies, issue #291)
+- **verified-pass:** every release in the lookback window has at least one matched SAST job that finished successfully on that release's own commit
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Make sure the SAST job's `rules:` actually fire on the commit each release is cut from — a job gated on merge-request pipelines alone never runs on the tagged commit — and that any job that did fire finished successfully rather than erroring out. Note the join is on the release's COMMIT: a scan of a later commit on the same branch does not evidence that the released code was scanned.
 
 #### gogs — SAST ran for each release in the lookback window
 
@@ -1589,17 +1595,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Enable CodeQL default setup (repo Settings -> Security -> Advanced Security -> under Code Security, "CodeQL analysis" -> Set up -> Default), or add a workflow using a recognized SAST action/CLI (see mappings/scanner-signatures.yaml for what this tool recognizes) — a workflow whose name merely suggests SAST isn't enough on its own; it needs a matched action/CLI invocation to count as more than a low-confidence signal.
 
-#### gitlab — A SAST tool is configured
+#### gitlab — A SAST scanner is configured in the project's CI configuration
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api, and less — GET /projects/{id}/ci/lint answered 200 with no token at all against a public project in this build's own live verification of C08. A private project needs enough access to read it; the exact minimum role was not independently established
+- **Fixture:** `internal/collect/gitlab/sasthistory/sasthistory_test.go`
+- **API endpoint(s):** `GET /projects/{id}/ci/lint`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet
+- **verified-fail:** the merged CI configuration resolved cleanly and no runnable job in it emits a SAST report, invokes a recognized scanner CLI, or is even named like one — a real absence, not an evidence gap
+- **partial:** the only evidence is a job NAME matching a scanner-signature name pattern — a naming convention, not a tool invocation. Not enough on its own to confirm a SAST scanner is genuinely configured
+- **not-checkable:** GET /projects/{id}/ci/lint failed outright, or returned a merged configuration that was empty or did not parse as YAML — the errors GitLab reported are quoted in the reason rather than guessed between, since the lint API answers 200 with valid=false both for a project with no CI configuration at all and for one whose configuration exists but has an unresolvable include
+- **verified-pass:** at least one job in the merged CI configuration that GitLab can actually run reaches medium-or-high confidence — high when the job declares `artifacts: reports: sast:` (GitLab's own contract for ingesting a SAST report), medium when its script matches a scanner CLI pattern from mappings/scanner-signatures.yaml. Hidden jobs (a leading `.`) and jobs disabled with an unconditional `rules: - when: never` are excluded from the judgment entirely: neither is ever added to a pipeline, and GitLab's own SAST template ships thirteen of them — measured, out of twenty-one entries that declare a SAST report
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Add GitLab's SAST template to .gitlab-ci.yml (`include: template: Jobs/SAST.gitlab-ci.yml`), or add a job that emits a GitLab SAST report (`artifacts: reports: sast:`) — that declaration is what this check reads, and it is what GitLab itself reads to ingest findings. A third-party scanner invoked from a job's script is also recognized when its CLI matches a signature in mappings/scanner-signatures.yaml, but at lower confidence: a job whose NAME merely suggests SAST is never enough on its own. Note that a job disabled with an unconditional `rules: - when: never` does not count — GitLab's own template ships several of those.
 
 #### gogs — A SAST tool is configured
 
@@ -1659,17 +1668,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** If Dependabot alerts are disabled entirely, enable them first: repo Settings -> Code security -> enable "Dependabot alerts" (see C04.deps.dependabot-alerts). Once enabled, triage: Security -> Dependabot alerts -> filter by Critical severity -> fix or dismiss (with a documented reason) any critical alert open longer than 30 days.
 
-#### gitlab — Open Dependabot alerts are triaged within the default window
+#### gitlab — Open dependency vulnerabilities are triaged within the default window
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above), PLUS a GitLab Ultimate subscription: GET /projects/{id}/vulnerabilities answers 403 without one
+- **Fixture:** `internal/collect/gitlab/scahistory/scahistory_test.go`
+- **API endpoint(s):** `GET /projects/{id}/vulnerabilities`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+- **verified-fail:** at least one open critical dependency-scanning finding has been open longer than the 30-day triage window
+- **partial:** no critical finding is beyond the window, but at least one finding carried a state this build does not recognize — a future GitLab state is not silently bucketed as open or closed, so a stale critical finding cannot be ruled out. Facts carry unrecognized_states
+- **not-checkable:** the endpoint answered 403. GitLab returns 403 both for a Dependency Scanning feature a Free project is not entitled to and for a token without the role, and this build does not claim to tell those apart — either way an empty answer would not have meant "clean", so nothing is reported. ⚠ This is why the evidence is REST rather than GraphQL: measured at both tiers, GraphQL answers the same question on an unentitled project with empty collections and no error at all, which is indistinguishable from an entitled, fully scanned, clean project — see docs/gitlab-security-apis.md §1
+- **verified-pass:** the vulnerability listing was read in full, every finding's state was one this build recognizes, and no OPEN critical dependency-scanning finding has been open longer than the 30-day triage window. Open means state detected or confirmed; a dismissed or resolved finding is a triage decision already made and never counts against the project
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Triage the project's Vulnerability Report: fix or dismiss (with a documented reason) any critical dependency vulnerability open longer than 30 days. A dismissed finding does not count against this check — a recorded triage decision is exactly what it is looking for.
 
 #### gogs — Dependency alerts are triaged
 
@@ -1724,17 +1736,19 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Extend `.github/dependabot.yml` with an `updates:` entry for each detected-but-uncovered ecosystem (see this finding's `uncovered_ecosystems` fact for exactly which ones).
 
-#### gitlab — Dependabot config covers the repo's detected dependency ecosystems
+#### gitlab — Dependency Scanning covers the project's dependency manifests
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above), PLUS a GitLab Ultimate subscription: GET /projects/{id}/dependencies answers 403 without one. The repository tree listing it is compared against needs no paid tier
+- **Fixture:** `internal/collect/gitlab/scahistory/scahistory_test.go`
+- **API endpoint(s):** `GET /projects/{id}/dependencies`, `GET /projects/{id}/repository/tree`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+- **partial:** one or more dependency manifests in the repository are not among the files GitLab reported dependencies from. This check has NO verified-fail outcome by design: a manifest under a test-fixture directory, a vendored copy, or a path matched by DS_EXCLUDED_PATHS is uncovered without that being a finding, and this build cannot tell those from a real gap. The offending paths are named in Facts.uncovered_manifests for a reader who knows the repository
+- **not-checkable:** the endpoint answered 403. GitLab returns 403 both for a Dependency Scanning feature a Free project is not entitled to and for a token without the role, and this build does not claim to tell those apart — either way an empty answer would not have meant "clean", so nothing is reported. ⚠ This is why the evidence is REST rather than GraphQL: measured at both tiers, GraphQL answers the same question on an unentitled project with empty collections and no error at all, which is indistinguishable from an entitled, fully scanned, clean project — see docs/gitlab-security-apis.md §1. Also: the repository tree could not be listed, so which manifests exist is unknown; or the repository contains no dependency manifest this build recognizes, so there is no coverage question to answer
+- **verified-pass:** GitLab reported dependencies from every dependency manifest found in the repository — matched by file PATH, so no lockfile-to-package-manager mapping is involved. The manifest filenames looked for are transcribed from GitLab's own Dependency Scanning template
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** For each manifest named in this finding's uncovered_manifests fact, work out why Dependency Scanning reported nothing from it: the analyzer for that ecosystem may be excluded via DS_EXCLUDED_ANALYZERS, the path may be excluded via DS_EXCLUDED_PATHS (which defaults to spec, test, tests, tmp and node_modules), or the manifest may need a committed lockfile before the analyzer will run. If the manifest is a test fixture or a vendored copy, nothing needs fixing — that is why this check never reports a failure.
 
 #### gogs — Automated dependency updates are configured
 
@@ -1788,17 +1802,17 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Add a workflow using `actions/dependency-review-action` (or equivalent), make sure it triggers on `pull_request` (not just push), and add it as a required status check: repo Settings -> Rules -> Rulesets -> the branch's rule -> Require status checks to pass -> select the dependency-review workflow's check.
 
-#### gitlab — Dependency review is enforced as a required check on pull requests
+#### gitlab — Dependency findings gate merge requests
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
+- **Token permission:** none — this check makes no API call of its own; see the package doc comment
+- **Fixture:** `internal/collect/gitlab/scahistory/scahistory_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+- **not-checkable:** GitLab has no per-merge-request dependency diff and no required-status-check model to enforce one with: a merge request is gated by approval rules and by whether its pipeline succeeded, and GitLab's dependency scanner does not fail a job on findings — it publishes a report. The one mechanism that does gate a merge request on scan findings is an Ultimate merge request approval policy, which is defined in a separate security policy project that this build does not read; that is a remaining scope gap rather than something GitLab lacks. Whether the scanner runs at all is reported by C06.sca.tool-configured and C06.sca.ran-per-release
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Nothing to remediate: this check reports a mechanism GitLab does not have. To gate merge requests on dependency findings, define a merge request approval policy (GitLab Ultimate) requiring approval when a scan finds vulnerabilities of the severities you care about.
 
 #### gogs — Dependency review runs on pull requests
 
@@ -1855,17 +1869,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Applies to a workflow-based SCA tool specifically (Dependabot has no per-release run history to check). Make sure the SCA workflow's trigger fires on the commit each release is cut from, and that any run that fired completed successfully.
 
-#### gitlab — An SCA tool ran for each release in the lookback window
+#### gitlab — A dependency-scanning tool ran for each release in the lookback window
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api (Reporter or above on the project) — GET /projects/{id}/releases and GET /projects/{id}/jobs
+- **Fixture:** `internal/collect/gitlab/scahistory/scahistory_test.go`
+- **API endpoint(s):** `GET /projects/{id}/ci/lint`, `GET /projects/{id}/releases`, `GET /projects/{id}/jobs`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+- **verified-fail:** at least one release in the lookback window has no matched dependency-scanning job on its commit at all, not even a failed one — including the case where no scanner is configured, which means nothing scanned any released commit
+- **partial:** every release in the lookback window has at least one matched job on its commit, but for one or more of them none of those jobs succeeded
+- **not-checkable:** GET /projects/{id}/ci/lint failed outright, or returned a merged configuration that was empty or did not parse as YAML — the errors GitLab reported are quoted in the reason rather than guessed between, since the lint API answers 200 with valid=false both for a project with no CI configuration at all and for one whose configuration exists but has an unresolvable include; or the releases listing or the job listing could not be read; or no release matches the configured tag pattern within the lookback window; or the job-history walk hit its page bound AND at least one release reads as having no matched run — a truncated pool cannot certify that specific absence, while one whose coverage already reads ran/failed for every release is not reported here, since coverage only ever improves as more runs are added
+- **verified-pass:** every release in the lookback window has at least one matched dependency-scanning job that finished successfully on that release's own commit
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Make sure the dependency-scanning job's `rules:` fire on the commit each release is cut from, and that any job that did fire finished successfully. GitLab's own template additionally gates its analyzers on a lockfile existing (`exists:`), so a project whose dependencies are declared only in a manifest without a committed lockfile will never run one — commit the lockfile.
 
 #### gogs — SCA ran for each release in the lookback window
 
@@ -1923,17 +1940,20 @@ This check is registered under more than one platform — details for each below
 
 **Remediation:** Add a `.github/dependabot.yml` with at least one `updates:` entry, or add a workflow using a recognized SCA action/CLI (see mappings/scanner-signatures.yaml) — a workflow whose name merely suggests SCA isn't enough on its own; it needs a matched action/CLI invocation.
 
-#### gitlab — An SCA tool is configured
+#### gitlab — A dependency-scanning tool is configured in the project's CI configuration
 
-- **Token permission:** read_api
-- **Fixture:** `internal/collect/gitlab/unsupported/unsupported_test.go`
-- **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
+- **Token permission:** read_api, and less — GET /projects/{id}/ci/lint answered 200 with no token at all against a public project in this build's own live verification of C08
+- **Fixture:** `internal/collect/gitlab/scahistory/scahistory_test.go`
+- **API endpoint(s):** `GET /projects/{id}/ci/lint`
 
 **Status rubric:**
 
-- **not-checkable:** GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet
+- **verified-fail:** the merged CI configuration resolved cleanly and no runnable job in it emits a dependency-scanning report, invokes a recognized scanner CLI, or is even named like one — a real absence, not an evidence gap
+- **partial:** the only evidence is a job NAME matching a scanner-signature name pattern — a naming convention, not a tool invocation
+- **not-checkable:** GET /projects/{id}/ci/lint failed outright, or returned a merged configuration that was empty or did not parse as YAML — the errors GitLab reported are quoted in the reason rather than guessed between, since the lint API answers 200 with valid=false both for a project with no CI configuration at all and for one whose configuration exists but has an unresolvable include
+- **verified-pass:** at least one job in the merged CI configuration that GitLab can actually run reaches medium-or-high confidence — high when the job declares `artifacts: reports: dependency_scanning:` (GitLab's own contract for ingesting a dependency report), medium when its script matches a scanner CLI pattern from mappings/scanner-signatures.yaml. Hidden jobs (a leading `.`) and jobs disabled with an unconditional `rules: - when: never` are excluded: neither is ever added to a pipeline, and GitLab's own template ships both kinds
 
-**Remediation:** Not evaluable by this build on GitLab yet. Until a collector lands, answer the corresponding self-attestation question, or evidence the control from whichever system actually enforces it.
+**Remediation:** Add GitLab's Dependency Scanning template to .gitlab-ci.yml (`include: template: Jobs/Dependency-Scanning.gitlab-ci.yml`), or add a job that emits a GitLab dependency-scanning report (`artifacts: reports: dependency_scanning:`) — that declaration is what this check reads, and it is what GitLab itself reads to ingest findings. A third-party scanner invoked from a job's script is also recognized when its CLI matches a signature in mappings/scanner-signatures.yaml, but at lower confidence.
 
 #### gogs — An SCA tool is configured
 

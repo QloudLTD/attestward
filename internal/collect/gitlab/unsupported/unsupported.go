@@ -101,51 +101,35 @@ var checks = []check{
 		collectorID: "C04.secrets-hygiene", scope: orgScoped,
 		reason: "GitLab exposes CI/CD variables and their masked/protected flags. Secret Detection, which would evidence historical leakage, is a paid-tier feature and returns nothing on a free project \u2014 an empty result there means 'not entitled', never 'clean'. This build reads neither yet",
 	},
-	{
-		id: "C05.sast.cadence", title: "SAST run cadence over the lookback window",
-		collectorID: "C05.sast-history", scope: orgScoped,
-		reason: "GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet",
-	},
-	{
-		id: "C05.sast.default-setup", title: "CodeQL default setup is configured",
-		collectorID: "C05.sast-history", scope: orgScoped,
-		reason: "GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet",
-	},
-	{
-		id: "C05.sast.ran-per-release", title: "A SAST tool ran for each release in the lookback window",
-		collectorID: "C05.sast-history", scope: orgScoped,
-		reason: "GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet",
-	},
-	{
-		id: "C05.sast.tool-configured", title: "A SAST tool is configured",
-		collectorID: "C05.sast-history", scope: orgScoped,
-		reason: "GitLab reports SAST findings through pipeline security reports. Availability and retention vary by tier, so an empty result cannot be read as a clean one. This build does not read them yet",
-	},
-	{
-		id: "C06.sca.alerts-triaged", title: "Open Dependabot alerts are triaged within the default window",
-		collectorID: "C06.sca-history", scope: orgScoped,
-		reason: "GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet",
-	},
-	{
-		id: "C06.sca.dependabot-config", title: "Dependabot config covers the repo's detected dependency ecosystems",
-		collectorID: "C06.sca-history", scope: orgScoped,
-		reason: "GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet",
-	},
-	{
-		id: "C06.sca.dependency-review", title: "Dependency review is enforced as a required check on pull requests",
-		collectorID: "C06.sca-history", scope: orgScoped,
-		reason: "GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet",
-	},
-	{
-		id: "C06.sca.ran-per-release", title: "An SCA tool ran for each release in the lookback window",
-		collectorID: "C06.sca-history", scope: orgScoped,
-		reason: "GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet",
-	},
-	{
-		id: "C06.sca.tool-configured", title: "An SCA tool is configured",
-		collectorID: "C06.sca-history", scope: orgScoped,
-		reason: "GitLab Dependency Scanning produces the SCA evidence this check needs and is a paid-tier feature; on a free project the API returns nothing, which is not the same as no vulnerable dependencies. This build does not read it yet",
-	},
+	// C05 sast-history moved to internal/collect/gitlab/sasthistory: three
+	// of its four checks are real there — tool-configured, ran-per-release
+	// and cadence read the merged CI configuration (GET /ci/lint) and the
+	// project's job history, both FREE tier, so this table's "availability
+	// and retention vary by tier" reason was wrong about them twice over:
+	// the evidence is the CI configuration and the job record, not the
+	// pipeline security reports it named, and none of it is tier-gated.
+	// sast.default-setup stays always-not-checkable there, but for the
+	// platform fact that GitLab has no repository-level toggle equivalent to
+	// CodeQL default setup — and its title no longer says "CodeQL", which
+	// this table's did.
+	// C06 sca-history moved to internal/collect/gitlab/scahistory: four of
+	// its five checks are real there. tool-configured and ran-per-release are
+	// Free-tier, read the same CI evidence as C05's, and were never gated at
+	// all; alerts-triaged and dependabot-config (retitled: GitLab has no
+	// dependabot.yml, so it compares Dependency Scanning's actual coverage
+	// against the repository's own manifests) DO need Ultimate, and take the
+	// REST-403 route rather than GraphQL for the reason
+	// docs/gitlab-security-apis.md §1 measured — GraphQL answers an
+	// unentitled project with empty collections and no error, which is
+	// indistinguishable from a clean one. dependency-review stays
+	// always-not-checkable, for a genuine platform gap (GitLab has no
+	// required-status-check model, and the approval policy that would gate a
+	// merge request on findings lives in a separate security policy project
+	// this build does not read). This table's C06 reason additionally said
+	// that on a free project "the API returns nothing" — measured, REST
+	// returns 403 and it is GraphQL that returns nothing, which is the whole
+	// distinction these checks turn on (the correction owed in
+	// docs/gitlab-security-apis.md §6).
 	// C07 provenance moved to internal/collect/gitlab/provenance: checksums,
 	// signatures and tags-signed are real, free-tier checks — this table's
 	// blanket "does not read them yet" reason was true of them but not the

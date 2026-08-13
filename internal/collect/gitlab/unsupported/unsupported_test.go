@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
-	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -90,69 +89,24 @@ func TestEveryCheckIsRegistered(t *testing.T) {
 	}
 }
 
-// guardedCollectorIDs are the collector groups whose ENTIRE check set lives in
-// this table, and so can be guarded from here. The other two groups this
-// package backs are deliberately absent:
+// The rubric guard is deliberately NOT wired from this package any more.
 //
-//   - C04.secrets-hygiene: five of its six IDs are here; the sixth,
-//     C04.vars.secret-masking, is a real check in internal/collect/gitlab/
-//     secretshygiene with its own guard call. Guarding it from here would
-//     PASS, and that is exactly the problem — the registry is populated by
-//     package init, and this test binary does not import secretshygiene, so
-//     collect.Registered() offers the guard only the five IDs it can already
-//     see. It would report full coverage of a collector while five sixths of
-//     it was all it ever looked at.
-//   - C08.actions-security: a real GitLab CI collector for it is being built,
-//     which will move these five IDs out of this table. Guarding the
-//     placeholder now would only have to be unwound.
-var guardedCollectorIDs = map[string]bool{
-	"C05.sast-history": true,
-	"C06.sca-history":  true,
-}
-
-// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10)
-// for the two collector groups above.
+// It used to cover C05.sast-history and C06.sca-history, the two groups whose
+// entire check set lived in this table. Both moved out wholesale (to
+// internal/collect/gitlab/{sasthistory,scahistory}), and their guard moved
+// with them — to a real state matrix, which is strictly better than the
+// single always-not-checkable state this package could offer.
 //
-// One state is the whole matrix here, and that is not a thin one: every check
-// in this table is not-checkable unconditionally, with no branch that could
-// produce anything else (TestNothingReportsPassOrFail pins that separately),
-// so a single collection reaches every status these checks can emit.
+// What is left in the table is five of C04.secrets-hygiene's six IDs, and
+// that group cannot be guarded from here for the reason it never could: the
+// sixth, C04.vars.secret-masking, is a real check in
+// internal/collect/gitlab/secretshygiene, and this test binary does not
+// import that package. collect.Registered() would therefore offer the guard
+// only the five IDs it can already see, and it would report full coverage of
+// a collector while five sixths of it was all it ever looked at — a guard
+// that passes while proving nothing. cmd/attestward's own
+// rubricguard_coverage_test.go records the same boundary as a baseline entry.
 //
-// What it buys is forward-looking, the same thing it bought the Gogs table:
-// the day GitLab SAST or Dependency Scanning findings become readable and one
-// of these IDs starts observing something real, this fails first — because its
-// rubric will still document not-checkable and nothing else until a person
-// updates it.
-func TestRubricsMatchObservedBehaviour(t *testing.T) {
-	scope := collect.Scope{Org: "group", Repos: []string{"proj"}}
-
-	byCollector := map[string][]model.CheckResult{}
-	for _, c := range Collectors() {
-		if !guardedCollectorIDs[c.ID()] {
-			continue
-		}
-		got, err := c.Collect(context.Background(), scope)
-		if err != nil {
-			t.Fatalf("%s: Collect: %v", c.ID(), err)
-		}
-		byCollector[c.ID()] = append(byCollector[c.ID()], got...)
-	}
-	// Without this a renamed collector ID would silently guard nothing, and the
-	// emptiness would read as success.
-	if len(byCollector) != len(guardedCollectorIDs) {
-		t.Fatalf("collected results for %d collector groups, want %d — a guarded ID no longer resolves to a collector",
-			len(byCollector), len(guardedCollectorIDs))
-	}
-
-	for id, results := range byCollector {
-		// Pinned explicitly rather than counted: a status assertion that only
-		// counts rows passes just as happily when the wrong check emitted them.
-		for _, r := range results {
-			if r.Status != model.StatusNotCheckable {
-				t.Errorf("%s/%s status = %q, want not-checkable — the matrix below assumes it is the only "+
-					"status these checks reach", id, r.CheckID, r.Status)
-			}
-		}
-		collecttest.AssertRubricsMatchObservedBehaviour(t, platform, id, results)
-	}
-}
+// TestNothingReportsPassOrFail below is what still holds this table honest:
+// every entry here is not-checkable unconditionally, and nothing may quietly
+// start reporting a verdict.

@@ -1,0 +1,44 @@
+[
+ {
+  "id": "cb5cbd4b1669e9b05a0d769b4f0e486a6a563915",
+  "name": ".gitlab-ci.yml",
+  "type": "blob",
+  "path": ".gitlab-ci.yml",
+  "mode": "100644"
+ },
+ {
+  "id": "9f4ded4e34aeef43d1c2302c24674dc330386e86",
+  "name": "README.md",
+  "type": "blob",
+  "path": "README.md",
+  "mode": "100644"
+ },
+ {
+  "id": "3dcab3720a40b1b23585115f3e10a060a3fa55b4",
+  "name": "go.mod",
+  "type": "blob",
+  "path": "go.mod",
+  "mode": "100644"
+ },
+ {
+  "id": "c8517812d8c0068a3266f9a0be369e682b60aeb5",
+  "name": "main.go",
+  "type": "blob",
+  "path": "main.go",
+  "mode": "100644"
+ },
+ {
+  "id": "f7fbc7ce7ec53bd830d5e0172660969d57607fd3",
+  "name": "package-lock.json",
+  "type": "blob",
+  "path": "package-lock.json",
+  "mode": "100644"
+ },
+ {
+  "id": "cf619d9446843ad0c16ec5fe66bc95e637bf2e97",
+  "name": "package.json",
+  "type": "blob",
+  "path": "package.json",
+  "mode": "100644"
+ }
+]
