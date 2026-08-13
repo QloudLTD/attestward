@@ -94,9 +94,10 @@ var checkRemediations = map[string]string{
 		"environment, restricting at least who may deploy to it (Allowed to Deploy).",
 	idRequiredReviewers: "Project → Settings → CI/CD → Protected environments → protect the production-like " +
 		"environment and add an Approval rule requiring at least one approval. Note that the rule is stored " +
-		"and readable on Free but only enforced at deploy time on a paid tier — on Free a deployment to the " +
-		"environment runs unblocked — so confirm the namespace's tier before relying on this as an " +
-		"operative gate.",
+		"and readable on Free, but verified live that it is NOT enforced at deploy time there — a real " +
+		"deployment against exactly this configuration ran unblocked. GitLab documents deploy-time " +
+		"enforcement of this rule as a Premium/Ultimate feature (not independently verified here on a paid " +
+		"namespace) — confirm the namespace's tier before relying on this as an operative gate.",
 	idBranchPolicy: "No remediation applicable via this tool: GitLab has no per-environment branch-" +
 		"restriction mechanism — restrict which branch/tag may deploy in the deploy job's own `rules:` in " +
 		".gitlab-ci.yml instead, and document that control in the self-attestation questionnaire.",
@@ -318,8 +319,10 @@ func checkRequiredReviewers(org, repo string, prodNames []string, byName map[str
 	return model.CheckResult{
 		CheckID: idRequiredReviewers, Title: checkTitles[idRequiredReviewers], Status: model.StatusVerifiedPass,
 		Reason: fmt.Sprintf("every production-like environment has a stored approval rule requiring at least "+
-			"one approval: %v. That is the recorded configuration, not evidence the gate fires — GitLab "+
-			"enforces it at deploy time only on a paid tier; on Free the deployment runs unblocked",
+			"one approval: %v. That is the recorded configuration, not evidence the gate fires — verified live "+
+			"on a Free namespace that it does not (a real pipeline deployment against exactly this "+
+			"configuration succeeded with pending_approval_count 0); GitLab documents deploy-time enforcement "+
+			"of this rule as a Premium/Ultimate feature, not verified here on a paid namespace",
 			prodNames),
 		Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform}, Provenance: prov,
 		Facts: map[string]any{"production_like_environments": prodNames},

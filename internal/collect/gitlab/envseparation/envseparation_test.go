@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
@@ -121,6 +122,35 @@ func TestProtectedWithApprovalIsAllPass(t *testing.T) {
 	}
 	if got[idRequiredReviewers].Status != model.StatusVerifiedPass {
 		t.Errorf("required-reviewers = %q, want verified-pass; reason=%q", got[idRequiredReviewers].Status, got[idRequiredReviewers].Reason)
+	}
+}
+
+// TestRequiredReviewersPassReasonDoesNotAssertLiveEnforcement pins the
+// wording issue #12 exists to fix. A stored approval_rules entry is
+// confirmed readable on Free (this package's own doc comment) but verified
+// NOT enforced there — a real pipeline deployment against exactly this
+// configuration ran unblocked with pending_approval_count 0. Without this
+// test, the verified-pass Reason can silently round-trip back to its old
+// wording ("...requires at least one approval", asserting a live gate) and
+// nothing else in the repo catches it: the Reason field is not rendered
+// into docs/checks-reference.md, so make checks-docs-check passes either
+// way — confirmed by reverting the wording and re-running that check before
+// writing this test.
+func TestRequiredReviewersPassReasonDoesNotAssertLiveEnforcement(t *testing.T) {
+	protected := []protectedEnvironment{{Name: "production", ApprovalRules: []approvalRule{{RequiredApprovals: 1}}}}
+	got := byID(collectWith(t, envMux([]string{"production"}, 200, protected, 200), "g", "p"))
+	r := got[idRequiredReviewers]
+	if r.Status != model.StatusVerifiedPass {
+		t.Fatalf("required-reviewers = %q, want verified-pass (fixture setup sanity check)", r.Status)
+	}
+	if !strings.Contains(r.Reason, "not evidence the gate fires") {
+		t.Errorf("Reason must state the stored rule is not evidence of live enforcement, got: %s", r.Reason)
+	}
+	if !strings.Contains(r.Reason, "verified live") {
+		t.Errorf("Reason must name that non-enforcement on Free was verified live, not assumed, got: %s", r.Reason)
+	}
+	if strings.Contains(r.Reason, "requires at least one approval:") {
+		t.Errorf("Reason must not assert an active gate (\"requires at least one approval\"), got: %s", r.Reason)
 	}
 }
 

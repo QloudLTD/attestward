@@ -957,7 +957,7 @@ This check is registered under more than one platform — details for each below
 - **not-checkable:** the environments list, or the protected-environments list, couldn't be read (403/404/other API error), or the project has zero environments configured at all
 - **verified-pass:** every production-like environment's protected_environments entry has at least one approval_rules entry with required_approvals >= 1. That is the stored configuration, not a demonstrated gate: on a Free namespace GitLab accepts, returns and even tracks the rule against a deployment, yet lets that deployment succeed with zero approvals
 
-**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment and add an Approval rule requiring at least one approval. Note that the rule is stored and readable on Free but only enforced at deploy time on a paid tier — on Free a deployment to the environment runs unblocked — so confirm the namespace's tier before relying on this as an operative gate.
+**Remediation:** Project → Settings → CI/CD → Protected environments → protect the production-like environment and add an Approval rule requiring at least one approval. Note that the rule is stored and readable on Free, but verified live that it is NOT enforced at deploy time there — a real deployment against exactly this configuration ran unblocked. GitLab documents deploy-time enforcement of this rule as a Premium/Ultimate feature (not independently verified here on a paid namespace) — confirm the namespace's tier before relying on this as an operative gate.
 
 #### gogs — Production environments require reviewers
 
