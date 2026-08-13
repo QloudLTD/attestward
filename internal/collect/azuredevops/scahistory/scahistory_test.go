@@ -12,6 +12,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops"
 	"gitlab.com/sioakeim/attestward/internal/collect/azuredevops/adofixture"
+	"gitlab.com/sioakeim/attestward/internal/collect/collecttest"
 	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
@@ -965,4 +966,444 @@ func TestCollect_RegisteredMetadataCompleteForChecksReference(t *testing.T) {
 			t.Errorf("%s: FixtureRef is empty", id)
 		}
 	}
+}
+
+// rubricState is one fixture world for TestRubricsMatchObservedBehaviour.
+// build is a function rather than data because these worlds differ in WHICH
+// endpoints exist at all, not just in what they answer.
+type rubricState struct {
+	name  string
+	build func(fx *adofixture.Transport)
+	want  map[string]model.Status
+	// wantReasonContains pins a check's Reason where the STATUS alone cannot
+	// tell two causes apart. Only state 12 needs it: a release-resolution
+	// failure and "no tag matched the pattern" both leave ran-per-release
+	// not-checkable, so a mutation that stopped treating the failure as its
+	// own case would be invisible to a status-only matrix.
+	wantReasonContains map[string]string
+}
+
+// TestRubricsMatchObservedBehaviour wires the shared rubric guard (issue #10).
+//
+// Thirteen states reach every status this collector can emit. dependabot-config
+// and dependency-review consume zero evidence and return not-checkable on every
+// repo unconditionally (Azure DevOps has neither a dependabot.yml convention nor
+// a PR dependency-review gate), so no fixture can move them; the guard's
+// documented-but-unreachable direction is what pins their single-status rubrics.
+//
+// Three conflation risks, all real:
+//
+//  1. tool-configured and ran-per-release read the SAME matched-pipeline set and
+//     the SAME enablement response, so a matrix that varies "is an SCA tool
+//     configured" moves both together. They are split in every direction that
+//     matters: state 2 (a build exists but covers no release) and state 3 (the
+//     build covers the release but failed) both hold tool-configured at pass
+//     while ran-per-release moves; state 4 reverses it, with ran-per-release
+//     passing on a build that only a low-confidence match identified; state 5
+//     splits them on the injection-only guard.
+//
+//  2. tool-configured and alerts-triaged BOTH depend on advsec.dev.azure.com,
+//     and both go not-checkable when their advsec call fails. A matrix that only
+//     ever gated that host as a whole would move them in lockstep and never test
+//     that they read different endpoints. States 7 and 8 are the exact reverse of
+//     each other — enablement denied while alerts answer, then alerts denied
+//     while enablement answers — which is what pins each check to its own path
+//     rather than to advsec reachability.
+//
+//  3. relErr is LOCAL to ran-per-release here, unlike C05 where a
+//     release-resolution failure blankets every check (the package doc comment's
+//     judgment call 6). State 11 is the only state that proves it: the refs
+//     listing is denied and ONLY ran-per-release goes not-checkable.
+//
+// Verified by mutation rather than assumed — see the commit message for which
+// states caught which.
+func TestRubricsMatchObservedBehaviour(t *testing.T) {
+	releaseDate := time.Now().UTC().AddDate(0, 0, -30)
+	recent := time.Now().UTC().AddDate(0, 0, -5)
+
+	repos := func(fx *adofixture.Transport) {
+		registerRepositories(fx, map[string]any{"id": testRepoID, "name": testRepo, "defaultBranch": "refs/heads/main"})
+	}
+	// highConfPipeline is a real ado_task match against the embedded GHAzDO
+	// dependency-scanning signature; lowConfPipeline matches snyk's
+	// workflow_name_patterns only — a pipeline NAMED after a scanner with no
+	// task or CLI invocation anywhere in it.
+	highConfPipeline := func(fx *adofixture.Transport) {
+		registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+		registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+		registerYAML(fx, testRepoID, "steps:\n  - task: AdvancedSecurity-Dependency-Scanning@1\n")
+	}
+	lowConfPipeline := func(fx *adofixture.Transport) {
+		registerPipelines(fx, map[string]any{"id": 1, "name": "CI"})
+		registerDefinition(fx, 1, map[string]any{"type": 2, "yamlFilename": "azure-pipelines.yml"}, testRepoID, "refs/heads/main")
+		registerYAML(fx, testRepoID, "name: My Snyk Check\nsteps:\n  - script: echo hello\n")
+	}
+	oneRelease := func(fx *adofixture.Transport) {
+		registerLightweightTag(fx, testRepoID, "v1.0.0", "sha1")
+		registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+	}
+	build := func(sha, result string, at time.Time) map[string]any {
+		return map[string]any{
+			"sourceVersion": sha, "sourceBranch": "refs/heads/main",
+			"result": result, "queueTime": at.Format(time.RFC3339),
+		}
+	}
+	criticalAlert := func(firstSeen string) map[string]any {
+		return map[string]any{"firstSeenDate": firstSeen, "severity": "critical", "state": "active"}
+	}
+	// A critical alert that was already dealt with. It is old enough to push
+	// the result past the triage window if it were ever counted, which is the
+	// point: state 1 stays a pass only because the state filter excludes it.
+	fixedOldCriticalAlert := map[string]any{
+		"firstSeenDate": time.Now().UTC().AddDate(0, 0, -100).Format(time.RFC3339),
+		"severity":      "critical", "state": "fixed",
+	}
+	denied := adofixture.Response{Status: http.StatusForbidden, Body: map[string]any{"message": "denied"}}
+
+	states := []rubricState{
+		{
+			// The alerts fixture here is deliberately NOT an empty list: one
+			// genuinely open critical alert well inside the triage window, and
+			// one long-since-fixed critical alert old enough to fail the window
+			// if it were counted. An empty list passes without exercising
+			// either the age comparison or the state filter.
+			name: "a dependency-scanning task, a successful release build, and one recent critical alert",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID, criticalAlert(recent.Format(time.RFC3339)), fixedOldCriticalAlert)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusVerifiedPass,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// A build in the window that covers no release: the commit differs
+			// and it was queued after the release it would have to cover.
+			name: "a build in the lookback window that covers no release",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha-unrelated", "succeeded", recent))
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusVerifiedFail,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			name: "the release's only build failed",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "failed", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusPartial,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The confidence cap, and the split in the other direction:
+			// ran-per-release passes on a build that only a name-only match
+			// identified, while tool-configured refuses to call that
+			// configuration.
+			name: "a pipeline whose NAME suggests SCA, with a successful release build",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				lowConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusPartial,
+				idRanPerRelease:    model.StatusVerifiedPass,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Injection is the ONLY evidence. tool-configured passes on it;
+			// ran-per-release must not report a confident absence from a scan
+			// history that runs invisibly to build-matching.
+			// The two enablement flags are deliberately set to DISAGREE here
+			// (injection on, codeSecurityEnabled off) and to disagree the
+			// other way in state 6. Both checks that read enablement read
+			// dependencyScanningInjectionEnabled specifically, and with the
+			// two flags always equal a check reading the wrong one would be
+			// invisible — found by mutation, which is why the flags differ.
+			name: "dependency scanning injection enabled with no matched pipeline at all",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				registerPipelines(fx)
+				oneRelease(fx)
+				registerEnablement(fx, testRepoID, true, false)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusNotCheckable,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// codeSecurityEnabled is ON here while injection is OFF — the
+			// reverse of state 5. A check reading codeSecurityEnabled would
+			// report this repo as configured; it is not.
+			name: "no injected SCA scanning, though Advanced Security itself is on",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				registerPipelines(fx)
+				oneRelease(fx)
+				registerEnablement(fx, testRepoID, false, true)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedFail,
+				idRanPerRelease:    model.StatusVerifiedFail,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// Half of advsec denied: the enablement endpoint refuses while the
+			// alerts endpoint answers. The two checks that live on that host
+			// must not move together — this is the state a matrix that gated
+			// advsec as a whole would never produce.
+			name: "the enablement query is denied while the alerts query answers",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				registerPipelines(fx)
+				oneRelease(fx)
+				fx.Set("GET", azuredevops.HostAdvSec, enablementPath(testRepoID), denied)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusNotCheckable,
+				idRanPerRelease:    model.StatusNotCheckable,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// The exact reverse of state 7, and alerts-triaged's only
+			// isolation: everything else resolves and only the alerts read is
+			// denied.
+			name: "the alerts query is denied while the enablement query answers",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				fx.Set("GET", azuredevops.HostAdvSec, alertsPath(testRepoID), denied)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusVerifiedPass,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusNotCheckable,
+			},
+		},
+		{
+			// alerts-triaged's only route to verified-fail, and the only
+			// advsec error that is a confirmed answer rather than an unknown:
+			// HTTP 400 carrying typeKey AdvSecNotEnabledException. State 8's
+			// 403 on the same endpoint is not-checkable, so the pair together
+			// prove this check reads the typeKey and not merely the failure.
+			name: "the alerts query reports Advanced Security is not enabled",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				fx.Set("GET", azuredevops.HostAdvSec, alertsPath(testRepoID), adofixture.Response{
+					Status: http.StatusBadRequest,
+					Body: map[string]any{
+						"message": "VS2150009: Advanced Security is not enabled for this repository.",
+						"typeKey": "AdvSecNotEnabledException",
+					},
+				})
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusVerifiedPass,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedFail,
+			},
+		},
+		{
+			// alerts-triaged's age route to partial. Paired with state 1,
+			// whose alert is the same shape and inside the window, this pins
+			// the triage threshold rather than the mere presence of an alert.
+			name: "one active critical alert open beyond the triage window",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID, criticalAlert(time.Now().UTC().AddDate(0, 0, -45).Format(time.RFC3339)))
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusVerifiedPass,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusPartial,
+			},
+		},
+		{
+			// alerts-triaged's second, distinct route to partial: an alert
+			// that is genuinely open and whose age is genuinely unknown. An
+			// earlier version read the zero-value age as "0 days old" and
+			// reported a false pass, which is exactly what state 1 would look
+			// like — so the two states together are what hold this apart.
+			name: "one active critical alert whose firstSeenDate cannot be parsed",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				oneRelease(fx)
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID, criticalAlert("not-a-real-date"))
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusVerifiedPass,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusPartial,
+			},
+		},
+		{
+			// Judgment call 6: a release-resolution failure is LOCAL to
+			// ran-per-release here, unlike C05 where it blankets every check.
+			// The refs listing is denied and every other check resolves
+			// normally — nothing else in the matrix would notice if that
+			// locality were lost.
+			name: "the release-tag listing is denied",
+			wantReasonContains: map[string]string{
+				idRanPerRelease: "could not resolve this repo's release tags",
+			},
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				fx.Set("GET", azuredevops.HostCore, refsPath(testRepoID), denied)
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusNotCheckable,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+		{
+			// ran-per-release's dropped-tag cap, inherited from C05: every
+			// release that could be evaluated ran cleanly, and one undateable
+			// tag matching the pattern still caps the result at partial.
+			name: "every evaluated release ran cleanly but one release tag cannot be dated",
+			build: func(fx *adofixture.Transport) {
+				repos(fx)
+				highConfPipeline(fx)
+				fx.Set("GET", azuredevops.HostCore, refsPath(testRepoID), adofixture.Response{
+					Status: http.StatusOK,
+					Body: map[string]any{"count": 2, "value": []map[string]any{
+						{"name": "refs/tags/v1.0.0", "objectId": "sha1"},
+						{"name": "refs/tags/v2.0.0", "objectId": "sha2"},
+					}},
+				})
+				registerCommitDate(fx, testRepoID, "sha1", releaseDate)
+				fx.Set("GET", azuredevops.HostCore, commitsPath(testRepoID, "sha2"), adofixture.Response{
+					Status: http.StatusNotFound, Body: map[string]any{"message": "not found"},
+				})
+				registerBuilds(fx, build("sha1", "succeeded", releaseDate))
+				registerEnablement(fx, testRepoID, false, false)
+				registerAlerts(fx, testRepoID)
+			},
+			want: map[string]model.Status{
+				idToolConfigured:   model.StatusVerifiedPass,
+				idRanPerRelease:    model.StatusPartial,
+				idDependabotConfig: model.StatusNotCheckable,
+				idDependencyReview: model.StatusNotCheckable,
+				idAlertsTriaged:    model.StatusVerifiedPass,
+			},
+		},
+	}
+
+	var all []model.CheckResult
+	for _, st := range states {
+		t.Run(st.name, func(t *testing.T) {
+			fx := adofixture.New()
+			st.build(fx)
+
+			results, err := newCollector(fx).Collect(context.Background(), defaultScope())
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			got := map[string]model.Status{}
+			for _, r := range results {
+				if _, dup := got[r.CheckID]; dup {
+					t.Errorf("%s emitted twice", r.CheckID)
+				}
+				got[r.CheckID] = r.Status
+				if want, ok := st.wantReasonContains[r.CheckID]; ok && !strings.Contains(r.Reason, want) {
+					t.Errorf("%s Reason = %q, want it to contain %q", r.CheckID, r.Reason, want)
+				}
+			}
+			for id := range st.wantReasonContains {
+				if _, ok := got[id]; !ok {
+					t.Errorf("%s has a Reason expectation but emitted no result", id)
+				}
+			}
+			// Compared whole, in both directions: a missing key is as much a
+			// defect as a wrong one, and a row count would show neither.
+			for id, want := range st.want {
+				if got[id] != want {
+					t.Errorf("%s = %q, want %q", id, got[id], want)
+				}
+			}
+			for id, status := range got {
+				if _, expected := st.want[id]; !expected {
+					t.Errorf("%s = %q, but this state expects no result for it", id, status)
+				}
+			}
+			all = append(all, results...)
+		})
+	}
+
+	collecttest.AssertRubricsMatchObservedBehaviour(t, "azuredevops", collectorID, all)
 }
