@@ -153,31 +153,19 @@ var checks = []check{
 	// there too, for a genuine remaining-scope reason (a cross-platform
 	// pipeline-run-history matching engine, not yet ported to GitLab CI), not
 	// this one.
-	{
-		id: "C08.actions.oidc-vs-secrets", title: "Cloud deployments use OIDC rather than long-lived static credentials",
-		collectorID: "C08.actions-security", scope: orgScoped,
-		reason: "GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet",
-	},
-	{
-		id: "C08.actions.pinned", title: "Third-party actions and reusable workflows are pinned to a full commit SHA",
-		collectorID: "C08.actions-security", scope: orgScoped,
-		reason: "GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet",
-	},
-	{
-		id: "C08.actions.pull-request-target", title: "pull_request_target is not combined with checking out the PR head",
-		collectorID: "C08.actions-security", scope: orgScoped,
-		reason: "GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet",
-	},
-	{
-		id: "C08.actions.self-hosted", title: "Self-hosted runners are not exposed to public-repo pull requests",
-		collectorID: "C08.actions-security", scope: orgScoped,
-		reason: "GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet",
-	},
-	{
-		id: "C08.actions.token-permissions", title: "Workflows declare explicit, least-privilege GITHUB_TOKEN permissions",
-		collectorID: "C08.actions-security", scope: orgScoped,
-		reason: "GitLab CI is configured in .gitlab-ci.yml with job token scoping, protected variables and runner controls exposed through the projects API. This build does not read them yet",
-	},
+	// C08 actions-security moved WHOLESALE to internal/collect/gitlab/
+	// actionssecurity — all five checks are real there, none of them left
+	// behind. This table's blanket reason ("job token scoping, protected
+	// variables and runner controls ... This build does not read them yet")
+	// was accurate about the gap but named the wrong evidence for four of
+	// the five, and every entry also carried its GitHub twin's title
+	// verbatim, naming mechanisms GitLab does not have (GITHUB_TOKEN,
+	// pull_request_target, actions, self-hosted runners). The five now read
+	// the CI Lint API's resolved `includes` (pinning), the inbound job token
+	// allowlist (token scoping), ci_allow_fork_pipelines_to_run_in_parent_
+	// project (the fork-into-parent exposure, twice, for the two different
+	// things it exposes), and `id_tokens:` weighed against stored cloud
+	// credential variables (OIDC) — all Free tier, all verified live.
 	// C09 audit-logging moved to internal/collect/gitlab/auditlogging: three of
 	// its four checks stay always-not-checkable there for the same paid-tier
 	// reason, but the fourth (repo.webhooks) is a real, free-tier check that
