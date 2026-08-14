@@ -17,7 +17,7 @@ report.html
 report.md.local
 
 # ...except the intentionally-committed sample pack (issue #29) — a real
-# scan of the public Qloud-LTD/demo-good demo repo, not a local/private one.
+# scan of the public Qloud-ltd-com/demo-good demo repo, not a local/private one.
 !/examples/demo-org-pack/evidence.json
 !/examples/demo-org-pack/report.html
 
