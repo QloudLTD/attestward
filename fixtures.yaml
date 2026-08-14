@@ -5,8 +5,8 @@
 # key registered to the org owner's account, not a personal identity.
 #
 # Every value below was captured from a REAL scan of the actual org
-# (`attestward scan --org Qloud-LTD --repo demo-good --repo demo-bad`), not
-# hand-derived — a couple of entries reflect real GitHub platform/plan
+# (`attestward scan --org Qloud-ltd-com --repo demo-good --repo demo-bad`),
+# not hand-derived — a couple of entries reflect real GitHub platform/plan
 # quirks discovered only by running the setup script and observing the
 # result; see each one's `note`.
 #
@@ -19,8 +19,15 @@
 # C01-C04 fixture only; it doesn't run a SAST/SCA tool, so its C05/C06
 # results are honestly verified-fail/not-checkable too — fixtures.yaml
 # records reality, not an aspirational "everything passes."
+#
+# Rebuilt for issue #9: the original Qloud-LTD org's owning account was
+# banned GitHub-side, orphaning it with zero accessible owners. A fresh org
+# (Qloud-ltd-com, under the new QloudLTD account) was built with the same
+# hack/demo-org-setup.sh script and re-scanned; every check_id produced the
+# SAME status as the original org, so only the org name (here and in the
+# notes' embedded API paths) changed — no check behavior actually differs.
 
-org: Qloud-LTD
+org: Qloud-ltd-com
 repos: [demo-good, demo-bad]
 
 # Org-scoped checks (Scope.Repo is empty) — evaluated once per scan,
@@ -61,7 +68,7 @@ org_checks:
   - check_id: C09.audit.org-log-available
     status: not-checkable
     note: >-
-      GET /orgs/Qloud-LTD/audit-log returns 404 — this is a Free-plan org
+      GET /orgs/Qloud-ltd-com/audit-log returns 404 — this is a Free-plan org
       (org_plan fact confirms it), and the org audit-log REST API is
       Enterprise Cloud-only; GitHub returns the same 404 whether the
       cause is the plan or a missing read:audit_log scope, so the check's
@@ -82,7 +89,7 @@ org_checks:
   - check_id: C10.vdp.security-policy-org
     status: not-checkable
     note: >-
-      Qloud-LTD has no .github repo (the org-wide default
+      Qloud-ltd-com has no .github repo (the org-wide default
       community-health-file mechanism), so there's no org-level policy to
       resolve — a genuinely different, softer signal than "the org failed
       to set one up," since most orgs never create a .github repo at all.
@@ -207,7 +214,7 @@ repo_checks:
     - check_id: C10.vdp.private-reporting
       status: verified-fail
       note: >-
-        GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting
+        GET /repos/Qloud-ltd-com/demo-good/private-vulnerability-reporting
         returns 200 with enabled:false (a public repo, so this is a real
         "off" answer, not the plan-gated-404 case this check also
         handles).
@@ -322,7 +329,7 @@ repo_checks:
     - check_id: C10.vdp.private-reporting
       status: verified-fail
       note: >-
-        GET /repos/Qloud-LTD/demo-bad/private-vulnerability-reporting
+        GET /repos/Qloud-ltd-com/demo-bad/private-vulnerability-reporting
         returns 200 with enabled:false (a public repo, so this is a real
         "off" answer, not the plan-gated-404 case this check also
         handles).
