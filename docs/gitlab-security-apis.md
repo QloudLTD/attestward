@@ -521,3 +521,40 @@ tier — and it attributed the failure to tier alone. A Reporter operator was
 therefore told the paywall was the problem and their token was fine, which is
 the opposite of what they needed to hear. It now names both causes and says
 the response does not distinguish them.
+
+## 10. Free-tier is not Reporter-readable: `hooks` needs Maintainer (issue #19)
+
+Measured **2026-08-14** on `qloud-ltd-group/attestward-fixtures`, same run and
+same method as § 9 — a `read_api` project access token at Reporter, against
+the same project read with a `read_api` credential above that role. The
+Reporter token was revoked immediately after.
+
+| Endpoint | Reporter (20) | Above Reporter |
+|---|---|---|
+| `GET /projects/:id/hooks` | **403** | **200** |
+
+The same caveat as § 9 applies to the 200 arm: it was taken at Owner (50)
+rather than Maintainer (40), because the fixtures project has hit GitLab
+Free's five-row project-access-token cap and a revoked row still holds its
+slot. The **403 at Reporter is the load-bearing half** and was measured
+directly; 200 at Maintainer specifically was measured on this endpoint during
+the issue #17 probe.
+
+This one is worth stating separately from § 9 because the mistake it corrects
+is a different one. `C09.repo.webhooks` sits in a package whose other three
+checks are all paid-tier stories, and its package doc goes out of its way to
+say this check is **not** tier-gated — the Project Webhooks API is Free. That
+is true and stays true. But "Free-tier" and "Reporter-readable" are separate
+properties, and documenting Reporter conflated them in the other direction.
+
+The practical consequence for an operator is the inverted diagnosis: a 403
+here is a *role* problem, yet the surrounding package makes "we must be on the
+wrong plan" the natural conclusion. The not-checkable reason now says so
+explicitly on a 403 — and, deliberately, only on a 403: a 404 or transport
+error must not be blamed on the role, since that would be naming a cause never
+observed.
+
+No collector change was needed. `Collect` emits the three org-level results
+unconditionally and `webhooksResult` builds its own client per repo and
+handles its own error, so there is no cross-check abort of the kind issue #17
+had to fix — nothing here can mask an independently-answerable check.

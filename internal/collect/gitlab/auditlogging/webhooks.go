@@ -3,6 +3,7 @@ package auditlogging
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	gitlabcollect "gitlab.com/sioakeim/attestward/internal/collect/gitlab"
 	"gitlab.com/sioakeim/attestward/internal/model"
@@ -61,7 +62,7 @@ func (c *Collector) webhooksResult(ctx context.Context, org, repo string) model.
 	prov := client.Provenance()
 	if err != nil {
 		return withProv(notCheckableAlways(idRepoWebhooks, webhooksTitle, org, repo,
-			fmt.Sprintf("the project's webhooks could not be read: %v", err)), prov)
+			describeReadFailure(err)), prov)
 	}
 
 	if len(hooks) == 0 {
@@ -117,6 +118,21 @@ func (c *Collector) webhooksResult(ctx context.Context, org, repo string) model.
 		Scope: model.ScopeRef{Org: org, Repo: repo, Platform: platform},
 		Facts: map[string]any{"webhook_count": len(hooks)},
 	}, prov)
+}
+
+// describeReadFailure names the cause a 403 here almost always has. This
+// endpoint is Free-tier, so — unlike most gated reads in this repo — a 403 is
+// not a tier signal: it means the token sits below Maintainer (measured live,
+// issue #19). Reporting the bare error left an operator to guess between a
+// paywall, a missing project and an under-scoped token, and the tier guess is
+// the one the package doc makes tempting.
+func describeReadFailure(err error) string {
+	if code, ok := gitlabcollect.StatusCodeOf(err); ok && code == http.StatusForbidden {
+		return fmt.Sprintf("the project's webhooks could not be read: %v. This endpoint is Free-tier but "+
+			"requires Maintainer — it returns 403 at Reporter — so an under-scoped token, not the project's "+
+			"plan, is the usual cause", err)
+	}
+	return fmt.Sprintf("the project's webhooks could not be read: %v", err)
 }
 
 func withProv(r model.CheckResult, prov []model.Provenance) model.CheckResult {
