@@ -201,15 +201,15 @@ jobs:
           # Build a real binary rather than `go run`: `go run` collapses
           # any non-zero program exit code into its own exit 1 (confirmed
           # empirically), which would make exit 2 ("gaps found", expected
-          # and fine here — Qloud-LTD deterministically has some per
+          # and fine here — Qloud-ltd-com deterministically has some per
           # fixtures.yaml) indistinguishable from exit 1 (a real failure,
           # e.g. signing broke). This job cares about "did scan+sign+verify
-          # actually work", not "is Qloud-LTD clean", so exit 2 from scan
+          # actually work", not "is Qloud-ltd-com clean", so exit 2 from scan
           # must not fail the step the way exit 1 should.
           go build -o ./attestward ./cmd/attestward
 
           set +e
-          ./attestward scan --org Qloud-LTD --repo demo-good --sign --out ./evidence
+          ./attestward scan --org Qloud-ltd-com --repo demo-good --sign --out ./evidence
           scan_rc=$?
           set -e
           if [ "$scan_rc" -ne 0 ] && [ "$scan_rc" -ne 2 ]; then

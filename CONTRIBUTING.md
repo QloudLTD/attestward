@@ -7,9 +7,10 @@ doc, mapping change) has an issue, and the issue thread is the record of what wa
 and why.
 
 The code is also mirrored, read-only, to [github.com/QloudLTD/attestward](https://github.com/QloudLTD/attestward)
-(Issues and Actions disabled there) and [gogs.ioakeim.com/sioakim/attestward](https://gogs.ioakeim.com/sioakim/attestward)
-for visibility — neither mirror is monitored for issues or pull requests. Open issues and
-merge requests on GitLab; anything filed against a mirror won't be seen.
+(public, Issues and Actions disabled there) and gogs.ioakeim.com/sioakim/attestward
+(requires sign-in — not publicly browsable, kept for redundancy rather than discovery) —
+neither mirror is monitored for issues or pull requests. Open issues and merge requests on
+GitLab; anything filed against a mirror won't be seen.
 
 ## Ground rules
 
@@ -38,9 +39,10 @@ merge requests on GitLab; anything filed against a mirror won't be seen.
    merging, since that note is the durable record, not the commit message.
 5. CI must be green — the project has `only_allow_merge_if_pipeline_succeeds` enabled, so
    GitLab itself blocks the merge button until the whole pipeline (`lint`, `test`, the
-   drift-check jobs, `build`) passes. Merges are real merge commits, not squashed
-   (`merge_method: merge`, `squash_option: default_off`) — commit-level history survives
-   on `main`.
+   drift-check jobs, `build`) passes. `only_allow_merge_if_all_discussions_are_resolved`
+   is also enabled — every review thread needs to be resolved before the button unlocks,
+   not just CI. Merges are real merge commits, not squashed (`merge_method: merge`,
+   `squash_option: default_off`) — commit-level history survives on `main`.
 6. The source branch is auto-deleted on merge (`remove_source_branch_after_merge`).
 
 `main` is a protected branch: only Maintainers can push or merge to it directly, and

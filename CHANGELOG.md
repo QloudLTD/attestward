@@ -261,7 +261,8 @@ Pre-1.0 caveat: CLI flags and output formats may still change between 0.x versio
   architecture doc, threat model, generated checks reference, ADRs, community health
   files, and a worked example pack from the public demo org in `examples/`.
 
-[Unreleased]: https://gitlab.com/sioakeim/attestward/compare/v1.0.0...HEAD
+[Unreleased]: https://gitlab.com/sioakeim/attestward/compare/v1.1.0...HEAD
+[1.1.0]: https://gitlab.com/sioakeim/attestward/compare/3ac0707...v1.1.0
 [1.0.0]: https://gitlab.com/sioakeim/attestward/compare/v0.3.0...v1.0.0
 [0.3.0]: https://gitlab.com/sioakeim/attestward/compare/v0.2.0...v0.3.0
 [0.2.0]: https://gitlab.com/sioakeim/attestward/compare/v0.1.0...v0.2.0
