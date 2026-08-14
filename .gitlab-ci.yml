@@ -64,6 +64,7 @@ variables:
 stages:
   - verify
   - build
+  - release
 
 workflow:
   rules:
@@ -139,3 +140,55 @@ build:
     paths:
       - attestward
     expire_in: 1 week
+
+# Publishes real archives + a keyless-signed checksums.txt on every v* tag.
+# The GitHub Actions equivalent (.github/workflows/release.yaml) cannot run —
+# the account that repo lived under is banned — so this is the only path
+# that can currently produce a release; do not let the two drift apart
+# silently if GitHub access is ever restored (compare .goreleaser.yaml's
+# behaviour is the same either way, only the OIDC issuer/identity differ).
+#
+# GoReleaser decides which forge to publish to by reading the `origin`
+# remote of the checkout, not from which token env var happens to be set —
+# https://goreleaser.com/customization/release/. A GitLab CI checkout's
+# origin is always the gitlab.com project, so no `gitlab_urls:` stanza is
+# needed in .goreleaser.yaml for a gitlab.com-hosted project.
+release:
+  stage: release
+  image:
+    name: goreleaser/goreleaser:v2.17.1
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    GIT_DEPTH: "0" # full history for the conventional-commit changelog
+  # GitLab's native OIDC ID token, scoped for Sigstore keyless signing —
+  # https://docs.gitlab.com/ci/yaml/signing_examples/. GitLab exposes it as
+  # an env var named after the id_tokens key; cosign (invoked by
+  # .goreleaser.yaml's `signs:` block) picks up SIGSTORE_ID_TOKEN
+  # automatically with no flag needed. The resulting Fulcio certificate's
+  # identity is `<server>/<project path>//<ci-config path>@<ref>` — see the
+  # verify command in SECURITY.md / .goreleaser.yaml's release.footer.
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  before_script:
+    # The goreleaser image is Alpine-based and ships neither curl nor
+    # cosign. Pinned to the exact cosign release the sign/verify flow in
+    # .goreleaser.yaml and SECURITY.md was written against (matching the
+    # pin the now-unusable GitHub workflow used) — an unpinned cosign
+    # turns an upstream release into a surprise red pipeline or, worse, a
+    # silent verify-flow change on an unrelated tag push.
+    - apk add --no-cache curl
+    - |
+      set -euo pipefail
+      arch="$(uname -m)"
+      case "$arch" in
+        x86_64) arch=amd64 ;;
+        aarch64) arch=arm64 ;;
+        *) echo "unsupported arch $arch"; exit 1 ;;
+      esac
+      curl -sSfLo /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-linux-${arch}"
+      chmod +x /usr/local/bin/cosign
+  script:
+    - goreleaser release --clean

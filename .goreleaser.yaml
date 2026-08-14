@@ -76,8 +76,8 @@ release:
     ```bash
     cosign verify-blob \
       --bundle checksums.txt.bundle \
-      --certificate-identity-regexp "^https://gitlab.com/sioakeim/attestward/\.github/workflows/release\.yaml@refs/tags/v.*$" \
-      --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+      --certificate-identity-regexp "^https://gitlab\.com/sioakeim/attestward//\.gitlab-ci\.yml@refs/tags/v.*$" \
+      --certificate-oidc-issuer "https://gitlab.com" \
       checksums.txt
 
     # then confirm your downloaded archive's hash is listed:
@@ -88,9 +88,17 @@ release:
     If verification fails, do not run the binary. Full guide: [SECURITY.md](https://gitlab.com/sioakeim/attestward/blob/main/SECURITY.md).
 
 # Keyless signing (Sigstore/Fulcio OIDC) over the checksums file — no key
-# material for us to manage. Requires id-token:
-# write in the calling workflow (see .github/workflows/release.yaml); cosign
-# auto-detects the GitHub Actions ambient OIDC token.
+# material for us to manage. Requires the calling job to request GitLab's
+# native OIDC ID token via `id_tokens: SIGSTORE_ID_TOKEN: {aud: sigstore}`
+# (see .gitlab-ci.yml's `release` job) — cosign auto-detects that ambient
+# token by env var name, no flag needed.
+#
+# ⚠ This used to run on GitHub Actions (identity
+# ".github/workflows/release.yaml", issuer token.actions.githubusercontent.com)
+# before the account that repo lived under was banned. The signing IDENTITY
+# changed along with the platform move — anything documenting the old
+# GitHub identity is describing a signer that can no longer produce
+# releases, not an alternate valid one.
 #
 # Uses cosign's --bundle output (a single Sigstore bundle JSON file with the
 # signature, certificate, and transparency-log proof together) rather than

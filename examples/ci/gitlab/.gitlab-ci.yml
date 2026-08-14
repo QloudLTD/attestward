@@ -3,11 +3,6 @@
 # Copy into your own project. This is a TEMPLATE for scanning YOUR repositories;
 # it is not the CI for attestward itself.
 #
-# ⚠ UNVERIFIED SKELETON. No GitLab releases have been published yet, so the
-# download URL below resolves to nothing today and the cosign invocation has
-# not been run end to end. Treat this as the shape of the job, not a working
-# copy-paste, until a release exists and this has been executed once.
-#
 # ⚠ Pin ATTESTWARD_VERSION to a release that exists, and verify the signature —
 # an unpinned or unverified binary defeats the point of an attestation tool.
 #
@@ -16,30 +11,43 @@
 #   (add COSIGN_* only if you verify with a key rather than keyless)
 
 variables:
-  ATTESTWARD_VERSION: "v1.0.0"          # pin me
+  ATTESTWARD_VERSION: "v1.1.0-beta.1"          # pin me
 
 attestward-scan:
   stage: test
   image: alpine:3.20
   before_script:
-    - apk add --no-cache curl tar cosign
+    # coreutils, not busybox's sha256sum — the verify step below needs GNU
+    # --ignore-missing (only downloading one platform's archive here, and
+    # without that flag a genuinely valid single-archive checksums.txt check
+    # reports FAILURE for the four platforms never downloaded).
+    - apk add --no-cache curl tar coreutils
+    - |
+      set -euo pipefail
+      arch="$(uname -m)"; case "$arch" in x86_64) arch=amd64 ;; aarch64) arch=arm64 ;; *) echo "unsupported arch $arch"; exit 1 ;; esac
+      curl -sSfLo /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v3.1.1/cosign-linux-${arch}"
+      chmod +x /usr/local/bin/cosign
   script:
     - |
       set -euo pipefail
+      version="${ATTESTWARD_VERSION#v}"   # goreleaser's {{.Version}} in the archive name has no leading v
       base="https://gitlab.com/sioakeim/attestward/-/releases/${ATTESTWARD_VERSION}/downloads"
-      curl -fsSL -o attestward.tar.gz "${base}/attestward_linux_amd64.tar.gz"
-      # Verify before trusting the binary. Keyless verification example:
-      # ⚠ Pin BOTH of these to the identity that actually signs your releases.
-      # A wildcard here verifies that the artifact was signed by *someone*,
-      # which is not a security control — it accepts any signer on the public
-      # transparency log. Set them before relying on this job.
-      : "${ATTESTWARD_SIGNER_IDENTITY:?set to the signing workflow identity, e.g. https://gitlab.com/<group>/<project>//.gitlab-ci.yml@refs/tags/v1.0.0}"
-      : "${ATTESTWARD_SIGNER_ISSUER:?set to the OIDC issuer, e.g. https://gitlab.com}"
-      cosign verify-blob-attestation attestward.tar.gz \
-        --bundle "${base}/attestward_linux_amd64.tar.gz.bundle" \
-        --certificate-identity "${ATTESTWARD_SIGNER_IDENTITY}" \
-        --certificate-oidc-issuer "${ATTESTWARD_SIGNER_ISSUER}" || { echo "signature verification FAILED"; exit 1; }
-      tar xzf attestward.tar.gz
+      archive="attestward_${version}_linux_amd64.tar.gz"
+      curl -fsSL -o "$archive" "${base}/${archive}"
+      curl -fsSL -o checksums.txt "${base}/checksums.txt"
+      curl -fsSL -o checksums.txt.bundle "${base}/checksums.txt.bundle"
+      # Verify before trusting the binary — checksums.txt is what's signed;
+      # the archive is then checked against the signed hash, not signed
+      # directly. Pin BOTH of these to the identity that actually signs
+      # attestward's releases (see SECURITY.md); a wildcard here verifies
+      # that *someone* signed it, which is not a security control.
+      cosign verify-blob \
+        --bundle checksums.txt.bundle \
+        --certificate-identity-regexp '^https://gitlab\.com/sioakeim/attestward//\.gitlab-ci\.yml@refs/tags/v.*$' \
+        --certificate-oidc-issuer "https://gitlab.com" \
+        checksums.txt || { echo "signature verification FAILED"; exit 1; }
+      sha256sum --ignore-missing -c checksums.txt
+      tar xzf "$archive" attestward
     - ./attestward scan --format md --out evidence/
   artifacts:
     when: always
