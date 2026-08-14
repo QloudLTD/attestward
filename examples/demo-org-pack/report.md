@@ -2,12 +2,12 @@
 
 ## Executive Summary
 
-- **Org:** Qloud-LTD
-- **Repos in scope:** demo-good
-- **Scan window:** 2026-07-23 10:27:23 UTC – 2026-07-23 10:27:28 UTC
-- **Tool version:** v0.3.0-1-gc7f9568
-- **Mapping versions:** SSDF 1.13.0 · CISA form 1.0.0 · self-attestation 1.0.0
-- **Pack SHA-256:** `ec3c9adec4d37090aa4ce1a92022f6084b0d4154118a8779853503f4e80fa6b6`
+- **Org:** Qloud-ltd-com
+- **Repos in scope:** demo-good, demo-bad
+- **Scan window:** 2026-08-14 05:59:17 UTC – 2026-08-14 05:59:21 UTC
+- **Tool version:** d0f4117
+- **Mapping versions:** SSDF 1.13.0 · CISA form 1.0.0 · scanner signatures 1.5.0 · self-attestation 1.0.0
+- **Pack SHA-256:** `0d73629646bf2f7601922f67b8507b342a414033bcb553c0bd336b22d7a597f4`
 
 ### Cluster status
 
@@ -22,11 +22,11 @@
 
 | Status | Count |
 |---|---|
-| [FAIL] Verified Fail | 14 |
-| [PARTIAL] Partial | 2 |
-| [NOT CHECKABLE] Not Checkable | 13 |
+| [FAIL] Verified Fail | 40 |
+| [PARTIAL] Partial | 4 |
+| [NOT CHECKABLE] Not Checkable | 21 |
 | [SELF-ATTESTED] Self-Attested | 0 |
-| [PASS] Verified Pass | 23 |
+| [PASS] Verified Pass | 24 |
 
 ---
 
@@ -53,7 +53,7 @@ Separate and protect each environment involved in software development.
 org does not require two-factor authentication for members
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - two\_factor\_requirement\_enabled: false
 
@@ -63,9 +63,21 @@ Evidence:
 all org members have two-factor authentication enabled
 
 Evidence:
-- GET /orgs/Qloud-LTD/members at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /orgs/Qloud-ltd-com/members at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - members\_without\_2fa\_count: 0
+
+
+##### Production-like environments restrict which branches/tags can deploy (`C03.env.branch-policy`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) that allow deployment from any branch: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_allowing\_any\_branch: production
+
+- production\_like\_environments: production
 
 
 ##### Production-like environments restrict which branches/tags can deploy (`C03.env.branch-policy`) — [PASS] Verified Pass
@@ -73,9 +85,23 @@ Evidence:
 Repo: demo-good. every production-like environment restricts which branches/tags can deploy
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_allowing\_any\_branch: 
+
+- production\_like\_environments: production
+
+
+##### A production-like environment exists (`C03.env.exists`) — [PASS] Verified Pass
+
+Repo: demo-bad. 1 production-like environment(s) found among 1 total
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- production\_like\_heuristic: name matches prod\*/production, case-insensitive
+
+- all\_environment\_names: production
 
 - production\_like\_environments: production
 
@@ -85,11 +111,23 @@ Evidence:
 Repo: demo-good. 1 production-like environment(s) found among 1 total
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - production\_like\_heuristic: name matches prod\*/production, case-insensitive
 
 - all\_environment\_names: production
+
+- production\_like\_environments: production
+
+
+##### Production-like environments have at least one protection rule (`C03.env.protection-rules`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) with no protection rules: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_without\_protection: production
 
 - production\_like\_environments: production
 
@@ -99,9 +137,21 @@ Evidence:
 Repo: demo-good. every production-like environment has at least one protection rule
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_without\_protection: 
+
+- production\_like\_environments: production
+
+
+##### Production-like environments require reviewer approval before deployment (`C03.env.required-reviewers`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) without required reviewers: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_without\_required\_reviewers: production
 
 - production\_like\_environments: production
 
@@ -111,7 +161,7 @@ Evidence:
 Repo: demo-good. every production-like environment requires reviewer approval
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_without\_required\_reviewers: 
 
@@ -123,7 +173,7 @@ Evidence:
 not every security feature is enabled by default for new repositories
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - advanced\_security\_enabled\_for\_new\_repositories: false
 
@@ -136,10 +186,30 @@ Evidence:
 
 ##### GitHub Advanced Security is enabled where applicable (`C04.secrets.advanced-security`) — [NOT CHECKABLE] Not Checkable
 
+Repo: demo-bad. not applicable to public repositories (GHAS licensing only gates private-repo features)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+
+##### GitHub Advanced Security is enabled where applicable (`C04.secrets.advanced-security`) — [NOT CHECKABLE] Not Checkable
+
 Repo: demo-good. not applicable to public repositories (GHAS licensing only gates private-repo features)
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+
+
+##### Secret scanning push protection is active (`C04.secrets.push-protection`) — [FAIL] Verified Fail
+
+Repo: demo-bad. secret scanning push protection is not enabled (freely available on public repos)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+- private: false
+
+- push\_protection\_status: disabled
 
 
 ##### Secret scanning push protection is active (`C04.secrets.push-protection`) — [PASS] Verified Pass
@@ -147,11 +217,23 @@ Evidence:
 Repo: demo-good. secret scanning push protection is enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
 
 - private: false
 
 - push\_protection\_status: enabled
+
+
+##### Secret scanning is active (`C04.secrets.scanning-enabled`) — [FAIL] Verified Fail
+
+Repo: demo-bad. secret scanning is not enabled (freely available on public repos)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+- private: false
+
+- secret\_scanning\_status: disabled
 
 
 ##### Secret scanning is active (`C04.secrets.scanning-enabled`) — [PASS] Verified Pass
@@ -159,11 +241,30 @@ Evidence:
 Repo: demo-good. secret scanning is enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
 
 - private: false
 
 - secret\_scanning\_status: enabled
+
+
+##### Cloud deployments use OIDC rather than long-lived static credentials (`C08.actions.oidc-vs-secrets`) — [FAIL] Verified Fail
+
+Repo: demo-bad. 1 cloud-deployment login step(s) use long-lived static credentials instead of OIDC
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- skipped\_workflows: (none)
+
+**logins**
+
+| cloud | file | line | uses | verdict | 
+|---|---|---|---|---|
+| aws | .github/workflows/deploy-fixture.yaml | 9 | aws-actions/configure-aws-credentials@v4 | static | 
 
 
 ##### Cloud deployments use OIDC rather than long-lived static credentials (`C08.actions.oidc-vs-secrets`) — [NOT CHECKABLE] Not Checkable
@@ -171,12 +272,33 @@ Evidence:
 Repo: demo-good. no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - skipped\_workflows: (none)
+
+
+##### pull\_request\_target is not combined with checking out the PR head (`C08.actions.pull-request-target`) — [FAIL] Verified Fail
+
+Repo: demo-bad. at least one pull\_request\_target workflow checks out the PR head commit/branch — this combination runs attacker-controlled code with base-repo secrets and token access
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- bare\_usage: 
+
+- skipped\_workflows: (none)
+
+**dangerous**
+
+| file | line | uses | 
+|---|---|---|
+| .github/workflows/pr-target-fixture.yaml | 10 | actions/checkout@v5 | 
 
 
 ##### pull\_request\_target is not combined with checking out the PR head (`C08.actions.pull-request-target`) — [PASS] Verified Pass
@@ -184,10 +306,10 @@ Evidence:
 Repo: demo-good. no workflow triggers on pull\_request\_target
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - bare\_usage: 
 
@@ -196,15 +318,36 @@ Evidence:
 - skipped\_workflows: (none)
 
 
+##### Self-hosted runners are not exposed to public-repo pull requests (`C08.actions.self-hosted`) — [PARTIAL] Partial
+
+Repo: demo-bad. self-hosted runner(s) are used on a public repository — an external contributor's pull request is a potential path to them
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- repo\_private: false
+
+- skipped\_workflows: (none)
+
+**self\_hosted\_jobs**
+
+| file | job | line | 
+|---|---|---|
+| .github/workflows/deploy-fixture.yaml | deploy | 5 | 
+
+
 ##### Self-hosted runners are not exposed to public-repo pull requests (`C08.actions.self-hosted`) — [PASS] Verified Pass
 
 Repo: demo-good. no self-hosted runner usage detected
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - repo\_private: false
 
@@ -215,14 +358,37 @@ Evidence:
 
 ##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
 
+Repo: demo-bad. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+
+- repo\_default\_workflow\_permissions: read
+
+- skipped\_workflows: (none)
+
+**findings**
+
+| file | job | line | verdict | 
+|---|---|---|---|
+| .github/workflows/deploy-fixture.yaml | deploy | 5 | missing | 
+| .github/workflows/pr-target-fixture.yaml | label | 7 | explicit | 
+
+
+##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
+
 Repo: demo-good. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow at 2026-07-23 10:27:26 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
 
 - repo\_default\_workflow\_permissions: read
 
@@ -246,8 +412,8 @@ audit-log streaming/export is configured exclusively at the GitHub Enterprise ac
 GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone)
 
 Evidence:
-- GET /orgs/Qloud-LTD/audit-log at 2026-07-23 10:27:26 UTC (HTTP 404, digest 875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8)
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:26 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com/audit-log at 2026-08-14 05:59:19 UTC (HTTP 404, digest 875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:20 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - org\_plan: free
 
@@ -265,10 +431,20 @@ informational only — GitHub's documented audit-log retention window is provide
 
 ##### A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no active webhook subscribes to push, release, or deployment events
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/hooks at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- webhooks: (none)
+
+
+##### A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
+
 Repo: demo-good. no active webhook subscribes to push, release, or deployment events
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/hooks at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good/hooks at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - webhooks: (none)
 
@@ -308,7 +484,7 @@ Separate and protect each environment involved in software development.
 org does not require two-factor authentication for members
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - two\_factor\_requirement\_enabled: false
 
@@ -318,9 +494,21 @@ Evidence:
 all org members have two-factor authentication enabled
 
 Evidence:
-- GET /orgs/Qloud-LTD/members at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /orgs/Qloud-ltd-com/members at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - members\_without\_2fa\_count: 0
+
+
+##### Production-like environments restrict which branches/tags can deploy (`C03.env.branch-policy`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) that allow deployment from any branch: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_allowing\_any\_branch: production
+
+- production\_like\_environments: production
 
 
 ##### Production-like environments restrict which branches/tags can deploy (`C03.env.branch-policy`) — [PASS] Verified Pass
@@ -328,9 +516,23 @@ Evidence:
 Repo: demo-good. every production-like environment restricts which branches/tags can deploy
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_allowing\_any\_branch: 
+
+- production\_like\_environments: production
+
+
+##### A production-like environment exists (`C03.env.exists`) — [PASS] Verified Pass
+
+Repo: demo-bad. 1 production-like environment(s) found among 1 total
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- production\_like\_heuristic: name matches prod\*/production, case-insensitive
+
+- all\_environment\_names: production
 
 - production\_like\_environments: production
 
@@ -340,11 +542,23 @@ Evidence:
 Repo: demo-good. 1 production-like environment(s) found among 1 total
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - production\_like\_heuristic: name matches prod\*/production, case-insensitive
 
 - all\_environment\_names: production
+
+- production\_like\_environments: production
+
+
+##### Production-like environments have at least one protection rule (`C03.env.protection-rules`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) with no protection rules: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_without\_protection: production
 
 - production\_like\_environments: production
 
@@ -354,9 +568,21 @@ Evidence:
 Repo: demo-good. every production-like environment has at least one protection rule
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_without\_protection: 
+
+- production\_like\_environments: production
+
+
+##### Production-like environments require reviewer approval before deployment (`C03.env.required-reviewers`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) without required reviewers: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_without\_required\_reviewers: production
 
 - production\_like\_environments: production
 
@@ -366,7 +592,7 @@ Evidence:
 Repo: demo-good. every production-like environment requires reviewer approval
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_without\_required\_reviewers: 
 
@@ -378,7 +604,7 @@ Evidence:
 not every security feature is enabled by default for new repositories
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - advanced\_security\_enabled\_for\_new\_repositories: false
 
@@ -391,10 +617,30 @@ Evidence:
 
 ##### GitHub Advanced Security is enabled where applicable (`C04.secrets.advanced-security`) — [NOT CHECKABLE] Not Checkable
 
+Repo: demo-bad. not applicable to public repositories (GHAS licensing only gates private-repo features)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+
+##### GitHub Advanced Security is enabled where applicable (`C04.secrets.advanced-security`) — [NOT CHECKABLE] Not Checkable
+
 Repo: demo-good. not applicable to public repositories (GHAS licensing only gates private-repo features)
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+
+
+##### Secret scanning push protection is active (`C04.secrets.push-protection`) — [FAIL] Verified Fail
+
+Repo: demo-bad. secret scanning push protection is not enabled (freely available on public repos)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+- private: false
+
+- push\_protection\_status: disabled
 
 
 ##### Secret scanning push protection is active (`C04.secrets.push-protection`) — [PASS] Verified Pass
@@ -402,11 +648,23 @@ Evidence:
 Repo: demo-good. secret scanning push protection is enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
 
 - private: false
 
 - push\_protection\_status: enabled
+
+
+##### Secret scanning is active (`C04.secrets.scanning-enabled`) — [FAIL] Verified Fail
+
+Repo: demo-bad. secret scanning is not enabled (freely available on public repos)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+- private: false
+
+- secret\_scanning\_status: disabled
 
 
 ##### Secret scanning is active (`C04.secrets.scanning-enabled`) — [PASS] Verified Pass
@@ -414,11 +672,30 @@ Evidence:
 Repo: demo-good. secret scanning is enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
 
 - private: false
 
 - secret\_scanning\_status: enabled
+
+
+##### Cloud deployments use OIDC rather than long-lived static credentials (`C08.actions.oidc-vs-secrets`) — [FAIL] Verified Fail
+
+Repo: demo-bad. 1 cloud-deployment login step(s) use long-lived static credentials instead of OIDC
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- skipped\_workflows: (none)
+
+**logins**
+
+| cloud | file | line | uses | verdict | 
+|---|---|---|---|---|
+| aws | .github/workflows/deploy-fixture.yaml | 9 | aws-actions/configure-aws-credentials@v4 | static | 
 
 
 ##### Cloud deployments use OIDC rather than long-lived static credentials (`C08.actions.oidc-vs-secrets`) — [NOT CHECKABLE] Not Checkable
@@ -426,12 +703,33 @@ Evidence:
 Repo: demo-good. no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - skipped\_workflows: (none)
+
+
+##### pull\_request\_target is not combined with checking out the PR head (`C08.actions.pull-request-target`) — [FAIL] Verified Fail
+
+Repo: demo-bad. at least one pull\_request\_target workflow checks out the PR head commit/branch — this combination runs attacker-controlled code with base-repo secrets and token access
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- bare\_usage: 
+
+- skipped\_workflows: (none)
+
+**dangerous**
+
+| file | line | uses | 
+|---|---|---|
+| .github/workflows/pr-target-fixture.yaml | 10 | actions/checkout@v5 | 
 
 
 ##### pull\_request\_target is not combined with checking out the PR head (`C08.actions.pull-request-target`) — [PASS] Verified Pass
@@ -439,10 +737,10 @@ Evidence:
 Repo: demo-good. no workflow triggers on pull\_request\_target
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - bare\_usage: 
 
@@ -451,15 +749,36 @@ Evidence:
 - skipped\_workflows: (none)
 
 
+##### Self-hosted runners are not exposed to public-repo pull requests (`C08.actions.self-hosted`) — [PARTIAL] Partial
+
+Repo: demo-bad. self-hosted runner(s) are used on a public repository — an external contributor's pull request is a potential path to them
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- repo\_private: false
+
+- skipped\_workflows: (none)
+
+**self\_hosted\_jobs**
+
+| file | job | line | 
+|---|---|---|
+| .github/workflows/deploy-fixture.yaml | deploy | 5 | 
+
+
 ##### Self-hosted runners are not exposed to public-repo pull requests (`C08.actions.self-hosted`) — [PASS] Verified Pass
 
 Repo: demo-good. no self-hosted runner usage detected
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - repo\_private: false
 
@@ -470,14 +789,37 @@ Evidence:
 
 ##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
 
+Repo: demo-bad. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+
+- repo\_default\_workflow\_permissions: read
+
+- skipped\_workflows: (none)
+
+**findings**
+
+| file | job | line | verdict | 
+|---|---|---|---|
+| .github/workflows/deploy-fixture.yaml | deploy | 5 | missing | 
+| .github/workflows/pr-target-fixture.yaml | label | 7 | explicit | 
+
+
+##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
+
 Repo: demo-good. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow at 2026-07-23 10:27:26 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
 
 - repo\_default\_workflow\_permissions: read
 
@@ -501,8 +843,8 @@ audit-log streaming/export is configured exclusively at the GitHub Enterprise ac
 GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone)
 
 Evidence:
-- GET /orgs/Qloud-LTD/audit-log at 2026-07-23 10:27:26 UTC (HTTP 404, digest 875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8)
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:26 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com/audit-log at 2026-08-14 05:59:19 UTC (HTTP 404, digest 875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:20 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - org\_plan: free
 
@@ -520,10 +862,20 @@ informational only — GitHub's documented audit-log retention window is provide
 
 ##### A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no active webhook subscribes to push, release, or deployment events
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/hooks at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- webhooks: (none)
+
+
+##### A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
+
 Repo: demo-good. no active webhook subscribes to push, release, or deployment events
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/hooks at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good/hooks at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - webhooks: (none)
 
@@ -546,7 +898,7 @@ Store all forms of code – including source code, executable code, and configur
 default repository permission is "read"
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - default\_repository\_permission: read
 
@@ -556,9 +908,23 @@ Evidence:
 members can create public repositories (potential leak vector)
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - members\_can\_create\_public\_repositories: true
+
+
+##### Default branch protections apply to admins (no unconditional bypass actor) (`C02.branch.admin-enforced`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch protections do not apply to admins
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- bypass\_actors: 
+
+- via: 
 
 
 ##### Default branch protections apply to admins (no unconditional bypass actor) (`C02.branch.admin-enforced`) — [PASS] Verified Pass
@@ -566,13 +932,25 @@ Evidence:
 Repo: demo-good. default branch protections apply to admins with no bypass actors
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - bypass\_actors: 
 
 - via: legacy
+
+
+##### Default branch blocks branch deletion (`C02.branch.deletion-blocked`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch allows deletion
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- via: 
 
 
 ##### Default branch blocks branch deletion (`C02.branch.deletion-blocked`) — [PASS] Verified Pass
@@ -580,11 +958,23 @@ Evidence:
 Repo: demo-good. default branch blocks deletion
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - via: legacy
+
+
+##### Default branch blocks force pushes (`C02.branch.force-push-blocked`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch allows force pushes
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- via: 
 
 
 ##### Default branch blocks force pushes (`C02.branch.force-push-blocked`) — [PASS] Verified Pass
@@ -592,11 +982,23 @@ Evidence:
 Repo: demo-good. default branch blocks force pushes
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - via: legacy
+
+
+##### Default branch has protection (legacy branch protection or a ruleset) (`C02.branch.protection-exists`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch has no legacy branch protection and no ruleset applies to it
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- protected\_via: 
 
 
 ##### Default branch has protection (legacy branch protection or a ruleset) (`C02.branch.protection-exists`) — [PASS] Verified Pass
@@ -604,11 +1006,29 @@ Evidence:
 Repo: demo-good. default branch is protected via: \[legacy\]
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - protected\_via: legacy
+
+
+##### Default branch requires at least one approving review before merge (`C02.branch.required-reviews`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch does not require an approving review before merge
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dismiss\_stale\_reviews: false
+
+- required\_approving\_review\_count: 0
+
+- review\_bypass\_actors: 
+
+- via: 
 
 
 ##### Default branch requires at least one approving review before merge (`C02.branch.required-reviews`) — [PASS] Verified Pass
@@ -616,9 +1036,9 @@ Evidence:
 Repo: demo-good. default branch requires 1 approving review(s)
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - dismiss\_stale\_reviews: false
 
@@ -629,30 +1049,52 @@ Evidence:
 - via: legacy
 
 
+##### Default branch requires status checks before merge (`C02.branch.required-status-checks`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch does not require any status checks before merge
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- required\_status\_check\_names: 
+
+- via: 
+
+
 ##### Default branch requires status checks before merge (`C02.branch.required-status-checks`) — [PASS] Verified Pass
 
 Repo: demo-good. default branch requires 1 status check(s)
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - required\_status\_check\_names: build
 
 - via: legacy
 
 
-#### PS.2.1 — [PASS] Verified Pass
+#### PS.2.1 — [NOT CHECKABLE] Not Checkable
 
 Make software integrity verification information available to software acquirers.
+
+##### Releases ship checksum assets (`C07.release.checksums`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
 
 ##### Releases ship checksum assets (`C07.release.checksums`) — [PASS] Verified Pass
 
 Repo: demo-good. every release in the lookback window ships a checksum asset
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
 
 **per\_release**
 
@@ -661,12 +1103,20 @@ Evidence:
 | \["checksums.txt"\] | true | checksum asset(s) found: \[checksums.txt\] | v1.0.0 | 
 
 
+##### Releases ship signature or attestation assets (`C07.release.signatures`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
 ##### Releases ship signature or attestation assets (`C07.release.signatures`) — [PASS] Verified Pass
 
 Repo: demo-good. every release in the lookback window ships a signature/attestation asset or has a GitHub Artifact Attestation
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
 
 **per\_release**
 
@@ -675,14 +1125,22 @@ Evidence:
 | false |  | \["checksums.txt.bundle"\] | true | signature asset(s) found: \[checksums.txt.bundle\] | v1.0.0 | 
 
 
+##### Release tags are signed and GitHub reports the signature verified (`C07.release.tags-signed`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
 ##### Release tags are signed and GitHub reports the signature verified (`C07.release.tags-signed`) — [PASS] Verified Pass
 
 Repo: demo-good. every release tag in the lookback window is signed and its signature is verified
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:26 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:26 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:20 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 **per\_release**
 
@@ -695,19 +1153,47 @@ Evidence:
 
 Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.
 
-#### PW.4.1 — [PARTIAL] Partial
+#### PW.4.1 — [FAIL] Verified Fail
 
 Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization's software.
+
+##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [FAIL] Verified Fail
+
+Repo: demo-bad. 2 third-party action/reusable-workflow reference(s) are not pinned to a full-length commit SHA
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- skipped\_workflows: (none)
+
+- unresolved\_external\_workflows: (none)
+
+**first\_party\_unpinned**
+
+| class | file | line | ref | slug | uses | 
+|---|---|---|---|---|---|
+| first-party | .github/workflows/pr-target-fixture.yaml | 10 | v5 | actions/checkout | actions/checkout@v5 | 
+
+**third\_party\_unpinned**
+
+| class | file | line | ref | slug | uses | 
+|---|---|---|---|---|---|
+| third-party | .github/workflows/deploy-fixture.yaml | 8 | v6 | docker/build-push-action | docker/build-push-action@v6 | 
+| third-party | .github/workflows/deploy-fixture.yaml | 9 | v4 | aws-actions/configure-aws-credentials | aws-actions/configure-aws-credentials@v4 | 
+
 
 ##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
 
 Repo: demo-good. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - skipped\_workflows: (none)
 
@@ -726,14 +1212,32 @@ Evidence:
 
 Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.
 
+##### Dependabot vulnerability alerts are enabled (`C04.deps.dependabot-alerts`) — [FAIL] Verified Fail
+
+Repo: demo-bad. Dependabot vulnerability alerts are not enabled
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/vulnerability-alerts at 2026-08-14 05:59:18 UTC (HTTP 404, digest 9823ff5229a049b085025a16d246d1aef8fe4df5f4e335238a1d33b2b0874967)
+
+- dependabot\_alerts\_enabled: false
+
+
 ##### Dependabot vulnerability alerts are enabled (`C04.deps.dependabot-alerts`) — [PASS] Verified Pass
 
 Repo: demo-good. Dependabot vulnerability alerts are enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/vulnerability-alerts at 2026-07-23 10:27:24 UTC (HTTP 204, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+- GET /repos/Qloud-ltd-com/demo-good/vulnerability-alerts at 2026-08-14 05:59:18 UTC (HTTP 204, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - dependabot\_alerts\_enabled: true
+
+
+##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [FAIL] Verified Fail
+
+Repo: demo-bad. Dependabot alerts are not enabled for this repository
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 403, digest c1beac3c35f574fcd0f58fc959d11e4a464a9974a02f0c4c0c0afb16b45dda5a)
 
 
 ##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [PASS] Verified Pass
@@ -741,9 +1245,11 @@ Evidence:
 Repo: demo-good. 0 open alert(s), no critical alert open beyond the 30-day triage window
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/dependabot/alerts at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - oldest\_open\_age\_days: 0
+
+- oldest\_unclassified\_age\_days: 0
 
 - open\_critical\_count: 0
 
@@ -755,7 +1261,23 @@ Evidence:
 
 - open\_total\_count: 0
 
+- open\_unclassified\_count: 0
+
 - triage\_threshold\_days: 30
+
+
+##### Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
+
+Repo: demo-bad. no Dependabot config found; 1 detected ecosystem(s) are uncovered
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/ at 2026-08-14 05:59:19 UTC (HTTP 200, digest d89bb027c06e65a8d878a29d4ff725c7a25da56aead63c3fefef6ad5cb9ad313)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- detected\_ecosystems: github-actions
+
+- uncovered\_ecosystems: github-actions
 
 
 ##### Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
@@ -763,9 +1285,9 @@ Evidence:
 Repo: demo-good. no Dependabot config found; 1 detected ecosystem(s) are uncovered
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/ at 2026-07-23 10:27:26 UTC (HTTP 200, digest 32fbcbbce3cbd4b00f89f56285636192c4eb0cefbd784799cba46415258ac932)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/ at 2026-08-14 05:59:20 UTC (HTTP 200, digest 6d37f7c4f592d43db39aa75eb69666c1c376dee2ed272a5c3a3ea8505eac1ab5)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - detected\_ecosystems: github-actions
 
@@ -774,15 +1296,42 @@ Evidence:
 
 ##### Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no dependency-review-action (or equivalent) workflow detected
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:20 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
+
 Repo: demo-good. no dependency-review-action (or equivalent) workflow detected
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:27 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:21 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:21 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [FAIL] Verified Fail
@@ -790,13 +1339,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SCA run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:26 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -809,19 +1358,42 @@ Evidence:
 
 ##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+Repo: demo-bad. no SCA tool detected in any workflow, and no Dependabot config found
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - dependabot\_configured: false
 
 - low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- dependabot\_configured: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
 
 - tool\_names: (none)
 
@@ -832,10 +1404,22 @@ Determine whether code review (a person looks directly at the code to find issue
 
 ##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
 
+Repo: demo-bad. CodeQL default setup is "not-configured"
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+
+- state: not-configured
+
+- languages: actions
+
+
+##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
+
 Repo: demo-good. CodeQL default setup is "not-configured"
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup at 2026-07-23 10:27:26 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+- GET /repos/Qloud-ltd-com/demo-good/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
 
 - state: not-configured
 
@@ -844,20 +1428,42 @@ Evidence:
 
 ##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+Repo: demo-bad. no SAST tool detected in any workflow, and CodeQL default setup is not configured
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - codeql\_default\_setup: false
 
 - low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+
+- codeql\_default\_setup: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
 
 - tool\_names: (none)
 
@@ -872,15 +1478,36 @@ Gather information from software acquirers, users, and public sources on potenti
 
 ##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no SECURITY.md exists to advertise an intake channel
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
+
 Repo: demo-good. no SECURITY.md exists to advertise an intake channel
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
+
+Repo: demo-bad. private vulnerability reporting is not enabled
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/private-vulnerability-reporting at 2026-08-14 05:59:21 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
 
 
 ##### GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
@@ -888,7 +1515,7 @@ Evidence:
 Repo: demo-good. private vulnerability reporting is not enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting at 2026-07-23 10:27:28 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
+- GET /repos/Qloud-ltd-com/demo-good/private-vulnerability-reporting at 2026-08-14 05:59:21 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
 
 
 
@@ -913,7 +1540,7 @@ Separate and protect each environment involved in software development.
 org does not require two-factor authentication for members
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - two\_factor\_requirement\_enabled: false
 
@@ -923,9 +1550,21 @@ Evidence:
 all org members have two-factor authentication enabled
 
 Evidence:
-- GET /orgs/Qloud-LTD/members at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /orgs/Qloud-ltd-com/members at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - members\_without\_2fa\_count: 0
+
+
+##### Production-like environments restrict which branches/tags can deploy (`C03.env.branch-policy`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) that allow deployment from any branch: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_allowing\_any\_branch: production
+
+- production\_like\_environments: production
 
 
 ##### Production-like environments restrict which branches/tags can deploy (`C03.env.branch-policy`) — [PASS] Verified Pass
@@ -933,9 +1572,23 @@ Evidence:
 Repo: demo-good. every production-like environment restricts which branches/tags can deploy
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_allowing\_any\_branch: 
+
+- production\_like\_environments: production
+
+
+##### A production-like environment exists (`C03.env.exists`) — [PASS] Verified Pass
+
+Repo: demo-bad. 1 production-like environment(s) found among 1 total
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- production\_like\_heuristic: name matches prod\*/production, case-insensitive
+
+- all\_environment\_names: production
 
 - production\_like\_environments: production
 
@@ -945,11 +1598,23 @@ Evidence:
 Repo: demo-good. 1 production-like environment(s) found among 1 total
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - production\_like\_heuristic: name matches prod\*/production, case-insensitive
 
 - all\_environment\_names: production
+
+- production\_like\_environments: production
+
+
+##### Production-like environments have at least one protection rule (`C03.env.protection-rules`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) with no protection rules: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_without\_protection: production
 
 - production\_like\_environments: production
 
@@ -959,9 +1624,21 @@ Evidence:
 Repo: demo-good. every production-like environment has at least one protection rule
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_without\_protection: 
+
+- production\_like\_environments: production
+
+
+##### Production-like environments require reviewer approval before deployment (`C03.env.required-reviewers`) — [FAIL] Verified Fail
+
+Repo: demo-bad. environment(s) without required reviewers: \[production\]
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest 5041b582b876bdfbcafaa4540bc6403119adb2aeea336f161ffe85a68345268d)
+
+- environments\_without\_required\_reviewers: production
 
 - production\_like\_environments: production
 
@@ -971,7 +1648,7 @@ Evidence:
 Repo: demo-good. every production-like environment requires reviewer approval
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/environments at 2026-07-23 10:27:23 UTC (HTTP 200, digest 8594b2c07f4f5216ab28100210be7152ecde29f550afe88af5af816c5a461a80)
+- GET /repos/Qloud-ltd-com/demo-good/environments at 2026-08-14 05:59:17 UTC (HTTP 200, digest ffcebe166089955525006cf81320099a8c985b500225d3c3084c29f38efbfb0d)
 
 - environments\_without\_required\_reviewers: 
 
@@ -983,7 +1660,7 @@ Evidence:
 not every security feature is enabled by default for new repositories
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - advanced\_security\_enabled\_for\_new\_repositories: false
 
@@ -996,10 +1673,30 @@ Evidence:
 
 ##### GitHub Advanced Security is enabled where applicable (`C04.secrets.advanced-security`) — [NOT CHECKABLE] Not Checkable
 
+Repo: demo-bad. not applicable to public repositories (GHAS licensing only gates private-repo features)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+
+##### GitHub Advanced Security is enabled where applicable (`C04.secrets.advanced-security`) — [NOT CHECKABLE] Not Checkable
+
 Repo: demo-good. not applicable to public repositories (GHAS licensing only gates private-repo features)
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+
+
+##### Secret scanning push protection is active (`C04.secrets.push-protection`) — [FAIL] Verified Fail
+
+Repo: demo-bad. secret scanning push protection is not enabled (freely available on public repos)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+- private: false
+
+- push\_protection\_status: disabled
 
 
 ##### Secret scanning push protection is active (`C04.secrets.push-protection`) — [PASS] Verified Pass
@@ -1007,11 +1704,23 @@ Evidence:
 Repo: demo-good. secret scanning push protection is enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
 
 - private: false
 
 - push\_protection\_status: enabled
+
+
+##### Secret scanning is active (`C04.secrets.scanning-enabled`) — [FAIL] Verified Fail
+
+Repo: demo-bad. secret scanning is not enabled (freely available on public repos)
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+
+- private: false
+
+- secret\_scanning\_status: disabled
 
 
 ##### Secret scanning is active (`C04.secrets.scanning-enabled`) — [PASS] Verified Pass
@@ -1019,11 +1728,30 @@ Evidence:
 Repo: demo-good. secret scanning is enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
 
 - private: false
 
 - secret\_scanning\_status: enabled
+
+
+##### Cloud deployments use OIDC rather than long-lived static credentials (`C08.actions.oidc-vs-secrets`) — [FAIL] Verified Fail
+
+Repo: demo-bad. 1 cloud-deployment login step(s) use long-lived static credentials instead of OIDC
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- skipped\_workflows: (none)
+
+**logins**
+
+| cloud | file | line | uses | verdict | 
+|---|---|---|---|---|
+| aws | .github/workflows/deploy-fixture.yaml | 9 | aws-actions/configure-aws-credentials@v4 | static | 
 
 
 ##### Cloud deployments use OIDC rather than long-lived static credentials (`C08.actions.oidc-vs-secrets`) — [NOT CHECKABLE] Not Checkable
@@ -1031,12 +1759,33 @@ Evidence:
 Repo: demo-good. no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - skipped\_workflows: (none)
+
+
+##### pull\_request\_target is not combined with checking out the PR head (`C08.actions.pull-request-target`) — [FAIL] Verified Fail
+
+Repo: demo-bad. at least one pull\_request\_target workflow checks out the PR head commit/branch — this combination runs attacker-controlled code with base-repo secrets and token access
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- bare\_usage: 
+
+- skipped\_workflows: (none)
+
+**dangerous**
+
+| file | line | uses | 
+|---|---|---|
+| .github/workflows/pr-target-fixture.yaml | 10 | actions/checkout@v5 | 
 
 
 ##### pull\_request\_target is not combined with checking out the PR head (`C08.actions.pull-request-target`) — [PASS] Verified Pass
@@ -1044,10 +1793,10 @@ Evidence:
 Repo: demo-good. no workflow triggers on pull\_request\_target
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - bare\_usage: 
 
@@ -1056,15 +1805,36 @@ Evidence:
 - skipped\_workflows: (none)
 
 
+##### Self-hosted runners are not exposed to public-repo pull requests (`C08.actions.self-hosted`) — [PARTIAL] Partial
+
+Repo: demo-bad. self-hosted runner(s) are used on a public repository — an external contributor's pull request is a potential path to them
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- repo\_private: false
+
+- skipped\_workflows: (none)
+
+**self\_hosted\_jobs**
+
+| file | job | line | 
+|---|---|---|
+| .github/workflows/deploy-fixture.yaml | deploy | 5 | 
+
+
 ##### Self-hosted runners are not exposed to public-repo pull requests (`C08.actions.self-hosted`) — [PASS] Verified Pass
 
 Repo: demo-good. no self-hosted runner usage detected
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - repo\_private: false
 
@@ -1075,14 +1845,37 @@ Evidence:
 
 ##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
 
+Repo: demo-bad. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+
+- repo\_default\_workflow\_permissions: read
+
+- skipped\_workflows: (none)
+
+**findings**
+
+| file | job | line | verdict | 
+|---|---|---|---|
+| .github/workflows/deploy-fixture.yaml | deploy | 5 | missing | 
+| .github/workflows/pr-target-fixture.yaml | label | 7 | explicit | 
+
+
+##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
+
 Repo: demo-good. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow at 2026-07-23 10:27:26 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
 
 - repo\_default\_workflow\_permissions: read
 
@@ -1106,8 +1899,8 @@ audit-log streaming/export is configured exclusively at the GitHub Enterprise ac
 GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone)
 
 Evidence:
-- GET /orgs/Qloud-LTD/audit-log at 2026-07-23 10:27:26 UTC (HTTP 404, digest 875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8)
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:26 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com/audit-log at 2026-08-14 05:59:19 UTC (HTTP 404, digest 875304a522b4c5c07101c03cd5eab96b2818c9fa2be10733c0cd426613baa6d8)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:20 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - org\_plan: free
 
@@ -1125,10 +1918,20 @@ informational only — GitHub's documented audit-log retention window is provide
 
 ##### A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no active webhook subscribes to push, release, or deployment events
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/hooks at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- webhooks: (none)
+
+
+##### A webhook exports push/release/deployment events (`C09.repo.webhooks`) — [FAIL] Verified Fail
+
 Repo: demo-good. no active webhook subscribes to push, release, or deployment events
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/hooks at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good/hooks at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - webhooks: (none)
 
@@ -1146,19 +1949,27 @@ Secure and harden development endpoints (i.e., endpoints for software designers,
 
 Securely archive the necessary files and supporting data (e.g., integrity verification information, provenance data) to be retained for each software release.
 
-#### PS.3.2 — [PASS] Verified Pass
+#### PS.3.2 — [FAIL] Verified Fail
 
 Collect, safeguard, maintain, and share provenance data for all components of each software release (e.g., in a software bill of materials [SBOM]).
+
+##### Release artifacts are traceable to a workflow run on the release commit (`C07.provenance.commit-linkage`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
 
 ##### Release artifacts are traceable to a workflow run on the release commit (`C07.provenance.commit-linkage`) — [PASS] Verified Pass
 
 Repo: demo-good. every release in the lookback window is traceable to a workflow run on its commit
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:26 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:26 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
-- GET /repos/Qloud-LTD/demo-good/actions/runs at 2026-07-23 10:27:26 UTC (HTTP 200, digest 7cbc108ac4d30f563b97ab806a169b2f9352753518ad90b2b1ceeb3a7e3cd840)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:20 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+- GET /repos/Qloud-ltd-com/demo-good/actions/runs at 2026-08-14 05:59:20 UTC (HTTP 200, digest 9c7d255cb4e1b8df2f362e8b3804763a23ec490ed8f9087288978e039321d4dc)
 
 **per\_release**
 
@@ -1167,19 +1978,46 @@ Evidence:
 | true | 3 workflow run(s) found on this release's commit | 3 | v1.0.0 | 
 
 
+##### A provenance-generating tool is configured (`C07.provenance.workflow`) — [FAIL] Verified Fail
+
+Repo: demo-bad. no provenance-generating tool (Sigstore/cosign, SLSA generator, or GitHub Attestations) detected in any workflow
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
 ##### A provenance-generating tool is configured (`C07.provenance.workflow`) — [PASS] Verified Pass
 
 Repo: demo-good. a provenance-generating tool is configured
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - low\_confidence\_match\_only: false
 
+- skipped\_workflows: (none)
+
 - tool\_names: Sigstore cosign
+
+
+##### Releases ship signature or attestation assets (`C07.release.signatures`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 
 ##### Releases ship signature or attestation assets (`C07.release.signatures`) — [PASS] Verified Pass
@@ -1187,7 +2025,7 @@ Evidence:
 Repo: demo-good. every release in the lookback window ships a signature/attestation asset or has a GitHub Artifact Attestation
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
 
 **per\_release**
 
@@ -1196,19 +2034,47 @@ Evidence:
 | false |  | \["checksums.txt.bundle"\] | true | signature asset(s) found: \[checksums.txt.bundle\] | v1.0.0 | 
 
 
-#### PW.4.1 — [PARTIAL] Partial
+#### PW.4.1 — [FAIL] Verified Fail
 
 Acquire and maintain well-secured software components (e.g., software libraries, modules, middleware, frameworks) from commercial, open-source, and other third-party developers for use by the organization's software.
+
+##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [FAIL] Verified Fail
+
+Repo: demo-bad. 2 third-party action/reusable-workflow reference(s) are not pinned to a full-length commit SHA
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+
+- skipped\_workflows: (none)
+
+- unresolved\_external\_workflows: (none)
+
+**first\_party\_unpinned**
+
+| class | file | line | ref | slug | uses | 
+|---|---|---|---|---|---|
+| first-party | .github/workflows/pr-target-fixture.yaml | 10 | v5 | actions/checkout | actions/checkout@v5 | 
+
+**third\_party\_unpinned**
+
+| class | file | line | ref | slug | uses | 
+|---|---|---|---|---|---|
+| third-party | .github/workflows/deploy-fixture.yaml | 8 | v6 | docker/build-push-action | docker/build-push-action@v6 | 
+| third-party | .github/workflows/deploy-fixture.yaml | 9 | v4 | aws-actions/configure-aws-credentials | aws-actions/configure-aws-credentials@v4 | 
+
 
 ##### Third-party actions and reusable workflows are pinned to a full commit SHA (`C08.actions.pinned`) — [PARTIAL] Partial
 
 Repo: demo-good. every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
 
 - skipped\_workflows: (none)
 
@@ -1227,14 +2093,32 @@ Evidence:
 
 Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.
 
+##### Dependabot vulnerability alerts are enabled (`C04.deps.dependabot-alerts`) — [FAIL] Verified Fail
+
+Repo: demo-bad. Dependabot vulnerability alerts are not enabled
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/vulnerability-alerts at 2026-08-14 05:59:18 UTC (HTTP 404, digest 9823ff5229a049b085025a16d246d1aef8fe4df5f4e335238a1d33b2b0874967)
+
+- dependabot\_alerts\_enabled: false
+
+
 ##### Dependabot vulnerability alerts are enabled (`C04.deps.dependabot-alerts`) — [PASS] Verified Pass
 
 Repo: demo-good. Dependabot vulnerability alerts are enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/vulnerability-alerts at 2026-07-23 10:27:24 UTC (HTTP 204, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+- GET /repos/Qloud-ltd-com/demo-good/vulnerability-alerts at 2026-08-14 05:59:18 UTC (HTTP 204, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - dependabot\_alerts\_enabled: true
+
+
+##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [FAIL] Verified Fail
+
+Repo: demo-bad. Dependabot alerts are not enabled for this repository
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 403, digest c1beac3c35f574fcd0f58fc959d11e4a464a9974a02f0c4c0c0afb16b45dda5a)
 
 
 ##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [PASS] Verified Pass
@@ -1242,9 +2126,11 @@ Evidence:
 Repo: demo-good. 0 open alert(s), no critical alert open beyond the 30-day triage window
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/dependabot/alerts at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - oldest\_open\_age\_days: 0
+
+- oldest\_unclassified\_age\_days: 0
 
 - open\_critical\_count: 0
 
@@ -1256,7 +2142,23 @@ Evidence:
 
 - open\_total\_count: 0
 
+- open\_unclassified\_count: 0
+
 - triage\_threshold\_days: 30
+
+
+##### Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
+
+Repo: demo-bad. no Dependabot config found; 1 detected ecosystem(s) are uncovered
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/ at 2026-08-14 05:59:19 UTC (HTTP 200, digest d89bb027c06e65a8d878a29d4ff725c7a25da56aead63c3fefef6ad5cb9ad313)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- detected\_ecosystems: github-actions
+
+- uncovered\_ecosystems: github-actions
 
 
 ##### Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
@@ -1264,9 +2166,9 @@ Evidence:
 Repo: demo-good. no Dependabot config found; 1 detected ecosystem(s) are uncovered
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/ at 2026-07-23 10:27:26 UTC (HTTP 200, digest 32fbcbbce3cbd4b00f89f56285636192c4eb0cefbd784799cba46415258ac932)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/ at 2026-08-14 05:59:20 UTC (HTTP 200, digest 6d37f7c4f592d43db39aa75eb69666c1c376dee2ed272a5c3a3ea8505eac1ab5)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - detected\_ecosystems: github-actions
 
@@ -1275,15 +2177,42 @@ Evidence:
 
 ##### Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no dependency-review-action (or equivalent) workflow detected
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:20 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
+
 Repo: demo-good. no dependency-review-action (or equivalent) workflow detected
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:27 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:21 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:21 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [FAIL] Verified Fail
@@ -1291,13 +2220,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SCA run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:26 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -1310,19 +2239,42 @@ Evidence:
 
 ##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+Repo: demo-bad. no SCA tool detected in any workflow, and no Dependabot config found
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - dependabot\_configured: false
 
 - low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- dependabot\_configured: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
 
 - tool\_names: (none)
 
@@ -1333,15 +2285,36 @@ Gather information from software acquirers, users, and public sources on potenti
 
 ##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no SECURITY.md exists to advertise an intake channel
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
+
 Repo: demo-good. no SECURITY.md exists to advertise an intake channel
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
+
+Repo: demo-bad. private vulnerability reporting is not enabled
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/private-vulnerability-reporting at 2026-08-14 05:59:21 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
 
 
 ##### GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
@@ -1349,7 +2322,7 @@ Evidence:
 Repo: demo-good. private vulnerability reporting is not enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting at 2026-07-23 10:27:28 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
+- GET /repos/Qloud-ltd-com/demo-good/private-vulnerability-reporting at 2026-08-14 05:59:21 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
 
 
 #### RV.1.2 — [FAIL] Verified Fail
@@ -1358,16 +2331,40 @@ Review, analyze, and/or test the software's code to identify or confirm the pres
 
 ##### SAST run cadence over the lookback window (`C05.sast.cadence`) — [NOT CHECKABLE] Not Checkable
 
+Repo: demo-bad. no SAST tool is configured; cadence cannot be computed
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### SAST run cadence over the lookback window (`C05.sast.cadence`) — [NOT CHECKABLE] Not Checkable
+
 Repo: demo-good. no SAST tool is configured; cadence cannot be computed
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+
+
+##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
+
+Repo: demo-bad. CodeQL default setup is "not-configured"
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+
+- state: not-configured
+
+- languages: actions
 
 
 ##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
@@ -1375,11 +2372,25 @@ Evidence:
 Repo: demo-good. CodeQL default setup is "not-configured"
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup at 2026-07-23 10:27:26 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+- GET /repos/Qloud-ltd-com/demo-good/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
 
 - state: not-configured
 
 - languages: actions
+
+
+##### A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [FAIL] Verified Fail
@@ -1387,13 +2398,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SAST run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -1406,22 +2417,58 @@ Evidence:
 
 ##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+Repo: demo-bad. no SAST tool detected in any workflow, and CodeQL default setup is not configured
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - codeql\_default\_setup: false
 
 - low\_confidence\_match\_only: false
 
+- skipped\_workflows: (none)
+
 - tool\_names: (none)
+
+
+##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+
+- codeql\_default\_setup: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [FAIL] Verified Fail
@@ -1429,13 +2476,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SCA run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:26 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -1448,19 +2495,42 @@ Evidence:
 
 ##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+Repo: demo-bad. no SCA tool detected in any workflow, and no Dependabot config found
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - dependabot\_configured: false
 
 - low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- dependabot\_configured: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
 
 - tool\_names: (none)
 
@@ -1487,7 +2557,7 @@ Store all forms of code – including source code, executable code, and configur
 default repository permission is "read"
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - default\_repository\_permission: read
 
@@ -1497,9 +2567,23 @@ Evidence:
 members can create public repositories (potential leak vector)
 
 Evidence:
-- GET /orgs/Qloud-LTD at 2026-07-23 10:27:23 UTC (HTTP 200, digest d8417038f16eb3660ebca827deaac94dcf0b3ccea3de3b3238acf749d88775f1)
+- GET /orgs/Qloud-ltd-com at 2026-08-14 05:59:17 UTC (HTTP 200, digest 69fe0d620674904fea5840159ad707cd3d194a2c8d7d162629c4dc5848efce7a)
 
 - members\_can\_create\_public\_repositories: true
+
+
+##### Default branch protections apply to admins (no unconditional bypass actor) (`C02.branch.admin-enforced`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch protections do not apply to admins
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- bypass\_actors: 
+
+- via: 
 
 
 ##### Default branch protections apply to admins (no unconditional bypass actor) (`C02.branch.admin-enforced`) — [PASS] Verified Pass
@@ -1507,13 +2591,25 @@ Evidence:
 Repo: demo-good. default branch protections apply to admins with no bypass actors
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - bypass\_actors: 
 
 - via: legacy
+
+
+##### Default branch blocks branch deletion (`C02.branch.deletion-blocked`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch allows deletion
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- via: 
 
 
 ##### Default branch blocks branch deletion (`C02.branch.deletion-blocked`) — [PASS] Verified Pass
@@ -1521,11 +2617,23 @@ Evidence:
 Repo: demo-good. default branch blocks deletion
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - via: legacy
+
+
+##### Default branch blocks force pushes (`C02.branch.force-push-blocked`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch allows force pushes
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- via: 
 
 
 ##### Default branch blocks force pushes (`C02.branch.force-push-blocked`) — [PASS] Verified Pass
@@ -1533,11 +2641,23 @@ Evidence:
 Repo: demo-good. default branch blocks force pushes
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - via: legacy
+
+
+##### Default branch has protection (legacy branch protection or a ruleset) (`C02.branch.protection-exists`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch has no legacy branch protection and no ruleset applies to it
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- protected\_via: 
 
 
 ##### Default branch has protection (legacy branch protection or a ruleset) (`C02.branch.protection-exists`) — [PASS] Verified Pass
@@ -1545,11 +2665,29 @@ Evidence:
 Repo: demo-good. default branch is protected via: \[legacy\]
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - protected\_via: legacy
+
+
+##### Default branch requires at least one approving review before merge (`C02.branch.required-reviews`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch does not require an approving review before merge
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dismiss\_stale\_reviews: false
+
+- required\_approving\_review\_count: 0
+
+- review\_bypass\_actors: 
+
+- via: 
 
 
 ##### Default branch requires at least one approving review before merge (`C02.branch.required-reviews`) — [PASS] Verified Pass
@@ -1557,9 +2695,9 @@ Evidence:
 Repo: demo-good. default branch requires 1 approving review(s)
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - dismiss\_stale\_reviews: false
 
@@ -1570,14 +2708,28 @@ Evidence:
 - via: legacy
 
 
+##### Default branch requires status checks before merge (`C02.branch.required-status-checks`) — [FAIL] Verified Fail
+
+Repo: demo-bad. default branch does not require any status checks before merge
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- required\_status\_check\_names: 
+
+- via: 
+
+
 ##### Default branch requires status checks before merge (`C02.branch.required-status-checks`) — [PASS] Verified Pass
 
 Repo: demo-good. default branch requires 1 status check(s)
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:24 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:24 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - required\_status\_check\_names: build
 
@@ -1597,14 +2749,32 @@ no self-attestation provided for this question
 
 Verify that acquired commercial, open-source, and all other third-party software components comply with the requirements, as defined by the organization, throughout their life cycles.
 
+##### Dependabot vulnerability alerts are enabled (`C04.deps.dependabot-alerts`) — [FAIL] Verified Fail
+
+Repo: demo-bad. Dependabot vulnerability alerts are not enabled
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/vulnerability-alerts at 2026-08-14 05:59:18 UTC (HTTP 404, digest 9823ff5229a049b085025a16d246d1aef8fe4df5f4e335238a1d33b2b0874967)
+
+- dependabot\_alerts\_enabled: false
+
+
 ##### Dependabot vulnerability alerts are enabled (`C04.deps.dependabot-alerts`) — [PASS] Verified Pass
 
 Repo: demo-good. Dependabot vulnerability alerts are enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/vulnerability-alerts at 2026-07-23 10:27:24 UTC (HTTP 204, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+- GET /repos/Qloud-ltd-com/demo-good/vulnerability-alerts at 2026-08-14 05:59:18 UTC (HTTP 204, digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 
 - dependabot\_alerts\_enabled: true
+
+
+##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [FAIL] Verified Fail
+
+Repo: demo-bad. Dependabot alerts are not enabled for this repository
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 403, digest c1beac3c35f574fcd0f58fc959d11e4a464a9974a02f0c4c0c0afb16b45dda5a)
 
 
 ##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [PASS] Verified Pass
@@ -1612,9 +2782,11 @@ Evidence:
 Repo: demo-good. 0 open alert(s), no critical alert open beyond the 30-day triage window
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/dependabot/alerts at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - oldest\_open\_age\_days: 0
+
+- oldest\_unclassified\_age\_days: 0
 
 - open\_critical\_count: 0
 
@@ -1626,7 +2798,23 @@ Evidence:
 
 - open\_total\_count: 0
 
+- open\_unclassified\_count: 0
+
 - triage\_threshold\_days: 30
+
+
+##### Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
+
+Repo: demo-bad. no Dependabot config found; 1 detected ecosystem(s) are uncovered
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/ at 2026-08-14 05:59:19 UTC (HTTP 200, digest d89bb027c06e65a8d878a29d4ff725c7a25da56aead63c3fefef6ad5cb9ad313)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- detected\_ecosystems: github-actions
+
+- uncovered\_ecosystems: github-actions
 
 
 ##### Dependabot config covers the repo's detected dependency ecosystems (`C06.sca.dependabot-config`) — [FAIL] Verified Fail
@@ -1634,9 +2822,9 @@ Evidence:
 Repo: demo-good. no Dependabot config found; 1 detected ecosystem(s) are uncovered
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/ at 2026-07-23 10:27:26 UTC (HTTP 200, digest 32fbcbbce3cbd4b00f89f56285636192c4eb0cefbd784799cba46415258ac932)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/ at 2026-08-14 05:59:20 UTC (HTTP 200, digest 6d37f7c4f592d43db39aa75eb69666c1c376dee2ed272a5c3a3ea8505eac1ab5)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - detected\_ecosystems: github-actions
 
@@ -1645,15 +2833,42 @@ Evidence:
 
 ##### Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no dependency-review-action (or equivalent) workflow detected
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/branches/main/protection at 2026-08-14 05:59:20 UTC (HTTP 404, digest d6020ee3b0852c3deb66c66d159cc80caabeaa66ee301778307a2a18d486450d)
+- GET /repos/Qloud-ltd-com/demo-bad/rules/branches/main at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### Dependency review is enforced as a required check on pull requests (`C06.sca.dependency-review`) — [FAIL] Verified Fail
+
 Repo: demo-good. no dependency-review-action (or equivalent) workflow detected
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/branches/main/protection at 2026-07-23 10:27:27 UTC (HTTP 200, digest c3603c76c73c25d8a422d5635bfc1ab626f361074537273d9001a4f1d5876e39)
-- GET /repos/Qloud-LTD/demo-good/rules/branches/main at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/branches/main/protection at 2026-08-14 05:59:21 UTC (HTTP 200, digest 1bc4f7c44a4c57343b30118e9289a01f1cd39bd2ae3b39d516dccc5e2e0570b3)
+- GET /repos/Qloud-ltd-com/demo-good/rules/branches/main at 2026-08-14 05:59:21 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [FAIL] Verified Fail
@@ -1661,13 +2876,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SCA run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:26 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -1680,19 +2895,42 @@ Evidence:
 
 ##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+Repo: demo-bad. no SCA tool detected in any workflow, and no Dependabot config found
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - dependabot\_configured: false
 
 - low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- dependabot\_configured: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
 
 - tool\_names: (none)
 
@@ -1711,14 +2949,37 @@ Determine which compiler, interpreter, and build tool features should be used an
 
 ##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
 
+Repo: demo-bad. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+
+- repo\_default\_workflow\_permissions: read
+
+- skipped\_workflows: (none)
+
+**findings**
+
+| file | job | line | verdict | 
+|---|---|---|---|
+| .github/workflows/deploy-fixture.yaml | deploy | 5 | missing | 
+| .github/workflows/pr-target-fixture.yaml | label | 7 | explicit | 
+
+
+##### Workflows declare explicit, least-privilege GITHUB\_TOKEN permissions (`C08.actions.token-permissions`) — [PARTIAL] Partial
+
 Repo: demo-good. 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:25 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/actions/permissions/workflow at 2026-07-23 10:27:26 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/actions/permissions/workflow at 2026-08-14 05:59:19 UTC (HTTP 200, digest f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924)
 
 - repo\_default\_workflow\_permissions: read
 
@@ -1738,10 +2999,22 @@ Determine whether code review (a person looks directly at the code to find issue
 
 ##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
 
+Repo: demo-bad. CodeQL default setup is "not-configured"
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+
+- state: not-configured
+
+- languages: actions
+
+
+##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
+
 Repo: demo-good. CodeQL default setup is "not-configured"
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup at 2026-07-23 10:27:26 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+- GET /repos/Qloud-ltd-com/demo-good/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
 
 - state: not-configured
 
@@ -1750,20 +3023,42 @@ Evidence:
 
 ##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+Repo: demo-bad. no SAST tool detected in any workflow, and CodeQL default setup is not configured
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - codeql\_default\_setup: false
 
 - low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+
+- codeql\_default\_setup: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
 
 - tool\_names: (none)
 
@@ -1774,16 +3069,42 @@ Perform the code review and/or code analysis based on the organization's secure 
 
 ##### SAST run cadence over the lookback window (`C05.sast.cadence`) — [NOT CHECKABLE] Not Checkable
 
+Repo: demo-bad. no SAST tool is configured; cadence cannot be computed
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### SAST run cadence over the lookback window (`C05.sast.cadence`) — [NOT CHECKABLE] Not Checkable
+
 Repo: demo-good. no SAST tool is configured; cadence cannot be computed
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+
+
+##### A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [FAIL] Verified Fail
@@ -1791,13 +3112,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SAST run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -1826,15 +3147,36 @@ Gather information from software acquirers, users, and public sources on potenti
 
 ##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no SECURITY.md exists to advertise an intake channel
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
+
 Repo: demo-good. no SECURITY.md exists to advertise an intake channel
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
+
+Repo: demo-bad. private vulnerability reporting is not enabled
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/private-vulnerability-reporting at 2026-08-14 05:59:21 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
 
 
 ##### GitHub private vulnerability reporting is enabled (`C10.vdp.private-reporting`) — [FAIL] Verified Fail
@@ -1842,7 +3184,7 @@ Evidence:
 Repo: demo-good. private vulnerability reporting is not enabled
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/private-vulnerability-reporting at 2026-07-23 10:27:28 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
+- GET /repos/Qloud-ltd-com/demo-good/private-vulnerability-reporting at 2026-08-14 05:59:21 UTC (HTTP 200, digest 5acf3ff77b4420677b5923071f303facaba7a9273a346284a667a275df325146)
 
 
 #### RV.1.2 — [FAIL] Verified Fail
@@ -1851,16 +3193,40 @@ Review, analyze, and/or test the software's code to identify or confirm the pres
 
 ##### SAST run cadence over the lookback window (`C05.sast.cadence`) — [NOT CHECKABLE] Not Checkable
 
+Repo: demo-bad. no SAST tool is configured; cadence cannot be computed
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+
+##### SAST run cadence over the lookback window (`C05.sast.cadence`) — [NOT CHECKABLE] Not Checkable
+
 Repo: demo-good. no SAST tool is configured; cadence cannot be computed
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+
+
+##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
+
+Repo: demo-bad. CodeQL default setup is "not-configured"
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+
+- state: not-configured
+
+- languages: actions
 
 
 ##### CodeQL default setup is configured (`C05.sast.default-setup`) — [FAIL] Verified Fail
@@ -1868,11 +3234,25 @@ Evidence:
 Repo: demo-good. CodeQL default setup is "not-configured"
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/code-scanning/default-setup at 2026-07-23 10:27:26 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
+- GET /repos/Qloud-ltd-com/demo-good/code-scanning/default-setup at 2026-08-14 05:59:19 UTC (HTTP 200, digest 42357385cf151d57ee6a21d7399ad340616105dc9c88108071663c7657ae66ad)
 
 - state: not-configured
 
 - languages: actions
+
+
+##### A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### A SAST tool ran for each release in the lookback window (`C05.sast.ran-per-release`) — [FAIL] Verified Fail
@@ -1880,13 +3260,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SAST run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -1899,22 +3279,58 @@ Evidence:
 
 ##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+Repo: demo-bad. no SAST tool detected in any workflow, and CodeQL default setup is not configured
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:23 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:25 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:17 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - codeql\_default\_setup: false
 
 - low\_confidence\_match\_only: false
 
+- skipped\_workflows: (none)
+
 - tool\_names: (none)
+
+
+##### A SAST tool is configured (`C05.sast.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SAST tool detected in any workflow, and CodeQL default setup is not configured
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:17 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
+
+- codeql\_default\_setup: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [NOT CHECKABLE] Not Checkable
+
+Repo: demo-bad. no releases match the configured release tag pattern within the lookback window
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+
+- dropped\_tags: 0
 
 
 ##### An SCA tool ran for each release in the lookback window (`C06.sca.ran-per-release`) — [FAIL] Verified Fail
@@ -1922,13 +3338,13 @@ Evidence:
 Repo: demo-good. at least one release in the lookback window has no matched SCA run at all
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/releases at 2026-07-23 10:27:25 UTC (HTTP 200, digest c60286ab460e65c072e0b7d75d20c7ad396ebd1d622a67ceb567ae4d0f8a9a2a)
-- GET /repos/Qloud-LTD/demo-good/git/ref/tags/v1.0.0 at 2026-07-23 10:27:25 UTC (HTTP 200, digest 98f7aba3b28cd0f19bff125e3af3e63c7dae27667431f951d064f04fe3ea2db1)
-- GET /repos/Qloud-LTD/demo-good/git/tags/c9f04e6ab5082a7cc428cf60d80582444d9cb2e7 at 2026-07-23 10:27:26 UTC (HTTP 200, digest ddd253807b827ddd0c7d5db95c35fd9ab773a72f0973408477415186e1acb68c)
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/releases at 2026-08-14 05:59:19 UTC (HTTP 200, digest 8c212ae52974dfb9bd274a46d3c95db6c6694a3865baac1c06bb54890fa7a161)
+- GET /repos/Qloud-ltd-com/demo-good/git/ref/tags/v1.0.0 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 4291ed3ccaf050aa379b00000bb2089e1c6d2780255cfbebf193cafbfe11c76a)
+- GET /repos/Qloud-ltd-com/demo-good/git/tags/76a674e6b5def778389fcad5f9b62b6d056db6f1 at 2026-08-14 05:59:19 UTC (HTTP 200, digest 2d6ebef9aa879dd2539ee0c89a0690f0536b16e03cecbbb94ad8f0b840aab812)
 
 - dropped\_tags: 0
 
@@ -1941,19 +3357,42 @@ Evidence:
 
 ##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
 
-Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+Repo: demo-bad. no SCA tool detected in any workflow, and no Dependabot config found
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good at 2026-07-23 10:27:24 UTC (HTTP 200, digest f9e6e5942a1cf1417c9718fb56d6fd5d3ca0039c8e5c4e645c33d412ace6010c)
-- GET /repos/Qloud-LTD/demo-good/actions/workflows at 2026-07-23 10:27:24 UTC (HTTP 200, digest d73bbf7ce5d27a560581df9eb4c2a1591baff2b6a5cf9884c9b28c5fbab628fa)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/ci.yaml at 2026-07-23 10:27:24 UTC (HTTP 200, digest 746a66ccb957a4071de87d9d6a24ddfd4defceece0b07d921a3fa9f5e1c7a70a)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/workflows/release.yaml at 2026-07-23 10:27:25 UTC (HTTP 200, digest a8529d841b78c4ed6ae6e0092401f32b0908597e441a06068fa47d6a55cb9b2e)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/.github/dependabot.yaml at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad at 2026-08-14 05:59:18 UTC (HTTP 200, digest 546af54a471accc2b0955746cdb2057b5e0b3d0a64b2e5a8850cae6e4adccbd0)
+- GET /repos/Qloud-ltd-com/demo-bad/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 134a8d2225358b9f793fc866fbf0b8df32fde480ec5c478cf45f2bfe5de10923)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/deploy-fixture.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest fd77baaf6ad46c399a4743e491cdbce43befb10c89e38356893f11ac496a097b)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/workflows/pr-target-fixture.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest fe017d181dd8081f2bfcdfd800909379d3e28f25d64c83012d2c50939788a8d4)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yml at 2026-08-14 05:59:19 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 - dependabot\_configured: false
 
 - low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
+
+- tool\_names: (none)
+
+
+##### An SCA tool is configured (`C06.sca.tool-configured`) — [FAIL] Verified Fail
+
+Repo: demo-good. no SCA tool detected in any workflow, and no Dependabot config found
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-good at 2026-08-14 05:59:18 UTC (HTTP 200, digest 9e8641b6e7289e65efbe279a3b8ccdfe529aefaa8eac7b211a6ec40cf07af24d)
+- GET /repos/Qloud-ltd-com/demo-good/actions/workflows at 2026-08-14 05:59:18 UTC (HTTP 200, digest 8054e4084a9f24276e809315134b6f99eac5f344d82a9e1f16e921eefa47a81a)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/ci.yaml at 2026-08-14 05:59:18 UTC (HTTP 200, digest 1e883fa1b7efb1e8a8dfc558c41695d370d7e5a1f1b92a64f6f41960911c305b)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/workflows/release.yaml at 2026-08-14 05:59:19 UTC (HTTP 200, digest 0e04075e598265fb688b3724a0c1aa54868a3d7d53c3a1b46fbf21225acdc865)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/dependabot.yaml at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+- dependabot\_configured: false
+
+- low\_confidence\_match\_only: false
+
+- skipped\_workflows: (none)
 
 - tool\_names: (none)
 
@@ -1964,15 +3403,41 @@ Have a policy that addresses vulnerability disclosure and remediation, and imple
 
 ##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
 
+Repo: demo-bad. no SECURITY.md exists to advertise an intake channel
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### SECURITY.md advertises an actionable intake channel (`C10.vdp.intake-channel`) — [FAIL] Verified Fail
+
 Repo: demo-good. no SECURITY.md exists to advertise an intake channel
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+
+
+##### A SECURITY.md resolves for this repo (`C10.vdp.security-md`) — [FAIL] Verified Fail
+
+Repo: demo-bad. no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-bad/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 
 ##### A SECURITY.md resolves for this repo (`C10.vdp.security-md`) — [FAIL] Verified Fail
@@ -1980,34 +3445,44 @@ Evidence:
 Repo: demo-good. no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/contents/.github/SECURITY.md at 2026-07-23 10:27:26 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/demo-good/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/.github/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
-- GET /repos/Qloud-LTD/.github/contents/docs/SECURITY.md at 2026-07-23 10:27:27 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/demo-good/contents/docs/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/.github/SECURITY.md at 2026-08-14 05:59:20 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
+- GET /repos/Qloud-ltd-com/.github/contents/docs/SECURITY.md at 2026-08-14 05:59:21 UTC (HTTP 404, digest e45906ce02e79f16fb87a838d86bb4e497e37a9591f97608fa013bbcd8b9cbc2)
 
 
 ##### The org has an org-wide default security policy (`C10.vdp.security-policy-org`) — [NOT CHECKABLE] Not Checkable
 
-Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists
+Qloud-ltd-com has no .github repo — no org-wide default community-health-file mechanism exists
 
 Evidence:
-- GET /repos/Qloud-LTD/.github at 2026-07-23 10:27:26 UTC (HTTP 404, digest 4f50e254a719a6b1b06b529bdaa08980e4acf0878aad0090cba7771f6ebdf0b9)
+- GET /repos/Qloud-ltd-com/.github at 2026-08-14 05:59:20 UTC (HTTP 404, digest 4f50e254a719a6b1b06b529bdaa08980e4acf0878aad0090cba7771f6ebdf0b9)
 
 
-#### RV.2.1 — [NOT CHECKABLE] Not Checkable
+#### RV.2.1 — [FAIL] Verified Fail
 
 Analyze each vulnerability to gather sufficient information about risk to plan its remediation or other risk response.
+
+##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [FAIL] Verified Fail
+
+Repo: demo-bad. Dependabot alerts are not enabled for this repository
+
+Evidence:
+- GET /repos/Qloud-ltd-com/demo-bad/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 403, digest c1beac3c35f574fcd0f58fc959d11e4a464a9974a02f0c4c0c0afb16b45dda5a)
+
 
 ##### Open Dependabot alerts are triaged within the default window (`C06.sca.alerts-triaged`) — [PASS] Verified Pass
 
 Repo: demo-good. 0 open alert(s), no critical alert open beyond the 30-day triage window
 
 Evidence:
-- GET /repos/Qloud-LTD/demo-good/dependabot/alerts at 2026-07-23 10:27:27 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
+- GET /repos/Qloud-ltd-com/demo-good/dependabot/alerts at 2026-08-14 05:59:20 UTC (HTTP 200, digest 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945)
 
 - oldest\_open\_age\_days: 0
+
+- oldest\_unclassified\_age\_days: 0
 
 - open\_critical\_count: 0
 
@@ -2018,6 +3493,8 @@ Evidence:
 - open\_medium\_count: 0
 
 - open\_total\_count: 0
+
+- open\_unclassified\_count: 0
 
 - triage\_threshold\_days: 30
 
@@ -2050,21 +3527,49 @@ Every `verified-fail` or `partial` result, in one place. See poam.md for remedia
 | POA&M ID | Check | Scope | Status | Reason |
 |---|---|---|---|---|
 | POAM-001 | C01.org.2fa-required | (org) | [FAIL] Verified Fail | org does not require two-factor authentication for members |
-| POAM-005 | C01.org.members-can-create-public | (org) | [FAIL] Verified Fail | members can create public repositories (potential leak vector) |
-| POAM-002 | C04.org.security-defaults | (org) | [FAIL] Verified Fail | not every security feature is enabled by default for new repositories |
-| POAM-006 | C05.sast.default-setup | demo-good | [FAIL] Verified Fail | CodeQL default setup is "not-configured" |
-| POAM-015 | C05.sast.ran-per-release | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SAST run at all |
-| POAM-007 | C05.sast.tool-configured | demo-good | [FAIL] Verified Fail | no SAST tool detected in any workflow, and CodeQL default setup is not configured |
-| POAM-008 | C06.sca.dependabot-config | demo-good | [FAIL] Verified Fail | no Dependabot config found; 1 detected ecosystem(s) are uncovered |
-| POAM-009 | C06.sca.dependency-review | demo-good | [FAIL] Verified Fail | no dependency-review-action (or equivalent) workflow detected |
-| POAM-010 | C06.sca.ran-per-release | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SCA run at all |
-| POAM-011 | C06.sca.tool-configured | demo-good | [FAIL] Verified Fail | no SCA tool detected in any workflow, and no Dependabot config found |
-| POAM-012 | C08.actions.pinned | demo-good | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
-| POAM-003 | C08.actions.token-permissions | demo-good | [PARTIAL] Partial | 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions |
-| POAM-004 | C09.repo.webhooks | demo-good | [FAIL] Verified Fail | no active webhook subscribes to push, release, or deployment events |
-| POAM-013 | C10.vdp.intake-channel | demo-good | [FAIL] Verified Fail | no SECURITY.md exists to advertise an intake channel |
-| POAM-014 | C10.vdp.private-reporting | demo-good | [FAIL] Verified Fail | private vulnerability reporting is not enabled |
-| POAM-016 | C10.vdp.security-md | demo-good | [FAIL] Verified Fail | no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo |
+| POAM-015 | C01.org.members-can-create-public | (org) | [FAIL] Verified Fail | members can create public repositories (potential leak vector) |
+| POAM-016 | C02.branch.admin-enforced | demo-bad | [FAIL] Verified Fail | default branch protections do not apply to admins |
+| POAM-017 | C02.branch.deletion-blocked | demo-bad | [FAIL] Verified Fail | default branch allows deletion |
+| POAM-018 | C02.branch.force-push-blocked | demo-bad | [FAIL] Verified Fail | default branch allows force pushes |
+| POAM-019 | C02.branch.protection-exists | demo-bad | [FAIL] Verified Fail | default branch has no legacy branch protection and no ruleset applies to it |
+| POAM-020 | C02.branch.required-reviews | demo-bad | [FAIL] Verified Fail | default branch does not require an approving review before merge |
+| POAM-021 | C02.branch.required-status-checks | demo-bad | [FAIL] Verified Fail | default branch does not require any status checks before merge |
+| POAM-002 | C03.env.branch-policy | demo-bad | [FAIL] Verified Fail | environment(s) that allow deployment from any branch: \[production\] |
+| POAM-003 | C03.env.protection-rules | demo-bad | [FAIL] Verified Fail | environment(s) with no protection rules: \[production\] |
+| POAM-004 | C03.env.required-reviewers | demo-bad | [FAIL] Verified Fail | environment(s) without required reviewers: \[production\] |
+| POAM-022 | C04.deps.dependabot-alerts | demo-bad | [FAIL] Verified Fail | Dependabot vulnerability alerts are not enabled |
+| POAM-005 | C04.org.security-defaults | (org) | [FAIL] Verified Fail | not every security feature is enabled by default for new repositories |
+| POAM-006 | C04.secrets.push-protection | demo-bad | [FAIL] Verified Fail | secret scanning push protection is not enabled (freely available on public repos) |
+| POAM-007 | C04.secrets.scanning-enabled | demo-bad | [FAIL] Verified Fail | secret scanning is not enabled (freely available on public repos) |
+| POAM-023 | C05.sast.default-setup | demo-bad | [FAIL] Verified Fail | CodeQL default setup is "not-configured" |
+| POAM-024 | C05.sast.default-setup | demo-good | [FAIL] Verified Fail | CodeQL default setup is "not-configured" |
+| POAM-041 | C05.sast.ran-per-release | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SAST run at all |
+| POAM-025 | C05.sast.tool-configured | demo-bad | [FAIL] Verified Fail | no SAST tool detected in any workflow, and CodeQL default setup is not configured |
+| POAM-026 | C05.sast.tool-configured | demo-good | [FAIL] Verified Fail | no SAST tool detected in any workflow, and CodeQL default setup is not configured |
+| POAM-027 | C06.sca.alerts-triaged | demo-bad | [FAIL] Verified Fail | Dependabot alerts are not enabled for this repository |
+| POAM-028 | C06.sca.dependabot-config | demo-bad | [FAIL] Verified Fail | no Dependabot config found; 1 detected ecosystem(s) are uncovered |
+| POAM-029 | C06.sca.dependabot-config | demo-good | [FAIL] Verified Fail | no Dependabot config found; 1 detected ecosystem(s) are uncovered |
+| POAM-030 | C06.sca.dependency-review | demo-bad | [FAIL] Verified Fail | no dependency-review-action (or equivalent) workflow detected |
+| POAM-031 | C06.sca.dependency-review | demo-good | [FAIL] Verified Fail | no dependency-review-action (or equivalent) workflow detected |
+| POAM-032 | C06.sca.ran-per-release | demo-good | [FAIL] Verified Fail | at least one release in the lookback window has no matched SCA run at all |
+| POAM-033 | C06.sca.tool-configured | demo-bad | [FAIL] Verified Fail | no SCA tool detected in any workflow, and no Dependabot config found |
+| POAM-034 | C06.sca.tool-configured | demo-good | [FAIL] Verified Fail | no SCA tool detected in any workflow, and no Dependabot config found |
+| POAM-042 | C07.provenance.workflow | demo-bad | [FAIL] Verified Fail | no provenance-generating tool (Sigstore/cosign, SLSA generator, or GitHub Attestations) detected in any workflow |
+| POAM-008 | C08.actions.oidc-vs-secrets | demo-bad | [FAIL] Verified Fail | 1 cloud-deployment login step(s) use long-lived static credentials instead of OIDC |
+| POAM-035 | C08.actions.pinned | demo-bad | [FAIL] Verified Fail | 2 third-party action/reusable-workflow reference(s) are not pinned to a full-length commit SHA |
+| POAM-036 | C08.actions.pinned | demo-good | [PARTIAL] Partial | every third-party reference is SHA-pinned, but 1 first-party actions/\* reference(s) use a mutable tag instead of a SHA |
+| POAM-009 | C08.actions.pull-request-target | demo-bad | [FAIL] Verified Fail | at least one pull\_request\_target workflow checks out the PR head commit/branch — this combination runs attacker-controlled code with base-repo secrets and token access |
+| POAM-010 | C08.actions.self-hosted | demo-bad | [PARTIAL] Partial | self-hosted runner(s) are used on a public repository — an external contributor's pull request is a potential path to them |
+| POAM-011 | C08.actions.token-permissions | demo-bad | [PARTIAL] Partial | 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions |
+| POAM-012 | C08.actions.token-permissions | demo-good | [PARTIAL] Partial | 1 of 2 job(s)/workflow(s) declare explicit permissions; the rest rely on the default GITHUB\_TOKEN permissions |
+| POAM-013 | C09.repo.webhooks | demo-bad | [FAIL] Verified Fail | no active webhook subscribes to push, release, or deployment events |
+| POAM-014 | C09.repo.webhooks | demo-good | [FAIL] Verified Fail | no active webhook subscribes to push, release, or deployment events |
+| POAM-037 | C10.vdp.intake-channel | demo-bad | [FAIL] Verified Fail | no SECURITY.md exists to advertise an intake channel |
+| POAM-038 | C10.vdp.intake-channel | demo-good | [FAIL] Verified Fail | no SECURITY.md exists to advertise an intake channel |
+| POAM-039 | C10.vdp.private-reporting | demo-bad | [FAIL] Verified Fail | private vulnerability reporting is not enabled |
+| POAM-040 | C10.vdp.private-reporting | demo-good | [FAIL] Verified Fail | private vulnerability reporting is not enabled |
+| POAM-043 | C10.vdp.security-md | demo-bad | [FAIL] Verified Fail | no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo |
+| POAM-044 | C10.vdp.security-md | demo-good | [FAIL] Verified Fail | no SECURITY.md found at any of the standard locations (.github/, repo root, docs/) in this repo or the org's .github repo |
 
 ---
 
@@ -2083,13 +3588,21 @@ None.
 
 | Check | Scope | Reason |
 |---|---|---|
+| C04.secrets.advanced-security | demo-bad | not applicable to public repositories (GHAS licensing only gates private-repo features) |
 | C04.secrets.advanced-security | demo-good | not applicable to public repositories (GHAS licensing only gates private-repo features) |
+| C05.sast.cadence | demo-bad | no SAST tool is configured; cadence cannot be computed |
 | C05.sast.cadence | demo-good | no SAST tool is configured; cadence cannot be computed |
+| C05.sast.ran-per-release | demo-bad | no releases match the configured release tag pattern within the lookback window |
+| C06.sca.ran-per-release | demo-bad | no releases match the configured release tag pattern within the lookback window |
+| C07.provenance.commit-linkage | demo-bad | no releases match the configured release tag pattern within the lookback window |
+| C07.release.checksums | demo-bad | no releases match the configured release tag pattern within the lookback window |
+| C07.release.signatures | demo-bad | no releases match the configured release tag pattern within the lookback window |
+| C07.release.tags-signed | demo-bad | no releases match the configured release tag pattern within the lookback window |
 | C08.actions.oidc-vs-secrets | demo-good | no cloud-deployment login action (AWS/Azure/GCP) detected among the workflow files that could be fetched and parsed on the default branch |
 | C09.audit.log-streaming | (org) | audit-log streaming/export is configured exclusively at the GitHub Enterprise account level (/enterprises/{enterprise}/audit-log/streams), not the organization level — there is no API this org/repo-scoped tool can query to determine whether it's configured |
 | C09.audit.org-log-available | (org) | GET /orgs/{org}/audit-log returned 404 — either the org's plan doesn't include GitHub Enterprise Cloud's audit-log API, or the token lacks the read:audit\_log scope (GitHub returns the same status for both, so this can't be told apart from the response alone) |
 | C09.audit.retention-awareness | (org) | informational only — GitHub's documented audit-log retention window is provided as context; no API exposes what retention actually applies to this specific org |
-| C10.vdp.security-policy-org | (org) | Qloud-LTD has no .github repo — no org-wide default community-health-file mechanism exists |
+| C10.vdp.security-policy-org | (org) | Qloud-ltd-com has no .github repo — no org-wide default community-health-file mechanism exists |
 | SA.agency-notification-process | (org) | no self-attestation provided for this question |
 | SA.audit-log-export-fallback | (org) | no self-attestation provided for this question |
 | SA.dev-security-training | (org) | no self-attestation provided for this question |
