@@ -423,6 +423,60 @@ func TestCollect_ReusableWorkflow_SameOrgResolvedExternalOrgUnresolved(t *testin
 	}
 }
 
+// TestCollect_ReusableWorkflowReferenceInNonFirstUnit_StillResolved is
+// the resolveReusableWorkflows instance of issue #20's ordering gap.
+// Unlike the two check-level instances it isn't a check at all, but the
+// same mutation survives it — truncating that function's `range units`
+// to the first unit alone left the whole package suite green, because
+// every existing reusable-workflow test lists exactly one workflow, and
+// that one is the caller.
+//
+// It is the widest of the three misses: a caller sitting behind any
+// other workflow would never have its callee fetched, so the callee's
+// contents would be absent from the evidence ALL FIVE checks read, not
+// just one of them.
+//
+// Asserting pinned's Status could not detect this — reusable_caller.yaml's
+// own job-level `uses:` entries are unpinned references, so pinned is
+// verified-fail either way (the same trap TestCollect_ReusableWorkflow_
+// SameOrgResolvedExternalOrgUnresolved documents). The proof is that a
+// finding labeled with the *resolved callee repo* exists, which can only
+// happen if the non-first caller was scanned for references at all.
+func TestCollect_ReusableWorkflowReferenceInNonFirstUnit_StillResolved(t *testing.T) {
+	org, repoName, branch := "my-org", "caller-second-repo", "main"
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repoName, branch, false)
+	registerDefaultWorkflowPermissions(t, mux, org, repoName, "read")
+	// The caller is listed SECOND, behind an unrelated, fully clean
+	// workflow — the ordinary layout this gap makes unsafe.
+	registerWorkflows(t, mux, org, repoName, []string{".github/workflows/build.yml", ".github/workflows/caller.yml"})
+	registerContent(t, mux, org, repoName, ".github/workflows/build.yml", "pinned_thirdparty_sha.yaml")
+	registerContent(t, mux, org, repoName, ".github/workflows/caller.yml", "reusable_caller.yaml")
+	registerContent(t, mux, org, "shared-workflows", ".github/workflows/build.yml", "reusable_callee.yaml")
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	thirdParty, ok := m[checkPinnedID].Facts["third_party_unpinned"].([]map[string]any)
+	if !ok {
+		t.Fatalf("third_party_unpinned = %#v, want a slice", m[checkPinnedID].Facts["third_party_unpinned"])
+	}
+	const resolvedCalleeLabel = "my-org/shared-workflows:.github/workflows/build.yml"
+	found := false
+	for _, f := range thirdParty {
+		if f["file"] == resolvedCalleeLabel && f["slug"] == "docker/build-push-action" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("third_party_unpinned = %#v, want an entry from %s — the same-org callee must be resolved even though the workflow referencing it is not the first unit", thirdParty, resolvedCalleeLabel)
+	}
+}
+
 func TestCollect_PreCanceledContextProducesNotCheckableNotPanic(t *testing.T) {
 	org, repoName := "acme", "canceled-repo"
 	mux := http.NewServeMux()

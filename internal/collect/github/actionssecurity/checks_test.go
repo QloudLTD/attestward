@@ -127,6 +127,54 @@ func TestCheckPullRequestTarget(t *testing.T) {
 	}
 }
 
+// TestCheckPullRequestTarget_ScansEveryUnitNotJustTheFirst is the
+// pull-request-target half of the ordering gap issue #20 found in
+// oidc-vs-secrets — a second, unreported instance of the same shape,
+// confirmed by the same mutation (truncating this check's `range units`
+// to the first unit alone left the whole package suite green).
+//
+// Every other case in this file passes a one-element slice, so nothing
+// distinguished "scans every workflow" from "scans the first workflow"
+// for either check. A repo whose pwn-request workflow sits behind an
+// unrelated build workflow — an ordinary two-file layout — would have
+// read as verified-pass ("no workflow triggers on pull_request_target"),
+// which is the worst possible direction for this particular check to be
+// wrong in.
+//
+// Both orderings run deliberately: the dangerous-unit-first case is the
+// control that fails to distinguish anything on its own, and so proves
+// the fix is genuine iteration rather than a hard-coded second unit.
+func TestCheckPullRequestTarget_ScansEveryUnitNotJustTheFirst(t *testing.T) {
+	clean := loadFixture(t, "pinned_none.yaml")
+	dangerous := loadFixture(t, "prtarget_dangerous.yaml")
+
+	tests := []struct {
+		name  string
+		units []workflowUnit
+	}{
+		{"pull_request_target workflow listed second", []workflowUnit{clean, dangerous}},
+		{"pull_request_target workflow listed first", []workflowUnit{dangerous, clean}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := checkPullRequestTarget(org, repo, tt.units, nil, nil)
+			if got.Status != model.StatusVerifiedFail {
+				t.Fatalf("status = %q, want verified-fail; reason=%q", got.Status, got.Reason)
+			}
+			// Status alone would let a scan that reached only one unit
+			// pass the second ordering for the wrong reason. The finding
+			// must actually be attributed to the dangerous workflow.
+			dangerousFacts, ok := got.Facts["dangerous"].([]map[string]any)
+			if !ok || len(dangerousFacts) != 1 {
+				t.Fatalf("dangerous facts = %#v, want exactly one entry", got.Facts["dangerous"])
+			}
+			if dangerousFacts[0]["file"] != "prtarget_dangerous.yaml" {
+				t.Errorf("finding file = %v, want the pull_request_target workflow", dangerousFacts[0]["file"])
+			}
+		})
+	}
+}
+
 func TestCheckOIDCvsSecrets(t *testing.T) {
 	tests := []struct {
 		name string
@@ -146,6 +194,58 @@ func TestCheckOIDCvsSecrets(t *testing.T) {
 			got := checkOIDCvsSecrets(org, repo, []workflowUnit{u}, nil, nil)
 			if got.Status != tt.want {
 				t.Errorf("status = %q, want %q; reason=%q", got.Status, tt.want, got.Reason)
+			}
+		})
+	}
+}
+
+// TestCheckOIDCvsSecrets_ScansEveryUnitNotJustTheFirst closes issue #20:
+// every other case in this file hands the check a one-element slice, so
+// truncating its `range units` to the first unit alone left the entire
+// package suite green — nothing anywhere put a cloud-login step in a
+// workflow other than the first.
+//
+// The miss it allows is an ordinary repo layout, not a contrived one: a
+// deploy workflow authenticating with static AWS keys, sitting beside an
+// unrelated build workflow. Reading only the first unit reports
+// not-checkable ("no cloud-deployment login action detected") — a repo
+// with a confirmed long-lived cloud credential in CI presented as one
+// this check had nothing to say about.
+//
+// Both orderings run deliberately: the static-credential-first case
+// cannot distinguish a full scan from a first-unit-only scan, so it
+// serves as the control proving the fix is real iteration and not a
+// hard-coded second unit.
+func TestCheckOIDCvsSecrets_ScansEveryUnitNotJustTheFirst(t *testing.T) {
+	clean := loadFixture(t, "pinned_none.yaml")
+	static := loadFixture(t, "deploy_aws_static.yaml")
+
+	tests := []struct {
+		name  string
+		units []workflowUnit
+	}{
+		{"static-credential workflow listed second", []workflowUnit{clean, static}},
+		{"static-credential workflow listed first", []workflowUnit{static, clean}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := checkOIDCvsSecrets(org, repo, tt.units, nil, nil)
+			if got.Status != model.StatusVerifiedFail {
+				t.Fatalf("status = %q, want verified-fail; reason=%q", got.Status, got.Reason)
+			}
+			// Status alone would let a scan that reached only one unit
+			// pass the second ordering for the wrong reason. The finding
+			// must actually be attributed to the static-credential
+			// workflow.
+			logins, ok := got.Facts["logins"].([]map[string]any)
+			if !ok || len(logins) != 1 {
+				t.Fatalf("logins facts = %#v, want exactly one entry", got.Facts["logins"])
+			}
+			if logins[0]["file"] != "deploy_aws_static.yaml" {
+				t.Errorf("finding file = %v, want the static-credential workflow", logins[0]["file"])
+			}
+			if logins[0]["verdict"] != "static" {
+				t.Errorf("verdict = %v, want %q", logins[0]["verdict"], "static")
 			}
 		})
 	}
