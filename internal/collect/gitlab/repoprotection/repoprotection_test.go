@@ -181,6 +181,73 @@ func TestTierGatedApprovalsIsNotAFailure(t *testing.T) {
 	}
 }
 
+// TestApprovals403SurvivesForEveryOtherCheck is the collector-level property
+// issue #18 turns on. GET /projects/:id/approvals answers 403 to a Reporter
+// token while the two endpoints behind the other five checks answer 200, so a
+// Reporter scan must still get five real answers. The sibling collector in
+// issue #17 failed exactly this: its gated read aborted the whole repo into
+// not-checkable, including a check whose own data had already been fetched.
+func TestApprovals403SurvivesForEveryOtherCheck(t *testing.T) {
+	r := defaults()
+	r.approvalsStatus = http.StatusForbidden
+	want := map[string]model.Status{
+		idProtectionExists:     model.StatusVerifiedPass,
+		idForcePushBlocked:     model.StatusVerifiedPass,
+		idDeletionBlocked:      model.StatusPartial,
+		idRequiredStatusChecks: model.StatusVerifiedPass,
+		idAdminEnforced:        model.StatusNotCheckable,
+		idRequiredReviews:      model.StatusNotCheckable,
+	}
+	for _, got := range collectWith(t, r) {
+		if w, ok := want[got.CheckID]; ok && got.Status != w {
+			t.Errorf("%s = %q on an approvals 403, want %q — only the approvals-backed check may degrade", got.CheckID, got.Status, w)
+		}
+	}
+}
+
+// TestApprovals403ReasonNamesBothCauses pins the attribution. IsTierGated is
+// true for any 403, so this branch is reached by an under-scoped token as
+// well as by an unentitled tier. Naming only the tier — as it did before
+// issue #18 — told a Reporter operator their token was fine and the paywall
+// was the problem, which is the opposite of what they needed to hear.
+func TestApprovals403ReasonNamesBothCauses(t *testing.T) {
+	r := defaults()
+	r.approvalsStatus = http.StatusForbidden
+	reason := find(t, collectWith(t, r), idRequiredReviews).Reason
+	for _, want := range []string{"below Maintainer", "403 at Reporter", "tier"} {
+		if !strings.Contains(reason, want) {
+			t.Errorf("403 reason must mention %q, got: %s", want, reason)
+		}
+	}
+}
+
+// TestTokenScopeMatchesWhatEachEndpointActuallyAnswers is the documentation
+// half of issue #18. The scope an operator is told to grant has to be the
+// scope that makes the check resolve: a Reporter token measured live returns
+// 403 on /approvals and 200 on the other two endpoints, so required-reviews
+// must document Maintainer and its five siblings must not.
+func TestTokenScopeMatchesWhatEachEndpointActuallyAnswers(t *testing.T) {
+	meta, ok := collect.LookupPlatform(platform, idRequiredReviews)
+	if !ok {
+		t.Fatalf("%s is not registered", idRequiredReviews)
+	}
+	if !strings.Contains(meta.TokenScope, "Maintainer") {
+		t.Errorf("%s token scope = %q; /approvals returns 403 at Reporter, so Reporter is not enough",
+			idRequiredReviews, meta.TokenScope)
+	}
+
+	for _, id := range []string{idProtectionExists, idForcePushBlocked, idDeletionBlocked, idRequiredStatusChecks, idAdminEnforced} {
+		m, ok := collect.LookupPlatform(platform, id)
+		if !ok {
+			t.Fatalf("%s is not registered", id)
+		}
+		if m.TokenScope != branchTokenScope {
+			t.Errorf("%s token scope = %q, want %q — its endpoints answer 200 at Reporter, so raising it would "+
+				"send operators after a role they do not need", id, m.TokenScope, branchTokenScope)
+		}
+	}
+}
+
 func TestAdminEnforcedIsAlwaysNotCheckable(t *testing.T) {
 	if got := find(t, collectWith(t, defaults()), idAdminEnforced); got.Status != model.StatusNotCheckable {
 		t.Errorf("admin-enforced = %q, want not-checkable — GitLab does not model it", got.Status)

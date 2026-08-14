@@ -228,10 +228,18 @@ func deletionBlocked(org, repo string, p project, b *protectedBranch) model.Chec
 func requiredReviews(org, repo string, _ project, a approvals, err error) model.CheckResult {
 	if err != nil {
 		if gitlabcollect.IsTierGated(err) {
+			// ⚠ Do not attribute this 403 to tier alone. Two causes produce it
+			// and the response body distinguishes neither: the token sits below
+			// Maintainer (GET /projects/:id/approvals answers 403 at Reporter,
+			// measured live — issue #18), or the tier does not entitle the
+			// richer approval surface. Naming only the tier told an operator
+			// whose token was simply under-scoped that they had nothing to fix.
 			return res(idRequiredReviews, "Merge requests require review", model.StatusNotCheckable, org, repo,
-				"the project approvals API is not readable with this token or tier (HTTP 403). Merge-request approval "+
-					"rules are a paid-tier feature on GitLab, and an unreadable rule set is not evidence that no "+
-					"review is required", nil)
+				"the project approvals API is not readable with this token or tier (HTTP 403). Either the token is "+
+					"below Maintainer — this endpoint returns 403 at Reporter — or the project's tier does not "+
+					"entitle the richer approval surface, and the response does not say which. Merge-request "+
+					"approval rules are a paid-tier feature on GitLab, and an unreadable rule set is not evidence "+
+					"that no review is required", nil)
 		}
 		return res(idRequiredReviews, "Merge requests require review", model.StatusNotCheckable, org, repo,
 			fmt.Sprintf("could not read the project approvals settings: %v", err), nil)
@@ -393,18 +401,38 @@ func escapePath(s string) string {
 	return string(out)
 }
 
+// GET /projects/:id and GET /projects/:id/protected_branches both answer 200
+// to a read_api token at Reporter, so the five checks derived from them are
+// reachable at that role.
+const branchTokenScope = "read_api (Reporter or above on the project)"
+
+// required-reviews needs a strictly higher role than its five siblings:
+// GET /projects/:id/approvals returns 403 to a read_api token at Reporter,
+// measured live 2026-08-14 (issue #18) on gitlab.com/qloud-ltd-group/
+// attestward-fixtures with a Reporter project access token, and 200 to a
+// token above that role on the same project in the same run. The issue #17
+// probe measured 200 at Maintainer specifically on the same endpoint.
+//
+// The same run confirmed the other two endpoints this collector reads answer
+// 200 at Reporter, which is why only this one check moves.
+//
+// Documenting Reporter here bought an operator a token that silently degrades
+// this check to not-checkable rather than the answer the docs promise.
+const approvalsTokenScope = "read_api (Maintainer or above on the project — " +
+	"GET /projects/:id/approvals returns 403 at Reporter)"
+
 func init() {
-	reg := func(id, title, remediation string, rubric map[model.Status]string, endpoints []string) {
+	reg := func(id, title, tokenScope, remediation string, rubric map[model.Status]string, endpoints []string) {
 		collect.Register(collect.CheckMeta{
 			ID: id, Platform: platform, Title: title, Collector: collectorID,
-			TokenScope:  "read_api (Reporter or above on the project)",
+			TokenScope:  tokenScope,
 			Remediation: remediation, Rubric: rubric, Endpoints: endpoints,
 			FixtureRef: "internal/collect/gitlab/repoprotection/repoprotection_test.go",
 		})
 	}
 	branchEndpoints := []string{"GET /projects/{id}", "GET /projects/{id}/protected_branches"}
 
-	reg(idProtectionExists, "Default branch is protected",
+	reg(idProtectionExists, "Default branch is protected", branchTokenScope,
 		"Project → Settings → Repository → Protected branches → protect the default branch, allowing push and merge only to Maintainers.",
 		map[model.Status]string{
 			model.StatusVerifiedPass: "A protected-branch rule exists whose name matches the project's default_branch.",
@@ -412,7 +440,7 @@ func init() {
 			model.StatusNotCheckable: "The project or its protected branches could not be read, or the project is empty and has no default branch.",
 		}, branchEndpoints)
 
-	reg(idForcePushBlocked, "Force pushes are blocked on the default branch",
+	reg(idForcePushBlocked, "Force pushes are blocked on the default branch", branchTokenScope,
 		"Project → Settings → Repository → Protected branches → set \"Allowed to force push\" to off for the default branch.",
 		map[model.Status]string{
 			model.StatusVerifiedPass: "The default branch's protection sets allow_force_push=false.",
@@ -420,7 +448,7 @@ func init() {
 			model.StatusNotCheckable: "Protection state could not be read.",
 		}, branchEndpoints)
 
-	reg(idDeletionBlocked, "Default branch cannot be deleted",
+	reg(idDeletionBlocked, "Default branch cannot be deleted", branchTokenScope,
 		"Protect the default branch, then limit who holds Maintainer and above. Protection blocks deletion from Git clients but not from the UI or API, so the membership list is the remaining control.",
 		map[model.Status]string{
 			model.StatusPartial:      "The default branch is protected, which blocks deletion from Git clients. It is NOT an absolute block: a Maintainer or Owner can still delete a protected branch through the GitLab UI or API, so this never reports a pass.",
@@ -428,14 +456,14 @@ func init() {
 			model.StatusNotCheckable: "Protection state could not be read.",
 		}, branchEndpoints)
 
-	reg(idRequiredReviews, "Merge requests require review",
-		"Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable \"Prevent approvals by author\". Note that approval RULES are a paid-tier feature; on Free the \"Approvals required\" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone.",
+	reg(idRequiredReviews, "Merge requests require review", approvalsTokenScope,
+		"Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable \"Prevent approvals by author\". Note that approval RULES are a paid-tier feature; on Free the \"Approvals required\" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone. Scan with a token at Maintainer or above: at Reporter this check's only endpoint returns 403 and it cannot resolve at all.",
 		map[model.Status]string{
 			model.StatusPartial:      "approvals_before_merge is 1 or more, which shows intent — but that field was deprecated in GitLab 12.3 and does not enforce review on current versions. Approval rules do, and they are a paid-tier feature this scan cannot read, so enforcement is not confirmed. The reason names author self-approval when it is enabled.",
-			model.StatusNotCheckable: "approvals_before_merge is 0, or the approvals endpoint was unreadable. Neither distinguishes \"no review required\" from \"a rule this tier cannot expose\", so no pass or fail is asserted.",
+			model.StatusNotCheckable: "approvals_before_merge is 0, or the approvals endpoint was unreadable — a 403 there means the token is below Maintainer or the tier does not entitle the approval surface, and the response does not distinguish them. Neither case distinguishes \"no review required\" from \"a rule this tier cannot expose\", so no pass or fail is asserted.",
 		}, []string{"GET /projects/{id}/approvals"})
 
-	reg(idRequiredStatusChecks, "Merges require passing checks",
+	reg(idRequiredStatusChecks, "Merges require passing checks", branchTokenScope,
 		"Project → Settings → Merge requests → enable \"Pipelines must succeed\", and leave \"Skipped pipelines are considered successful\" off.",
 		map[model.Status]string{
 			model.StatusVerifiedPass: "only_allow_merge_if_pipeline_succeeds is true and a skipped pipeline does not satisfy it.",
@@ -444,7 +472,7 @@ func init() {
 			model.StatusNotCheckable: "The project object could not be read.",
 		}, []string{"GET /projects/{id}"})
 
-	reg(idAdminEnforced, "Branch protection applies to administrators",
+	reg(idAdminEnforced, "Branch protection applies to administrators", branchTokenScope,
 		"Not applicable on GitLab: protection is expressed as access levels rather than a rule with an administrator exemption. Restrict push and merge to Maintainers and limit who holds Owner.",
 		map[model.Status]string{
 			model.StatusNotCheckable: "GitLab has no equivalent of GitHub's enforce_admins, so no API field answers this. Reporting pass or fail would assert a control GitLab does not model.",

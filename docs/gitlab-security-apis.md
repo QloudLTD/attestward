@@ -481,3 +481,43 @@ The third row is not a regression — it is the same namespace-visibility caveat
 the two protection checks already carry, restated at the highest project role:
 project membership does not buy group-level reads at any role, so the
 group-level blind spot survives the fix.
+
+## 9. `approvals` needs Maintainer; the other two C02 endpoints do not (issue #18)
+
+Measured **2026-08-14** on `qloud-ltd-group/attestward-fixtures` with a
+`read_api` project access token at Reporter, against the same project read
+with a `read_api` credential above that role in the same run. The Reporter
+token was revoked immediately after.
+
+| Endpoint | Reporter (20) | Above Reporter |
+|---|---|---|
+| `GET /projects/:id` | 200 | 200 |
+| `GET /projects/:id/protected_branches` | 200 | 200 |
+| `GET /projects/:id/approvals` | **403** | **200** |
+
+The 200 arm here was taken at Owner (50) rather than Maintainer (40): the
+fixtures project has hit GitLab Free's cap of five project-access-token rows,
+and a revoked row still occupies its slot — `DELETE …/access_tokens/:id`
+revokes but does not remove it, and there is no purge endpoint. The **403 at
+Reporter is the load-bearing half** and was measured directly. That the
+endpoint answers 200 at Maintainer specifically was measured during the issue
+#17 probe on this same project, when a Maintainer token still fit under the
+cap; this run confirms it is not Owner-only.
+
+Only `C02.branch.required-reviews` reads the third row, so only its
+`TokenScope` moves to Maintainer. The other five checks keep Reporter — rows
+1 and 2 are why. Raising all six would have sent operators after a role five
+of them do not need, which is the mirror image of the understatement being
+fixed.
+
+The collector-level abort that issue #17 had to fix does **not** exist here.
+`collectRepo` already reads `/approvals` into its own `apprErr` and passes it
+to `requiredReviews` alone, so a 403 there degrades exactly one check;
+`TestApprovals403SurvivesForEveryOtherCheck` now pins that for all six.
+
+One reason string did have to change. `IsTierGated` is true for *any* 403, so
+this branch is reached by an under-scoped token as well as by an unentitled
+tier — and it attributed the failure to tier alone. A Reporter operator was
+therefore told the paywall was the problem and their token was fine, which is
+the opposite of what they needed to hear. It now names both causes and says
+the response does not distinguish them.
