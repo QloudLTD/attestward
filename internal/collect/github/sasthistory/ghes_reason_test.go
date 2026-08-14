@@ -1,6 +1,7 @@
 package sasthistory
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -56,5 +57,41 @@ func TestCheckDefaultSetup_EmptyGHESVersionIsNotRecordedAsAFact(t *testing.T) {
 		collect.Scope{IsGHES: true, GHESVersion: "3.12.4"}, []model.Provenance{})
 	if withVersion.Facts["ghes_version"] != "3.12.4" {
 		t.Errorf("ghes_version = %v, want the observed version recorded", withVersion.Facts["ghes_version"])
+	}
+}
+
+// TestCollect_RepoGatedOnGHES_NamesEnterpriseServerNotPlan drives a real
+// Collect() call with scope.IsGHES set and the repo fetch itself 404ing —
+// the actual condition notCheckableReason's GatedRepoReason branch exists
+// for (distinct from TestCollect_GHESHost_DefaultSetupGatedNamesLicenceNotPlan
+// above, which covers checkDefaultSetup's own separate gate, not this
+// shared helper). Mutating this package's notCheckableReason call site
+// back to GatedRepoReason(false, "", ...) must fail this test.
+func TestCollect_RepoGatedOnGHES_NamesEnterpriseServerNotPlan(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/acme/widgets", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{
+		Org: "acme", Repos: []string{"widgets"}, IsGHES: true, GHESVersion: "3.12.4",
+	})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(results) != len(checkIDs) {
+		t.Fatalf("len(results) = %d, want %d", len(results), len(checkIDs))
+	}
+	for _, r := range results {
+		if r.Status != model.StatusNotCheckable {
+			t.Errorf("%s status = %q, want not-checkable; reason=%q", r.CheckID, r.Status, r.Reason)
+		}
+		if strings.Contains(r.Reason, "plan-gated") {
+			t.Errorf("%s reason claims a plan gate on a GHES target: %q", r.CheckID, r.Reason)
+		}
+		if !strings.Contains(r.Reason, "Enterprise Server") {
+			t.Errorf("%s reason does not name GitHub Enterprise Server: %q", r.CheckID, r.Reason)
+		}
 	}
 }

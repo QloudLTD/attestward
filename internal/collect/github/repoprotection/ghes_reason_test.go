@@ -1,6 +1,7 @@
 package repoprotection
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"gitlab.com/sioakeim/attestward/internal/collect"
 
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
+	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
 // TestGHESGateProseIsRoutedThroughTheSharedHelper is the per-collector half
@@ -54,5 +56,52 @@ func TestNotCheckableReason_404AfterAProvenFetchIsNotAMissingRepo(t *testing.T) 
 	}
 	if !strings.Contains(afterFetch, "read successfully earlier") {
 		t.Errorf("reason does not say the repository was already read: %q", afterFetch)
+	}
+}
+
+// TestCollect_RulesetsGatedOnGHES_NamesEnterpriseServerNotPlan drives a
+// real Collect() call reproducing the exact scenario the package doc
+// comment describes: the repo fetch succeeds, legacy branch-protection
+// 404s (a normal "no legacy protection" input, not an error), and the
+// rulesets API itself 404s — the GHES-without-rulesets-API case. This is
+// the scenario TestNotCheckableReason_404AfterAProvenFetchIsNotAMissingRepo
+// above does NOT cover: that test only asserts the ". This repository was
+// read successfully earlier" suffix, which survives unchanged even if
+// GatedRepoReason's own arguments are mutated back to (false, "", ...) —
+// proven by review, which found exactly that mutation left this package's
+// entire suite green. Mutating this package's GatedRepoReason call site
+// back to (false, "", ...) must fail THIS test.
+func TestCollect_RulesetsGatedOnGHES_NamesEnterpriseServerNotPlan(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/acme/widgets", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
+	})
+	mux.HandleFunc("/api/v3/repos/acme/widgets/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
+	})
+	mux.HandleFunc("/api/v3/repos/acme/widgets/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{
+		Org: "acme", Repos: []string{"widgets"}, IsGHES: true, GHESVersion: "3.12.4",
+	})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(results) != len(checkIDs) {
+		t.Fatalf("len(results) = %d, want %d", len(results), len(checkIDs))
+	}
+	for _, r := range results {
+		if r.Status != model.StatusNotCheckable {
+			t.Errorf("%s status = %q, want not-checkable; reason=%q", r.CheckID, r.Status, r.Reason)
+		}
+		if strings.Contains(r.Reason, "plan-gated") {
+			t.Errorf("%s reason claims a plan gate on a GHES target: %q", r.CheckID, r.Reason)
+		}
+		if !strings.Contains(r.Reason, "Enterprise Server") {
+			t.Errorf("%s reason does not name GitHub Enterprise Server: %q", r.CheckID, r.Reason)
+		}
 	}
 }

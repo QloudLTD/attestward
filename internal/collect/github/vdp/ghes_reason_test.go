@@ -1,25 +1,24 @@
 package vdp
 
 import (
+	"context"
+	"net/http"
 	"strings"
 	"testing"
 
+	"gitlab.com/sioakeim/attestward/internal/collect"
 	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
+	"gitlab.com/sioakeim/attestward/internal/model"
 )
 
-// TestGHESGateProseIsRoutedThroughTheSharedHelper is the per-collector half
-// of a guard that has now failed review three times in a row: the fix for
-// github.com-flavoured gate prose on a GitHub Enterprise Server target kept
-// being revertable with a green suite, because nothing asserted the GHES
-// branch was reached from this package at all.
-//
-// It deliberately tests the shared helper's contract rather than mocking a
-// whole collector run: what must hold is that a GHES target never sees the
-// word "plan-gated" — GHES has no per-org or per-repo plan tier — and that
-// this package is wired to the helper that guarantees it. If a future edit
-// hand-rolls a reason here again, the reviewer's grep for "plan-gated"
-// outside gatekind.go is what catches it; this pins the helper's own
-// behaviour so the reason text cannot silently regress underneath it.
+// TestGHESGateProseIsRoutedThroughTheSharedHelper pins the shared helper's
+// own contract: a GHES target never sees the word "plan-gated". It does
+// NOT prove this package calls the helper with scope.IsGHES set — see
+// TestCollect_PrivateReportingGatedOnGHES_NamesEnterpriseServerNotPlan
+// below for that, added after review found this test alone left the call
+// site's actual routing unguarded: reverting scope.IsGHES to a hardcoded
+// false at this package's own GatedRepoReason call site left the whole
+// suite green.
 func TestGHESGateProseIsRoutedThroughTheSharedHelper(t *testing.T) {
 	ghes := ghcollect.GatedRepoReason(true, "3.12.4", "the feature this collector reads", "acme", "widgets")
 	if strings.Contains(ghes, "plan-gated") {
@@ -27,5 +26,36 @@ func TestGHESGateProseIsRoutedThroughTheSharedHelper(t *testing.T) {
 	}
 	if !strings.Contains(ghes, "Enterprise Server") {
 		t.Errorf("GHES reason does not name the host type: %q", ghes)
+	}
+}
+
+// TestCollect_PrivateReportingGatedOnGHES_NamesEnterpriseServerNotPlan
+// mirrors TestCollect_PrivateReportingPlanGated404_NotCheckable but with
+// scope.IsGHES set — the actual condition notCheckableReason's
+// GatedRepoReason branch exists for. Mutating this package's call site
+// back to GatedRepoReason(false, "", ...) must fail this test.
+func TestCollect_PrivateReportingGatedOnGHES_NamesEnterpriseServerNotPlan(t *testing.T) {
+	org, repo := "acme", "private-repo"
+	mux := http.NewServeMux()
+	registerSecurityMDLookup(t, mux, org, repo, map[string]string{repo + ":SECURITY.md": goodSecurityMD})
+	registerPrivateReportingStatus(t, mux, org, repo, http.StatusNotFound)
+	registerDotGithubRepoMissing(t, mux, org)
+
+	c := newGHESCollectorForServer(t, mux)
+	results, err := c.Collect(context.Background(), collect.Scope{
+		Org: org, Repos: []string{repo}, IsGHES: true, GHESVersion: "3.12.4",
+	})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	got := byID(results)[privateReportingID]
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("private-reporting = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if strings.Contains(got.Reason, "plan-gated") {
+		t.Errorf("private-reporting reason claims a plan gate on a GHES target: %q", got.Reason)
+	}
+	if !strings.Contains(got.Reason, "Enterprise Server") {
+		t.Errorf("private-reporting reason does not name GitHub Enterprise Server: %q", got.Reason)
 	}
 }

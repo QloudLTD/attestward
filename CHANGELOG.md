@@ -14,13 +14,16 @@ All notable changes to this project are documented here. Format follows
   `/api/graphql` derived from the browser-facing URL, `GITHUB_CA_CERT` for private roots,
   and the resolved host recorded as `scope.github_url` so a pack says which install
   produced it. Gating distinguishes a plan tier (github.com) from a licence or version
-  limitation (GHES) at every one of the eight collectors that can hit it, rather than
-  claiming a plan tier self-hosted installs don't have — this took three review rounds
-  to get right (two independent reviews found real correctness and security defects,
-  including a token-leaking redirect and an empty Fact written into a signed pack; see
-  `internal/collect/github/gatekind.go`'s doc comment for the fix history). Every fix
-  is mutation-verified: reverting any of them, including the load-bearing `Scope.IsGHES`
-  assignment, fails the suite.
+  limitation (GHES) at every one of the nine collector packages that can hit it, rather than
+  claiming a plan tier self-hosted installs don't have — this took four review rounds
+  to get right (three independent reviews found real correctness and security defects,
+  including a token-leaking redirect, an empty Fact written into a signed pack, and —
+  found while porting this onto this repo's history — the routing fix itself surviving
+  a full revert with a green suite because only the shared helper was guarded, never
+  the nine individual call sites; see `internal/collect/github/gatekind.go`'s doc
+  comment for the fix history). Every fix is mutation-verified at its actual call site,
+  not just the shared helper: reverting any of them, including the load-bearing
+  `Scope.IsGHES` assignment, fails the suite.
   **Not verified against a real GHES install** — no instance was available, so routing
   and gating are proven against fixtures and mutation tests only. See the README.
 
