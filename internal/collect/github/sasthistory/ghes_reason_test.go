@@ -8,10 +8,10 @@ import (
 
 	ghgithub "github.com/google/go-github/v75/github"
 
-	"github.com/sioakim/attestward/internal/collect"
-	"github.com/sioakim/attestward/internal/model"
+	"gitlab.com/sioakeim/attestward/internal/collect"
+	"gitlab.com/sioakeim/attestward/internal/model"
 
-	ghcollect "github.com/sioakim/attestward/internal/collect/github"
+	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 )
 
 // TestGHESGateProseIsRoutedThroughTheSharedHelper is the per-collector half

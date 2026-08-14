@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	ghcollect "github.com/sioakim/attestward/internal/collect/github"
+	ghcollect "gitlab.com/sioakeim/attestward/internal/collect/github"
 )
 
 // TestGHESGateProseIsRoutedThroughTheSharedHelper is the per-collector half

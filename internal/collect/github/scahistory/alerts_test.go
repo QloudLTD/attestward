@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.com/sioakeim/attestward/internal/collect"
 	"gitlab.com/sioakeim/attestward/internal/model"
 
 	ghgithub "github.com/google/go-github/v75/github"
@@ -168,7 +169,7 @@ func TestUnclassifiedAlertBlocksTheTriagePass(t *testing.T) {
 		{CreatedAt: &ghgithub.Timestamp{Time: alertDay(1)}},
 	}, now)
 
-	got := checkAlertsTriaged("o", "r", nil, nil, summary, nil)
+	got := checkAlertsTriaged("o", "r", nil, nil, summary, collect.Scope{}, nil)
 	if got.Status == model.StatusVerifiedPass {
 		t.Fatal("verified-pass asserted over an alert whose severity was never interpreted; it may be the critical one")
 	}
@@ -188,7 +189,7 @@ func TestFullyClassifiedAlertsStillPass(t *testing.T) {
 		alertAt(severityLow, alertDay(1)),
 		alertAt(severityCritical, alertDay(99)), // critical but inside the window
 	}, now)
-	if got := checkAlertsTriaged("o", "r", nil, nil, summary, nil); got.Status != model.StatusVerifiedPass {
+	if got := checkAlertsTriaged("o", "r", nil, nil, summary, collect.Scope{}, nil); got.Status != model.StatusVerifiedPass {
 		t.Errorf("status = %q (%s), want verified-pass — every alert was classified and no critical is stale",
 			got.Status, got.Reason)
 	}
@@ -203,7 +204,7 @@ func TestBothFindingsAreNamedTogether(t *testing.T) {
 		alertAt(severityCritical, alertDay(1)),              // stale critical
 		{CreatedAt: &ghgithub.Timestamp{Time: alertDay(2)}}, // unclassified
 	}, now)
-	got := checkAlertsTriaged("o", "r", nil, nil, summary, nil)
+	got := checkAlertsTriaged("o", "r", nil, nil, summary, collect.Scope{}, nil)
 	if got.Status != model.StatusPartial {
 		t.Fatalf("status = %q, want partial", got.Status)
 	}
