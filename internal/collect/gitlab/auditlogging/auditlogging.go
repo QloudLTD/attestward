@@ -16,6 +16,11 @@
 // reason string copied across all of them, which made this check's rubric
 // wrong: it described a tier limitation that has nothing to do with what the
 // check actually reads.
+//
+// ⚠ Free-tier does not mean Reporter-readable. GET /projects/:id/hooks
+// answers 403 at Reporter and needs Maintainer (issue #19) — see
+// webhooksTokenScope. Reading "not tier-gated" as "reachable by any token
+// the other three would need" is the same conflation in the other direction.
 package auditlogging
 
 import (
@@ -42,6 +47,21 @@ const (
 const auditPaidTierReason = "GitLab's audit events API is a paid-tier feature; on a free project there is no " +
 	"audit stream to read at all, so absence of events is a tier limitation rather than a finding. This build " +
 	"does not read the paid API yet."
+
+// The Project Webhooks API is Free-tier, but it is not Reporter-readable:
+// GET /projects/:id/hooks returns 403 to a read_api token at Reporter,
+// measured live 2026-08-14 (issue #19) on gitlab.com/qloud-ltd-group/
+// attestward-fixtures with a Reporter project access token, and 200 to a
+// token above that role on the same project in the same run. The issue #17
+// probe measured 200 at Maintainer specifically on the same endpoint.
+//
+// ⚠ Free-tier and Reporter-readable are separate properties, and the package
+// doc above is careful about the first. Documenting Reporter here conflated
+// them the other way: an operator who granted exactly the role the docs asked
+// for got this check silently degraded to not-checkable rather than the
+// verified answer the docs promise.
+const webhooksTokenScope = "read_api (Maintainer or above on the project — " +
+	"GET /projects/:id/hooks returns 403 at Reporter)"
 
 // Collector implements C09 audit-logging for GitLab.
 type Collector struct {
@@ -135,17 +155,20 @@ func init() {
 	reg(idOrgLogAvailable, "Organization audit log is reachable via the API", noAPICall, auditGatedRemediation, auditGatedRubric, nil)
 	reg(idRetentionAware, "Audit-log retention window (informational)", noAPICall, auditGatedRemediation, auditGatedRubric, nil)
 
-	reg(idRepoWebhooks, webhooksTitle, "read_api (Reporter or above on the project)",
+	reg(idRepoWebhooks, webhooksTitle, webhooksTokenScope,
 		"Project → Settings → Webhooks → add a webhook subscribing to Push events, Releases events, or "+
 			"Deployment events, and confirm its Alert status is not showing a delivery failure — GitLab "+
-			"automatically stops delivering to a webhook after repeated failures.",
+			"automatically stops delivering to a webhook after repeated failures. Scan with a token at "+
+			"Maintainer or above: at Reporter this check's only endpoint returns 403 and it cannot resolve "+
+			"at all.",
 		map[model.Status]string{
 			model.StatusVerifiedPass: "at least one project webhook has alert_status \"executable\" (currently " +
 				"delivering, not in backoff or permanently disabled) and subscribes to push, releases, or " +
 				"deployment events.",
 			model.StatusVerifiedFail: "no webhook is both executable and subscribed to one of those event types " +
 				"— includes the case of zero webhooks configured, which is a definitive absence, not a gap.",
-			model.StatusNotCheckable: "the project's webhooks could not be read (403/404/other API error), or a " +
+			model.StatusNotCheckable: "the project's webhooks could not be read (403/404/other API error) — a " +
+				"403 most often means the token is below Maintainer, which this endpoint requires — or a " +
 				"webhook's alert_status held a value this build does not recognise (GitLab documents exactly " +
 				"three: executable, temporarily_disabled, disabled) — guessing whether an unrecognised state " +
 				"means the hook is currently delivering would assert something never observed.",

@@ -153,6 +153,61 @@ func TestWebhooksReadFailureIsNotCheckable(t *testing.T) {
 	}
 }
 
+// TestWebhooks403ReasonNamesTheRoleNotTheTier is the operator-facing half of
+// issue #19. GET /projects/:id/hooks is Free-tier, so a 403 here is a role
+// problem, not a paywall — but this package's other three checks are all
+// paid-tier stories, which makes "we must be on the wrong plan" the obvious
+// wrong conclusion to jump to. The reason has to rule it out.
+func TestWebhooks403ReasonNamesTheRoleNotTheTier(t *testing.T) {
+	got := byID(collectWith(t, hooksHandler(403, `{"message":"403 Forbidden"}`), "g", "p"))[idRepoWebhooks]
+	for _, want := range []string{"Maintainer", "403 at Reporter"} {
+		if !strings.Contains(got.Reason, want) {
+			t.Errorf("403 reason must mention %q, got: %s", want, got.Reason)
+		}
+	}
+}
+
+// TestNon403ReadFailureDoesNotBlameTheRole is the other side of the same
+// property: a 404 or a transport error must NOT be attributed to Reporter.
+// Naming a cause that was never observed is the failure mode this repo keeps
+// correcting, and a blanket role hint would be exactly that.
+func TestNon403ReadFailureDoesNotBlameTheRole(t *testing.T) {
+	got := byID(collectWith(t, hooksHandler(404, `{"message":"404 Project Not Found"}`), "g", "p"))[idRepoWebhooks]
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("status = %q, want not-checkable", got.Status)
+	}
+	if strings.Contains(got.Reason, "Reporter") {
+		t.Errorf("a 404 must not be blamed on the token's role, got: %s", got.Reason)
+	}
+}
+
+// TestWebhooksTokenScopeMatchesWhatTheEndpointAnswers pins the documentation
+// fix. A Reporter token measured live gets 403 from this check's only
+// endpoint, so documenting Reporter promised an answer the scan cannot
+// produce. The three sibling checks make no API call and must keep saying so
+// — raising them would invent a requirement none of them has.
+func TestWebhooksTokenScopeMatchesWhatTheEndpointAnswers(t *testing.T) {
+	meta, ok := collect.LookupPlatform(platform, idRepoWebhooks)
+	if !ok {
+		t.Fatalf("%s is not registered", idRepoWebhooks)
+	}
+	if !strings.Contains(meta.TokenScope, "Maintainer") {
+		t.Errorf("%s token scope = %q; GET /projects/:id/hooks returns 403 at Reporter, so Reporter is not enough",
+			idRepoWebhooks, meta.TokenScope)
+	}
+
+	for _, id := range []string{idLogStreaming, idOrgLogAvailable, idRetentionAware} {
+		m, ok := collect.LookupPlatform(platform, id)
+		if !ok {
+			t.Fatalf("%s is not registered", id)
+		}
+		if !strings.HasPrefix(m.TokenScope, "none") {
+			t.Errorf("%s token scope = %q, want the no-API-call wording — it makes no request, so naming a role "+
+				"would invent a requirement it does not have", id, m.TokenScope)
+		}
+	}
+}
+
 func TestClientBuildFailureIsNotCheckableForEveryCheck(t *testing.T) {
 	c := NewForTest("https://example.invalid", "token", func() (*gitlabcollect.Client, error) {
 		return nil, fmt.Errorf("boom")
