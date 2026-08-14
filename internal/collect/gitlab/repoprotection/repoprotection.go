@@ -127,14 +127,15 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 		return allNotCheckable(org, repo, describeErr("project", org+"/"+repo, err), client.Provenance())
 	}
 	if proj.DefaultBranch == "" {
-		return allNotCheckable(org, repo,
+		return resultsWithoutBranchData(org, repo, proj,
 			"the project has no default branch — it is empty, so there is no branch to protect and nothing to evidence yet",
 			client.Provenance())
 	}
 
 	branches, err := gitlabcollect.GetJSONPaged[protectedBranch](ctx, client, "/projects/"+id+"/protected_branches", nil)
 	if err != nil {
-		return allNotCheckable(org, repo, describeErr("protected branches", org+"/"+repo, err), client.Provenance())
+		return resultsWithoutBranchData(org, repo, proj,
+			describeErr("protected branches", org+"/"+repo, err), client.Provenance())
 	}
 
 	// Every rule whose pattern matches the default branch, not just an exact
@@ -161,12 +162,14 @@ func (c *Collector) collectRepo(ctx context.Context, org, repo string) []model.C
 		deletionBlocked(org, repo, proj, def),
 		requiredReviews(org, repo, proj, appr, apprErr),
 		requiredStatusChecks(org, repo, proj),
-		adminEnforced(org, repo, proj, def),
 	}
 	for i := range results {
 		results[i].Provenance = prov
 	}
-	return results
+	// admin-enforced is appended after the provenance loop, not inside it: no
+	// API call backs it, so citing the two reads as its evidence would claim a
+	// basis it never used. Same treatment as envseparation's branch-policy.
+	return append(results, adminEnforced(org, repo))
 }
 
 func protectionExists(org, repo string, p project, b *protectedBranch) model.CheckResult {
@@ -311,8 +314,16 @@ func requiredStatusChecks(org, repo string, p project) model.CheckResult {
 // access levels, where a rule permitting only Maintainers already binds
 // everyone below Owner, and an Owner can always edit the rule. Reporting a
 // pass or fail would be mapping a control that does not exist.
-func adminEnforced(org, repo string, _ project, _ *protectedBranch) model.CheckResult {
-	return res(idAdminEnforced, "Branch protection applies to administrators", model.StatusNotCheckable, org, repo,
+//
+// It reads nothing and takes no arguments beyond the scope, so every path
+// through collectRepo emits it — including the failure paths, which used to
+// replace this reason with whichever read had failed (issue #21). The status
+// was right for a stated cause that was never the real one: a reader was told
+// protected branches were unreadable, when the actual reason is that GitLab
+// models no such control and no read could ever answer it. It carries no
+// provenance for the same reason.
+func adminEnforced(org, repo string) model.CheckResult {
+	return res(idAdminEnforced, checkTitles[idAdminEnforced], model.StatusNotCheckable, org, repo,
 		"GitLab has no equivalent of GitHub's enforce_admins. Protection is expressed as access levels rather than a "+
 			"rule with an admin exemption, so there is no setting that says whether administrators are bound. An "+
 			"Owner can always change a protected-branch rule; a check reporting pass or fail here would be asserting "+
@@ -350,25 +361,73 @@ func describeErr(what, subject string, err error) string {
 	}
 }
 
+var checkTitles = map[string]string{
+	idProtectionExists:     "Default branch is protected",
+	idForcePushBlocked:     "Force pushes are blocked on the default branch",
+	idDeletionBlocked:      "Default branch cannot be deleted",
+	idRequiredReviews:      "Merge requests require review",
+	idRequiredStatusChecks: "Merges require passing checks",
+	idAdminEnforced:        "Branch protection applies to administrators",
+}
+
+// allNotCheckable covers the two states where nothing at all was read: the
+// client could not be built, or GET /projects/{id} failed. admin-enforced is
+// still emitted with its own reason rather than the caller's — see its doc
+// comment.
 func allNotCheckable(org, repo, reason string, prov []model.Provenance) []model.CheckResult {
-	ids := []struct{ id, title string }{
-		{idProtectionExists, "Default branch is protected"},
-		{idForcePushBlocked, "Force pushes are blocked on the default branch"},
-		{idDeletionBlocked, "Default branch cannot be deleted"},
-		{idRequiredReviews, "Merge requests require review"},
-		{idRequiredStatusChecks, "Merges require passing checks"},
-		{idAdminEnforced, "Branch protection applies to administrators"},
-	}
+	out := notCheckable(org, repo, reason, prov,
+		idProtectionExists, idForcePushBlocked, idDeletionBlocked, idRequiredReviews, idRequiredStatusChecks)
+	return append(out, adminEnforced(org, repo))
+}
+
+// resultsWithoutBranchData covers the two states where GET /projects/{id}
+// succeeded but the protected-branch data did not arrive: the project is
+// empty, so there is no branch to look up, or the protected_branches read
+// failed outright.
+//
+// Two of the six checks survive that, and before issue #21 both were swept
+// into the abort:
+//
+//   - required-status-checks reads only only_allow_merge_if_pipeline_succeeds
+//     and allow_merge_on_skipped_pipeline, which are fields of the project
+//     object already in hand. Its registered endpoint list says so: GET
+//     /projects/{id}, and nothing else. Reporting it not-checkable discarded a
+//     computed answer and blamed a read it never depends on.
+//   - admin-enforced reads nothing at all.
+//
+// required-reviews does NOT survive: its endpoint, GET /projects/{id}/approvals,
+// is reached only after the protected-branches read and so was never attempted
+// on either path. It stays not-checkable, but says that rather than implying
+// its own data was unreadable.
+func resultsWithoutBranchData(org, repo string, p project, branchReason string, prov []model.Provenance) []model.CheckResult {
+	out := notCheckable(org, repo, branchReason, prov, idProtectionExists, idForcePushBlocked, idDeletionBlocked)
+	out = append(out, notCheckable(org, repo,
+		"this check's own endpoint, GET /projects/{id}/approvals, was never attempted — the scan stopped "+
+			"before reaching it: "+branchReason, prov, idRequiredReviews)...)
+
+	statusChecks := requiredStatusChecks(org, repo, p)
+	statusChecks.Provenance = provOrEmpty(prov)
+	return append(out, statusChecks, adminEnforced(org, repo))
+}
+
+func notCheckable(org, repo, reason string, prov []model.Provenance, ids ...string) []model.CheckResult {
+	prov = provOrEmpty(prov)
 	out := make([]model.CheckResult, 0, len(ids))
-	if prov == nil {
-		prov = []model.Provenance{} // nil marshals to null; the schema wants an array
-	}
-	for _, c := range ids {
-		r := res(c.id, c.title, model.StatusNotCheckable, org, repo, reason, nil)
+	for _, id := range ids {
+		r := res(id, checkTitles[id], model.StatusNotCheckable, org, repo, reason, nil)
 		r.Provenance = prov
 		out = append(out, r)
 	}
 	return out
+}
+
+// provOrEmpty keeps a nil slice out of the result: nil marshals to null, and
+// the evidence schema wants an array.
+func provOrEmpty(prov []model.Provenance) []model.Provenance {
+	if prov == nil {
+		return []model.Provenance{}
+	}
+	return prov
 }
 
 func res(id, title string, status model.Status, org, repo, reason string, facts map[string]any) model.CheckResult {
@@ -402,9 +461,22 @@ func escapePath(s string) string {
 }
 
 // GET /projects/:id and GET /projects/:id/protected_branches both answer 200
-// to a read_api token at Reporter, so the five checks derived from them are
+// to a read_api token at Reporter, so the four checks derived from them are
 // reachable at that role.
 const branchTokenScope = "read_api (Reporter or above on the project)"
+
+// admin-enforced makes no request of its own — GitLab models no control for
+// it to read (see adminEnforced) — so no role makes it resolve and none is
+// documented. Same wording as auditlogging and envseparation's branch-policy,
+// which are the same shape of check.
+//
+// It documented branchTokenScope until issue #21, and that was honest at the
+// time for a bad reason: a failed protected-branches read used to blank this
+// check out with its siblings, so the role that made THAT read succeed did in
+// practice decide what an operator saw here. Now that it is emitted on every
+// path, nothing about it depends on the token any more.
+const noAPICallTokenScope = "none — no API call backs this check. A GitLab token is still needed for the scan " +
+	"as a whole, but nothing about this result depends on what it can reach"
 
 // required-reviews needs a strictly higher role than its five siblings:
 // GET /projects/:id/approvals returns 403 to a read_api token at Reporter,
@@ -460,7 +532,7 @@ func init() {
 		"Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable \"Prevent approvals by author\". Note that approval RULES are a paid-tier feature; on Free the \"Approvals required\" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone. Scan with a token at Maintainer or above: at Reporter this check's only endpoint returns 403 and it cannot resolve at all.",
 		map[model.Status]string{
 			model.StatusPartial:      "approvals_before_merge is 1 or more, which shows intent — but that field was deprecated in GitLab 12.3 and does not enforce review on current versions. Approval rules do, and they are a paid-tier feature this scan cannot read, so enforcement is not confirmed. The reason names author self-approval when it is enabled.",
-			model.StatusNotCheckable: "approvals_before_merge is 0, or the approvals endpoint was unreadable — a 403 there means the token is below Maintainer or the tier does not entitle the approval surface, and the response does not distinguish them. Neither case distinguishes \"no review required\" from \"a rule this tier cannot expose\", so no pass or fail is asserted.",
+			model.StatusNotCheckable: "approvals_before_merge is 0, or the approvals endpoint was unreadable — a 403 there means the token is below Maintainer or the tier does not entitle the approval surface, and the response does not distinguish them. Neither case distinguishes \"no review required\" from \"a rule this tier cannot expose\", so no pass or fail is asserted. A third route reaches this status without the endpoint being read at all: the project is empty, or the earlier protected-branches read failed, and the scan stops before the approvals call — the reason says so when that is what happened.",
 		}, []string{"GET /projects/{id}/approvals"})
 
 	reg(idRequiredStatusChecks, "Merges require passing checks", branchTokenScope,
@@ -469,13 +541,13 @@ func init() {
 			model.StatusVerifiedPass: "only_allow_merge_if_pipeline_succeeds is true and a skipped pipeline does not satisfy it.",
 			model.StatusPartial:      "Pipelines must succeed, but allow_merge_on_skipped_pipeline is true, so a change that runs no jobs merges unchecked.",
 			model.StatusVerifiedFail: "only_allow_merge_if_pipeline_succeeds is false.",
-			model.StatusNotCheckable: "The project object could not be read.",
+			model.StatusNotCheckable: "The project object could not be read. Nothing else reaches this status: both fields are read from that object, so neither a failed protected-branches read nor an empty project with no default branch affects this check.",
 		}, []string{"GET /projects/{id}"})
 
-	reg(idAdminEnforced, "Branch protection applies to administrators", branchTokenScope,
+	reg(idAdminEnforced, "Branch protection applies to administrators", noAPICallTokenScope,
 		"Not applicable on GitLab: protection is expressed as access levels rather than a rule with an administrator exemption. Restrict push and merge to Maintainers and limit who holds Owner.",
 		map[model.Status]string{
-			model.StatusNotCheckable: "GitLab has no equivalent of GitHub's enforce_admins, so no API field answers this. Reporting pass or fail would assert a control GitLab does not model.",
+			model.StatusNotCheckable: "GitLab has no equivalent of GitHub's enforce_admins, so no API field answers this. Reporting pass or fail would assert a control GitLab does not model. This is a fixed answer on every scan: no read can change it, and no read failure changes its stated reason either.",
 		}, nil)
 }
 
