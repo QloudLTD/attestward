@@ -206,11 +206,14 @@ mean and what API evidence backs them.
 
 ```bash
 # Substitute the real version/os/arch from the releases page.
+# Linux/macOS ship as .tar.gz; Windows ships as .zip (see below).
 curl -LO https://gitlab.com/sioakeim/attestward/-/releases/permalink/latest/downloads/attestward_<version>_<os>_<arch>.tar.gz
 curl -LO https://gitlab.com/sioakeim/attestward/-/releases/permalink/latest/downloads/checksums.txt
 shasum -a 256 -c checksums.txt --ignore-missing   # macOS; use sha256sum -c on Linux
 tar -xzf attestward_<version>_<os>_<arch>.tar.gz
 ```
+
+On Windows, the asset is `attestward_<version>_windows_amd64.zip` — download it and `checksums.txt` the same way, verify with `CertUtil -hashfile attestward_<version>_windows_amd64.zip SHA256` (compare against `checksums.txt` by hand, or `sha256sum -c` under WSL/Git Bash), then extract with `Expand-Archive` or any zip tool instead of `tar`.
 
 **Or with Go installed:**
 
