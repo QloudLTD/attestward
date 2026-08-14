@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"gitlab.com/sioakeim/attestward/internal/collect"
@@ -474,6 +475,81 @@ func TestCollect_ReusableWorkflowReferenceInNonFirstUnit_StillResolved(t *testin
 	}
 	if !found {
 		t.Errorf("third_party_unpinned = %#v, want an entry from %s — the same-org callee must be resolved even though the workflow referencing it is not the first unit", thirdParty, resolvedCalleeLabel)
+	}
+}
+
+// TestCollect_SelfReferencingReusableWorkflow_NotDoubleScanned pins the
+// case resolveReusableWorkflows' seen-map pre-marking exists to suppress:
+// a workflow that calls ITSELF as a reusable workflow
+// (org/samerepo/.github/workflows/x.yml@ref) is already one of the repo's
+// own fetched units, so resolving the reference again would fetch and
+// scan the same bytes a second time under a second label.
+//
+// The pre-marking was dead code (issue #22): fetchWorkflows labels a
+// repo's own units with a bare path, while the seen lookup key is always
+// the fully-qualified "owner/repo:path", so the two keyspaces never met.
+// No fixture covered a self-reference, so nothing caught it.
+//
+// Asserting pinned's Status could not detect this — the duplicate is a
+// duplicate *finding*, and pinned is verified-fail either way. The proof
+// is the count: ci.yml's single unpinned docker/build-push-action@v6 must
+// appear exactly once, and its content must be fetched exactly once.
+func TestCollect_SelfReferencingReusableWorkflow_NotDoubleScanned(t *testing.T) {
+	org, repoName, branch := "my-org", "self-caller", "main"
+	const wfPath = ".github/workflows/ci.yml"
+	const selfCallerYAML = "name: ci\n" +
+		"on: [push]\n" +
+		"permissions:\n" +
+		"  contents: read\n" +
+		"jobs:\n" +
+		"  build:\n" +
+		"    runs-on: ubuntu-latest\n" +
+		"    steps:\n" +
+		"      - uses: docker/build-push-action@v6\n" +
+		"  call-self:\n" +
+		"    uses: my-org/self-caller/.github/workflows/ci.yml@main\n"
+
+	mux := http.NewServeMux()
+	registerRepo(t, mux, org, repoName, branch, false)
+	registerDefaultWorkflowPermissions(t, mux, org, repoName, "read")
+	registerWorkflows(t, mux, org, repoName, []string{wfPath})
+	// Counted rather than delegated to registerContent: the second fetch
+	// this guard prevents would hit this same endpoint, so the hit count
+	// is the direct evidence of re-fetching.
+	var fetches atomic.Int32
+	mux.HandleFunc("/repos/"+org+"/"+repoName+"/contents/"+wfPath, func(w http.ResponseWriter, _ *http.Request) {
+		fetches.Add(1)
+		writeJSON(t, w, http.StatusOK, map[string]any{"content": selfCallerYAML, "sha": "content-sha"})
+	})
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repoName}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	thirdParty, ok := m[checkPinnedID].Facts["third_party_unpinned"].([]map[string]any)
+	if !ok {
+		t.Fatalf("third_party_unpinned = %#v, want a slice", m[checkPinnedID].Facts["third_party_unpinned"])
+	}
+	docker := 0
+	for _, f := range thirdParty {
+		if f["slug"] == "docker/build-push-action" {
+			docker++
+		}
+	}
+	if docker != 1 {
+		t.Errorf("docker/build-push-action reported %d time(s) in %#v, want exactly 1 — the self-referencing workflow was scanned twice, once per label", docker, thirdParty)
+	}
+	const selfLabel = "my-org/self-caller:.github/workflows/ci.yml"
+	for _, f := range thirdParty {
+		if f["file"] == selfLabel {
+			t.Errorf("third_party_unpinned contains an entry labeled %s — the repo's own workflow was re-scanned under a fully-qualified label; it is already in scope as %q", selfLabel, wfPath)
+		}
+	}
+	if got := fetches.Load(); got != 1 {
+		t.Errorf("ci.yml content fetched %d time(s), want 1 — a self-reference must not trigger a second fetch of a workflow already in scope", got)
 	}
 }
 

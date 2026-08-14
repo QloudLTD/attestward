@@ -315,7 +315,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
 	}
 
-	reusable, unresolvedExternal, skippedReusable := resolveReusableWorkflows(ctx, client, org, units)
+	reusable, unresolvedExternal, skippedReusable := resolveReusableWorkflows(ctx, client, org, repo, units)
 	units = append(units, reusable...)
 	coreProv := snapshot()
 
