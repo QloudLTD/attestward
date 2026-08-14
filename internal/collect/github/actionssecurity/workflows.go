@@ -156,14 +156,25 @@ type unresolvedExternalWorkflow struct {
 // nested. References to a different owner are recorded as unresolved, not
 // fetched — resolving arbitrary external repos' content is outside this
 // collector's read scope for the org being scanned.
+// A reference that resolves to a workflow already fetched as one of the
+// scanned repo's own units — most commonly a workflow calling itself — is
+// skipped rather than fetched again, so the same file isn't scanned and
+// reported twice under two different labels.
 // A reference dropped by maxReusableWorkflowResolutions, or one whose
 // fetch/parse genuinely failed (not a benign 404-at-ref), is recorded
 // in the returned skippedWorkflow list rather than silently vanishing —
 // see fetchWorkflows' identical distinction for why.
-func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org string, units []workflowUnit) (resolved []workflowUnit, unresolved []unresolvedExternalWorkflow, skipped []skippedWorkflow) {
+func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org, repo string, units []workflowUnit) (resolved []workflowUnit, unresolved []unresolvedExternalWorkflow, skipped []skippedWorkflow) {
+	// units are the scanned repo's own workflows, which fetchWorkflows
+	// labels with a bare path — so they must be qualified with org/repo to
+	// land in the same keyspace as the references looked up below.
+	// Comparing bare paths instead would over-suppress: a sibling repo in
+	// the same org routinely holds a reusable workflow at the very path
+	// the scanned repo also uses (.github/workflows/build.yml), and that
+	// one is genuinely out of scope until fetched.
 	seen := map[string]bool{}
 	for _, u := range units {
-		seen[u.Label] = true
+		seen[reusableWorkflowLabel(org, repo, u.Label)] = true
 	}
 	for _, u := range units {
 		finder := newLineFinder(u.Raw)
@@ -172,12 +183,12 @@ func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org
 			if job.Uses == "" || !looksLikeReusableWorkflowRef(job.Uses) {
 				continue
 			}
-			owner, repo, path, ref := splitReusableWorkflowRef(job.Uses)
-			if owner != org {
+			refOwner, refRepo, refPath, ref := splitReusableWorkflowRef(job.Uses)
+			if refOwner != org {
 				unresolved = append(unresolved, unresolvedExternalWorkflow{FromFile: u.Label, Line: finder.Find(job.Uses), Ref: job.Uses})
 				continue
 			}
-			label := owner + "/" + repo + ":" + path
+			label := reusableWorkflowLabel(refOwner, refRepo, refPath)
 			if seen[label] {
 				continue
 			}
@@ -190,7 +201,7 @@ func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org
 			// benign absence — see skipReasonReusableNotFoundOrNoAccess's
 			// doc comment for why this repo has no prior proof of access
 			// the way the scanned repo itself does.
-			unit, ok, _ := fetchOneWorkflow(ctx, client, owner, repo, path, ref)
+			unit, ok, _ := fetchOneWorkflow(ctx, client, refOwner, refRepo, refPath, ref)
 			if !ok {
 				skipped = append(skipped, skippedWorkflow{Path: label, Reason: skipReasonReusableNotFoundOrNoAccess})
 				continue
@@ -200,6 +211,17 @@ func resolveReusableWorkflows(ctx context.Context, client *ghcollect.Client, org
 		}
 	}
 	return resolved, unresolved, skipped
+}
+
+// reusableWorkflowLabel builds the "owner/repo:path" form that identifies
+// a workflow file unambiguously across repos — both the Label a resolved
+// unit carries (see workflowUnit's doc comment) and the single keyspace
+// resolveReusableWorkflows' seen map compares in. The ref is deliberately
+// not part of it: two references to the same file at different refs are
+// treated as the same unit to resolve, matching the one-fetch-per-file
+// bound maxReusableWorkflowResolutions is expressed in.
+func reusableWorkflowLabel(owner, repo, path string) string {
+	return owner + "/" + repo + ":" + path
 }
 
 // looksLikeReusableWorkflowRef reports whether uses looks like a
