@@ -148,18 +148,26 @@ build:
 # silently if GitHub access is ever restored (compare .goreleaser.yaml's
 # behaviour is the same either way, only the OIDC issuer/identity differ).
 #
-# GoReleaser decides which forge to publish to by reading the `origin`
-# remote of the checkout, not from which token env var happens to be set —
-# https://goreleaser.com/customization/release/. A GitLab CI checkout's
-# origin is always the gitlab.com project, so no `gitlab_urls:` stanza is
-# needed in .goreleaser.yaml for a gitlab.com-hosted project.
+# GoReleaser picks the publish forge from which token env var is set
+# (GITLAB_TOKEN here, GITHUB_TOKEN nowhere in this job) — confirmed against
+# its source, internal/pipe/env/env.go: GITLAB_TOKEN present selects the
+# GitLab client; setting more than one token is a hard error. The origin
+# remote only supplies the owner/repo NAME, never which forge to talk to.
+# No `gitlab_urls:` stanza is needed in .goreleaser.yaml either way, for an
+# unrelated reason: that key only overrides a self-hosted instance's URLs,
+# and this project's default (gitlab.com's public URLs) is already right.
 release:
   stage: release
   image:
     name: goreleaser/goreleaser:v2.17.1
     entrypoint: [""]
   rules:
-    - if: $CI_COMMIT_TAG
+    # Scoped to v* specifically, not bare $CI_COMMIT_TAG: an off-pattern tag
+    # would still start this job, then fail loudly the moment goreleaser
+    # can't find its version prefix or the (protected, v*-only) GITLAB_TOKEN
+    # isn't exposed — a red pipeline for a tag that was never meant to
+    # release anything, instead of the job correctly not running at all.
+    - if: $CI_COMMIT_TAG =~ /^v/
   variables:
     GIT_DEPTH: "0" # full history for the conventional-commit changelog
   # GitLab's native OIDC ID token, scoped for Sigstore keyless signing —
