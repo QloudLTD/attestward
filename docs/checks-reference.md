@@ -603,16 +603,16 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Merge requests require review
 
-- **Token permission:** read_api (Reporter or above on the project)
+- **Token permission:** read_api (Maintainer or above on the project — GET /projects/:id/approvals returns 403 at Reporter)
 - **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** `GET /projects/{id}/approvals`
 
 **Status rubric:**
 
 - **partial:** approvals_before_merge is 1 or more, which shows intent — but that field was deprecated in GitLab 12.3 and does not enforce review on current versions. Approval rules do, and they are a paid-tier feature this scan cannot read, so enforcement is not confirmed. The reason names author self-approval when it is enabled.
-- **not-checkable:** approvals_before_merge is 0, or the approvals endpoint was unreadable. Neither distinguishes "no review required" from "a rule this tier cannot expose", so no pass or fail is asserted.
+- **not-checkable:** approvals_before_merge is 0, or the approvals endpoint was unreadable — a 403 there means the token is below Maintainer or the tier does not entitle the approval surface, and the response does not distinguish them. Neither case distinguishes "no review required" from "a rule this tier cannot expose", so no pass or fail is asserted.
 
-**Remediation:** Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable "Prevent approvals by author". Note that approval RULES are a paid-tier feature; on Free the "Approvals required" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone.
+**Remediation:** Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable "Prevent approvals by author". Note that approval RULES are a paid-tier feature; on Free the "Approvals required" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone. Scan with a token at Maintainer or above: at Reporter this check's only endpoint returns 403 and it cannot resolve at all.
 
 #### gogs — Default branch requires at least one approving review before merge
 
