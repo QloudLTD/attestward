@@ -31,7 +31,7 @@ Pre-1.0: only the latest release receives fixes.
 
 Every release ships `checksums.txt` (SHA-256 over all archives) plus a keyless cosign
 Sigstore bundle (`checksums.txt.bundle`) — no signing key for you to fetch or trust;
-verification instead pins the exact GitHub Actions workflow identity and Sigstore's OIDC
+verification instead pins the exact GitLab CI job identity and Sigstore's OIDC
 issuer. (cosign v2 used separate `.sig`/`.pem` files via `--output-signature`/
 `--output-certificate`; cosign v3 removed those flags in favor of one bundle file via
 `--bundle` — this command is written for v3, which is what this repo's release pipeline
@@ -40,8 +40,8 @@ uses. Install cosign v3+.) Download both files from the release, then:
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.bundle \
-  --certificate-identity-regexp "^https://gitlab.com/sioakeim/attestward/\.github/workflows/release\.yaml@refs/tags/v.*$" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  --certificate-identity-regexp "^https://gitlab\.com/sioakeim/attestward//\.gitlab-ci\.yml@refs/tags/v.*$" \
+  --certificate-oidc-issuer "https://gitlab.com" \
   checksums.txt
 
 # then confirm your downloaded archive's hash is listed:

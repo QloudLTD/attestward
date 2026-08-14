@@ -28,9 +28,10 @@ inputs:
     default: ""
   token:
     description: >-
-      Token the scan reads with. Also used to download the release binary,
-      though attestward is a public repo so that needs no authentication.
-      The default GITHUB_TOKEN
+      Token the scan reads with (the org/repos you point this action at).
+      Unrelated to fetching the attestward binary itself — that download is
+      an unauthenticated curl against a public GitLab release, regardless
+      of this token. The default GITHUB_TOKEN
       gives honest-degradation coverage: checks needing permissions it
       cannot carry report not-checkable, never a fake pass. See the
       attestward README's token table for a deeper-coverage fine-grained PAT.
@@ -104,7 +105,6 @@ runs:
       id: fetch
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
         VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
@@ -122,12 +122,19 @@ runs:
         workdir="$(mktemp -d "${RUNNER_TEMP}/attestward.XXXXXX")"
         echo "workdir=$workdir" >> "$GITHUB_OUTPUT"
         cd "$workdir"
-        gh release download "v${VERSION}" --repo sioakim/attestward \
-          --pattern "$archive" --pattern checksums.txt --pattern checksums.txt.bundle
+        # Releases live on GitLab, not GitHub — this action scans a GitHub
+        # org, but the scanner binary itself is published from
+        # gitlab.com/sioakeim/attestward (see .gitlab-ci.yml's release
+        # job), a public, unauthenticated download regardless of which
+        # platform the caller's own workflow runs on.
+        base="https://gitlab.com/sioakeim/attestward/-/releases/v${VERSION}/downloads"
+        curl -fsSL -o "$archive" "${base}/${archive}"
+        curl -fsSL -o checksums.txt "${base}/checksums.txt"
+        curl -fsSL -o checksums.txt.bundle "${base}/checksums.txt.bundle"
         cosign verify-blob \
           --bundle checksums.txt.bundle \
-          --certificate-identity-regexp '^https://gitlab.com/sioakeim/attestward/\.github/workflows/release\.yaml@refs/tags/v.*$' \
-          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+          --certificate-identity-regexp '^https://gitlab\.com/sioakeim/attestward//\.gitlab-ci\.yml@refs/tags/v.*$' \
+          --certificate-oidc-issuer "https://gitlab.com" \
           checksums.txt
         shasum -a 256 --ignore-missing -c checksums.txt
         tar xzf "$archive" attestward
