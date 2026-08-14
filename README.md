@@ -206,8 +206,8 @@ mean and what API evidence backs them.
 
 ```bash
 # Substitute the real version/os/arch from the releases page.
-curl -LO https://gitlab.com/sioakeim/attestward/releases/latest/download/attestward_<version>_<os>_<arch>.tar.gz
-curl -LO https://gitlab.com/sioakeim/attestward/releases/latest/download/checksums.txt
+curl -LO https://gitlab.com/sioakeim/attestward/-/releases/permalink/latest/downloads/attestward_<version>_<os>_<arch>.tar.gz
+curl -LO https://gitlab.com/sioakeim/attestward/-/releases/permalink/latest/downloads/checksums.txt
 shasum -a 256 -c checksums.txt --ignore-missing   # macOS; use sha256sum -c on Linux
 tar -xzf attestward_<version>_<os>_<arch>.tar.gz
 ```
