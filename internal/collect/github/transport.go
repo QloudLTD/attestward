@@ -30,6 +30,21 @@ var ErrWriteMethodRejected = fmt.Errorf("collect/github: this tool is read-only,
 // an evidence pack through this path — avoiding the leak is preferred over
 // relying on model.Scrub to catch it downstream.
 //
+// GHES provenance paths (issue #13's GHES epic, settling the question its
+// own acceptance criteria pose): Endpoint records req.URL.Path completely
+// unmodified — the REAL path, not a github.com-normalized one. On a GHES
+// scan this naturally comes out prefixed "/api/v3" (e.g.
+// "/api/v3/orgs/{org}"), because go-github's request builder resolves
+// every relative endpoint path against Client.BaseURL (see
+// ghcollect.NewClient/ResolveHostConfig, issue #11), and BaseURL already
+// carries that prefix for a GHES target. No special-casing was needed here
+// to make that happen, and none should be added to normalize it away: a
+// provenance entry should record what was ACTUALLY called, since that's
+// what a reader (or `attestward diff`, comparing provenance across two
+// packs) needs to trust the evidence — normalizing away the "/api/v3"
+// prefix would make a GHES pack's provenance describe a request that
+// never actually happened.
+//
 // Read-only enforcement (issue #31): RoundTrip rejects any request whose
 // method isn't GET or HEAD, before auth injection or the network call —
 // ADR-0004's "read-only, forever" rule enforced structurally, not just by
@@ -46,9 +61,10 @@ var ErrWriteMethodRejected = fmt.Errorf("collect/github: this tool is read-only,
 // Building that allow-list now, before anything needs it, would be
 // speculative engineering for a code path this project doesn't use.
 type provenanceTransport struct {
-	base   http.RoundTripper
-	token  string
-	scopes *scopeTracker
+	base        http.RoundTripper
+	token       string
+	scopes      *scopeTracker
+	hostVersion *hostVersionTracker
 
 	mu         sync.Mutex
 	provenance []model.Provenance
@@ -58,7 +74,7 @@ func newProvenanceTransport(token string, base http.RoundTripper) *provenanceTra
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	return &provenanceTransport{base: base, token: token, scopes: &scopeTracker{}}
+	return &provenanceTransport{base: base, token: token, scopes: &scopeTracker{}, hostVersion: &hostVersionTracker{}}
 }
 
 func (t *provenanceTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -78,6 +94,7 @@ func (t *provenanceTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	}
 
 	t.scopes.observe(resp)
+	t.hostVersion.observe(resp)
 
 	body, readErr := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()

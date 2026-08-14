@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -83,7 +85,7 @@ func TestFilterCollectors(t *testing.T) {
 // drifting out of the "C01.<name>" convention the whole --check filter
 // mechanism depends on.
 func TestFilterCollectors_RealOrgSecurityMatchesItsOwnDocumentedExample(t *testing.T) {
-	c := orgsecurity.New(ghcollect.NewClient("ghp_test-token"))
+	c := orgsecurity.New(ghcollect.NewClient("ghp_test-token", ghcollect.ClientConfig{}))
 	all := []collect.Collector{c}
 
 	got := filterCollectors(all, []string{"C01"})
@@ -483,6 +485,51 @@ func TestRunScan_AccountTypeFlowsIntoScope(t *testing.T) {
 	}
 }
 
+// TestRunScan_GHESVersionFlowsIntoScope mirrors
+// TestRunScan_AccountTypeFlowsIntoScope for issue #12: the GHES version
+// Client.GHESVersion observed from preflight's own CheckAccount call (the
+// guaranteed first authenticated request — see runScan's own comment) must
+// reach collect.Scope.GHESVersion, not just compile. Uses a real
+// httptest.Server and a real ghcollect.Client (rather than a fake) because
+// the version is genuinely observed from a response header, not injected.
+func TestRunScan_GHESVersionFlowsIntoScope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-GitHub-Enterprise-Version", "3.9.0")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"login":"attestward-demo","type":"Organization"}`))
+	}))
+	defer server.Close()
+
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	client := ghcollect.NewClient("ghp_test-token", cfg)
+
+	var gotScope collect.Scope
+	collectors := []collect.Collector{
+		fakeScanCollectorFunc{id: "DEMO.check", fn: func(_ context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+			gotScope = scope
+			return []model.CheckResult{{CheckID: "DEMO.check", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: scope.Org}}}, nil
+		}},
+	}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "widgets"}}},
+		orgChecker: &restOrgChecker{client: client.REST},
+		client:     client,
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	scanCfg := mergeScanConfig(scanConfig{Org: "attestward-demo", Repos: []string{"widgets"}}, scanConfig{}, nil)
+
+	if _, err := runScan(context.Background(), scanCfg, nil, deps); err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if gotScope.GHESVersion != "3.9.0" {
+		t.Errorf("scope.GHESVersion = %q, want 3.9.0", gotScope.GHESVersion)
+	}
+}
+
 type fakeOrgChecker struct {
 	err         error
 	accountType collect.AccountType
@@ -555,6 +602,33 @@ func TestRunScan_PackScopeRecordsPlatformAndProject(t *testing.T) {
 	}
 	if result.pack.Scope.Project != "my-project" {
 		t.Errorf("pack.Scope.Project = %q, want my-project", result.pack.Scope.Project)
+	}
+}
+
+// TestRunScan_PackScopeRecordsGitHubURL proves cfg.GitHubURL — as resolved
+// by runScanCmd (issue #11's --github-url/github_url:/GITHUB_URL) — lands
+// on the pack's Scope.GitHubURL, so a reader of a signed pack can tell
+// which GitHub install produced it. runScan itself doesn't resolve
+// GITHUB_URL or validate the value; it just carries whatever cfg.GitHubURL
+// already holds through to the pack — that resolution is runScanCmd's job
+// (resolveGitHubURL), covered separately in scanconfig_test.go.
+func TestRunScan_PackScopeRecordsGitHubURL(t *testing.T) {
+	collectors := []collect.Collector{fakeScanCollector{id: "DEMO.pass", results: []model.CheckResult{
+		{CheckID: "DEMO.pass", Status: model.StatusVerifiedPass, Scope: model.ScopeRef{Org: "attestward-demo"}},
+	}}}
+	deps := scanDeps{
+		repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "good-repo"}}},
+		collectors: collectors,
+		stdout:     &bytes.Buffer{},
+	}
+	cfg := mergeScanConfig(scanConfig{Org: "attestward-demo", GitHubURL: "https://ghe.example.com"}, scanConfig{}, nil)
+
+	result, err := runScan(context.Background(), cfg, nil, deps)
+	if err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	if result.pack.Scope.GitHubURL != "https://ghe.example.com" {
+		t.Errorf("pack.Scope.GitHubURL = %q, want https://ghe.example.com", result.pack.Scope.GitHubURL)
 	}
 }
 
@@ -1191,4 +1265,56 @@ func TestRunScan_DeterministicAcrossRunsWithFixedClock(t *testing.T) {
 	if !bytes.Equal(written1, written2) {
 		t.Error("two on-disk evidence.json files from identical fixtures are not byte-identical")
 	}
+}
+
+// TestRunScan_IsGHESComesFromTheConfiguredTarget pins the load-bearing line
+// of the GHES gating fix, which previously survived full reversion —
+// including hardcoding IsGHES to false, silently undoing the entire
+// user-visible change — with the suite staying green.
+//
+// It must come from the configured --github-url, NOT from whether a version
+// header happened to arrive: a GHES install behind a proxy that strips
+// unknown X-* headers reports no version, and inferring "github.com" from
+// that produced packs asserting a GitHub Enterprise Cloud plan tier
+// alongside their own scope.github_url naming the self-hosted install.
+func TestRunScan_IsGHESComesFromTheConfiguredTarget(t *testing.T) {
+	var gotScope collect.Scope
+	spy := scopeCapturingCollector{captured: &gotScope}
+
+	for _, tc := range []struct {
+		name      string
+		githubURL string
+		want      bool
+	}{
+		{"github.com scan", "", false},
+		{"GHES scan, no version header observed", "https://ghe.example.com", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mergeScanConfig(scanConfig{Org: "acme", GitHubURL: tc.githubURL}, scanConfig{}, nil)
+			deps := scanDeps{
+				repoLister: &fakeRepoLister{repos: []repoInfo{{Name: "widgets"}}},
+				collectors: []collect.Collector{spy},
+				stdout:     &bytes.Buffer{},
+			}
+			if _, err := runScan(context.Background(), cfg, nil, deps); err != nil {
+				t.Fatalf("runScan: %v", err)
+			}
+			if gotScope.IsGHES != tc.want {
+				t.Errorf("Scope.IsGHES = %v, want %v — it must follow the configured target, not an observed version", gotScope.IsGHES, tc.want)
+			}
+			if gotScope.GHESVersion != "" {
+				t.Errorf("Scope.GHESVersion = %q, want empty in this test (no live client observed a header)", gotScope.GHESVersion)
+			}
+		})
+	}
+}
+
+// scopeCapturingCollector records the Scope it was handed, so a test can
+// assert on fields no rendered output exposes.
+type scopeCapturingCollector struct{ captured *collect.Scope }
+
+func (c scopeCapturingCollector) ID() string { return "SPY.scope" }
+func (c scopeCapturingCollector) Collect(_ context.Context, scope collect.Scope) ([]model.CheckResult, error) {
+	*c.captured = scope
+	return nil, nil
 }

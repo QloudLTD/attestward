@@ -55,12 +55,12 @@ func TestIntegration_DemoOrgMatchesFixtures(t *testing.T) {
 		t.Fatalf("fixtures.yaml missing org/repos: %+v", fx)
 	}
 
-	client := ghcollect.NewClient(token)
+	client := ghcollect.NewClient(token, ghcollect.ClientConfig{})
 	deps := scanDeps{
 		repoLister: &restRepoLister{client: client.REST},
 		orgChecker: &restOrgChecker{client: client.REST},
 		client:     client,
-		collectors: defaultGitHubCollectors(token),
+		collectors: defaultGitHubCollectors(token, ghcollect.ClientConfig{}),
 		stdout:     os.Stdout,
 	}
 	cfg := scanConfig{

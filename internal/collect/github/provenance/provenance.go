@@ -180,6 +180,21 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/provenance/provenance_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit.
+// release.signatures is the one exception: attestationsAPIEndpoint (GitHub
+// Artifact Attestations) reached general availability on github.com only
+// in 2024 — recent enough that this tool's authors have no verified
+// knowledge of whether or from which version it shipped to GHES, so this
+// is GHESNoteUnverified rather than a guess. Every other check here only
+// reads releases/git-refs/git-tags/workflow-runs, all basic REST surface.
+var checkGHESNotes = map[string]string{
+	"C07.release.tags-signed":       ghcollect.GHESNoteSupported,
+	"C07.release.checksums":         ghcollect.GHESNoteSupported,
+	"C07.release.signatures":        ghcollect.GHESNoteUnverified,
+	"C07.provenance.workflow":       ghcollect.GHESNoteSupported,
+	"C07.provenance.commit-linkage": ghcollect.GHESNoteSupported,
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -191,6 +206,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}
@@ -200,25 +216,31 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every per-repo Client this collector builds —
+	// see ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each repo's Client is constructed —
 	// see sasthistory.Collector's identical field for why.
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C07 collector authenticated with token. Per-repo checks
-// fan out via ForEachRepo's concurrent worker pool, so each repo
-// constructs its own Client — see sasthistory.New's doc comment for why a
-// shared client across concurrent repos would corrupt provenance
-// attribution.
-func New(token string) *Collector {
-	return &Collector{token: token}
+// New returns a C07 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). Per-repo checks fan out via ForEachRepo's concurrent
+// worker pool, so each repo constructs its own Client — see
+// sasthistory.New's doc comment for why a shared client across concurrent
+// repos would corrupt provenance attribution.
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.
@@ -263,7 +285,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mapping.ScannerSignatureRegistry, org, repo string, scope collect.Scope) []model.CheckResult {
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, scope), client.Provenance())
 	}
 	defaultBranch := repository.GetDefaultBranch()
 
@@ -281,7 +303,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	allWorkflows, wfResp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo, scope), client.Provenance())
 	}
 	// The skipped return now feeds checkProvenanceWorkflow directly (issue
 	// #207 — this was the one tool-configured-shaped check on either
@@ -294,7 +316,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	tagPattern := scope.ReleaseTagPattern
 	rawReleases, relResp, relErr := runhistory.FetchReleases(ctx, client, org, repo)
 	if relErr != nil {
-		return allNotCheckable(org, repo, notCheckableReason(relResp, relErr, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(relResp, relErr, org, repo, scope), client.Provenance())
 	}
 	rawByTag := make(map[string]*ghgithub.RepositoryRelease, len(rawReleases))
 	releaseInfos := make([]runhistory.ReleaseInfo, 0, len(rawReleases))

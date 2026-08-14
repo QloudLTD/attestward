@@ -7,6 +7,40 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub Enterprise Server support** (`--github-url` / `github_url:` / `GITHUB_URL`).
+  The same `github` platform against a self-hosted install: REST `/api/v3/` and GraphQL
+  `/api/graphql` derived from the browser-facing URL, `GITHUB_CA_CERT` for private roots,
+  and the resolved host recorded as `scope.github_url` so a pack says which install
+  produced it. Gating distinguishes a plan tier (github.com) from a licence or version
+  limitation (GHES) at every one of the nine collector packages that can hit it, rather than
+  claiming a plan tier self-hosted installs don't have — this took four review rounds
+  to get right (three independent reviews found real correctness and security defects,
+  including a token-leaking redirect, an empty Fact written into a signed pack, and —
+  found while porting this onto this repo's history — the routing fix itself surviving
+  a full revert with a green suite because only the shared helper was guarded, never
+  the nine individual call sites; see `internal/collect/github/gatekind.go`'s doc
+  comment for the fix history). Every fix is mutation-verified at its actual call site,
+  not just the shared helper: reverting any of them, including the load-bearing
+  `Scope.IsGHES` assignment, fails the suite.
+  **Not verified against a real GHES install** — no instance was available, so routing
+  and gating are proven against fixtures and mutation tests only. See the README.
+
+### Security
+
+- **The redirect-following fix already shipped for `internal/collect/gogs` now also
+  applies to the GitHub client**, which became reachable to the same class of attack
+  the moment `--github-url` made its base URL user-supplied too. Host-scoped rather
+  than refuse-all, unlike Gogs: GitHub documents a 301 for renamed repos/orgs that
+  `net/http` previously followed transparently, so refusing every redirect would have
+  been a regression for existing github.com users. Cross-host hops and same-host
+  https→http downgrades are still refused — that's where the token leak lived.
+- **Credentials in `--github-url` are rejected**, the same way `--gogs-url` already is.
+  `scope.github_url` is recorded into the evidence pack and `EvidencePack.Scrub` walks
+  results only, never scope, so a `https://user:pass@host` base URL would have written
+  the password into a signed artifact verbatim.
+
 ### Fixed
 
 - **README's Windows quickstart used `tar -xzf` on a `.zip`.** The manual-download
@@ -59,8 +93,8 @@ templates run against a live download — before this tag.
   transport, below Go's redirect machinery, so its cross-domain header stripping cannot
   see it: a redirecting instance would have handed a third-party host a valid token and
   had its response body accepted as the API's answer. Found in review of the first
-  platform package to take a user-supplied base URL; the GitHub and Azure DevOps
-  packages target constant hosts and are unaffected.
+  platform package to take a user-supplied base URL; Azure DevOps and github.com target
+  constant hosts and were unaffected at this point.
 - **Credentials in `--gogs-url` are rejected.** `BaseURL()` is recorded as a pack fact,
   and `url.URL.String()` prints a password verbatim, so a `https://user:pass@host` base
   URL would have written the password into a signed evidence pack.

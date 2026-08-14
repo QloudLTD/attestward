@@ -38,7 +38,8 @@
         "lookback_releases": { "type": "integer" },
         "lookback_months": { "type": "integer" },
         "platform": { "type": "string" },
-        "project": { "type": "string" }
+        "project": { "type": "string" },
+        "github_url": { "type": "string" }
       }
     },
     "scan_started_at": { "type": "string", "format": "date-time" },

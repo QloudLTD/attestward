@@ -135,7 +135,11 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
-			FixtureRef:  fixtureRef,
+			// GHESNoteSupported for all four (issue #13): Environments is
+			// a long-standing GHES feature, not gated by GitHub Advanced
+			// Security or any other Enterprise license.
+			GHESNote:   ghcollect.GHESNoteSupported,
+			FixtureRef: fixtureRef,
 		})
 	}
 }
@@ -144,26 +148,32 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every per-repo Client this collector builds —
+	// see ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each repo's Client is constructed —
 	// see repoprotection.Collector's identical field for why.
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C03 collector authenticated with token. Like repoprotection
-// (and unlike org-security), this fans out per-repo via ForEachRepo's
-// concurrent worker pool, so each repo constructs its own Client rather
-// than sharing one across concurrently-processed repos — see
-// repoprotection.New's doc comment for the full reasoning, which applies
-// identically here.
-func New(token string) *Collector {
-	return &Collector{token: token}
+// New returns a C03 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). Like repoprotection (and unlike org-security), this
+// fans out per-repo via ForEachRepo's concurrent worker pool, so each repo
+// constructs its own Client rather than sharing one across
+// concurrently-processed repos — see repoprotection.New's doc comment for
+// the full reasoning, which applies identically here.
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.
@@ -175,7 +185,7 @@ func (c *Collector) ID() string { return collectorID }
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
-		return collectRepo(ctx, client, scope.Org, repo), nil
+		return collectRepo(ctx, client, scope.Org, repo, scope), nil
 	})
 
 	var all []model.CheckResult
@@ -195,13 +205,13 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // collectRepo resolves env-separation posture for one repo and emits all
 // four CheckResults. It never returns an error; every failure becomes a
 // not-checkable result for the affected check(s).
-func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string) []model.CheckResult {
+func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string, scope collect.Scope) []model.CheckResult {
 	var envs []*ghgithub.Environment
 	opts := &ghgithub.EnvironmentListOptions{ListOptions: ghgithub.ListOptions{PerPage: 100}}
 	for {
 		resp, httpResp, err := client.REST.Repositories.ListEnvironments(ctx, org, repo, opts)
 		if err != nil {
-			return allNotCheckable(org, repo, notCheckableReason(httpResp, err, org, repo), client.Provenance())
+			return allNotCheckable(org, repo, notCheckableReason(httpResp, err, org, repo, scope), client.Provenance())
 		}
 		if resp != nil {
 			envs = append(envs, resp.Environments...)
@@ -257,13 +267,13 @@ func prodLikeEnvs(envs []*ghgithub.Environment) []*ghgithub.Environment {
 	return out
 }
 
-func notCheckableReason(resp *ghgithub.Response, err error, org, repo string) string {
+func notCheckableReason(resp *ghgithub.Response, err error, org, repo string, scope collect.Scope) string {
 	if resp != nil {
 		switch {
 		case resp.StatusCode == http.StatusForbidden:
 			return fmt.Sprintf("token lacks permission to read environments on %s/%s", org, repo)
 		case ghcollect.IsPlanGated(resp.StatusCode):
-			return fmt.Sprintf("environments API not available for %s/%s (plan-gated feature, or repository not found)", org, repo)
+			return ghcollect.GatedRepoReason(scope.IsGHES, scope.GHESVersion, "the environments API", org, repo)
 		}
 	}
 	return fmt.Sprintf("could not query environments for %s/%s: %v", org, repo, err)

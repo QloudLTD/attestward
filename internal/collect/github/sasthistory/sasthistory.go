@@ -214,7 +214,18 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
-			FixtureRef:  fixtureRef,
+			// GHESNoteLicenceGated for all four (issue #13): every one of
+			// checkEndpoints[id] above includes defaultSetupAPIEndpoint
+			// (CodeQL default setup), which depends on GitHub Advanced
+			// Security being licensed on this GHES install — the other
+			// endpoints each check also calls (workflow/contents/releases
+			// evidence) are basic REST surface and unaffected, but an
+			// unlicensed install still changes what each of these four
+			// checks can conclude (see unconfirmedDSFailure's own doc
+			// comment for how the collector already treats a gated
+			// default-setup response as a confirmed signal, not an error).
+			GHESNote:   ghcollect.GHESNoteLicenceGated,
+			FixtureRef: fixtureRef,
 		})
 	}
 }
@@ -223,24 +234,30 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every per-repo Client this collector builds —
+	// see ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each repo's Client is constructed —
 	// see repoprotection.Collector's identical field for why.
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C05 collector authenticated with token. Like
-// repoprotection/envseparation/secretshygiene, per-repo checks fan out via
-// ForEachRepo's concurrent worker pool, so each repo constructs its own
-// Client.
-func New(token string) *Collector {
-	return &Collector{token: token}
+// New returns a C05 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). Like repoprotection/envseparation/secretshygiene,
+// per-repo checks fan out via ForEachRepo's concurrent worker pool, so each
+// repo constructs its own Client.
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.
@@ -298,13 +315,13 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mapping.ScannerSignatureRegistry, org, repo string, scope collect.Scope) []model.CheckResult {
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, scope), client.Provenance())
 	}
 	defaultBranch := repository.GetDefaultBranch()
 
 	allWorkflows, wfResp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo, scope), client.Provenance())
 	}
 
 	// Split out the CodeQL default-setup virtual entry (if present) from
@@ -340,7 +357,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	rawReleases, relResp, err := runhistory.FetchReleases(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(relResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(relResp, err, org, repo, scope), client.Provenance())
 	}
 	// The tag-pattern filter runs here, before resolution, so an
 	// unresolvable tag only counts as a "drop" (below) when it's plausibly
@@ -441,10 +458,10 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	hasMatchedWorkflows := len(matchedWorkflows) > 0
 
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, sharedProv),
+		checkToolConfigured(org, repo, matchedWorkflows, skippedWorkflows, defaultSetup, dsResp, dsErr, scope, sharedProv),
 		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, hasMatchedWorkflows, skippedWorkflows, runsErr, sharedProv),
 		checkCadence(org, repo, matchedWorkflows, defaultSetup, dsResp, dsErr, cadence, runsErr, sharedProv),
-		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, dsProv),
+		checkDefaultSetup(org, repo, defaultSetup, dsResp, dsErr, scope, dsProv),
 	}
 }
 

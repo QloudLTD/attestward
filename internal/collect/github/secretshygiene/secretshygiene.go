@@ -150,6 +150,24 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/secretshygiene/secretshygiene_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit for this
+// collector. secrets.scanning-enabled/push-protection/advanced-security
+// all read security_and_analysis, the same GitHub Advanced Security
+// licensed feature github.com gates on private repos — GHESNoteLicenceGated
+// applies identically. deps.dependabot-alerts and org.security-defaults
+// are both left GHESNoteUnverified rather than guessed at: Dependabot on
+// GHES depends on GitHub Connect syncing github.com's advisory database
+// (or an airgapped alternative), which this tool's authors have not
+// independently confirmed behaves the same way at the API-response level
+// this collector reads.
+var checkGHESNotes = map[string]string{
+	"C04.secrets.scanning-enabled":  ghcollect.GHESNoteLicenceGated,
+	"C04.secrets.push-protection":   ghcollect.GHESNoteLicenceGated,
+	"C04.secrets.advanced-security": ghcollect.GHESNoteLicenceGated,
+	"C04.deps.dependabot-alerts":    ghcollect.GHESNoteUnverified,
+	"C04.org.security-defaults":     ghcollect.GHESNoteUnverified,
+}
+
 func init() {
 	for _, id := range allCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -161,6 +179,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}
@@ -170,25 +189,32 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every Client this collector builds — see
+	// ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each Client is constructed — see
 	// repoprotection.Collector's identical field for why.
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C04 collector authenticated with token. Like repoprotection
-// and envseparation, per-repo checks fan out via ForEachRepo's concurrent
-// worker pool, so each repo constructs its own Client. The org-level check
+// New returns a C04 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). Like repoprotection and envseparation, per-repo
+// checks fan out via ForEachRepo's concurrent worker pool, so each repo
+// constructs its own Client. The org-level check
 // (C04.org.security-defaults) additionally gets its own dedicated Client,
 // separate from any per-repo one, for the same provenance-isolation reason.
-func New(token string) *Collector {
-	return &Collector{token: token}
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.
@@ -202,7 +228,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
-		return collectRepo(ctx, client, scope.Org, repo), nil
+		return collectRepo(ctx, client, scope.Org, repo, scope), nil
 	})
 
 	all := []model.CheckResult{orgResult}
@@ -227,7 +253,7 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // repo fetch, and dependabot-alerts depends only on the second call;
 // giving either group the other's provenance would misrepresent what
 // evidence actually backs each claim.
-func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string) []model.CheckResult {
+func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string, scope collect.Scope) []model.CheckResult {
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
 		return allRepoNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
@@ -237,9 +263,9 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 	isPrivate := repository.GetPrivate()
 	sa := repository.SecurityAndAnalysis
 
-	scanning := checkSecretScanning(org, repo, sa, isPrivate, repoProv)
-	pushProtection := checkPushProtection(org, repo, sa, isPrivate, repoProv)
-	advSecurity := checkAdvancedSecurity(org, repo, sa, isPrivate, repoProv)
+	scanning := checkSecretScanning(org, repo, sa, isPrivate, scope, repoProv)
+	pushProtection := checkPushProtection(org, repo, sa, isPrivate, scope, repoProv)
+	advSecurity := checkAdvancedSecurity(org, repo, sa, isPrivate, scope, repoProv)
 
 	depEnabled, depResp, depErr := client.REST.Repositories.GetVulnerabilityAlerts(ctx, org, repo)
 	depProv := tailProvenance(client.Provenance(), len(repoProv))

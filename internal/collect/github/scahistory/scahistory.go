@@ -225,6 +225,25 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/scahistory/scahistory_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit. The other
+// four checks only ever call sharedEvidenceEndpoints plus other basic
+// repo/branch/release reads, none of them GHAS/Enterprise-license-gated.
+// alerts-triaged is the one exception, and deliberately GHESNoteUnverified
+// rather than guessed at: checkAlertsTriaged's own 403-message-substring
+// gating (see alertsDisabledMessageSubstring's doc comment) was
+// empirically confirmed against github.com specifically, and Dependabot
+// alerts on GHES additionally depend on GitHub Connect syncing github.com's
+// advisory database (or an airgapped alternative) — neither of which this
+// tool's authors have independently confirmed produces the same
+// status-code/message shape this collector reads.
+var checkGHESNotes = map[string]string{
+	"C06.sca.tool-configured":   ghcollect.GHESNoteSupported,
+	"C06.sca.dependabot-config": ghcollect.GHESNoteSupported,
+	"C06.sca.ran-per-release":   ghcollect.GHESNoteSupported,
+	"C06.sca.dependency-review": ghcollect.GHESNoteSupported,
+	"C06.sca.alerts-triaged":    ghcollect.GHESNoteUnverified,
+}
+
 func init() {
 	for _, id := range checkIDs {
 		collect.Register(collect.CheckMeta{
@@ -236,6 +255,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}
@@ -245,25 +265,31 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every per-repo Client this collector builds —
+	// see ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each repo's Client is constructed —
 	// see sasthistory.Collector's identical field for why.
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C06 collector authenticated with token. Per-repo checks
-// fan out via ForEachRepo's concurrent worker pool, so each repo
-// constructs its own Client — see sasthistory.New's doc comment for why a
-// shared client across concurrent repos would corrupt provenance
-// attribution.
-func New(token string) *Collector {
-	return &Collector{token: token}
+// New returns a C06 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). Per-repo checks fan out via ForEachRepo's concurrent
+// worker pool, so each repo constructs its own Client — see
+// sasthistory.New's doc comment for why a shared client across concurrent
+// repos would corrupt provenance attribution.
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.
@@ -330,13 +356,13 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 
 	repository, resp, err := client.REST.Repositories.Get(ctx, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(resp, err, org, repo, scope), client.Provenance())
 	}
 	defaultBranch := repository.GetDefaultBranch()
 
 	allWorkflows, wfResp, err := runhistory.ListWorkflows(ctx, client, org, repo)
 	if err != nil {
-		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo), client.Provenance())
+		return allNotCheckable(org, repo, notCheckableReason(wfResp, err, org, repo, scope), client.Provenance())
 	}
 	workflowMatches, skippedWorkflows := runhistory.MatchWorkflows(ctx, client, registry, org, repo, defaultBranch, allWorkflows, mapping.CategorySCA)
 	workflowMatchProv := snapshot()
@@ -451,11 +477,11 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, registry *mappin
 	summary := summarizeAlerts(alerts, now)
 
 	return []model.CheckResult{
-		checkToolConfigured(org, repo, workflowMatches, skippedWorkflows, dependabotConfigured, dependabotResp, dependabotErr, toolConfiguredProv),
-		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, runsErr, ranPerReleaseProv),
-		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, dependabotConfigProv),
+		checkToolConfigured(org, repo, workflowMatches, skippedWorkflows, dependabotConfigured, dependabotResp, dependabotErr, scope, toolConfiguredProv),
+		checkRanPerRelease(org, repo, filteredReleases, coverage, droppedTags, dependabotOnly, dependabotUnknown, hasMatchedWorkflows, skippedWorkflows, relResp, relErr, runsErr, scope, ranPerReleaseProv),
+		checkDependabotConfig(org, repo, cfg, configExists, detectedEcosystems, rootResp, rootErr, dependabotResp, dependabotErr, scope, dependabotConfigProv),
 		checkDependencyReview(org, repo, depReviewFound, skippedWorkflows, depReviewWorkflow, depReviewFetchErr, statusCheckNames, statusErr, dependencyReviewProv),
-		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, alertsProv),
+		checkAlertsTriaged(org, repo, alertsResp, alertsErr, summary, scope, alertsProv),
 	}
 }
 

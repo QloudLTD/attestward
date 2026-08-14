@@ -29,7 +29,7 @@ func TestOrgPreflightPopulatesScopeTrackingForWriteScopeWarning(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ghcollect.NewClient("ghp_test-token")
+	client := ghcollect.NewClient("ghp_test-token", ghcollect.ClientConfig{})
 	baseURL, err := url.Parse(server.URL + "/")
 	if err != nil {
 		t.Fatalf("parse test server URL: %v", err)
@@ -72,7 +72,7 @@ func TestCheckAccount_UserTypeDetected(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ghcollect.NewClient("ghp_test-token")
+	client := ghcollect.NewClient("ghp_test-token", ghcollect.ClientConfig{})
 	baseURL, err := url.Parse(server.URL + "/")
 	if err != nil {
 		t.Fatalf("parse test server URL: %v", err)
@@ -105,7 +105,7 @@ func TestRestRepoLister_ListReposHitsOrgEndpointForOrganization(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ghcollect.NewClient("ghp_test-token")
+	client := ghcollect.NewClient("ghp_test-token", ghcollect.ClientConfig{})
 	baseURL, err := url.Parse(server.URL + "/")
 	if err != nil {
 		t.Fatalf("parse test server URL: %v", err)
@@ -131,7 +131,7 @@ func TestRestRepoLister_ListReposHitsUserEndpointForUserAccount(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ghcollect.NewClient("ghp_test-token")
+	client := ghcollect.NewClient("ghp_test-token", ghcollect.ClientConfig{})
 	baseURL, err := url.Parse(server.URL + "/")
 	if err != nil {
 		t.Fatalf("parse test server URL: %v", err)

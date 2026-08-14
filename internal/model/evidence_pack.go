@@ -37,6 +37,14 @@ type ScanScope struct {
 	// Project is the Azure DevOps project name a scan is scoped to; empty
 	// for GitHub scans, which have no equivalent concept at this level.
 	Project string `json:"project,omitempty"`
+	// GitHubURL is the GitHub Enterprise Server base URL this scan targeted
+	// (issue #11's GHES epic), as resolved from --github-url/github_url:/
+	// GITHUB_URL — empty for a github.com scan (the default) or any
+	// azuredevops scan. Additive/optional, no SchemaVersion bump, same
+	// convention as Platform/Project above: recorded so a reader of a
+	// signed pack can tell which install produced it instead of assuming
+	// api.github.com.
+	GitHubURL string `json:"github_url,omitempty"`
 }
 
 // TaskRollup is one SSDF task's rolled-up status: the reduction (via

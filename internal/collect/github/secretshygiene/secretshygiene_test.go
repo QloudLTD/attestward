@@ -37,9 +37,9 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, body any) {
 
 func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 	t.Helper()
-	c := New("ghp_test-token")
+	c := New("ghp_test-token", ghcollect.ClientConfig{})
 	c.newClientForTest = func(token string) *ghcollect.Client {
-		client := ghcollect.NewClient(token)
+		client := ghcollect.NewClient(token, ghcollect.ClientConfig{})
 		baseURL, err := url.Parse(server.URL + "/")
 		if err != nil {
 			t.Errorf("parse test server URL: %v", err)
@@ -67,6 +67,71 @@ func byID(results []model.CheckResult) map[string]model.CheckResult {
 		m[r.CheckID] = r
 	}
 	return m
+}
+
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_PublicRepoFullyEnabled mirrors
+// TestCollect_PublicRepoFullyEnabled against a GHES-shaped base URL (issue
+// #13's GHES epic) — see secretshygiene.go's checkGHESNotes for this
+// package's own per-check divergence audit (scanning-enabled/push-
+// protection/advanced-security are GHESNoteLicenceGated; dependabot-alerts
+// and org.security-defaults are GHESNoteUnverified). This scenario uses a
+// public repo specifically because that's the one case none of the
+// licensing ambiguity applies — GHAS features are free on public repos on
+// github.com, and this proves the same repo-fetch/vulnerability-alerts
+// routing works correctly under "/api/v3" regardless. Alongside (not
+// replacing) the github.com scenario, so both drift together.
+func TestCollect_GHESHost_PublicRepoFullyEnabled(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/orgs/attestward-demo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"login": "attestward-demo"})
+	})
+	mux.HandleFunc("/api/v3/repos/attestward-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"private": false,
+			"security_and_analysis": map[string]any{
+				"secret_scanning":                 map[string]any{"status": "enabled"},
+				"secret_scanning_push_protection": map[string]any{"status": "enabled"},
+			},
+		})
+	})
+	mux.HandleFunc("/api/v3/repos/attestward-demo/good-repo/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNoContent, nil)
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+	for _, id := range []string{"C04.secrets.scanning-enabled", "C04.secrets.push-protection", "C04.deps.dependabot-alerts"} {
+		if got := m[id].Status; got != model.StatusVerifiedPass {
+			t.Errorf("%s status = %q, want verified-pass; reason=%q", id, got, m[id].Reason)
+		}
+		for _, p := range m[id].Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", id, p.Endpoint)
+			}
+		}
+	}
 }
 
 func TestCollect_PublicRepoFullyEnabled(t *testing.T) {

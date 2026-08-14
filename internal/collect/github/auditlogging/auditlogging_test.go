@@ -37,9 +37,9 @@ func newTestServer(t *testing.T, handler http.Handler) *httptest.Server {
 
 func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 	t.Helper()
-	c := New("ghp_test-token")
+	c := New("ghp_test-token", ghcollect.ClientConfig{})
 	c.newClientForTest = func(token string) *ghcollect.Client {
-		client := ghcollect.NewClient(token)
+		client := ghcollect.NewClient(token, ghcollect.ClientConfig{})
 		baseURL, err := url.Parse(server.URL + "/")
 		if err != nil {
 			t.Fatalf("parse test server URL: %v", err)
@@ -131,6 +131,111 @@ func TestCollect_AuditLogNotFound_NotCheckableNamesPlanAndScope(t *testing.T) {
 	}
 	if got.Facts["org_plan"] != "free" {
 		t.Errorf("org_plan fact = %v, want %q", got.Facts["org_plan"], "free")
+	}
+}
+
+// TestCollect_AuditLogNotFoundOnGHES_NamesLicenceNotPlan proves issue #12's
+// core fix: the exact same 404 TestCollect_AuditLogNotFound_
+// NamesPlanAndScope above produces "plan" for must instead name a GHES
+// licence limitation when scope.GHESVersion is set — github.com's "plan"
+// framing would simply be wrong on a GHES install, which has no per-org
+// plan tier at all.
+func TestCollect_AuditLogNotFoundOnGHES_NamesLicenceNotPlan(t *testing.T) {
+	org := "acme"
+	mux := http.NewServeMux()
+	registerAuditLogStatus(t, mux, org, http.StatusNotFound)
+	registerOrgPlan(t, mux, org, "free")
+	registerWebhooks(t, mux, org, "widgets", nil)
+
+	c := newCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{"widgets"}, GHESVersion: "3.9.0", IsGHES: true})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	got := byID(results)[orgLogAvailableID]
+
+	if got.Status != model.StatusNotCheckable {
+		t.Errorf("org-log-available = %q, want not-checkable; reason=%q", got.Status, got.Reason)
+	}
+	if strings.Contains(got.Reason, "plan") {
+		t.Errorf("Reason = %q, want no mention of \"plan\" on a GHES install", got.Reason)
+	}
+	if !strings.Contains(got.Reason, "GitHub Enterprise Server") {
+		t.Errorf("Reason = %q, want it to name GitHub Enterprise Server", got.Reason)
+	}
+	if got.Facts["ghes_version"] != "3.9.0" {
+		t.Errorf("ghes_version fact = %v, want %q", got.Facts["ghes_version"], "3.9.0")
+	}
+}
+
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_WebhookCoversPushEvent_VerifiedPass mirrors
+// TestCollect_WebhookCoversPushEvent_VerifiedPass against a real GHES-
+// shaped base URL (issue #13's GHES epic), proving actual routing under
+// "/api/v3" end to end — TestCollect_AuditLogNotFoundOnGHES_
+// NamesLicenceNotPlan above already covers the licence-vs-plan Reason
+// classification directly via scope.GHESVersion, without exercising real
+// host resolution; this test is this package's routing counterpart,
+// alongside (not replacing) the github.com scenario. webhooksID was
+// audited as ghcollect.GHESNoteSupported (see auditlogging.go's
+// checkGHESNotes): a basic REST endpoint, not GitHub Advanced Security
+// gated.
+func TestCollect_GHESHost_WebhookCoversPushEvent_VerifiedPass(t *testing.T) {
+	org, repo := "acme", "widgets"
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/orgs/"+org+"/audit-log", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []map[string]any{{"action": "org.update_member", "actor": "someone"}})
+	})
+	mux.HandleFunc("/api/v3/orgs/"+org, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/orgs/"+org {
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"login": org, "plan": map[string]any{"name": "enterprise"}})
+	})
+	mux.HandleFunc("/api/v3/repos/"+org+"/"+repo+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, []map[string]any{
+			{
+				"active": true,
+				"events": []string{"push", "issues"},
+				"config": map[string]any{"url": "https://hooks.example.com/webhook"},
+			},
+		})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repo}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	got := m[webhooksID]
+	if got.Status != model.StatusVerifiedPass {
+		t.Errorf("webhooks = %q, want verified-pass; reason=%q", got.Status, got.Reason)
+	}
+	for _, r := range results {
+		for _, p := range r.Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", r.CheckID, p.Endpoint)
+			}
+		}
 	}
 }
 

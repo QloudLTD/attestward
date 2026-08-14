@@ -91,6 +91,11 @@ type checkPlatformView struct {
 	FixtureRef  string
 	Endpoints   []string
 	Rubric      []rubricRow
+	// GHESNote is collect.CheckMeta.GHESNote's rendering — see that field's
+	// own doc comment. Empty for every azuredevops platform instance and
+	// for a github check with no Endpoints; the template renders the line
+	// only when non-empty.
+	GHESNote string
 }
 
 type rubricRow struct {
@@ -229,6 +234,7 @@ func buildContext(registered []collect.CheckMeta, ssdf *mapping.SSDFMapping, cis
 					FixtureRef:  meta.FixtureRef,
 					Endpoints:   meta.Endpoints,
 					Rubric:      rubric,
+					GHESNote:    meta.GHESNote,
 				})
 			}
 			groupByCollector[collectorID] = append(groupByCollector[collectorID], cv)

@@ -37,15 +37,39 @@ func newTestServer(t *testing.T, handler http.Handler) *httptest.Server {
 
 func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 	t.Helper()
-	c := New("ghp_test-token")
+	c := New("ghp_test-token", ghcollect.ClientConfig{})
 	c.newClientForTest = func(token string) *ghcollect.Client {
-		client := ghcollect.NewClient(token)
+		client := ghcollect.NewClient(token, ghcollect.ClientConfig{})
 		baseURL, err := url.Parse(server.URL + "/")
 		if err != nil {
 			t.Fatalf("parse test server URL: %v", err)
 		}
 		client.REST.BaseURL = baseURL
 		return client
+	}
+	return c
+}
+
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic), and wraps handler in
+// http.StripPrefix("/api/v3", handler) — go-github's request builder adds
+// that prefix for a GHES base URL, and stripping it before dispatch lets a
+// GHES scenario reuse this package's existing github.com-shaped mux
+// helpers (registerSecurityMDLookup et al.) unmodified, rather than
+// hand-duplicating every candidatePaths entry under a second prefix.
+func newGHESCollectorForServer(t *testing.T, handler http.Handler) *Collector {
+	t.Helper()
+	server := httptest.NewServer(http.StripPrefix("/api/v3", handler))
+	t.Cleanup(server.Close)
+
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
 	}
 	return c
 }
@@ -164,6 +188,44 @@ func TestCollect_SecurityMDInRepoRoot_AllRepoChecksPass(t *testing.T) {
 	}
 	if got := m[privateReportingID].Status; got != model.StatusVerifiedPass {
 		t.Errorf("private-reporting = %q, want verified-pass; reason=%q", got, m[privateReportingID].Reason)
+	}
+}
+
+// TestCollect_GHESHost_SecurityMDInRepoRoot_AllRepoChecksPass mirrors
+// TestCollect_SecurityMDInRepoRoot_AllRepoChecksPass against a GHES-shaped
+// base URL (issue #13's GHES epic) — securityMDID/intakeChannelID were
+// audited as ghcollect.GHESNoteSupported (basic contents reads), while
+// privateReportingID is this package's one ghcollect.GHESNoteUnverified
+// check (see vdp.go's checkGHESNotes): private-vulnerability-reporting is
+// recent enough on github.com that its GHES availability isn't verified.
+// This scenario still exercises it (registerPrivateReporting fixtures a
+// 200 either way) to prove routing works regardless of that open
+// question — the Reason/Facts honesty is unaffected by which host served
+// the response. Alongside (not replacing) the github.com scenario, so
+// both drift together.
+func TestCollect_GHESHost_SecurityMDInRepoRoot_AllRepoChecksPass(t *testing.T) {
+	org, repo := "acme", "widgets"
+	mux := http.NewServeMux()
+	registerSecurityMDLookup(t, mux, org, repo, map[string]string{repo + ":SECURITY.md": goodSecurityMD})
+	registerPrivateReporting(t, mux, org, repo, true)
+	registerDotGithubRepoMissing(t, mux, org)
+
+	c := newGHESCollectorForServer(t, mux)
+	results, err := c.Collect(context.Background(), collect.Scope{Org: org, Repos: []string{repo}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	m := byID(results)
+
+	for _, id := range []string{securityMDID, intakeChannelID, privateReportingID} {
+		if got := m[id].Status; got != model.StatusVerifiedPass {
+			t.Errorf("%s = %q, want verified-pass; reason=%q", id, got, m[id].Reason)
+		}
+		for _, p := range m[id].Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", id, p.Endpoint)
+			}
+		}
 	}
 }
 

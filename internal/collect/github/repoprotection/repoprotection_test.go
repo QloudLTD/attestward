@@ -70,13 +70,13 @@ func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 	// no client to redirect at the test server directly — instead this
 	// override makes every freshly constructed client point at it, mirroring
 	// how a real token would authenticate against api.github.com.
-	c := New("ghp_test-token")
+	c := New("ghp_test-token", ghcollect.ClientConfig{})
 	c.newClientForTest = func(token string) *ghcollect.Client {
 		// Runs inside ForEachRepo's worker goroutines, never the test's own
 		// goroutine — t.Fatalf there would only abort that worker (via
 		// runtime.Goexit), not the test, so a genuine parse failure must be
 		// reported with Errorf instead.
-		client := ghcollect.NewClient(token)
+		client := ghcollect.NewClient(token, ghcollect.ClientConfig{})
 		baseURL, err := url.Parse(server.URL + "/")
 		if err != nil {
 			t.Errorf("parse test server URL: %v", err)
@@ -86,6 +86,66 @@ func newCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
 		return client
 	}
 	return c
+}
+
+// newGHESCollectorForServer mirrors newCollectorForServer, but resolves
+// each per-repo client through ghcollect.ResolveHostConfig the way a real
+// --github-url scan would (issue #13's GHES epic) — so the mux must route
+// requests under the "/api/v3" prefix go-github's request builder adds for
+// a GHES base URL.
+func newGHESCollectorForServer(t *testing.T, server *httptest.Server) *Collector {
+	t.Helper()
+	cfg, err := ghcollect.ResolveHostConfig(server.URL, "")
+	if err != nil {
+		t.Fatalf("ResolveHostConfig: %v", err)
+	}
+	c := New("ghp_test-token", cfg)
+	c.newClientForTest = func(token string) *ghcollect.Client {
+		return ghcollect.NewClient(token, cfg)
+	}
+	return c
+}
+
+// TestCollect_GHESHost_RulesetOnlyRepoAllChecksPass mirrors
+// TestCollect_RulesetOnlyRepoAllChecksPass against a GHES-shaped base URL
+// (issue #13's GHES epic) — this collector's own endpoints were audited as
+// ghcollect.GHESNoteSupported (see repoprotection.go's init()): basic repo/
+// branch-protection/rulesets REST surface, not GitHub Advanced Security
+// gated, expected to work unmodified on GHES. Alongside (not replacing)
+// the github.com scenario, so both drift together.
+func TestCollect_GHESHost_RulesetOnlyRepoAllChecksPass(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/repos/attestward-demo/good-repo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"default_branch": "main"})
+	})
+	mux.HandleFunc("/api/v3/repos/attestward-demo/good-repo/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Branch not protected"})
+	})
+	mux.HandleFunc("/api/v3/repos/attestward-demo/good-repo/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, fullProtectionRules(1))
+	})
+	mux.HandleFunc("/api/v3/repos/attestward-demo/good-repo/rulesets/1", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"id": 1, "name": "main-protection"})
+	})
+
+	c := newGHESCollectorForServer(t, newTestServer(t, mux))
+	results, err := c.Collect(context.Background(), collect.Scope{Org: "attestward-demo", Repos: []string{"good-repo"}})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(results) != 6 {
+		t.Fatalf("len(results) = %d, want 6", len(results))
+	}
+	for _, r := range results {
+		if r.Status != model.StatusVerifiedPass {
+			t.Errorf("%s status = %q, want verified-pass; reason=%q", r.CheckID, r.Status, r.Reason)
+		}
+		for _, p := range r.Provenance {
+			if !strings.HasPrefix(p.Endpoint, "/api/v3") {
+				t.Errorf("%s provenance Endpoint = %q, want a /api/v3 prefix (GHES routing)", r.CheckID, p.Endpoint)
+			}
+		}
+	}
 }
 
 func TestCollect_UnprotectedRepoAllChecksFail(t *testing.T) {

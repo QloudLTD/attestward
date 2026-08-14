@@ -60,8 +60,11 @@ var checkIDs = append(append([]string{}, orgCheckIDs...), webhooksID)
 // though this tool can't verify it directly.
 var checkRemediations = map[string]string{
 	orgLogAvailableID: "This check can only ever report verified-pass or not-checkable, never a fail — " +
-		"if it's not-checkable, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log " +
-		"API, or the token isn't an org owner with the read:audit_log scope. Upgrading the plan or " +
+		"if it's not-checkable on github.com, either the org's plan doesn't include GitHub Enterprise Cloud's audit-log " +
+		"API, or the token isn't an org owner with the read:audit_log scope. On GitHub Enterprise Server " +
+		"there is no plan tier at all, so the same status means a licensing, version or token-scope " +
+		"limitation instead — see the result's own Reason, which distinguishes the two hosts. " +
+		"Upgrading the plan (github.com) or " +
 		"granting that scope is what would make this check verifiable.",
 	logStreamingID: "Not remediable via this tool's own checks: audit-log streaming/export only exists " +
 		"at the GitHub Enterprise account level (Enterprise Settings -> Audit log -> Log streaming), not " +
@@ -132,6 +135,23 @@ var checkEndpoints = map[string][]string{
 
 const fixtureRef = "internal/collect/github/auditlogging/auditlogging_test.go"
 
+// checkGHESNotes is issue #13's per-check GHES divergence audit.
+// orgLogAvailableID is deliberately GHESNoteUnverified rather than guessed
+// at either way: "Enterprise-only in practice" on github.com refers to a
+// per-org PLAN tier, a concept that doesn't obviously carry over to GHES
+// (every GHES org already runs inside an Enterprise-licensed install), but
+// this tool's authors have not independently confirmed whether that makes
+// the endpoint universally available there or whether it still needs
+// enterprise-owner permission/a different path — see checkOrgLogAvailable's
+// own doc comment for how Collect() already handles this honestly at
+// runtime via ghcollect.ClassifyGate rather than assuming either way
+// statically. logStreamingID/retentionAwarenessID register no Endpoints
+// (fixed facts, no API call), so neither needs an entry here.
+var checkGHESNotes = map[string]string{
+	orgLogAvailableID: ghcollect.GHESNoteUnverified,
+	webhooksID:        ghcollect.GHESNoteSupported,
+}
+
 func init() {
 	for _, id := range orgCheckIDs {
 		collect.Register(collect.CheckMeta{
@@ -146,6 +166,7 @@ func init() {
 			Remediation: checkRemediations[id],
 			Rubric:      checkRubrics[id],
 			Endpoints:   checkEndpoints[id],
+			GHESNote:    checkGHESNotes[id],
 			FixtureRef:  fixtureRef,
 		})
 	}
@@ -159,6 +180,7 @@ func init() {
 		Remediation: checkRemediations[webhooksID],
 		Rubric:      checkRubrics[webhooksID],
 		Endpoints:   checkEndpoints[webhooksID],
+		GHESNote:    checkGHESNotes[webhooksID],
 		FixtureRef:  fixtureRef,
 	})
 }
@@ -167,26 +189,33 @@ func init() {
 type Collector struct {
 	token string
 
+	// hostConfig carries the resolved GHES base URL/CA (or the zero value,
+	// for github.com) into every Client this collector builds — see
+	// ghcollect.ResolveHostConfig (issue #11).
+	hostConfig ghcollect.ClientConfig
+
 	// newClientForTest overrides how each Client is constructed — see
 	// secretshygiene.Collector's identical field for why.
 	newClientForTest func(token string) *ghcollect.Client
 }
 
-// New returns a C09 collector authenticated with token. The three
-// org-scoped checks share one dedicated Client (a single Collect call
-// never runs them concurrently, so provenance attribution stays simple);
-// C09.repo.webhooks fans out per-repo via ForEachRepo, each with its own
-// fresh Client, for the same provenance-isolation reason as every other
-// per-repo collector in this codebase.
-func New(token string) *Collector {
-	return &Collector{token: token}
+// New returns a C09 collector authenticated with token, targeting cfg's
+// host — github.com for the zero value, or a GitHub Enterprise Server
+// install (issue #11). The three org-scoped checks share one dedicated
+// Client (a single Collect call never runs them concurrently, so
+// provenance attribution stays simple); C09.repo.webhooks fans out
+// per-repo via ForEachRepo, each with its own fresh Client, for the same
+// provenance-isolation reason as every other per-repo collector in this
+// codebase.
+func New(token string, cfg ghcollect.ClientConfig) *Collector {
+	return &Collector{token: token, hostConfig: cfg}
 }
 
 func (c *Collector) newClient() *ghcollect.Client {
 	if c.newClientForTest != nil {
 		return c.newClientForTest(c.token)
 	}
-	return ghcollect.NewClient(c.token)
+	return ghcollect.NewClient(c.token, c.hostConfig)
 }
 
 // ID implements collect.Collector.
@@ -196,7 +225,7 @@ func (c *Collector) ID() string { return collectorID }
 // top-level error for a per-repo API failure — see org-security's Collect
 // doc comment for why that matters for the rollup.
 func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.CheckResult, error) {
-	orgResults := collectOrg(ctx, c.newClient(), scope.Org, scope.AccountType)
+	orgResults := collectOrg(ctx, c.newClient(), scope.Org, scope.AccountType, scope.GHESVersion, scope.IsGHES)
 
 	repoResults := ghcollect.ForEachRepo(ctx, scope.Repos, ghcollect.DefaultConcurrency, func(ctx context.Context, repo string) ([]model.CheckResult, error) {
 		client := c.newClient()
@@ -221,9 +250,9 @@ func (c *Collector) Collect(ctx context.Context, scope collect.Scope) ([]model.C
 // checkRetentionAwareness are fixed, evidence-free results regardless of
 // account type (see their own doc comments for why no call could ever
 // change their answer).
-func collectOrg(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType) []model.CheckResult {
+func collectOrg(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType, ghesVersion string, isGHES bool) []model.CheckResult {
 	return []model.CheckResult{
-		checkOrgLogAvailable(ctx, client, org, accountType),
+		checkOrgLogAvailable(ctx, client, org, accountType, ghesVersion, isGHES),
 		checkLogStreaming(org),
 		checkRetentionAwareness(org),
 	}
@@ -244,14 +273,19 @@ func notCheckableResult(id, org, repo, reason string, prov []model.Provenance) m
 // pulling real audit data into the evidence pack (audit entries can
 // contain sensitive detail; ADR-0004/threat-model.md's "no raw response
 // bodies" rule applies here too, so this check only ever records whether
-// the call succeeded, never the entries themselves). A plan-gated
-// response (402/404, see ghcollect.IsPlanGated — this exact endpoint is
-// the case its doc comment names) and a permission-gated one (403,
-// missing org-owner status or the read:audit_log scope) are reported
-// distinctly, but GitHub itself doesn't reliably distinguish "wrong plan"
-// from "wrong scope" for this endpoint, so 402/404's Reason names both
-// possibilities rather than asserting one with false confidence.
-func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType) model.CheckResult {
+// the call succeeded, never the entries themselves). A gated response
+// (402/404, see ghcollect.IsPlanGated — this exact endpoint is the case
+// its doc comment names) and a permission-gated one (403, missing
+// org-owner status or the read:audit_log scope) are reported distinctly.
+//
+// ghesVersion (issue #12) distinguishes a github.com plan-tier gate from a
+// GHES one: on github.com, GitHub doesn't reliably tell "wrong plan" from
+// "wrong scope" apart for this endpoint, so the plan-gated Reason names
+// both possibilities rather than asserting one with false confidence; on
+// GHES there's no plan tier at all, so ghcollect.ClassifyGate/GateReason
+// produce the licence/version-flavored Reason instead (never "plan," which
+// would simply be wrong there).
+func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org string, accountType collect.AccountType, ghesVersion string, isGHES bool) model.CheckResult {
 	const id = orgLogAvailableID
 
 	if accountType == collect.AccountTypeUser {
@@ -273,6 +307,9 @@ func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org str
 	if planKnown {
 		facts["org_plan"] = plan
 	}
+	if ghesVersion != "" {
+		facts["ghes_version"] = ghesVersion
+	}
 
 	if err == nil {
 		return model.CheckResult{
@@ -282,9 +319,15 @@ func checkOrgLogAvailable(ctx context.Context, client *ghcollect.Client, org str
 		}
 	}
 
+	statusCode := 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
 	reason := fmt.Sprintf("could not query the organization audit log: %v", err)
-	switch {
-	case resp != nil && ghcollect.IsPlanGated(resp.StatusCode):
+	switch gate := ghcollect.ClassifyGate(statusCode, isGHES, ghesVersion, ""); {
+	case gate == ghcollect.GateKindLicence || gate == ghcollect.GateKindVersion:
+		reason = ghcollect.GateReason(gate, "the organization audit log", ghesVersion, "")
+	case gate == ghcollect.GateKindPlan:
 		reason = fmt.Sprintf(
 			"GET /orgs/{org}/audit-log returned %d — either the org's plan doesn't include GitHub Enterprise "+
 				"Cloud's audit-log API, or the token lacks the read:audit_log scope (GitHub returns the same "+
