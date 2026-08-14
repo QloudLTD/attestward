@@ -339,13 +339,13 @@ This check is registered under more than one platform — details for each below
 
 #### gitlab — Branch protection applies to administrators
 
-- **Token permission:** read_api (Reporter or above on the project)
+- **Token permission:** none — no API call backs this check. A GitLab token is still needed for the scan as a whole, but nothing about this result depends on what it can reach
 - **Fixture:** `internal/collect/gitlab/repoprotection/repoprotection_test.go`
 - **API endpoint(s):** none — this check's result is a fixed fact, not derived from an API call (see rubric below)
 
 **Status rubric:**
 
-- **not-checkable:** GitLab has no equivalent of GitHub's enforce_admins, so no API field answers this. Reporting pass or fail would assert a control GitLab does not model.
+- **not-checkable:** GitLab has no equivalent of GitHub's enforce_admins, so no API field answers this. Reporting pass or fail would assert a control GitLab does not model. This is a fixed answer on every scan: no read can change it, and no read failure changes its stated reason either.
 
 **Remediation:** Not applicable on GitLab: protection is expressed as access levels rather than a rule with an administrator exemption. Restrict push and merge to Maintainers and limit who holds Owner.
 
@@ -610,7 +610,7 @@ This check is registered under more than one platform — details for each below
 **Status rubric:**
 
 - **partial:** approvals_before_merge is 1 or more, which shows intent — but that field was deprecated in GitLab 12.3 and does not enforce review on current versions. Approval rules do, and they are a paid-tier feature this scan cannot read, so enforcement is not confirmed. The reason names author self-approval when it is enabled.
-- **not-checkable:** approvals_before_merge is 0, or the approvals endpoint was unreadable — a 403 there means the token is below Maintainer or the tier does not entitle the approval surface, and the response does not distinguish them. Neither case distinguishes "no review required" from "a rule this tier cannot expose", so no pass or fail is asserted.
+- **not-checkable:** approvals_before_merge is 0, or the approvals endpoint was unreadable — a 403 there means the token is below Maintainer or the tier does not entitle the approval surface, and the response does not distinguish them. Neither case distinguishes "no review required" from "a rule this tier cannot expose", so no pass or fail is asserted. A third route reaches this status without the endpoint being read at all: the project is empty, or the earlier protected-branches read failed, and the scan stops before the approvals call — the reason says so when that is what happened.
 
 **Remediation:** Project → Settings → Merge requests → add an approval rule requiring at least one approver, and enable "Prevent approvals by author". Note that approval RULES are a paid-tier feature; on Free the "Approvals required" number is accepted and not enforced, which is why this check cannot confirm the gate from the API alone. Scan with a token at Maintainer or above: at Reporter this check's only endpoint returns 403 and it cannot resolve at all.
 
@@ -678,7 +678,7 @@ This check is registered under more than one platform — details for each below
 
 - **verified-fail:** only_allow_merge_if_pipeline_succeeds is false.
 - **partial:** Pipelines must succeed, but allow_merge_on_skipped_pipeline is true, so a change that runs no jobs merges unchecked.
-- **not-checkable:** The project object could not be read.
+- **not-checkable:** The project object could not be read. Nothing else reaches this status: both fields are read from that object, so neither a failed protected-branches read nor an empty project with no default branch affects this check.
 - **verified-pass:** only_allow_merge_if_pipeline_succeeds is true and a skipped pipeline does not satisfy it.
 
 **Remediation:** Project → Settings → Merge requests → enable "Pipelines must succeed", and leave "Skipped pipelines are considered successful" off.

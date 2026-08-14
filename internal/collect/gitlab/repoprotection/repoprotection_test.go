@@ -236,7 +236,7 @@ func TestTokenScopeMatchesWhatEachEndpointActuallyAnswers(t *testing.T) {
 			idRequiredReviews, meta.TokenScope)
 	}
 
-	for _, id := range []string{idProtectionExists, idForcePushBlocked, idDeletionBlocked, idRequiredStatusChecks, idAdminEnforced} {
+	for _, id := range []string{idProtectionExists, idForcePushBlocked, idDeletionBlocked, idRequiredStatusChecks} {
 		m, ok := collect.LookupPlatform(platform, id)
 		if !ok {
 			t.Fatalf("%s is not registered", id)
@@ -248,18 +248,181 @@ func TestTokenScopeMatchesWhatEachEndpointActuallyAnswers(t *testing.T) {
 	}
 }
 
+// TestAdminEnforcedDocumentsNoTokenRequirement is the documentation half of
+// issue #21. admin-enforced held branchTokenScope, which was true only
+// because a failed protected-branches read used to blank it out along with
+// its siblings: the role behind that read really did decide what an operator
+// saw here. Now that it is emitted on every path, no role affects it, and a
+// scope naming one would send an operator after a token that changes nothing.
+func TestAdminEnforcedDocumentsNoTokenRequirement(t *testing.T) {
+	meta, ok := collect.LookupPlatform(platform, idAdminEnforced)
+	if !ok {
+		t.Fatalf("%s is not registered", idAdminEnforced)
+	}
+	if meta.TokenScope != noAPICallTokenScope {
+		t.Errorf("%s token scope = %q, want %q — it makes no request, so no role makes it resolve",
+			idAdminEnforced, meta.TokenScope, noAPICallTokenScope)
+	}
+	if len(meta.Endpoints) != 0 {
+		t.Errorf("%s registers endpoints %v, but no API call backs it", idAdminEnforced, meta.Endpoints)
+	}
+}
+
+// TestProtectedBranchesFailureSparesTheChecksThatDoNotNeedIt is the property
+// issue #21 turns on, and the same shape as issue #17's finding in
+// envseparation: a failed read must not void checks whose data is already in
+// hand. GET /projects/{id} succeeds, GET /projects/{id}/protected_branches
+// fails, and the two checks that never touch the second endpoint must still
+// carry their real answers.
+//
+// It is deliberately driven at 500 rather than 403. The 403 case is the one
+// operators meet in the sibling collectors, but /protected_branches answers
+// 200 at Reporter, so the reachable version of this bug is a server or network
+// failure — testing the case that can actually happen.
+func TestProtectedBranchesFailureSparesTheChecksThatDoNotNeedIt(t *testing.T) {
+	r := defaults()
+	r.branchesStatus = http.StatusInternalServerError
+	want := map[string]model.Status{
+		// Answerable from GET /projects/{id}, which succeeded.
+		idRequiredStatusChecks: model.StatusVerifiedPass,
+		// Answerable from nothing at all.
+		idAdminEnforced: model.StatusNotCheckable,
+		// Genuinely dependent: their protection data never arrived.
+		idProtectionExists: model.StatusNotCheckable,
+		idForcePushBlocked: model.StatusNotCheckable,
+		idDeletionBlocked:  model.StatusNotCheckable,
+		// Its own endpoint sits after the failed one and was never called.
+		idRequiredReviews: model.StatusNotCheckable,
+	}
+	res := collectWith(t, r)
+	if len(res) != len(want) {
+		t.Fatalf("got %d results, want %d — every check must still be reported", len(res), len(want))
+	}
+	for _, got := range res {
+		w, ok := want[got.CheckID]
+		if !ok {
+			t.Errorf("unexpected check %s", got.CheckID)
+			continue
+		}
+		if got.Status != w {
+			t.Errorf("%s = %q on a protected-branches 500, want %q (%s)", got.CheckID, got.Status, w, got.Reason)
+		}
+	}
+}
+
+// TestProtectedBranchesFailureReasonsNameTheRealCause pins the half of issue
+// #21 that a status assertion cannot see. The blanket abort gave all six
+// checks the SAME reason — "could not read protected branches" — which was
+// untrue for two of them: admin-enforced lost the only reason it has ever had,
+// and required-reviews was told its data was unreadable when its endpoint was
+// never called. A status can be right for a stated cause that is wrong, and
+// the reason is what an operator acts on.
+func TestProtectedBranchesFailureReasonsNameTheRealCause(t *testing.T) {
+	r := defaults()
+	r.branchesStatus = http.StatusInternalServerError
+	res := collectWith(t, r)
+
+	admin := find(t, res, idAdminEnforced)
+	if !strings.Contains(admin.Reason, "enforce_admins") {
+		t.Errorf("admin-enforced reason = %q, want its own fixed reason — it makes no call, so a protected-branches "+
+			"failure cannot be why it is not-checkable", admin.Reason)
+	}
+	if strings.Contains(admin.Reason, "protected branches") {
+		t.Errorf("admin-enforced reason blames the protected-branches read: %q", admin.Reason)
+	}
+	if len(admin.Provenance) != 0 {
+		t.Errorf("admin-enforced carries provenance %v, but no API call backs it", admin.Provenance)
+	}
+
+	reviews := find(t, res, idRequiredReviews)
+	if !strings.Contains(reviews.Reason, "never attempted") {
+		t.Errorf("required-reviews reason = %q, want it to say its own endpoint was never called rather than "+
+			"implying the approvals data itself was unreadable", reviews.Reason)
+	}
+
+	// The three that genuinely depend on the failed read must still say so.
+	for _, id := range []string{idProtectionExists, idForcePushBlocked, idDeletionBlocked} {
+		if got := find(t, res, id); !strings.Contains(got.Reason, "protected branches") {
+			t.Errorf("%s reason = %q, want it to name the read that actually failed", id, got.Reason)
+		}
+	}
+}
+
+// TestAdminEnforcedKeepsItsOwnReasonOnEveryPath sweeps the collector's failure
+// paths rather than the one issue #21 was filed about. This check reads
+// nothing, so no path may restate why it is not-checkable — the earlier bug was
+// one instance of a rule that holds for all of them.
+func TestAdminEnforcedKeepsItsOwnReasonOnEveryPath(t *testing.T) {
+	states := map[string]routes{
+		"project unreadable": {projectStatus: http.StatusNotFound},
+		"protected branches unreadable": {project: fmt.Sprintf(realProject, true, "false"),
+			branchesStatus: http.StatusForbidden, approvals: fmt.Sprintf(realApprovals, 1, false)},
+		"empty project":       {project: `{"path":"p","default_branch":null}`},
+		"everything readable": defaults(),
+	}
+	for name, st := range states {
+		got := find(t, collectWith(t, st), idAdminEnforced)
+		if got.Status != model.StatusNotCheckable || !strings.Contains(got.Reason, "enforce_admins") {
+			t.Errorf("%s: admin-enforced = %q / %q, want not-checkable with its own fixed reason",
+				name, got.Status, got.Reason)
+		}
+		if len(got.Provenance) != 0 {
+			t.Errorf("%s: admin-enforced carries provenance %v, but no API call backs it", name, got.Provenance)
+		}
+	}
+}
+
 func TestAdminEnforcedIsAlwaysNotCheckable(t *testing.T) {
 	if got := find(t, collectWith(t, defaults()), idAdminEnforced); got.Status != model.StatusNotCheckable {
 		t.Errorf("admin-enforced = %q, want not-checkable — GitLab does not model it", got.Status)
 	}
 }
 
+// TestEmptyProjectIsNotAFailure covers the four checks that read branch state.
+// An empty project has no default branch, so there is nothing for them to look
+// at and a fail would assert an absent control that was never looked for.
+//
+// required-status-checks is deliberately excluded (issue #21): on GitLab it is
+// not a branch check at all. only_allow_merge_if_pipeline_succeeds is a project
+// setting, was read successfully, and is as true of an empty project as of any
+// other — an empty project with the merge gate off will accept ungated merges
+// the moment someone pushes to it. Reporting not-checkable there claimed the
+// answer was unknown when it had already been computed.
 func TestEmptyProjectIsNotAFailure(t *testing.T) {
 	r := defaults()
 	r.project = `{"path":"p","default_branch":null}`
+	branchDerived := map[string]bool{
+		idProtectionExists: true, idForcePushBlocked: true, idDeletionBlocked: true, idRequiredReviews: true,
+	}
 	for _, got := range collectWith(t, r) {
-		if got.Status == model.StatusVerifiedFail {
+		if branchDerived[got.CheckID] && got.Status == model.StatusVerifiedFail {
 			t.Errorf("%s = verified-fail on an empty project; there is no branch to protect yet", got.CheckID)
+		}
+	}
+}
+
+// TestEmptyProjectStillAnswersTheProjectLevelChecks is the other half of the
+// same issue-#21 split. The project object was read in full before the empty
+// default branch was noticed, so both checks that do not need a branch must
+// still answer — with the setting's real value, in both directions.
+func TestEmptyProjectStillAnswersTheProjectLevelChecks(t *testing.T) {
+	for _, c := range []struct {
+		pipelineGate bool
+		want         model.Status
+	}{
+		{true, model.StatusVerifiedPass},
+		{false, model.StatusVerifiedFail},
+	} {
+		r := defaults()
+		r.project = fmt.Sprintf(`{"path":"p","default_branch":null,"only_allow_merge_if_pipeline_succeeds":%t}`, c.pipelineGate)
+		res := collectWith(t, r)
+		if got := find(t, res, idRequiredStatusChecks); got.Status != c.want {
+			t.Errorf("only_allow_merge_if_pipeline_succeeds=%t on an empty project = %q, want %q — the field was "+
+				"read and the answer is not unknown (%s)", c.pipelineGate, got.Status, c.want, got.Reason)
+		}
+		if got := find(t, res, idAdminEnforced); !strings.Contains(got.Reason, "enforce_admins") {
+			t.Errorf("admin-enforced reason on an empty project = %q, want its own fixed reason — it reads "+
+				"nothing, so an empty project cannot change why it is not-checkable", got.Reason)
 		}
 	}
 }

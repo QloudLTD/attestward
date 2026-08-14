@@ -510,6 +510,14 @@ Only `C02.branch.required-reviews` reads the third row, so only its
 of them do not need, which is the mirror image of the understatement being
 fixed.
 
+> **Amended by issue #21.** Four of those five keep Reporter;
+> `C02.branch.admin-enforced` no longer documents a role at all. It issues no
+> request — GitLab models no control for it to read — so no token makes it
+> resolve. Reporter was defensible only while a failed `protected_branches`
+> read blanked this check out along with its siblings, which made the role
+> behind *that* row decide what an operator saw here. It is now emitted on
+> every path, so nothing about it depends on the token.
+
 The collector-level abort that issue #17 had to fix does **not** exist here.
 `collectRepo` already reads `/approvals` into its own `apprErr` and passes it
 to `requiredReviews` alone, so a 403 there degrades exactly one check;
