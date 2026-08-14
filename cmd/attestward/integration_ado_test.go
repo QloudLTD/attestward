@@ -27,13 +27,16 @@ import (
 
 // The ADO demo project's project/repo names are fixed constants, not read
 // from fixtures-ado.yaml — deliberately unlike the GitHub twin, which
-// derives its scan's org/repos from fixtures.yaml because that org is
-// permanent. ADO_ORG is an environment variable
-// instead of a constant because the org itself (unlike the project/repo
-// names within it) may need to move without a code change — see issue
-// #155's own latest comment, which records the live org as dev.azure.com/
-// seciq but treats that as the current answer, not a permanently fixed one
-// the way Qloud-LTD is for GitHub.
+// derives its scan's org/repos from fixtures.yaml, so moving the GitHub demo
+// org is a data edit there rather than a code change (proven for real by
+// issue #9: the original org's owning account was banned and the demo org
+// moved to a fresh one, Qloud-ltd-com, via exactly that mechanism — no org
+// name is actually permanent). ADO_ORG is an environment variable instead
+// of a constant for the same reason: the org itself (unlike the
+// project/repo names within it) may need to move without a code change —
+// see issue #155's own latest comment, which records the live org as
+// dev.azure.com/seciq but treats that as the current answer, not a fixed
+// one.
 const (
 	adoDemoProject  = "attestward-demo"
 	adoDemoGoodRepo = "demo-good"

@@ -7,6 +7,38 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **README's Windows quickstart used `tar -xzf` on a `.zip`.** The manual-download
+  instructions used one `<os>_<arch>.tar.gz` pattern for every platform; the real
+  Windows release asset is `attestward_<version>_windows_amd64.zip` (goreleaser
+  `format_overrides`), which `tar` cannot extract. Added a Windows-specific paragraph
+  with the real filename, a `CertUtil`/`sha256sum` verify option, and
+  `Expand-Archive`/zip-tool extraction.
+
+### Changed
+
+- **`CONTRIBUTING.md` corrected to describe the actual GitLab-based workflow.** It still
+  described a GitHub-Issues/PR/squash-merge process; the project has run entirely on
+  GitLab issues and merge requests (real merge commits, not squashed) for some time. Also
+  ported the two GitHub Issue Forms (`.github/ISSUE_TEMPLATE/`) to GitLab issue
+  description templates (`.gitlab/issue_templates/`), since GitHub Issues are disabled on
+  the read-only GitHub mirror and those forms were otherwise unreachable.
+- **The code is now also mirrored, read-only, to GitHub
+  ([QloudLTD/attestward](https://github.com/QloudLTD/attestward)) and Gogs
+  ([gogs.ioakeim.com/sioakim/attestward](https://gogs.ioakeim.com/sioakim/attestward))**,
+  for visibility. GitLab remains the sole issue tracker, CI, and release pipeline — both
+  mirrors have Issues/Actions disabled or unmonitored.
+
+
+## [1.1.0] - 2026-08-14
+
+The first release cut on the GitLab CI release pipeline (the previous GitHub Actions
+pipeline stopped working when its GitHub account was banned; see `docs/adr/` and
+`SECURITY.md` for the replacement's keyless-signing design). `v1.1.0-beta.1` validated
+the pipeline end to end — real release, real cosign-verified signature, both example CI
+templates run against a live download — before this tag.
+
 ### Added
 
 - **Gogs support** (`--platform gogs`). A third platform behind the ADR-0005 collector
@@ -17,6 +49,9 @@ All notable changes to this project are documented here. Format follows
   the platform has no CI, code scanning, dependency alerts, secret scanning,
   environments, audit log or branch-protection API — and reports that explicitly
   rather than omitting the checks. See the README for what it can and cannot evidence.
+- **A GitLab CI release pipeline** replaces the non-functional GitHub Actions one:
+  `goreleaser` plus GitLab's native OIDC (`id_tokens: SIGSTORE_ID_TOKEN`) for keyless
+  cosign signing, no signing key to manage. See `SECURITY.md` for the verify command.
 
 ### Security
 
@@ -43,6 +78,14 @@ All notable changes to this project are documented here. Format follows
   genuinely broken scan writes no pack and the download step fails loudly instead.
 - **The self-scan ran a scanner three releases behind the code it was scanning** (#211).
   `version:` was pinned at `0.2.0`; bumped to `1.0.0` and now bumps with each release.
+- **The demo org's owning GitHub account was banned, orphaning it.** Rebuilt the same
+  `demo-good`/`demo-bad` fixture pair under a fresh org, re-signed the release tag with a
+  newly-registered SSH key, and re-scanned — every check produced the same status as the
+  original org.
+- **README's manual-download instructions used GitHub's `/releases/latest/download/`
+  URL shape**, which doesn't exist on GitLab and actually 302-redirected to GitLab's
+  sign-in page rather than erroring cleanly. Replaced with GitLab's real permalink,
+  `/-/releases/permalink/latest/downloads/<file>`.
 
 
 ## [1.0.0] - 2026-07-29

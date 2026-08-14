@@ -11,11 +11,11 @@
 #
 # Requires: gh CLI authenticated as an admin of the target org.
 #
-# Usage: hack/demo-org-setup.sh [org]   (default org: Qloud-LTD)
+# Usage: hack/demo-org-setup.sh [org]   (default org: Qloud-ltd-com)
 
 set -euo pipefail
 
-ORG="${1:-Qloud-LTD}"
+ORG="${1:-Qloud-ltd-com}"
 GOOD_REPO="demo-good"
 BAD_REPO="demo-bad"
 
