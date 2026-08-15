@@ -43,6 +43,33 @@ if ! grep -q '^SECRET_RE=' "$work/gate.sh" || ! grep -q '^secret_gate()' "$work/
   exit 1
 fi
 
+# Everything below tests the gate's DEFINITION, which leaves the cheapest way
+# to defeat it entirely invisible: delete the lines that call it. The
+# definition would still extract, every case below would still pass, and no
+# scan output would ever be screened. So the call sites are asserted here
+# against the whole file, and so is their position — a gate that runs after
+# the push is not a gate. (Found by an adversarial review of an earlier
+# version of this file, which was green against a copy with both call sites
+# removed.)
+for expected in 'secret_gate "reports-out/$platform/evidence.json"' 'secret_gate reports-out'; do
+  if ! grep -qF -- "$expected" "$CI_FILE"; then
+    echo "::error::the gate is defined but never invoked as \`$expected\` in $CI_FILE — a gate nothing calls screens nothing." >&2
+    exit 1
+  fi
+done
+
+last_gate_line=$(grep -nF -- 'secret_gate reports-out' "$CI_FILE" | tail -1 | cut -d: -f1)
+first_push_line=$(grep -n 'git -C pages-history push' "$CI_FILE" | head -1 | cut -d: -f1)
+if [ -z "$last_gate_line" ] || [ -z "$first_push_line" ]; then
+  echo "::error::could not locate the gate call and the push in $CI_FILE to compare their order. Re-anchor this check." >&2
+  exit 1
+fi
+if [ "$last_gate_line" -ge "$first_push_line" ]; then
+  echo "::error::the full-tree secret gate (line $last_gate_line) does not run before the push (line $first_push_line) — publishing would happen unscreened." >&2
+  exit 1
+fi
+echo "ok: gate is invoked, and runs before the push (gate line $last_gate_line < push line $first_push_line)"
+
 # The gate compares against the credentials the real job holds. Stand-ins
 # here: no real secret is needed to prove the comparison fires, and a test
 # that required live tokens would simply not be run.

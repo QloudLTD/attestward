@@ -353,9 +353,17 @@ self-scan-and-publish:
       # -a, not -I: -I makes grep SKIP anything it decides is binary, so a
       # single stray NUL byte in a pack would silently exempt that file from
       # both checks below. -a forces it to scan the bytes regardless.
+      # `local` matters: without it this would assign the CALLER's rc, which
+      # the shape check below is mid-way through using. Harmless in today's
+      # ordering and a genuine landmine the first time anything is reordered.
+      # stdout is discarded but stderr is NOT — -q already silences a match,
+      # and the redirect is what keeps a matched credential off the log if -q
+      # is ever dropped, whereas grep's stderr is exactly what a reader needs
+      # when the question is why the gate could not run.
       grep_status() {
+        local rc
         set +e
-        "$@" >/dev/null 2>&1
+        "$@" >/dev/null
         rc=$?
         set -e
         return "$rc"
@@ -365,8 +373,11 @@ self-scan-and-publish:
         target="$1"
         echo "--- secret gate over $target ---"
 
+        # grep's own stderr is deliberately left flowing to the job log: when
+        # rc says the gate could not run, that message is the only thing that
+        # says why.
         set +e
-        hits=$(grep -raEl "$SECRET_RE" "$target" 2>/dev/null)
+        hits=$(grep -raEl "$SECRET_RE" "$target")
         rc=$?
         set -e
         if [ "$rc" -eq 0 ]; then
