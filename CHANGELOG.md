@@ -7,6 +7,28 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The self-scan now runs and publishes on every `v*` tag** (`publish` stage in
+  `.gitlab-ci.yml`). attestward scans its own repository on all three forges that host it —
+  GitLab, GitHub and Gogs — verifies each pack against its SHA-256 sidecar, renders
+  `report.md`/`report.html`/`poam.md`, and publishes them to GitLab Pages at
+  <https://attestward-46978b.gitlab.io>, keyed by tag (`reports/<platform>/<tag>/`) on an
+  orphan `pages-history` branch, so the history accumulates instead of being overwritten.
+  This closes a gap the README had been describing honestly and awkwardly for some time: the
+  only self-scan definition that existed targeted GitHub Actions, on an account that is
+  banned, so nothing ever ran and there was nothing to link to. A scan that finds gaps
+  (exit 2) is a successful publish, not a failed pipeline — publishing an unflattering
+  report is the point. `tools/pagesindex` renders the site index as a pure function of the
+  published tree, so re-publishing a tag updates its row rather than adding a second one.
+- **A secret gate stands between the scan and the publish.** Defense in depth over
+  `EvidencePack.Scrub`, and deliberately not a copy of it: it adds GitLab token shapes
+  (`glpat-`/`gldt-`, which `Scrub` has no pattern for at all) and a verbatim comparison
+  against the credential values the job actually holds — the only check that can catch a
+  Gogs token, which is 40 hex characters with no prefix for any shape-based pattern to
+  recognise. It runs over `evidence.json` before rendering, and over the whole rendered tree
+  before anything reaches git.
+
 ### Fixed
 
 - **C04's dependabot-alerts check could false-`verified-fail` on a GHES install without

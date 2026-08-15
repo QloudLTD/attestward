@@ -65,6 +65,7 @@ stages:
   - verify
   - build
   - release
+  - publish
 
 workflow:
   rules:
@@ -200,3 +201,235 @@ release:
       chmod +x /usr/local/bin/cosign
   script:
     - goreleaser release --clean
+
+# ---------------------------------------------------------------------------
+# publish — attestward scanning itself, on every forge that hosts it
+#
+# The tool's own repository is the most honest demo it has, so every v* tag
+# scans this project on all three forges (GitLab canonical, GitHub and Gogs
+# mirrors) and publishes the rendered reports to GitLab Pages, keyed by tag,
+# so the history is browsable rather than replaced on each release.
+#
+# ⚠ Why the GitHub credential is NOT called GITHUB_TOKEN
+#
+# GoReleaser picks its publish forge from which token env var is set, and
+# setting more than one is a hard error (see the `release` job's own comment).
+# GitLab injects project CI/CD variables into EVERY job in the pipeline, so a
+# project variable literally named GITHUB_TOKEN would reach the `release` job
+# too and break every future release — a failure whose cause sits in a file
+# nobody edited. The credentials are therefore stored as SELFSCAN_GITHUB_TOKEN
+# and SELFSCAN_GOGS_TOKEN, and re-exported under the names attestward's
+# resolveScanToken() expects inside this job's script only, where goreleaser
+# never runs. Do not "tidy" these back to their bare names.
+#
+# GITLAB_TOKEN needs no such treatment: it is the name goreleaser wants AND
+# the name resolveScanToken() reads for --platform gitlab, so the one variable
+# already on the project serves both.
+# ---------------------------------------------------------------------------
+self-scan-and-publish:
+  stage: publish
+  needs: ["build"]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  variables:
+    # Nothing here reads git history — the tag comes from CI_COMMIT_TAG, not
+    # `git describe` — so this job doesn't pay for the full clone the Makefile
+    # needs elsewhere.
+    GIT_DEPTH: "1"
+  artifacts:
+    # Debug aid only. The real publish path is the pages-history branch; these
+    # expire, that doesn't.
+    when: always
+    expire_in: 1 week
+    paths:
+      - reports-out
+  script:
+    - |
+      set -euo pipefail
+
+      # Re-exported under the names attestward expects, scoped to this job.
+      # `set -u` turns a variable that failed to reach the job (e.g. a tag
+      # outside the protected `v*` pattern) into an immediate, named failure
+      # rather than a scan that silently authenticates as nobody.
+      export GITHUB_TOKEN="$SELFSCAN_GITHUB_TOKEN"
+      export GOGS_TOKEN="$SELFSCAN_GOGS_TOKEN"
+
+      chmod +x ./attestward
+      ./attestward version
+
+      # --- scan -------------------------------------------------------------
+      # Exit 2 means "gaps or verified-fails found", which is the expected
+      # result for this project today and is emphatically not a pipeline
+      # failure — publishing an unflattering report is the entire point. Only
+      # exit 1 (a real error: auth, network, a malformed response) fails here.
+      run_scan() {
+        platform="$1"; shift
+        echo "--- scanning $platform ---"
+        set +e
+        ./attestward scan --out "reports-out/$platform" "$@"
+        rc=$?
+        set -e
+        if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+          echo "::error::attestward scan ($platform) exited $rc — 0 (clean) and 2 (gaps found) are both expected; anything else is a real failure" >&2
+          exit 1
+        fi
+        echo "--- $platform scan exit $rc ---"
+      }
+
+      run_scan gitlab --platform gitlab --org sioakeim  --repo attestward
+      run_scan github --platform github --org QloudLTD --repo attestward
+      run_scan gogs   --platform gogs   --gogs-url https://gogs.ioakeim.com --org sioakim --repo attestward
+
+      # --- verify -----------------------------------------------------------
+      # Each pack against the .sha256 sidecar attestward scan wrote beside it.
+      # A pack that cannot prove its own integrity must not be published.
+      for platform in gitlab github gogs; do
+        echo "--- verifying $platform ---"
+        ./attestward verify "reports-out/$platform"
+      done
+
+      # --- secret gate ------------------------------------------------------
+      # Defense in depth over model.EvidencePack.Scrub / model.ScrubBytes,
+      # which already redact secret-shaped strings before a pack is written.
+      # This is deliberately not a copy of that list — it is a second,
+      # independent check, and the two patterns that matter most here are ones
+      # Scrub does NOT cover:
+      #
+      #   * glpat- / gldt-  GitLab tokens. Scrub has no GitLab pattern at all,
+      #     and this job holds a GitLab credential.
+      #   * the literal credential values. A Gogs token is 40 hex characters
+      #     with no distinguishing prefix, so NO shape-based pattern —
+      #     Scrub's or this one's — can recognise one. Comparing against the
+      #     actual values is the only check that can, and it also covers any
+      #     future credential whose shape nobody has thought about.
+      #
+      # It runs over evidence.json before anything is rendered, and again over
+      # the whole rendered tree before a single byte reaches git. Publishing is
+      # irreversible in the way that matters (a pushed branch is public), so
+      # the gate is on the near side of every publishing step.
+      SECRET_RE='glpat-[A-Za-z0-9_-]{20,}|gldt-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|(AKIA|ASIA)[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY|Bearer [A-Za-z0-9._~+/-]{20,}'
+
+      secret_gate() {
+        target="$1"
+        echo "--- secret gate over $target ---"
+        # -I skips binaries; a match prints file:line so the finding is
+        # actionable, but the matched text is not echoed.
+        if grep -rIlE "$SECRET_RE" "$target"; then
+          echo "::error::secret-shaped string found in $target (files listed above) — refusing to publish. Investigate before re-running; do NOT just widen the pattern." >&2
+          exit 1
+        fi
+        # Verbatim credential comparison. -q so a hit never prints the value,
+        # -F so a token containing regex metacharacters still matches
+        # literally, and the emptiness guard because `grep -F ''` matches
+        # every line and would fail the job for the wrong reason.
+        for cred in "$GITLAB_TOKEN" "$GITHUB_TOKEN" "$GOGS_TOKEN"; do
+          if [ -n "$cred" ] && grep -rIqF -- "$cred" "$target"; then
+            echo "::error::a credential value appears verbatim in $target — refusing to publish." >&2
+            exit 1
+          fi
+        done
+        echo "--- secret gate clean: $target ---"
+      }
+
+      for platform in gitlab github gogs; do
+        secret_gate "reports-out/$platform/evidence.json"
+      done
+
+      # --- render -----------------------------------------------------------
+      # No --format: renders report.md, report.html and poam.md into the same
+      # directory as the input pack.
+      for platform in gitlab github gogs; do
+        echo "--- rendering $platform ---"
+        ./attestward report "reports-out/$platform/evidence.json"
+      done
+
+      # Re-gate, now covering the rendered documents as well as the packs they
+      # came from. Everything below this line touches git.
+      secret_gate reports-out
+
+      # --- publish to the pages-history branch ------------------------------
+      # ⚠ The push authenticates with GITLAB_TOKEN, not CI_JOB_TOKEN. A job
+      # token grants READ access to the repository (it is what `git clone`
+      # uses) but GitLab does not grant it push access, so the obvious
+      # gitlab-ci-token:$CI_JOB_TOKEN@... write URL 403s. Reads below still
+      # use the job token, which is the credential actually designed for them.
+      #
+      # pages-history is an orphan branch: it shares no history with main and
+      # holds only the published site. It is never merged and never rebased.
+      READ_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+      WRITE_URL="https://oauth2:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+
+      rm -rf pages-history
+      if git ls-remote --exit-code --heads "$READ_URL" pages-history >/dev/null 2>&1; then
+        echo "--- cloning existing pages-history ---"
+        git clone --depth 1 --branch pages-history --single-branch "$READ_URL" pages-history
+      else
+        echo "--- pages-history does not exist yet, creating it ---"
+        mkdir pages-history
+        git -C pages-history init -q -b pages-history
+      fi
+
+      # pages-history has its own .git, so the main checkout's .gitignore does
+      # not apply to it — but that file ignores evidence.json and report.html
+      # by name, and those are two of the five files being published. `git add
+      # --force` below makes the outcome independent of that distinction
+      # instead of dependent on a subtlety two directories away.
+      dest="pages-history/reports"
+      for platform in gitlab github gogs; do
+        target="$dest/$platform/$CI_COMMIT_TAG"
+        rm -rf "$target"
+        mkdir -p "$target"
+        for f in report.html report.md poam.md evidence.json evidence.json.sha256; do
+          cp "reports-out/$platform/$f" "$target/$f"
+        done
+      done
+
+      # Rebuilt from the whole tree on every run, never appended to — see
+      # tools/pagesindex/main.go. Re-publishing a tag replaces its directory
+      # (the rm -rf above) and re-derives the table, so a repeat run of the
+      # same tag updates one row rather than adding a second.
+      go run ./tools/pagesindex pages-history
+
+      git -C pages-history config user.name "attestward CI"
+      git -C pages-history config user.email "ci@attestward.invalid"
+      git -C pages-history add --all --force .
+      if git -C pages-history diff --cached --quiet; then
+        echo "--- pages-history already up to date, nothing to commit ---"
+      else
+        git -C pages-history commit -q -m "chore: publish self-scan reports for $CI_COMMIT_TAG"
+        # -o ci.skip belt-and-braces: workflow:rules already refuse to start a
+        # pipeline for a push to a non-default branch, so this push cannot
+        # trigger one. The push option means that stays true even if those
+        # rules are ever loosened.
+        git -C pages-history push -o ci.skip "$WRITE_URL" "HEAD:pages-history"
+        echo "--- published $CI_COMMIT_TAG to pages-history ---"
+      fi
+
+# GitLab Pages' reserved job name — the `public/` artifact of a job called
+# exactly `pages` is what gets deployed. Kept as a separate job from the scan
+# above so the site is assembled from what pages-history actually contains
+# (every tag ever published), not from the one tag this pipeline produced.
+pages:
+  stage: publish
+  needs: ["self-scan-and-publish"]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  variables:
+    # This job never reads the main repository — only pages-history, which it
+    # clones explicitly. Skipping the automatic checkout keeps that honest.
+    GIT_STRATEGY: none
+  script:
+    - |
+      set -euo pipefail
+      rm -rf pages-history public
+      git clone --depth 1 --branch pages-history --single-branch \
+        "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git" pages-history
+      mkdir public
+      # The trailing /. copies the directory's contents, dotfiles included;
+      # .git is then removed so the site is the content, not a repository.
+      cp -R pages-history/. public/
+      rm -rf public/.git
+      echo "--- publishing $(find public -type f | wc -l) file(s) ---"
+  artifacts:
+    paths:
+      - public
