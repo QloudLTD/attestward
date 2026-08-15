@@ -194,6 +194,32 @@ func TestCollectSkipsIncompleteDirectories(t *testing.T) {
 	}
 }
 
+// A pack that cannot be parsed must not be able to wedge every future
+// publish — the published tree accumulates across tags, so one bad pack in
+// it would otherwise fail the job for every later release.
+func TestCollectSkipsUnparseablePack(t *testing.T) {
+	root := t.TempDir()
+	writePack(t, root, "gitlab", "v1.2.1", "2026-08-15T10:00:00Z", "verified-pass")
+	bad := filepath.Join(root, "reports", "github", "v1.2.1")
+	if err := os.MkdirAll(bad, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bad, "evidence.json"), []byte(`{"truncated":`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := collect(root)
+	if err != nil {
+		t.Fatalf("an unparseable pack should be skipped, not fatal: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1 (the good pack, with the bad one skipped)", len(entries))
+	}
+	if entries[0].Platform != "gitlab" {
+		t.Errorf("surviving entry is %q, want gitlab", entries[0].Platform)
+	}
+}
+
 func TestRunOnEmptyTree(t *testing.T) {
 	root := t.TempDir()
 	if err := run(root); err != nil {

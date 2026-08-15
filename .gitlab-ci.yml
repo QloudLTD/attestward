@@ -132,6 +132,17 @@ third-party-notices-drift:
   script:
     - make notices-check
 
+# The secret gate in the publish stage below is the last thing standing
+# between a scanned credential and a public branch, and it only ever executes
+# on a tag — so without this it would go unexercised on every MR that
+# weakened it, and be discovered by a leak. The test extracts the gate from
+# this very file rather than restating it, so it cannot drift into testing a
+# stale copy.
+secret-gate:
+  stage: verify
+  script:
+    - ./hack/check-secret-gate_test.sh
+
 build:
   stage: build
   script:
@@ -228,9 +239,24 @@ release:
 # ---------------------------------------------------------------------------
 self-scan-and-publish:
   stage: publish
-  needs: ["build"]
+  # `needs` is DAG scheduling, not just artifact plumbing: it opts this job
+  # out of waiting for its stage's predecessors, so `needs: ["build"]` alone
+  # would start the publish while lint/test/the drift jobs were still running
+  # and let a tag whose tests fail publish its reports anyway. Depending on
+  # `release` restores the ordering the `stages:` list implies — `release` has
+  # no `needs` of its own, so it waits for all of verify+build, and requiring
+  # it transitively requires them. artifacts:false because only `build`'s
+  # binary is wanted here; goreleaser's dist/ is not.
+  needs:
+    - job: build
+    - job: release
+      artifacts: false
   rules:
     - if: $CI_COMMIT_TAG =~ /^v/
+  # Serialises concurrent tag pipelines against the single pages-history
+  # branch. Without it, two tags pushed close together race the push below and
+  # the loser fails on a non-fast-forward.
+  resource_group: pages-history
   variables:
     # Nothing here reads git history — the tag comes from CI_COMMIT_TAG, not
     # `git describe` — so this job doesn't pay for the full clone the Makefile
@@ -239,7 +265,14 @@ self-scan-and-publish:
   artifacts:
     # Debug aid only. The real publish path is the pages-history branch; these
     # expire, that doesn't.
-    when: always
+    #
+    # ⚠ on_success, NOT always. This project is public and so are its job
+    # artifacts, and artifact upload happens after the script fails — so
+    # `when: always` would hand anyone who asked the exact bytes the secret
+    # gate below had just refused to publish, through a side door the gate
+    # cannot see. Uploading only on success means anything uploaded has
+    # already passed the gate.
+    when: on_success
     expire_in: 1 week
     paths:
       - reports-out
@@ -309,22 +342,58 @@ self-scan-and-publish:
       # the gate is on the near side of every publishing step.
       SECRET_RE='glpat-[A-Za-z0-9_-]{20,}|gldt-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|(AKIA|ASIA)[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY|Bearer [A-Za-z0-9._~+/-]{20,}'
 
+      # ⚠ grep's exit status is checked explicitly rather than with `if grep
+      # ...`, and this is the whole reason the function is shaped like this:
+      # grep exits 0 for a match, 1 for no match, and >1 when GREP ITSELF
+      # FAILED (unreadable file, bad path). An `if` treats every non-zero the
+      # same, so a gate that could not run would read as a gate that found
+      # nothing — the one failure mode a security check must never have. Only
+      # exit 1 is "clean" here; anything above it fails the job.
+      #
+      # -a, not -I: -I makes grep SKIP anything it decides is binary, so a
+      # single stray NUL byte in a pack would silently exempt that file from
+      # both checks below. -a forces it to scan the bytes regardless.
+      grep_status() {
+        set +e
+        "$@" >/dev/null 2>&1
+        rc=$?
+        set -e
+        return "$rc"
+      }
+
       secret_gate() {
         target="$1"
         echo "--- secret gate over $target ---"
-        # -I skips binaries; a match prints file:line so the finding is
-        # actionable, but the matched text is not echoed.
-        if grep -rIlE "$SECRET_RE" "$target"; then
-          echo "::error::secret-shaped string found in $target (files listed above) — refusing to publish. Investigate before re-running; do NOT just widen the pattern." >&2
+
+        set +e
+        hits=$(grep -raEl "$SECRET_RE" "$target" 2>/dev/null)
+        rc=$?
+        set -e
+        if [ "$rc" -eq 0 ]; then
+          echo "ERROR: secret-shaped string found in $target — refusing to publish." >&2
+          echo "ERROR: offending file(s):" >&2
+          echo "$hits" >&2
+          echo "ERROR: investigate before re-running; do NOT just narrow the pattern." >&2
+          exit 1
+        elif [ "$rc" -ne 1 ]; then
+          echo "ERROR: the secret gate could not run over $target (grep exited $rc) — refusing to publish rather than assume it is clean." >&2
           exit 1
         fi
+
         # Verbatim credential comparison. -q so a hit never prints the value,
         # -F so a token containing regex metacharacters still matches
         # literally, and the emptiness guard because `grep -F ''` matches
         # every line and would fail the job for the wrong reason.
         for cred in "$GITLAB_TOKEN" "$GITHUB_TOKEN" "$GOGS_TOKEN"; do
-          if [ -n "$cred" ] && grep -rIqF -- "$cred" "$target"; then
-            echo "::error::a credential value appears verbatim in $target — refusing to publish." >&2
+          if [ -z "$cred" ]; then
+            continue
+          fi
+          grep_status grep -raqF -- "$cred" "$target" && crc=0 || crc=$?
+          if [ "$crc" -eq 0 ]; then
+            echo "ERROR: a credential value appears verbatim in $target — refusing to publish." >&2
+            exit 1
+          elif [ "$crc" -ne 1 ]; then
+            echo "ERROR: the secret gate could not run over $target (grep exited $crc) — refusing to publish rather than assume it is clean." >&2
             exit 1
           fi
         done
@@ -411,7 +480,12 @@ self-scan-and-publish:
 # (every tag ever published), not from the one tag this pipeline produced.
 pages:
   stage: publish
-  needs: ["self-scan-and-publish"]
+  # Ordering only — this job reads the pages-history branch, never the scan
+  # job's artifact, so downloading reports-out would just be bytes over the
+  # wire to be ignored.
+  needs:
+    - job: self-scan-and-publish
+      artifacts: false
   rules:
     - if: $CI_COMMIT_TAG =~ /^v/
   variables:

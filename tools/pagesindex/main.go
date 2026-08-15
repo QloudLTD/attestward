@@ -120,7 +120,16 @@ func collect(root string) ([]entry, error) {
 			}
 			var pack model.EvidencePack
 			if err := json.Unmarshal(data, &pack); err != nil {
-				return nil, fmt.Errorf("parse %s: %w", packPath, err)
+				// Warned about and skipped, not fatal — same treatment as a
+				// missing pack, for the same reason. This tree accumulates
+				// every tag ever published, so one truncated or
+				// future-schema'd pack anywhere in it would otherwise fail
+				// this command, fail the job under `set -e`, and wedge every
+				// subsequent release behind a hand-edit of the published
+				// branch. The row disappears from the index and the warning
+				// says why; nothing else is held hostage to it.
+				fmt.Fprintf(os.Stderr, "pagesindex: skipping %s: %v\n", packPath, err)
+				continue
 			}
 			e := entry{
 				Platform: p.Name(),
