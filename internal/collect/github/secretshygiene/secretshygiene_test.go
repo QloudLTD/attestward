@@ -439,6 +439,9 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 		if !strings.Contains(r.Reason, "GitHub Connect") {
 			t.Errorf("reason does not name the actual ambiguity (GitHub Connect): %q", r.Reason)
 		}
+		if got := r.Facts["dependabot_alerts_observed"]; got != false {
+			t.Errorf("dependabot_alerts_observed fact = %v, want false — the raw observation is still recorded on the not-checkable GHES branch, per checkDependabotAlerts' own doc comment", got)
+		}
 	})
 
 	// The "204_enabled_on_GHES_still_passes" subtest below guards the
