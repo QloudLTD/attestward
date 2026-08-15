@@ -173,7 +173,13 @@ func checkDependabotAlerts(org, repo string, enabled bool, resp *ghgithub.Respon
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,
 		Scope: model.ScopeRef{Org: org, Repo: repo}, Provenance: prov,
-		Facts: map[string]any{"dependabot_alerts_enabled": enabled},
+		// Fact key is "observed", not "enabled": this is the raw
+		// GetVulnerabilityAlerts() wire result (204 -> true, 404 -> false),
+		// recorded even on the not-checkable GHES branch above where a 404
+		// is ambiguous (see this function's doc comment). It is not an
+		// assertion that the feature is actually off — that claim lives in
+		// Status/Reason, which already hedge it correctly.
+		Facts: map[string]any{"dependabot_alerts_observed": enabled},
 	}
 }
 
