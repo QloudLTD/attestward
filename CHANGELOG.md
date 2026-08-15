@@ -7,6 +7,9 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+
+## [1.2.2] - 2026-08-15
+
 ### Added
 
 - **The self-scan now runs and publishes on every `v*` tag** (`publish` stage in
@@ -28,6 +31,23 @@ All notable changes to this project are documented here. Format follows
   Gogs token, which is 40 hex characters with no prefix for any shape-based pattern to
   recognise. It runs over `evidence.json` before rendering, and over the whole rendered tree
   before anything reaches git.
+- **ADR-0008** records the architecture decisions behind GHES support: why it's a
+  configurable host on the existing `github` platform rather than a fourth platform value,
+  why `Scope.IsGHES` is derived from the configured target rather than an observed version
+  header, and the shared-helper-vs-per-call-site mutation-testing lesson four review rounds
+  took to land.
+
+### Changed
+
+- **`C04.deps.dependabot-alerts`'s Fact key renamed** from `dependabot_alerts_enabled` to
+  `dependabot_alerts_observed`. The old name could read as an assertion that the feature is
+  disabled even on the not-checkable GHES branch, where the true state is unknown — the new
+  name states plainly that this is the raw wire observation, not a claim. No schema or
+  generated-docs reference depended on the literal key; only this collector's own tests did,
+  and they're updated (and mutation-verified) alongside it.
+
+
+## [1.2.1] - 2026-08-15
 
 ### Fixed
 
@@ -334,7 +354,9 @@ Pre-1.0 caveat: CLI flags and output formats may still change between 0.x versio
   architecture doc, threat model, generated checks reference, ADRs, community health
   files, and a worked example pack from the public demo org in `examples/`.
 
-[Unreleased]: https://gitlab.com/sioakeim/attestward/compare/v1.2.0...HEAD
+[Unreleased]: https://gitlab.com/sioakeim/attestward/compare/v1.2.2...HEAD
+[1.2.2]: https://gitlab.com/sioakeim/attestward/compare/v1.2.1...v1.2.2
+[1.2.1]: https://gitlab.com/sioakeim/attestward/compare/v1.2.0...v1.2.1
 [1.2.0]: https://gitlab.com/sioakeim/attestward/compare/v1.1.0...v1.2.0
 [1.1.0]: https://gitlab.com/sioakeim/attestward/compare/3ac0707...v1.1.0
 [1.0.0]: https://gitlab.com/sioakeim/attestward/compare/v0.3.0...v1.0.0
