@@ -269,7 +269,7 @@ func collectRepo(ctx context.Context, client *ghcollect.Client, org, repo string
 
 	depEnabled, depResp, depErr := client.REST.Repositories.GetVulnerabilityAlerts(ctx, org, repo)
 	depProv := tailProvenance(client.Provenance(), len(repoProv))
-	dependabot := checkDependabotAlerts(org, repo, depEnabled, depResp, depErr, depProv)
+	dependabot := checkDependabotAlerts(org, repo, depEnabled, depResp, depErr, scope, depProv)
 
 	return []model.CheckResult{scanning, pushProtection, dependabot, advSecurity}
 }

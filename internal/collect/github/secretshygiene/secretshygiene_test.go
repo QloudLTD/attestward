@@ -398,6 +398,70 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 			t.Errorf("Reason = %q, want it to specifically mention vulnerability-alerts and admin-level access, not the generic repo-read message", r.Reason)
 		}
 	})
+
+	// TestCollect_DependabotAlerts404OnGHESIsNotCheckableNotFail is issue
+	// #26's fix: the identical 404 the "404_disabled_is_verified_fail"
+	// subtest above asserts is a real gap on github.com is ambiguous on
+	// GHES — it could mean genuinely disabled, or it could mean GitHub
+	// Connect was never configured to sync Dependabot's advisory database
+	// at all, which this endpoint cannot distinguish. Mutating
+	// checkDependabotAlerts back to ignoring scope.IsGHES must fail this
+	// subtest without touching the github.com subtest above.
+	t.Run("404_on_GHES_is_not_checkable_not_fail", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v3/orgs/acme", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusOK, map[string]any{"login": "acme"})
+		})
+		mux.HandleFunc("/api/v3/repos/acme/widgets", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusOK, map[string]any{"private": false})
+		})
+		mux.HandleFunc("/api/v3/repos/acme/widgets/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusNotFound, map[string]any{"message": "Not Found"})
+		})
+		c := newGHESCollectorForServer(t, newTestServer(t, mux))
+		results, err := c.Collect(context.Background(), collect.Scope{
+			Org: "acme", Repos: []string{"widgets"}, IsGHES: true, GHESVersion: "3.12.4",
+		})
+		if err != nil {
+			t.Fatalf("Collect: %v", err)
+		}
+		r := byID(results)["C04.deps.dependabot-alerts"]
+		if r.Status != model.StatusNotCheckable {
+			t.Errorf("status = %q, want not-checkable — a 404 on GHES cannot be confirmed as genuinely disabled versus GitHub Connect not being configured", r.Status)
+		}
+		if strings.Contains(r.Reason, "not enabled") && !strings.Contains(r.Reason, "read as not enabled") {
+			t.Errorf("reason asserts a confirmed gap on a GHES target: %q", r.Reason)
+		}
+		if !strings.Contains(r.Reason, "GitHub Connect") {
+			t.Errorf("reason does not name the actual ambiguity (GitHub Connect): %q", r.Reason)
+		}
+	})
+
+	// TestCollect_DependabotAlerts204OnGHESStillPasses guards the other
+	// direction: a direct positive observation must never be discarded
+	// just because the host is GHES — only the "off" branch is ambiguous.
+	t.Run("204_enabled_on_GHES_still_passes", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v3/orgs/acme", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusOK, map[string]any{"login": "acme"})
+		})
+		mux.HandleFunc("/api/v3/repos/acme/widgets", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusOK, map[string]any{"private": false})
+		})
+		mux.HandleFunc("/api/v3/repos/acme/widgets/vulnerability-alerts", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusNoContent, nil)
+		})
+		c := newGHESCollectorForServer(t, newTestServer(t, mux))
+		results, err := c.Collect(context.Background(), collect.Scope{
+			Org: "acme", Repos: []string{"widgets"}, IsGHES: true, GHESVersion: "3.12.4",
+		})
+		if err != nil {
+			t.Fatalf("Collect: %v", err)
+		}
+		if got := byID(results)["C04.deps.dependabot-alerts"].Status; got != model.StatusVerifiedPass {
+			t.Errorf("status = %q, want verified-pass — an observed 204 is unambiguous on any host", got)
+		}
+	})
 }
 
 func TestCollect_RepoFetchFailure403AllRepoChecksNotCheckable(t *testing.T) {
