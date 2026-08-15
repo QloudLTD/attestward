@@ -14,6 +14,7 @@ acceptance (superseded instead).
 | [0005](0005-collector-interface-seam.md) | Collector interface is the platform seam | Accepted |
 | [0006](0006-exec-cosign-not-sigstore-go.md) | Exec cosign, don't embed sigstore-go | Accepted |
 | [0007](0007-continuous-mode-write-boundary.md) | Continuous mode's writes live in workflow steps, never the CLI | Accepted |
+| [0008](0008-ghes-github-platform-configurable-host.md) | GitHub Enterprise Server is the `github` platform against a configurable host | Accepted |
 
 To add one: copy the newest file, increment the number, open a PR.
 
