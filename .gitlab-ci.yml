@@ -239,18 +239,26 @@ release:
 # ---------------------------------------------------------------------------
 self-scan-and-publish:
   stage: publish
-  # `needs` is DAG scheduling, not just artifact plumbing: it opts this job
-  # out of waiting for its stage's predecessors, so `needs: ["build"]` alone
-  # would start the publish while lint/test/the drift jobs were still running
-  # and let a tag whose tests fail publish its reports anyway. Depending on
-  # `release` restores the ordering the `stages:` list implies — `release` has
-  # no `needs` of its own, so it waits for all of verify+build, and requiring
-  # it transitively requires them. artifacts:false because only `build`'s
-  # binary is wanted here; goreleaser's dist/ is not.
-  needs:
-    - job: build
-    - job: release
-      artifacts: false
+  # `needs` is DAG scheduling, not just artifact plumbing — it opts this job
+  # out of waiting for its stage's predecessors — so it is worth being exact
+  # about what depending on `build` alone does and does not guarantee.
+  #
+  # It DOES guarantee the whole verify stage passed. `build` declares no
+  # `needs` of its own, so it is still stage-ordered and cannot start until
+  # every verify job has succeeded; requiring `build` therefore transitively
+  # requires lint, test, all four drift jobs and secret-gate. Measured on
+  # pipeline 2762496004 rather than assumed: last verify job finished
+  # 10:45:14Z, build started 10:46:06Z.
+  #
+  # It does NOT wait for `release`, and that is deliberate. Adding it was
+  # tried and reverted: the self-scan is evidence about this repository, not
+  # about whether goreleaser managed to upload archives, so coupling the two
+  # only means a transient publishing failure also withholds the compliance
+  # report — and it makes re-running an existing tag's pipeline impossible,
+  # since goreleaser refuses a release that already exists. Regenerating the
+  # reports for a tag is a legitimate operation and must not require cutting
+  # a new version.
+  needs: ["build"]
   rules:
     - if: $CI_COMMIT_TAG =~ /^v/
   # Serialises concurrent tag pipelines against the single pages-history
