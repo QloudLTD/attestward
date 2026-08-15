@@ -366,8 +366,12 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
-		if got := byID(results)["C04.deps.dependabot-alerts"].Status; got != model.StatusVerifiedFail {
-			t.Errorf("status = %q, want verified-fail (404 means disabled, not an error)", got)
+		r := byID(results)["C04.deps.dependabot-alerts"]
+		if r.Status != model.StatusVerifiedFail {
+			t.Errorf("status = %q, want verified-fail (404 means disabled, not an error)", r.Status)
+		}
+		if got := r.Facts["dependabot_alerts_observed"]; got != false {
+			t.Errorf("Facts[%q] = %v, want false", "dependabot_alerts_observed", got)
 		}
 	})
 
@@ -399,7 +403,7 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 		}
 	})
 
-	// TestCollect_DependabotAlerts404OnGHESIsNotCheckableNotFail is issue
+	// The "404_on_GHES_is_not_checkable_not_fail" subtest below is issue
 	// #26's fix: the identical 404 the "404_disabled_is_verified_fail"
 	// subtest above asserts is a real gap on github.com is ambiguous on
 	// GHES — it could mean genuinely disabled, or it could mean GitHub
@@ -435,11 +439,15 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 		if !strings.Contains(r.Reason, "GitHub Connect") {
 			t.Errorf("reason does not name the actual ambiguity (GitHub Connect): %q", r.Reason)
 		}
+		if got := r.Facts["dependabot_alerts_observed"]; got != false {
+			t.Errorf("dependabot_alerts_observed fact = %v, want false — the raw observation is still recorded on the not-checkable GHES branch, per checkDependabotAlerts' own doc comment", got)
+		}
 	})
 
-	// TestCollect_DependabotAlerts204OnGHESStillPasses guards the other
-	// direction: a direct positive observation must never be discarded
-	// just because the host is GHES — only the "off" branch is ambiguous.
+	// The "204_enabled_on_GHES_still_passes" subtest below guards the
+	// other direction: a direct positive observation must never be
+	// discarded just because the host is GHES — only the "off" branch is
+	// ambiguous.
 	t.Run("204_enabled_on_GHES_still_passes", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/api/v3/orgs/acme", func(w http.ResponseWriter, _ *http.Request) {
@@ -458,8 +466,12 @@ func TestCollect_DependabotAlerts404IsRealFailNot403IsNotCheckable(t *testing.T)
 		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
-		if got := byID(results)["C04.deps.dependabot-alerts"].Status; got != model.StatusVerifiedPass {
-			t.Errorf("status = %q, want verified-pass — an observed 204 is unambiguous on any host", got)
+		r := byID(results)["C04.deps.dependabot-alerts"]
+		if r.Status != model.StatusVerifiedPass {
+			t.Errorf("status = %q, want verified-pass — an observed 204 is unambiguous on any host", r.Status)
+		}
+		if got := r.Facts["dependabot_alerts_observed"]; got != true {
+			t.Errorf("Facts[%q] = %v, want true", "dependabot_alerts_observed", got)
 		}
 	})
 }
