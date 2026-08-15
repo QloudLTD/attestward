@@ -543,16 +543,30 @@ Full detail, trust boundaries, and residual risks: [docs/threat-model.md](docs/t
 
 ## Self-scan
 
-The repo is its own first case study: [`self-scan.yaml`](.github/workflows/self-scan.yaml)
-runs `attestward scan` against the project's own repository on every release (plus
-manual dispatch), then publishes the evidence pack and rendered `report.html` as a
-downloadable workflow artifact. ⚠ That workflow targets GitHub Actions and does not
-run on this host, so there are no self-scan runs to link to here yet; the file is
-kept as the definition of what the self-scan does. The workflow fails the build on any gap outside a
-small, deliberately documented exception list — each entry on it cites why it is there and
-where the real fix is tracked (see the workflow file's own comments) — rather than
-silently ignoring failures. The list is deliberately short and shrinking: dependency
-review came off it once the repo went public and the check could actually run.
+The repo is its own first case study, and the results are published:
+
+**<https://attestward-46978b.gitlab.io>**
+
+Every `v*` tag runs the `publish` stage of [`.gitlab-ci.yml`](.gitlab-ci.yml), which scans
+this project on all three forges that host it — GitLab (canonical), GitHub and Gogs — and
+publishes the rendered `report.html`, `report.md`, `poam.md` and the signed-by-hash
+`evidence.json` for each. Reports are keyed by tag rather than overwritten, so the site is a
+history: `reports/<platform>/<tag>/`. The index lists every scan with its per-status counts.
+
+Two things worth knowing about what you'll see there:
+
+- **The reports are unflattering, on purpose.** A scan exiting non-zero because it found
+  gaps does not fail the pipeline — publishing an inconvenient result is the entire point of
+  a tool whose output is meant to be evidence. Only a genuine error (auth, network, a
+  malformed response) fails the job.
+- **Nothing is published that hasn't been verified and screened.** Each pack is checked
+  against its own SHA-256 sidecar with `attestward verify`, then the whole tree passes a
+  secret-shape and verbatim-credential gate, before a single byte reaches the published
+  branch.
+
+An earlier GitHub Actions equivalent, [`self-scan.yaml`](.github/workflows/self-scan.yaml),
+is kept for reference only — that account is banned, so it cannot run. Where the two differ,
+the GitLab pipeline is what actually executes.
 
 ## Documentation
 
