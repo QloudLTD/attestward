@@ -35,10 +35,11 @@ mappings, remediation text, and collector code are identical between github.com 
 GHES; only the base URL, TLS trust (`GITHUB_CA_CERT`), and feature-availability gating
 differ.
 
-The alternative — a `--platform ghes` — would have duplicated every one of the eleven
-`internal/collect/github/*` collector packages behind a second platform value for a
-target that differs from github.com in host and licensing only, not in API shape or
-check semantics. Modeling it as a host keeps ADR-0005's collector seam intact: the same
+The alternative — a `--platform ghes` — would have duplicated every one of the ten
+`internal/collect/github/*` collector packages (`runhistory` is a shared helper the
+others import, not a `Collector` itself) behind a second platform value for a target
+that differs from github.com in host and licensing only, not in API shape or check
+semantics. Modeling it as a host keeps ADR-0005's collector seam intact: the same
 collectors, the same `Scope`, one extra piece of client configuration.
 
 ### 2. `Scope.IsGHES` is config-derived, never observation-derived
@@ -97,24 +98,32 @@ off) but also fires on GHES when GitHub Connect isn't syncing the advisory datab
 which the endpoint cannot distinguish from alerts being off — now `not-checkable` on
 GHES for that case, while an observed "enabled" still passes on either host.
 
-The reason a *shared helper alone* was not sufficient: round 1 fixed the helper and one
-call site; round 2's audit found the other six of seven `GatedRepoReason` sites still
-said "plan-gated" on installs that have no plan tier, because the earlier fix guarded
-the helper's own logic, not whether any given site actually called it correctly. Round 3
-found an eighth unrouted site (`secretshygiene`, producing a wrong *status*, not just
-wrong prose — a false verified-fail). Round 4, found while porting onto this repo's
-history, discovered that every one of those nine sites' own routing was still
-*unguarded*: a unit test on the shared helper proved the helper was correct in
-isolation, but reverting all nine call sites back to their github.com-only branch
-simultaneously left the full suite green — the identical failure mode as round 2, just
-spread across more sites than round 3's guard covered. **Any future change that touches
+The reason a *shared helper alone* was not sufficient: the epic's first attempt wired
+the plan-vs-licence distinction into two of seven repo-scoped gate sites, ad hoc; round 1
+(`209e5cf`) fixed four unrelated defects (a token-leaking redirect, credentials accepted
+in `--github-url`, the version-header latch, and the licence-reason wording) but did not
+touch call-site coverage. Round 2 (`61e307c`) was the systematic pass: it introduced
+`GatedRepoReason` as the one helper every repo-scoped site must call, replacing the other
+five sites that still said "plan-gated" on installs that have no plan tier. Round 3
+(`028e706`) found an eighth, still-unrouted site (`secretshygiene`, producing a wrong
+*status*, not just wrong prose — a false verified-fail on a public repo), and found that
+round 2's fixes — including `GatedRepoReason` itself, "the helper introduced specifically
+to make the fix un-revertable" — had no test callers anywhere, so they survived a full
+revert with the suite green. Round 4 (`c3268ce`), found while porting onto this repo's
+history, discovered that round 3's guard still wasn't enough: each of the seven
+`GatedRepoReason` call sites, plus `secretshygiene`'s two independent GHES-aware
+functions (nine sites in all), had only the *shared helper* under test, never the call
+site's own routing — reverting all seven `GatedRepoReason` call sites back to their
+github.com-only branch simultaneously left the full suite green, the same failure mode as
+round 2's finding, just not caught by round 3's guard. Round 4 added one real end-to-end
+test per site and mutation-verified all nine by hand. **Any future change that touches
 gate classification at a new or existing call site must add an end-to-end test at that
 call site — driving a real `Collect()` call through the actual gated condition, not just
 a unit test on the shared helper — and must be verified by hand-reverting the change and
 confirming that specific test fails.** This is the same "mutation-tested" discipline
 `docs/threat-model.md` already applies elsewhere in this codebase; it is now a hard
-requirement for this call-site pattern specifically, because the shared-helper-only test
-already failed to catch the defect twice.
+requirement for this call-site pattern specifically, because a shared-helper-only test
+already failed to catch the defect class twice.
 
 ### 4. Redirect policy is host-scoped for GitHub, refuse-all for Gogs — deliberately different
 
@@ -145,10 +154,12 @@ what differs.
 
 - Onboarding GHES cost zero new platform surface: no new `Collector` implementations, no
   new `Scope` shape beyond two additive fields (`IsGHES`, `GHESVersion`), no changes to
-  `internal/model` or `internal/mapping`. A future self-hosted GitLab or Azure DevOps
-  Server story, if one is ever needed, has this ADR as precedent for "host, not
-  platform" — but that is a decision for its own ADR, not an automatic extension of this
-  one.
+  `internal/mapping`. `internal/model` gained one additive, optional field
+  (`ScanScope.GitHubURL`, `json:"github_url,omitempty"`) so a pack records which host
+  produced it — not a new shape, just a new fact recorded on the existing one. A future
+  self-hosted GitLab or Azure DevOps Server story, if one is ever needed, has this ADR as
+  precedent for "host, not platform" — but that is a decision for its own ADR, not an
+  automatic extension of this one.
 - `Scope.IsGHES` is now the only field any collector may use to ask "does this target
   have a github.com plan tier" — `GHESVersion` being empty must never be read as "this
   is github.com." `docs/architecture.md`'s GHES section and this ADR are the record of
