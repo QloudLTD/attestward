@@ -136,7 +136,21 @@ func checkAdvancedSecurity(org, repo string, sa *ghgithub.SecurityAndAnalysis, i
 // (enabled=false, err=nil) rather than surfacing it as an error. Any other
 // non-nil err (403 permission-denied, etc.) is a genuine failure to
 // determine the state, distinct from an honest "disabled".
-func checkDependabotAlerts(org, repo string, enabled bool, resp *ghgithub.Response, err error, prov []model.Provenance) model.CheckResult {
+//
+// On github.com that 404-folded "off" is unambiguous: Dependabot alerts
+// are a free, always-available feature, so a 404 confidently means the
+// repo owner turned it off. On GitHub Enterprise Server it is not — the
+// feature depends on GitHub Connect syncing github.com's advisory
+// database, which may not be configured on this install at all, and that
+// absence produces the identical 404 shape as a repo that genuinely has
+// alerts turned off. Reporting verified-fail there faulted a producer for
+// not enabling a feature their install may not have (issue #26): the same
+// false-verified-fail reasoning evalGHASGatedFeature above already fixed
+// for secret scanning and push protection. An observed "enabled" (204) is
+// never ambiguous on either host — a direct positive observation is never
+// discarded in favor of a licensing inference — so only the "off" branch
+// changes on GHES.
+func checkDependabotAlerts(org, repo string, enabled bool, resp *ghgithub.Response, err error, scope collect.Scope, prov []model.Provenance) model.CheckResult {
 	const id = "C04.deps.dependabot-alerts"
 	if err != nil {
 		return model.CheckResult{
@@ -146,8 +160,15 @@ func checkDependabotAlerts(org, repo string, enabled bool, resp *ghgithub.Respon
 		}
 	}
 	status, reason := model.StatusVerifiedFail, "Dependabot vulnerability alerts are not enabled"
-	if enabled {
+	switch {
+	case enabled:
 		status, reason = model.StatusVerifiedPass, "Dependabot vulnerability alerts are enabled"
+	case scope.IsGHES:
+		status = model.StatusNotCheckable
+		reason = "Dependabot vulnerability alerts read as not enabled, but on GitHub Enterprise Server this " +
+			"requires GitHub Connect syncing github.com's advisory database, which this install may not have " +
+			"configured — the same 404 this endpoint returns for a repo with alerts genuinely turned off, so " +
+			"this is not reported as a confirmed gap"
 	}
 	return model.CheckResult{
 		CheckID: id, Title: checkTitles[id], Status: status, Reason: reason,

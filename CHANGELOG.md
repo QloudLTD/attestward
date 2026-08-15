@@ -7,6 +7,23 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **C04's dependabot-alerts check could false-`verified-fail` on a GHES install without
+  GitHub Connect configured** (issue #26, found auditing v1.2.0's GHES support). GitHub
+  represents this endpoint's boolean as a status code — 204 enabled, 404 disabled — and
+  a 404 is unambiguous on github.com, where the feature is always free and available.
+  On GitHub Enterprise Server the same 404 also fires when GitHub Connect hasn't been
+  configured to sync github.com's advisory database at all, which this endpoint cannot
+  distinguish from a repo that genuinely has alerts turned off. Now `not-checkable` on
+  GHES for the "off" case specifically — an observed `enabled` (204) still passes on
+  either host, since a direct positive observation is never discarded in favor of a
+  licensing inference (the same principle `evalGHASGatedFeature` already applies to
+  secret scanning and push protection).
+
+
+## [1.2.0] - 2026-08-15
+
 ### Added
 
 - **GitHub Enterprise Server support** (`--github-url` / `github_url:` / `GITHUB_URL`).
@@ -295,7 +312,8 @@ Pre-1.0 caveat: CLI flags and output formats may still change between 0.x versio
   architecture doc, threat model, generated checks reference, ADRs, community health
   files, and a worked example pack from the public demo org in `examples/`.
 
-[Unreleased]: https://gitlab.com/sioakeim/attestward/compare/v1.1.0...HEAD
+[Unreleased]: https://gitlab.com/sioakeim/attestward/compare/v1.2.0...HEAD
+[1.2.0]: https://gitlab.com/sioakeim/attestward/compare/v1.1.0...v1.2.0
 [1.1.0]: https://gitlab.com/sioakeim/attestward/compare/3ac0707...v1.1.0
 [1.0.0]: https://gitlab.com/sioakeim/attestward/compare/v0.3.0...v1.0.0
 [0.3.0]: https://gitlab.com/sioakeim/attestward/compare/v0.2.0...v0.3.0
