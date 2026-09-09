@@ -7,6 +7,13 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Restore native Forgejo verification and Semgrep workflows, with the contributor
+  workflow pointing to the active repository.
+- Set an explicit TLS 1.2 minimum for GitHub Enterprise custom-CA connections.
+- Upgrade pflag to v1.0.10 and refresh generated dependency notices.
+
 
 ## [1.2.2] - 2026-08-15
 

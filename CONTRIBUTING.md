@@ -1,16 +1,9 @@
 # Contributing
 
-Thanks for your interest. The canonical repo is **[gitlab.com/sioakeim/attestward](https://gitlab.com/sioakeim/attestward)**
-— that's where issues, merge requests, CI, and releases all live. This project is built
-issue-first: **GitLab Issues are the task board** — every piece of work (feature, bug,
-doc, mapping change) has an issue, and the issue thread is the record of what was decided
-and why.
-
-The code is also mirrored, read-only, to [github.com/QloudLTD/attestward](https://github.com/QloudLTD/attestward)
-(public, Issues and Actions disabled there) and gogs.ioakeim.com/sioakim/attestward
-(requires sign-in — not publicly browsable, kept for redundancy rather than discovery) —
-neither mirror is monitored for issues or pull requests. Open issues and merge requests on
-GitLab; anything filed against a mirror won't be seen.
+The active repository is [sioakim/attestward on Forgejo](https://gogs.ioakeim.com/sioakim/attestward).
+Open issues and pull requests there. The former GitLab project is scheduled for deletion;
+its tracker and pipelines are unavailable for new work. The GitHub copy is a mirror.
+Every change should have an issue recording its approach and validation.
 
 ## Ground rules
 
@@ -25,48 +18,28 @@ GitLab; anything filed against a mirror won't be seen.
 
 ## Workflow
 
-1. Find or create a GitLab issue. Comment your approach before writing code.
+1. Find or create a Forgejo issue. Comment your approach before writing code.
 2. Branch from `main`: `<type>/<issue-number>-<short-description>`
    (e.g. `feature/12-repo-protection-collector`; types: `feature|fix|hotfix|chore|docs`).
-3. Small MRs (merge requests) — target under 200 changed lines, hard ceiling 400. Split
+3. Small PRs (pull requests) — target under 200 changed lines, hard ceiling 400. Split
    bigger work.
-4. Conventional commits: `feat(collect): add repo-protection ruleset checks`
-   (types: `feat|fix|chore|docs|refactor|test|style|perf`; imperative mood). Put a closing
-   keyword in the MR description (`Closes #12`) so merging to `main` auto-closes the
-   issue — GitLab records the close event AND every comment/note independently, so nothing
-   is lost the way it would be under a squash that discards commit-level history. Leave a
-   note on the issue itself summarizing what changed and why before (or as part of)
-   merging, since that note is the durable record, not the commit message.
-5. CI must be green — the project has `only_allow_merge_if_pipeline_succeeds` enabled, so
-   GitLab itself blocks the merge button until the whole pipeline (`lint`, `test`, the
-   drift-check jobs, `build`) passes. `only_allow_merge_if_all_discussions_are_resolved`
-   is also enabled — every review thread needs to be resolved before the button unlocks,
-   not just CI. Merges are real merge commits, not squashed (`merge_method: merge`,
-   `squash_option: default_off`) — commit-level history survives on `main`.
-6. The source branch is auto-deleted on merge (`remove_source_branch_after_merge`).
+4. Use conventional commits (`feat|fix|chore|docs|refactor|test|style|perf`) in
+   imperative mood, with `Refs #N` in the footer. Reference the issue in the PR body
+   without an automatic closing keyword. After merging, leave a validation note on
+   the issue and close it explicitly.
+5. CI must be green. Forgejo runs `.forgejo/workflows/ci.yaml` (lint, vet, race tests,
+   shell regression tests, generated-file/module drift, rubric/threat-model guards,
+   and builds for every release target) and `.forgejo/workflows/semgrep.yaml`.
+   Review and resolve findings before merging; a failed check is not a waiver.
+6. Squash-merge through the PR, then delete the source branch.
 
-`main` is a protected branch: only Maintainers can push or merge to it directly, and
-force-push is disallowed (`allow_force_push: false`). Maintainers can still push directly
-in an emergency — documented here rather than left implicit, so a solo maintainer isn't
-deadlocked by their own rules — but default to the MR workflow above even as the sole
-maintainer.
-
-## Maintainers: keeping the mirrors in sync
-
-After any merge to `main` or new tag on GitLab (the canonical repo), push the same `main`
-and tags to both read-only mirrors so all three stay byte-identical:
-
-```bash
-git push github main:main && git push github --tags
-git push gogs main:main    && git push gogs --tags
-```
-
-This is a maintainer operation, not part of the contributor workflow above — contributors
-never need `github`/`gogs` remotes configured locally. Before ever force-pushing to either
-mirror, check whether its branch has diverged (`git fetch <remote> && git rev-list
-<remote>/main --not main`) — a mirror's history should only ever move forward from
-GitLab's; if it hasn't, something was pushed there directly and needs investigating before
-being overwritten, not silently discarded.
+The `.github/workflows` and `.gitlab-ci.yml` files are reference configurations for
+those hosts; Forgejo uses `.forgejo/workflows` instead of falling back to GitHub
+workflows. GitHub-only CodeQL and dependency-review integrations do not run on Forgejo.
+The native workflow cross-compiles Darwin binaries but does not execute Darwin tests;
+run `go test ./... -race` on macOS locally when changing platform-sensitive code.
+Release publishing and mirror synchronization remain separate maintainer operations.
+Do not push changes to a mirror with divergent history or to the retired GitLab project.
 
 ## Development setup
 

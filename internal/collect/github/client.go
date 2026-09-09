@@ -78,7 +78,7 @@ func NewClient(token string, cfg ClientConfig) *Client {
 		// Clone() preserves DefaultTransport's own Proxy:
 		// http.ProxyFromEnvironment, so HTTPS_PROXY still applies here too.
 		custom := http.DefaultTransport.(*http.Transport).Clone()
-		custom.TLSClientConfig = &tls.Config{RootCAs: cfg.CACertPool}
+		custom.TLSClientConfig = &tls.Config{RootCAs: cfg.CACertPool, MinVersion: tls.VersionTLS12}
 		base = custom
 	}
 

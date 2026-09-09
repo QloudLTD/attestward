@@ -1,0 +1,57 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Forgejo prefers this directory to .github/workflows. Keep GitHub-only
+# integrations out of the active pipeline; all jobs here need only source.
+jobs:
+  verify:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: https://github.com/actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Lint and vet
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/golangci-lint.tar.gz" https://github.com/golangci/golangci-lint/releases/download/v2.12.2/golangci-lint-2.12.2-linux-amd64.tar.gz
+          printf '%s  %s\n' 8df580d2670fed8fa984aac0507099af8df275e665215f5c7a2ae3943893a553 "$RUNNER_TEMP/golangci-lint.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/golangci-lint.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/golangci-lint-2.12.2-linux-amd64/golangci-lint" run
+          go vet ./...
+      - name: Race and shell regression tests
+        run: |
+          go test ./... -race
+          bash hack/fetch-drift-baseline_test.sh
+          bash hack/check-examples-drift_test.sh
+          bash hack/check-third-party-notices-drift_test.sh
+      - name: Generated artifacts and module graph
+        run: make checks-docs-check examples-check tidy-check notices-check
+      - name: Rubric and threat-model guards
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != 0000000000000000000000000000000000000000 ]; then
+            go run ./tools/rubricguard "$BASE_SHA" "$HEAD_SHA"
+          fi
+          go run ./tools/threatmodelguard
+      - name: Build every release target
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            GOOS="$goos" GOARCH="$goarch" go build -o "$RUNNER_TEMP/attestward-$goos-$goarch" ./cmd/attestward
+          done
+          "$RUNNER_TEMP/attestward-linux-amd64" version
