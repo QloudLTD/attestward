@@ -13,6 +13,9 @@ All notable changes to this project are documented here. Format follows
   workflow pointing to the active repository.
 - Set an explicit TLS 1.2 minimum for GitHub Enterprise custom-CA connections.
 - Upgrade pflag to v1.0.10 and refresh generated dependency notices.
+- Confine GitLab authenticated redirects to the configured origin, reject unsafe
+  instance URLs without echoing credentials, and redact default GitLab access/deploy
+  token shapes from evidence packs.
 
 
 ## [1.2.2] - 2026-08-15

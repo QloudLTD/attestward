@@ -436,6 +436,10 @@ func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, er
 	}
 
 	if effectivePlatform(cfg.Platform) == platformGitLab {
+		client, err := gitlabcollect.NewClient(cfg.GitLabURL, token)
+		if err != nil {
+			return scanDeps{}, err
+		}
 		collectors := defaultGitLabCollectors(cfg.GitLabURL, token)
 		if len(collectors) == 0 {
 			return scanDeps{}, fmt.Errorf("this build has no collectors for platform %q, so a scan would produce a pack with no verified results at all", platformGitLab)
@@ -449,9 +453,7 @@ func buildScanDeps(cfg scanConfig, token string, stdout io.Writer) (scanDeps, er
 		// for it. Without one, a producer had to name every project by hand,
 		// and naming four of nine yields a pack that attests to four while
 		// looking complete.
-		if client, cerr := gitlabcollect.NewClient(cfg.GitLabURL, token); cerr == nil {
-			deps.repoLister = &gitlabRepoLister{client: client}
-		}
+		deps.repoLister = &gitlabRepoLister{client: client}
 		return deps, nil
 	}
 

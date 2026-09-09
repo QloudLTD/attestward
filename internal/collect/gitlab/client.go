@@ -93,10 +93,18 @@ func newClient(baseURL, token string, base http.RoundTripper) (*Client, error) {
 	}
 	u, err := url.Parse(strings.TrimRight(baseURL, "/"))
 	if err != nil {
-		return nil, fmt.Errorf("collect/gitlab: parse base URL %q: %w", baseURL, err)
+		return nil, fmt.Errorf("collect/gitlab: base URL is not a valid URL")
 	}
-	if u.Scheme == "" || u.Host == "" {
-		return nil, fmt.Errorf("collect/gitlab: base URL %q needs a scheme and host", baseURL)
+	if (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" {
+		return nil, fmt.Errorf("collect/gitlab: base URL needs an http or https scheme and host")
+	}
+	// Never quote the input or wrap url.Parse's error: either can disclose
+	// credentials before the value has passed validation.
+	if u.User != nil {
+		return nil, fmt.Errorf("collect/gitlab: base URL must not contain credentials; supply the token separately")
+	}
+	if u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(baseURL, "#") {
+		return nil, fmt.Errorf("collect/gitlab: base URL must not contain a query string or fragment")
 	}
 
 	// Order matters, and it was wrong. Provenance must be INNERMOST so it
@@ -108,9 +116,23 @@ func newClient(baseURL, token string, base http.RoundTripper) (*Client, error) {
 	prov := newProvenanceTransport(token, base)
 	chain := newRateLimitTransport(newRetryTransport(prov))
 	return &Client{
-		baseURL:    u,
-		prov:       prov,
-		httpClient: &http.Client{Transport: chain},
+		baseURL: u,
+		prov:    prov,
+		httpClient: &http.Client{
+			Transport: chain,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				// Auth is injected below net/http's redirect handling, so
+				// every followed hop would receive a fresh PRIVATE-TOKEN.
+				// Keep project-rename redirects within the configured origin.
+				if req.URL.Scheme != u.Scheme || req.URL.Host != u.Host || req.URL.User != nil {
+					return http.ErrUseLastResponse
+				}
+				if len(via) >= 10 {
+					return fmt.Errorf("collect/gitlab: refusing to follow more than 10 redirects")
+				}
+				return nil
+			},
+		},
 	}, nil
 }
 

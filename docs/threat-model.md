@@ -211,7 +211,7 @@ already carries a `.bundle` to verify. No scan without `--sign` ever triggers it
   anywhere.
 - Defense in depth beyond the above: `internal/model/scrub.go`'s `secretPatterns`
   (GitHub token prefixes `ghp_`/`gho_`/`ghs_`/`ghr_`/`ghu_`/`github_pat_`, AWS access
-  keys, PEM private-key blocks) redact any secret-shaped string found anywhere in a
+  keys, GitLab `glpat-`/`gldt-` token prefixes, PEM private-key blocks) redact any secret-shaped string found anywhere in a
   `Facts`/`Reason` value before the pack is serialized — `pack.Scrub()` in
   `runScan` and `model.ScrubBytes` again in `writeEvidencePack` (both in
   `cmd/attestward/scan.go`) as a last line of defense. Tested in
@@ -257,6 +257,23 @@ already carries a `.bundle` to verify. No scan without `--sign` ever triggers it
   it is meaningfully stronger than before #192 — but not a guaranteed catch for every
   real PAT given the unconfirmed alphabet.
 
+**GitLab credential boundaries:**
+- `internal/collect/gitlab/client.go` rejects base URLs containing user information,
+  query strings, or fragments, and accepts only HTTP(S) URLs with a host. Validation
+  errors never quote the input, including when URL parsing fails.
+- Redirects retain authentication only on the configured scheme and authority
+  (including port); cross-origin redirects, HTTPS downgrades, and credential-bearing
+  destinations are refused as non-success HTTP responses. Same-origin project rename
+  redirects remain supported, with a ten-request limit. Auth is injected by the
+  transport, so these checks happen before a redirected request can receive the token.
+- The shared scrubber recognizes default GitLab personal/project/group (`glpat-`)
+  and deploy (`gldt-`) token shapes with at least 20 URL-safe suffix characters,
+  including in final serialized evidence. See [GitLab's token overview](https://docs.gitlab.com/security/tokens/).
+  This is a heuristic: custom instance prefixes, legacy unprefixed tokens, and
+  truncated values are not covered. The GitLab publishing workflow template also
+  compares literal credential values independently; that additional check is not
+  part of the CLI.
+
 ### Digests, not payloads
 
 **Enforcement:** `model.Provenance` (`internal/model/check_result.go`) has no field for
@@ -276,7 +293,7 @@ evidence) before every write.
 |---|---|---|
 | Tool performs a write against the scanned platform | Transport-level GET/HEAD-only guard | `internal/collect/github/transport.go` + `internal/collect/azuredevops/transport.go`, both with their own `transport_test.go` |
 | Token leaks into logs, evidence, or a URL fragment | Token confined to auth header; `Endpoint` records path only (GitHub) or host+path (Azure DevOps, no query string either way); no CLI-flag token intake | `internal/collect/github/transport.go`, `internal/collect/azuredevops/transport.go`, `cmd/attestward/scan.go` |
-| A secret-shaped string reaches evidence some other way | Regex-based scrubber over every `Facts`/`Reason` value, applied twice (build time + write time) — GitHub token/AWS-key/Azure DevOps PAT (issue #192)/PEM shapes | `internal/model/scrub.go`, `scrub_test.go` |
+| A secret-shaped string reaches evidence some other way | Regex-based scrubber over every `Facts`/`Reason` value, applied twice (build time + write time) — GitHub/GitLab token, AWS-key, Azure DevOps PAT, and PEM shapes | `internal/model/scrub.go`, `scrub_test.go` |
 | Evidence pack tampered after generation | SHA-256 pack hash always computed + `.sha256` sidecar; optional cosign signature | `internal/integrity/`, `cmd/attestward/scan.go` |
 | A raw API response (possibly containing sensitive detail) ends up in evidence | `Provenance` structurally has no payload field, digest only | `internal/model/check_result.go` |
 | An oversized Fact silently bloats/leaks via evidence | Size cap + validation warning | `internal/model/validate.go` |

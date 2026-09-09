@@ -3,7 +3,7 @@ package model
 import "regexp"
 
 // secretPatterns matches secret-shaped strings that must never survive into
-// a serialized evidence pack: GitHub token prefixes, AWS access keys, Azure
+// a serialized evidence pack: GitHub/GitLab token prefixes, AWS access keys, Azure
 // DevOps PATs, and PEM/PGP private-key blocks. Defense in depth —
 // collectors should never put raw secrets into Reason/Facts/Provenance in
 // the first place, but this is the last line of defense before anything
@@ -22,6 +22,10 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`ghr_[A-Za-z0-9]{36,}`),
 	regexp.MustCompile(`ghu_[A-Za-z0-9]{36,}`),
 	regexp.MustCompile(`github_pat_[A-Za-z0-9_]{22,}`),
+	// Default GitLab personal/project/group and deploy token prefixes:
+	// https://docs.gitlab.com/security/tokens/ . Custom instance prefixes
+	// and legacy unprefixed tokens cannot be recognized by these patterns.
+	regexp.MustCompile(`(?:glpat|gldt)-[A-Za-z0-9_-]{20,}`),
 	regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
 	regexp.MustCompile(`ASIA[0-9A-Z]{16}`),
 	// azureDevOpsPAT matches the documented Azure DevOps personal-access-token

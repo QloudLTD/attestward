@@ -7,6 +7,8 @@ import (
 
 func TestScrubRedactsSecretShapedStrings(t *testing.T) {
 	cases := map[string]string{
+		"gitlab personal/project/group token":          "token=glpat-" + strings.Repeat("aB0_-", 4),
+		"gitlab deploy token":                          "token=gldt-" + strings.Repeat("aB0_-", 8),
 		"github classic PAT":                           "token=ghp_" + strings.Repeat("a", 40),
 		"github fine-grained PAT":                      "token=github_pat_" + strings.Repeat("a", 60),
 		"github server token":                          "token=ghs_" + strings.Repeat("a", 40),
@@ -196,5 +198,19 @@ func TestScrubBytesRedactsAcrossMarshaledJSON(t *testing.T) {
 	out := ScrubBytes(data)
 	if strings.Contains(string(out), secret) {
 		t.Fatalf("ScrubBytes did not redact secret material: %s", out)
+	}
+}
+
+func TestScrubGitLabTokenBoundaries(t *testing.T) {
+	for _, prefix := range []string{"glpat-", "gldt-"} {
+		token := prefix + strings.Repeat("aB0_-", 4)
+		input := "https://oauth2:" + token + "@gitlab.example/repo.git"
+		if got := scrubString(input); got != "https://oauth2:[REDACTED]@gitlab.example/repo.git" {
+			t.Fatalf("token not fully redacted: %q", got)
+		}
+		short := prefix + strings.Repeat("a", 19)
+		if got := scrubString(short); got != short {
+			t.Fatalf("short example redacted: %q", got)
+		}
 	}
 }

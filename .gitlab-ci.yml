@@ -333,16 +333,13 @@ self-scan-and-publish:
       # Defense in depth over model.EvidencePack.Scrub / model.ScrubBytes,
       # which already redact secret-shaped strings before a pack is written.
       # This is deliberately not a copy of that list — it is a second,
-      # independent check, and the two patterns that matter most here are ones
-      # Scrub does NOT cover:
-      #
-      #   * glpat- / gldt-  GitLab tokens. Scrub has no GitLab pattern at all,
-      #     and this job holds a GitLab credential.
-      #   * the literal credential values. A Gogs token is 40 hex characters
-      #     with no distinguishing prefix, so NO shape-based pattern —
-      #     Scrub's or this one's — can recognise one. Comparing against the
-      #     actual values is the only check that can, and it also covers any
-      #     future credential whose shape nobody has thought about.
+      # independent check. GitLab glpat-/gldt- prefixes are covered by both
+      # this gate and Scrub. The additional protection here is comparing
+      # the literal credential values. A Gogs token is 40 hex characters
+      # with no distinguishing prefix, so NO shape-based pattern —
+      # Scrub's or this one's — can recognise one. Comparing against the
+      # actual values is the only check that can, and it also covers any
+      # future credential whose shape nobody has thought about.
       #
       # It runs over evidence.json before anything is rendered, and again over
       # the whole rendered tree before a single byte reaches git. Publishing is

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1026,6 +1027,7 @@ func TestWriteEvidencePack_ReturnedHashMatchesWrittenBytes(t *testing.T) {
 func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 	dir := t.TempDir()
 	secret := "ghp_" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	gitlabSecret := "glpat-" + strings.Repeat("aB0_-", 4)
 	pack := model.EvidencePack{
 		SchemaVersion: model.SchemaVersion,
 		ToolVersion:   "test",
@@ -1033,7 +1035,7 @@ func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 		ScanStartedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 		ScanEndedAt:   time.Date(2026, 7, 13, 12, 0, 5, 0, time.UTC),
 		Results: []model.CheckResult{
-			{CheckID: "X", Status: model.StatusVerifiedPass, Reason: "leaked " + secret, Scope: model.ScopeRef{Org: "attestward-demo"}, Provenance: []model.Provenance{}},
+			{CheckID: "X", Status: model.StatusVerifiedPass, Reason: "leaked " + secret + " and " + gitlabSecret, Scope: model.ScopeRef{Org: "attestward-demo"}, Provenance: []model.Provenance{}},
 		},
 	}
 
@@ -1045,7 +1047,7 @@ func TestWriteEvidencePack_ScrubsSecretsFromFinalBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read evidence.json: %v", err)
 	}
-	if bytes.Contains(data, []byte(secret)) {
+	if bytes.Contains(data, []byte(secret)) || bytes.Contains(data, []byte(gitlabSecret)) {
 		t.Error("secret survived into evidence.json")
 	}
 	// This is the one fixture in this file where scrubbing actually
@@ -1317,4 +1319,16 @@ func (c scopeCapturingCollector) ID() string { return "SPY.scope" }
 func (c scopeCapturingCollector) Collect(_ context.Context, scope collect.Scope) ([]model.CheckResult, error) {
 	*c.captured = scope
 	return nil, nil
+}
+
+func TestBuildScanDepsRejectsUnsafeGitLabURL(t *testing.T) {
+	for _, raw := range []string{"https://user:private-value@gitlab.example", "https://gitlab.example?token=private-value", "https://gitlab.example#private-value", "https://private-value%zz"} {
+		_, err := buildScanDeps(scanConfig{Platform: platformGitLab, Org: "group", GitLabURL: raw}, "synthetic-token", io.Discard)
+		if err == nil {
+			t.Fatalf("unsafe GitLab URL accepted: %q", raw)
+		}
+		if strings.Contains(err.Error(), "private-value") {
+			t.Fatal("URL secret leaked in preflight error")
+		}
+	}
 }
