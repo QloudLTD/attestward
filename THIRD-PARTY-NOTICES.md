@@ -708,7 +708,7 @@ Version: `v1.10.2`
 
 ## github.com/spf13/pflag
 
-Version: `v1.0.10`
+Version: `v1.1.0`
 
 ```
 Copyright (c) 2012 Alex Ogier. All rights reserved.
